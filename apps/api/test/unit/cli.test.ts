@@ -7,7 +7,17 @@ import {
   BOOTSTRAP_ACTOR,
   BootstrapAllianceAdminCommand,
 } from '../../src/cli/bootstrap-alliance-admin.js';
-import { type CliHandlers, DEFAULT_SEED_FILE, EXIT, runProgram } from '../../src/cli/program.js';
+import {
+  type CliHandlers,
+  DEFAULT_ATTRIBUTE_SEED_FILE,
+  DEFAULT_SEED_FILE,
+  EXIT,
+  runProgram,
+} from '../../src/cli/program.js';
+import {
+  attributeDefinitionSeedFile,
+  SeedAttributeDefinitionsCommand,
+} from '../../src/cli/seed-attribute-definitions.js';
 import {
   organizationSeedFile,
   SeedOrganizationsCommand,
@@ -31,6 +41,9 @@ function capture() {
 function handlers() {
   return {
     seedOrganizations: vi.fn<CliHandlers['seedOrganizations']>().mockResolvedValue(EXIT.OK),
+    seedAttributeDefinitions: vi
+      .fn<CliHandlers['seedAttributeDefinitions']>()
+      .mockResolvedValue(EXIT.OK),
     bootstrapAllianceAdmin: vi
       .fn<CliHandlers['bootstrapAllianceAdmin']>()
       .mockResolvedValue(EXIT.OK),
@@ -71,6 +84,27 @@ describe('oecp command line', () => {
     );
     expect(h.seedOrganizations).toHaveBeenCalledWith({
       file: resolve('x/orgs.json'),
+      dryRun: true,
+    });
+  });
+
+  it('parses seed-attribute-definitions with defaults and options', async () => {
+    const h = handlers();
+    await runProgram(['seed-attribute-definitions'], h, capture().output);
+    expect(h.seedAttributeDefinitions).toHaveBeenCalledWith({
+      file: DEFAULT_ATTRIBUTE_SEED_FILE,
+      dryRun: false,
+    });
+    expect(DEFAULT_ATTRIBUTE_SEED_FILE).toMatch(
+      /apps\/api\/db\/seed\/attribute-definitions\.json$/,
+    );
+    await runProgram(
+      ['seed-attribute-definitions', '--file', 'x/a.json', '--dry-run'],
+      h,
+      capture().output,
+    );
+    expect(h.seedAttributeDefinitions).toHaveBeenLastCalledWith({
+      file: resolve('x/a.json'),
       dryRun: true,
     });
   });
@@ -291,6 +325,104 @@ describe('seed-organizations', () => {
   it('fails with exit 1 on an invalid file', async () => {
     const io = capture();
     const code = await new SeedOrganizationsCommand(createFakeDb().db).run(
+      { file: resolve('does-not-exist.json'), dryRun: false },
+      io.output,
+    );
+    expect(code).toBe(EXIT.FAILURE);
+  });
+});
+
+describe('seed-attribute-definitions', () => {
+  const read = (name: string) =>
+    JSON.parse(readFileSync(new URL(`../../db/seed/${name}`, import.meta.url), 'utf8'));
+
+  it("ships Aurora's definitions, which are also the default", () => {
+    const aurora = attributeDefinitionSeedFile.parse(read('attribute-definitions.aurora.json'));
+    expect(read('attribute-definitions.json')).toEqual(read('attribute-definitions.aurora.json'));
+    expect(JSON.stringify(read('attribute-definitions.json')['$comment'])).toContain(
+      'To be confirmed by the Aurora Foundation',
+    );
+    const byKey = new Map(aurora.attribute_definitions.map((d) => [d.key, d]));
+    expect([...byKey.keys()]).toEqual([
+      'educational_hub',
+      'sdg',
+      'competence_framework',
+      'micro_credential',
+      'free_course',
+      'enrolled_only',
+      'open_to_alliance',
+      'target_audience',
+    ]);
+    expect(byKey.get('sdg')!.options!.map((o) => o.value)).toEqual(
+      Array.from({ length: 17 }, (_, i) => `sdg${String(i + 1).padStart(2, '0')}`),
+    );
+    expect(byKey.get('sdg')!.options![12]!.label.en).toBe('SDG 13: Climate action');
+    expect(byKey.get('competence_framework')!.options!.map((o) => o.value)).toEqual([
+      'louis',
+      'none',
+    ]);
+    expect(byKey.get('target_audience')!.options!.map((o) => o.value)).toEqual([
+      'students',
+      'phd_candidates',
+      'staff',
+    ]);
+    for (const key of ['micro_credential', 'free_course', 'enrolled_only', 'open_to_alliance']) {
+      expect(byKey.get(key)).toMatchObject({ value_type: 'boolean', options: null });
+    }
+  });
+
+  it('rejects duplicate keys, enums without options and booleans with options', () => {
+    const def = { key: 'hub', value_type: 'boolean', label: { en: 'Hub' } };
+    const parse = (defs: unknown[]) =>
+      attributeDefinitionSeedFile.safeParse({ attribute_definitions: defs }).success;
+    expect(parse([def])).toBe(true);
+    expect(parse([def, def])).toBe(false);
+    expect(parse([{ ...def, value_type: 'enum' }])).toBe(false);
+    expect(parse([{ ...def, options: [{ value: 'a', label: { en: 'A' } }] }])).toBe(false);
+    expect(parse([{ ...def, key: 'Bad-Key' }])).toBe(false);
+  });
+
+  it('upserts by key in one transaction and reports keys missing from the file', async () => {
+    const results: unknown[][] = [
+      [{ inserted: true }],
+      [{ inserted: false }],
+      [],
+      [{ key: 'old' }],
+    ];
+    const fake = createFakeDb(() => results.shift());
+    const defs = attributeDefinitionSeedFile
+      .parse(read('attribute-definitions.aurora.json'))
+      .attribute_definitions.slice(0, 3);
+    const result = await new SeedAttributeDefinitionsCommand(fake.db).upsert(defs);
+    expect(result).toEqual({
+      created: ['educational_hub'],
+      updated: ['sdg'],
+      unchanged: ['competence_framework'],
+      kept: ['old'],
+    });
+    expect(fake.events.filter((e) => e !== 'query')).toEqual(['begin', 'commit']);
+    expect(fake.queries[0]!.sql).toContain('on conflict ("key") do update set');
+    expect(fake.queries[0]!.sql).toMatch(/is distinct from/i);
+    // jsonb arrays are sent as JSON text, not as PostgreSQL arrays.
+    expect(typeof insertedValues(fake.queries[0]!)!['options']).toBe('string');
+  });
+
+  it('reports a dry run without writing', async () => {
+    const fake = createFakeDb((q) => (q.sql.startsWith('select') ? [{ key: 'sdg' }] : undefined));
+    const io = capture();
+    const code = await new SeedAttributeDefinitionsCommand(fake.db).run(
+      { file: DEFAULT_ATTRIBUTE_SEED_FILE, dryRun: true },
+      io.output,
+    );
+    expect(code).toBe(EXIT.OK);
+    expect(fake.queries.every((q) => q.sql.startsWith('select'))).toBe(true);
+    expect(io.out.join('')).toContain('would update  sdg');
+    expect(io.out.join('')).toContain('would create  free_course');
+  });
+
+  it('fails with exit 1 on an unreadable file', async () => {
+    const io = capture();
+    const code = await new SeedAttributeDefinitionsCommand(createFakeDb().db).run(
       { file: resolve('does-not-exist.json'), dryRun: false },
       io.output,
     );

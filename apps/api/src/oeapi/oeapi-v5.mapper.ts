@@ -40,8 +40,13 @@ export interface CourseRow {
   organization_id: string;
   teaching_unit_id: string | null;
   ext_id: string;
+  kind: string;
   ects: string;
   level: string | null;
+  /** Every study cycle, primary (= `level`) first. */
+  levels: string[];
+  /** Alliance attributes, as stored (decision 18). */
+  attributes: Record<string, unknown>;
   eqf_level: number | null;
   teaching_hours: string | null;
   info_url: string | null;
@@ -85,6 +90,8 @@ export interface OfferingRow {
   seats_available: number | null;
   seats_updated_at: Date | null;
   application_url: string | null;
+  /** `{lang: text}`. */
+  application_instructions: Record<string, string>;
   /** Delivery mode codes. */
   modes: string[];
 }
@@ -157,7 +164,11 @@ export interface V5Course {
   organization: string | V5Organization;
   ext: {
     oecp: {
+      /** course / bip / lecture_series / other. */
+      kind: string;
       level: string | null;
+      /** Every study cycle, primary first. */
+      levels: string[];
       eqfLevel: number | null;
       teachingHours: number | null;
       iscedCodes: string[];
@@ -165,6 +176,8 @@ export interface V5Course {
       keywords?: { language: string; value: string[] }[];
       teachingUnit: string | null;
       contactEmail: string | null;
+      /** Alliance attributes keyed by attribute key (definitions in `/api/public/v1/reference`). */
+      attributes: Record<string, unknown>;
       updatedAt: string;
     };
   };
@@ -199,6 +212,8 @@ export interface V5Offering {
       allianceSeats: number | null;
       seatsAvailable: number | null;
       seatsUpdatedAt: string | null;
+      /** How to apply, per language; absent when there is none. */
+      applicationInstructions?: LanguageTypedString[];
     };
   };
 }
@@ -459,7 +474,9 @@ export function toV5Course(
     organization: expand.organization ?? c.organization_id,
     ext: {
       oecp: {
+        kind: c.kind,
         level: c.level,
+        levels: c.levels,
         eqfLevel: c.eqf_level,
         teachingHours: c.teaching_hours === null ? null : Number(c.teaching_hours),
         iscedCodes: b.isced.map((i) => i.isced_code),
@@ -467,6 +484,7 @@ export function toV5Course(
         ...(keywords.length ? { keywords } : {}),
         teachingUnit: c.teaching_unit_id,
         contactEmail: c.contact_email,
+        attributes: c.attributes ?? {},
         updatedAt: c.updated_at.toISOString(),
       },
     },
@@ -481,6 +499,11 @@ export function toV5Offering(
   ctx: MappingContext,
   expand: { academicSession?: V5AcademicSession; course?: V5Course } = {},
 ): V5Offering {
+  const instructions = lts(
+    Object.entries(o.application_instructions ?? {}).sort(([a], [b]) =>
+      a === 'en' ? -1 : b === 'en' ? 1 : a.localeCompare(b),
+    ),
+  );
   return {
     offeringId: o.id,
     primaryCode: { codeType: 'offeringCode', code: o.ext_offering_id },
@@ -512,6 +535,7 @@ export function toV5Offering(
         allianceSeats: o.alliance_seats,
         seatsAvailable: o.seats_available,
         seatsUpdatedAt: o.seats_updated_at ? o.seats_updated_at.toISOString() : null,
+        ...(instructions.length ? { applicationInstructions: instructions } : {}),
       },
     },
   };

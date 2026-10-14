@@ -20,6 +20,8 @@ describe('courseSearchQuery', () => {
       lang: [],
       isced: [],
       level: [],
+      kind: [],
+      attributes: {},
       ectsMin: undefined,
       ectsMax: undefined,
       upcoming: true,
@@ -57,9 +59,33 @@ describe('courseSearchQuery', () => {
     });
   });
 
+  it('collects attr_<key> parameters, kinds and the deadline sort', () => {
+    expect(
+      normalize({
+        attr_free_course: 'true',
+        attr_sdg: ['sdg04', 'sdg13'],
+        kind: 'bip',
+        sort: 'deadline',
+        attributes: 'ignored',
+        'attr_Bad-Key': 'x',
+      }),
+    ).toMatchObject({
+      attributes: { free_course: ['true'], sdg: ['sdg04', 'sdg13'] },
+      kind: ['bip'],
+      sort: 'deadline',
+    });
+  });
+
+  it('caps the number of attribute filters', () => {
+    const many = Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`attr_key${i}`, 'x']));
+    expect(courseSearchQuery.safeParse(many).success).toBe(false);
+  });
+
   it.each([
     { isced: '1' },
     { level: 'phd' },
+    { kind: 'seminar' },
+    { sort: 'popularity' },
     { lang: 'en-GB' },
     { locale: 'EN' },
     { upcoming: 'yes' },
@@ -114,7 +140,10 @@ describe('response contracts', () => {
       abstract: null,
       abstract_lang: null,
       ects: 5,
+      kind: 'course',
       level: null,
+      levels: [],
+      attributes: [],
       isced_broad_fields: [],
       delivery_modes: [],
       teaching_languages: [],

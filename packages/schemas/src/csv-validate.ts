@@ -13,21 +13,30 @@
  */
 import type { z } from 'zod';
 import {
+  type AttributeDefinition,
+  type AttributeValue,
+  parseAttributeCell,
+  sortAttributeDefinitions,
+} from './attributes.js';
+import {
+  CSV_COURSE_ATTRIBUTE_COLUMN,
   CSV_COURSE_LANGUAGE_COLUMN,
   CSV_COURSE_OPTIONAL_COLUMNS,
   CSV_COURSE_REQUIRED_COLUMNS,
   CSV_MAX_CELL_LENGTH,
   CSV_MAX_COLUMNS,
   CSV_MAX_ROWS,
+  CSV_OFFERING_LANGUAGE_COLUMN,
   CSV_OFFERING_OPTIONAL_COLUMNS,
   CSV_OFFERING_REQUIRED_COLUMNS,
+  CSV_TEMPLATE_VERSION,
   type CsvCourseTextField,
   type CsvFileKind,
   csvCourseRow,
   csvOfferingRow,
   splitMultiValue,
 } from './csv.js';
-import type { CourseLevel, LifecycleStatus } from './enums.js';
+import type { CourseKind, CourseLevel, LifecycleStatus } from './enums.js';
 import { ERROR_CODES, type ErrorCode } from './error-codes.js';
 import { issuesToProblemErrors } from './problem.js';
 
@@ -83,6 +92,14 @@ export interface CsvReferenceData {
   teachingUnitCodes?: Iterable<string>;
   /** Course codes already in the catalogue; `offerings.csv` may also use those of `courses.csv`. */
   courseCodes?: Iterable<string>;
+  /**
+   * The alliance's attribute definitions (`/api/public/v1/reference`
+   * `attribute_definitions`, or the database). When given, `attr_<key>` columns
+   * must name a definition and their cells are typed and checked; when absent,
+   * any `attr_<key>` column passes and cells stay verbatim strings (the server
+   * always passes the definitions).
+   */
+  attributeDefinitions?: readonly AttributeDefinition[];
 }
 
 export interface CsvValidateOptions {
@@ -112,7 +129,12 @@ export interface NormalizedCourseRow {
   ects: number;
   /** First is primary. */
   isced_codes: string[];
+  /** Template 1.1; `null` (empty cell) resets to `course`. */
+  kind?: CourseKind | null;
+  /** Primary level: `levels[0]` when the `levels` column is used. */
   level?: CourseLevel | null;
+  /** From `levels` (template 1.1) or, as a single value, from `level`. */
+  levels?: CourseLevel[] | null;
   eqf_level?: number | null;
   teaching_hours?: number | null;
   teaching_unit_code?: string | null;
@@ -122,6 +144,11 @@ export interface NormalizedCourseRow {
   texts: Record<string, NormalizedCourseText>;
   /** Header languages whose cells are all empty: deleted (never `en`). */
   deleted_languages: string[];
+  /**
+   * `attr_<key>` columns of the header, by key: the typed value, or `null` for an
+   * empty cell (attribute removed). Keys without a column are untouched.
+   */
+  attributes: Record<string, AttributeValue | null>;
   /** The row as parsed (cells verbatim). */
   source: Record<string, string>;
 }
@@ -145,6 +172,11 @@ export interface NormalizedOfferingRow {
   alliance_seats?: number | null;
   seats_available?: number | null;
   application_url?: string | null;
+  /**
+   * `application_instructions_<lang>` columns of the header, by language: the
+   * text, or `null` for an empty cell (language removed). Others are untouched.
+   */
+  application_instructions: Record<string, string | null>;
   source: Record<string, string>;
 }
 
@@ -404,7 +436,12 @@ class Collector {
   }
 }
 
-const MULTI_VALUE_COLUMNS = new Set(['isced_codes', 'teaching_languages', 'delivery_modes']);
+const MULTI_VALUE_COLUMNS = new Set([
+  'isced_codes',
+  'teaching_languages',
+  'delivery_modes',
+  'levels',
+]);
 const HEADER_CODES = new Set<ErrorCode>(['oecp.csv.missing_column', 'oecp.csv.unknown_column']);
 
 /** Trims every cell; multi-value cells also lose the spaces around `|`. */
@@ -459,14 +496,27 @@ function schemaIssues(
     });
 }
 
-/** Header checks; returns the columns already reported (not repeated per row). */
+interface HeaderInfo {
+  /** Columns already reported (not repeated per row). */
+  reported: Set<string>;
+  languages: Map<string, Set<CsvCourseTextField>>;
+  /** `attr_<key>` column → key (unknown keys excluded when definitions are given). */
+  attributes: Map<string, string>;
+  /** `application_instructions_<lang>` column → language. */
+  instructions: Map<string, string>;
+}
+
+/** Header checks. */
 function checkHeader(
   kind: CsvFileKind,
   header: readonly string[],
   out: Collector,
-): { reported: Set<string>; languages: Map<string, Set<CsvCourseTextField>> } {
+  definitions: ReadonlyMap<string, AttributeDefinition> | null,
+): HeaderInfo {
   const reported = new Set<string>();
   const languages = new Map<string, Set<CsvCourseTextField>>();
+  const attributes = new Map<string, string>();
+  const instructions = new Map<string, string>();
   const required: readonly string[] =
     kind === 'courses' ? CSV_COURSE_REQUIRED_COLUMNS : CSV_OFFERING_REQUIRED_COLUMNS;
   const fixed = new Set<string>([
@@ -483,7 +533,19 @@ function checkHeader(
   for (const column of header) {
     if (column.trim() === '') continue; // reported by the parser
     const match = kind === 'courses' ? CSV_COURSE_LANGUAGE_COLUMN.exec(column) : null;
-    if (match) {
+    const attribute = kind === 'courses' ? CSV_COURSE_ATTRIBUTE_COLUMN.exec(column) : null;
+    const instruction = kind === 'offerings' ? CSV_OFFERING_LANGUAGE_COLUMN.exec(column) : null;
+    if (attribute) {
+      const key = attribute[1] as string;
+      if (definitions && !definitions.has(key)) {
+        out.add(issue(kind, 'oecp.content.unknown_attribute', { row: 1, column }, key));
+        reported.add(column);
+      } else {
+        attributes.set(column, key);
+      }
+    } else if (instruction) {
+      instructions.set(column, instruction[1] as string);
+    } else if (match) {
       const lang = match[2] as string;
       const fields = languages.get(lang) ?? new Set<CsvCourseTextField>();
       fields.add(match[1] as CsvCourseTextField);
@@ -507,7 +569,11 @@ function checkHeader(
       reported.add(column);
     }
   }
-  return { reported, languages };
+  if (kind === 'courses' && present.has('level') && present.has('levels')) {
+    out.add(issue(kind, 'oecp.csv.conflicting_columns', { row: 1, column: 'level' }));
+    reported.add('level');
+  }
+  return { reported, languages, attributes, instructions };
 }
 
 function isBlankRow(row: Record<string, string>): boolean {
@@ -535,18 +601,22 @@ export function validateCsvRows(
 ): CsvValidationResult<NormalizedCourseRow | NormalizedOfferingRow> {
   const out = new Collector(options.maxIssues ?? DEFAULT_MAX_ISSUES);
   const header = options.header ?? Object.keys(rows[0] ?? {});
-  const { reported, languages } = checkHeader(kind, header, out);
+  const ref = options.referenceData ?? {};
+  const definitions = ref.attributeDefinitions
+    ? new Map(ref.attributeDefinitions.map((d) => [d.key, d]))
+    : null;
+  const info = checkHeader(kind, header, out, definitions);
   if (rows.length === 0 && header.length > 0) {
     out.add(issue(kind, 'oecp.csv.no_data_rows', { row: 1 }));
   }
-  const ref = options.referenceData ?? {};
   const normalized =
     kind === 'courses'
-      ? validateCourses(rows, options, out, reported, languages, {
+      ? validateCourses(rows, options, out, info, {
           isced: toSet(ref.iscedCodes),
           units: toSet(ref.teachingUnitCodes),
+          definitions,
         })
-      : validateOfferings(rows, options, out, reported, {
+      : validateOfferings(rows, options, out, info, {
           modes: toSet(ref.deliveryModes),
           languages: toSet(ref.languageTags),
           courses: toSet(ref.courseCodes),
@@ -564,11 +634,15 @@ function validateCourses(
   rows: readonly Record<string, string>[],
   options: CsvValidateOptions,
   out: Collector,
-  reported: ReadonlySet<string>,
-  languages: ReadonlyMap<string, ReadonlySet<CsvCourseTextField>>,
-  ref: { isced: ReadonlySet<string> | null; units: ReadonlySet<string> | null },
+  header: HeaderInfo,
+  ref: {
+    isced: ReadonlySet<string> | null;
+    units: ReadonlySet<string> | null;
+    definitions: ReadonlyMap<string, AttributeDefinition> | null;
+  },
 ): NormalizedCourseRow[] {
   const file = 'courses';
+  const { reported, languages } = header;
   const seen = new Map<string, number>();
   const normalized: NormalizedCourseRow[] = [];
   rows.forEach((source, index) => {
@@ -646,6 +720,28 @@ function validateCourses(
       texts[lang] = text;
     }
 
+    const attributes: Record<string, AttributeValue | null> = {};
+    for (const [column, key] of header.attributes) {
+      const cell = cells[column] ?? '';
+      const definition = ref.definitions?.get(key);
+      if (!definition) {
+        attributes[key] = cell === '' ? null : cell;
+        continue;
+      }
+      const parsedCell = parseAttributeCell(definition, cell);
+      if (parsedCell.ok) attributes[key] = parsedCell.value;
+      else out.add(issue(file, parsedCell.code, { row, column }, parsedCell.detail));
+    }
+
+    let level = optional(cells, 'level', (x) => x as CourseLevel);
+    let levels: CourseLevel[] | null | undefined =
+      level === undefined ? undefined : level === null ? null : [level];
+    if (Object.hasOwn(cells, 'levels')) {
+      const list = [...new Set(splitMultiValue(cells['levels']))] as CourseLevel[];
+      levels = list.length > 0 ? list : null;
+      level = list[0] ?? null;
+    }
+
     if (out.errorCount > before) return;
     normalized.push({
       row,
@@ -653,7 +749,9 @@ function validateCourses(
       status: v.status as LifecycleStatus,
       ects: Number(v.ects),
       isced_codes: isced,
-      level: optional(cells, 'level', (x) => x as CourseLevel),
+      kind: optional(cells, 'kind', (x) => x as CourseKind),
+      level,
+      levels,
       eqf_level: optional(cells, 'eqf_level', Number),
       teaching_hours: optional(cells, 'teaching_hours', Number),
       teaching_unit_code: unit,
@@ -661,6 +759,7 @@ function validateCourses(
       contact_email: optional(cells, 'contact_email', identity),
       texts,
       deleted_languages: deleted,
+      attributes,
       source,
     });
   });
@@ -671,7 +770,7 @@ function validateOfferings(
   rows: readonly Record<string, string>[],
   options: CsvValidateOptions,
   out: Collector,
-  reported: ReadonlySet<string>,
+  header: HeaderInfo,
   ref: {
     modes: ReadonlySet<string> | null;
     languages: ReadonlySet<string> | null;
@@ -679,6 +778,7 @@ function validateOfferings(
   },
 ): NormalizedOfferingRow[] {
   const file = 'offerings';
+  const { reported } = header;
   const seen = new Map<string, number>();
   const normalized: NormalizedOfferingRow[] = [];
   rows.forEach((source, index) => {
@@ -762,6 +862,9 @@ function validateOfferings(
       alliance_seats: optional(cells, 'alliance_seats', Number),
       seats_available: optional(cells, 'seats_available', Number),
       application_url: optional(cells, 'application_url', identity),
+      application_instructions: Object.fromEntries(
+        [...header.instructions].map(([column, lang]) => [lang, cells[column] || null]),
+      ),
       source,
     });
   });
@@ -885,18 +988,19 @@ export function formatCsv(
   return options.bom ? `\uFEFF${body}` : body;
 }
 
-/** Header and one example row of each template 1.0 file. */
+/** Header and one example row of each template file (current version, without `attr_*` columns). */
 export const CSV_TEMPLATE_EXAMPLES: Readonly<
   Record<CsvFileKind, Readonly<Record<string, string>>>
 > = {
   courses: {
-    template_version: '1.0',
+    template_version: CSV_TEMPLATE_VERSION,
     course_code: 'AUR-SUST-101',
     status: 'draft',
     ects: '5',
     isced_codes: '0521|0312',
     title_en: 'Sustainability and Society',
-    level: 'bachelor',
+    kind: 'course',
+    levels: 'bachelor|master',
     eqf_level: '6',
     teaching_hours: '30',
     teaching_unit_code: '',
@@ -910,7 +1014,7 @@ export const CSV_TEMPLATE_EXAMPLES: Readonly<
     keywords_en: 'sustainability|climate|society',
   },
   offerings: {
-    template_version: '1.0',
+    template_version: CSV_TEMPLATE_VERSION,
     course_code: 'AUR-SUST-101',
     offering_code: '2027S',
     status: 'draft',
@@ -927,12 +1031,42 @@ export const CSV_TEMPLATE_EXAMPLES: Readonly<
     alliance_seats: '10',
     seats_available: '',
     application_url: 'https://www.example.org/apply/aur-sust-101',
+    application_instructions_en:
+      'Contact the alliance office of your home university, which nominates candidates by the application deadline.',
   },
 };
 
-/** The template file (`courses.csv` or `offerings.csv`): header plus example row, with BOM. */
-export function csvTemplate(kind: CsvFileKind): string {
-  const example = CSV_TEMPLATE_EXAMPLES[kind];
+/** Example cell of an `attr_<key>` column in generated templates. */
+export function attributeExampleCell(definition: AttributeDefinition): string {
+  switch (definition.value_type) {
+    case 'boolean':
+      return 'false';
+    case 'text':
+      return '';
+    case 'enum':
+      return definition.options?.[0]?.value ?? '';
+    case 'multi_enum':
+      return (definition.options ?? [])
+        .slice(0, 2)
+        .map((o) => o.value)
+        .join('|');
+  }
+}
+
+/**
+ * The template file (`courses.csv` or `offerings.csv`): header plus example row,
+ * with BOM. `courses.csv` gets one `attr_<key>` column per given definition.
+ */
+export function csvTemplate(
+  kind: CsvFileKind,
+  options: { attributeDefinitions?: readonly AttributeDefinition[] } = {},
+): string {
+  const example: Record<string, string> = { ...CSV_TEMPLATE_EXAMPLES[kind] };
+  if (kind === 'courses') {
+    for (const definition of sortAttributeDefinitions(options.attributeDefinitions ?? [])) {
+      example[`attr_${definition.key}`] = attributeExampleCell(definition);
+    }
+  }
   return formatCsv([Object.keys(example), Object.values(example)], { bom: true });
 }
 

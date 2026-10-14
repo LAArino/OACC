@@ -6,8 +6,11 @@
  * writer resolves UUIDs. Custom issue messages are stable error codes.
  */
 import { z } from 'zod';
+import { courseAttributes } from './attributes.js';
 import {
+  courseKind,
   courseLevel,
+  type CourseLevel,
   lifecycleStatus,
   orgType,
   schemaOrgCourseMode,
@@ -94,13 +97,35 @@ export const courseText = z.object({
 });
 export type CourseText = z.infer<typeof courseText>;
 
+/**
+ * `level` (primary, the one OEAPI can express) and `levels` (all study cycles)
+ * kept consistent: a non-empty `levels` wins and its first entry is the level;
+ * otherwise a lone `level` becomes `[level]`. Duplicates are dropped.
+ */
+export function resolveLevels(
+  level: CourseLevel | null | undefined,
+  levels: readonly CourseLevel[] | null | undefined,
+): { level: CourseLevel | null; levels: CourseLevel[] } {
+  const list = [...new Set(levels ?? [])];
+  if (list.length > 0) return { level: list[0] as CourseLevel, levels: list };
+  return level ? { level, levels: [level] } : { level: null, levels: [] };
+}
+
+/** `course_offerings.application_instructions`: how to apply, keyed by primary language subtag. */
+export const applicationInstructions = z.record(primaryLanguage, z.string().min(1).max(20_000));
+export type ApplicationInstructions = z.infer<typeof applicationInstructions>;
+
 export const course = z
   .object({
     ext_id: extId,
     source_ref: z.string().min(1).nullable().optional(),
     status: lifecycleStatus,
+    kind: courseKind.default('course'),
     ects: z.number().positive().max(120),
+    /** Primary level; equals `levels[0]` when `levels` is not empty. */
     level: courseLevel.nullable().optional(),
+    /** Every study cycle the course is open to, primary first (decision 18). */
+    levels: z.array(courseLevel).max(5).default([]),
     eqf_level: z.int().min(1).max(8).nullable().optional(),
     teaching_hours: z.number().positive().max(99999.9).nullable().optional(),
     teaching_unit_ext_id: extId.nullable().optional(),
@@ -110,8 +135,16 @@ export const course = z
     isced_codes: z.array(iscedCode).default([]),
     /** Keyed by primary language subtag. */
     texts: z.record(primaryLanguage, courseText),
+    /** Alliance attributes; checked against `attribute_definitions` by the writer. */
+    attributes: courseAttributes.default({}),
   })
   .superRefine((c, ctx) => {
+    if (new Set(c.levels).size !== c.levels.length) {
+      ctx.addIssue({ code: 'custom', path: ['levels'], message: 'oecp.content.invalid_value' });
+    }
+    if (c.levels.length > 0 && c.level != null && c.level !== c.levels[0]) {
+      ctx.addIssue({ code: 'custom', path: ['level'], message: 'oecp.content.invalid_value' });
+    }
     if (c.status === 'published' && !c.texts['en']) {
       ctx.addIssue({
         code: 'custom',
@@ -149,6 +182,8 @@ export const courseOffering = z
     seats_available: z.int().nonnegative().nullable().optional(),
     seats_updated_at: isoDateTime.nullable().optional(),
     application_url: httpsUrl.nullable().optional(),
+    /** How to apply (e.g. a nomination process), next to `application_url`. */
+    application_instructions: applicationInstructions.default({}),
   })
   .superRefine((o, ctx) => {
     const issue = (path: string, message: string) =>

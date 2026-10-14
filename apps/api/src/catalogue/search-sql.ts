@@ -11,7 +11,7 @@
  * word similarity on the unaccented lower-case title (typo tolerance). Ranking is
  * `ts_rank_cd` + 0.3 × title trigram similarity, the best text of a course wins.
  */
-import type { NormalizedCourseSearch } from '@oecp/schemas';
+import type { AttributeDefinition, NormalizedCourseSearch } from '@oecp/schemas';
 import { type RawBuilder, sql } from 'kysely';
 
 /** Text search configurations of migrations 0001/0004 (`oecp_ts_config`). */
@@ -87,7 +87,37 @@ export function hitsCte(text: TextQuery): RawBuilder<unknown> {
     GROUP BY t.course_id)`;
 }
 
-export type FacetKey = 'partner' | 'mode' | 'lang' | 'isced' | 'level';
+/** Fixed facets, plus one `attr:<key>` per filterable attribute definition. */
+export type FacetKey = 'partner' | 'mode' | 'lang' | 'isced' | 'level' | 'kind' | `attr:${string}`;
+
+export const attributeFacetKey = (key: string): FacetKey => `attr:${key}`;
+
+/**
+ * `c.attributes @> {key: value}` per accepted value, OR-ed (GIN jsonb_path_ops).
+ * Booleans accept `true`/`false`, `multi_enum` matches a list containing the
+ * value; a value the definition cannot hold matches nothing.
+ */
+export function attributeCondition(
+  definition: Pick<AttributeDefinition, 'key' | 'value_type'>,
+  values: readonly string[],
+): RawBuilder<unknown> {
+  const branches = values.map((value) => {
+    let stored: unknown;
+    switch (definition.value_type) {
+      case 'boolean':
+        if (value !== 'true' && value !== 'false') return sql`false`;
+        stored = value === 'true';
+        break;
+      case 'multi_enum':
+        stored = [value];
+        break;
+      default:
+        stored = value;
+    }
+    return sql`c.attributes @> ${JSON.stringify({ [definition.key]: stored })}::jsonb`;
+  });
+  return branches.length ? sql`(${sql.join(branches, sql` OR `)})` : sql`true`;
+}
 
 /**
  * Filters of one search request as SQL. Aliases: `c` courses, `org` the course's
@@ -95,13 +125,38 @@ export type FacetKey = 'partner' | 'mode' | 'lang' | 'isced' | 'level';
  */
 export class CourseSearchSql {
   readonly text: TextQuery | null;
+  /** The alliance's definitions by key. */
+  private readonly definitions: ReadonlyMap<string, AttributeDefinition>;
+  /** `attr_<key>` filters whose key has a definition (others are ignored). */
+  readonly attributeFilters: readonly { definition: AttributeDefinition; values: string[] }[];
 
   constructor(
     readonly search: NormalizedCourseSearch,
     /** `YYYY-MM-DD`; offerings with `end_date >= today` are upcoming. */
     readonly today: string,
+    definitions: readonly AttributeDefinition[] = [],
   ) {
     this.text = search.q ? parseTextQuery(search.q) : null;
+    this.definitions = new Map(definitions.map((d) => [d.key, d]));
+    this.attributeFilters = Object.entries(search.attributes ?? {}).flatMap(([key, values]) => {
+      const definition = this.definitions.get(key);
+      return definition && values.length ? [{ definition, values }] : [];
+    });
+  }
+
+  /** Facets of this request: the fixed ones, then each filterable definition. */
+  facetKeys(): FacetKey[] {
+    return [
+      'partner',
+      'mode',
+      'lang',
+      'isced',
+      'level',
+      'kind',
+      ...[...this.definitions.values()]
+        .filter((d) => d.filterable)
+        .map((d) => attributeFacetKey(d.key)),
+    ];
   }
 
   /** `WITH hits AS (…)` when the request has a text query, else nothing. */
@@ -155,7 +210,13 @@ export class CourseSearchSql {
       conds.push(sql`EXISTS (SELECT 1 FROM course_isced_codes i
         WHERE i.course_id = c.id AND i.broad_code = ANY(${s.isced}::text[]))`);
     }
-    if (s.level.length && omit !== 'level') conds.push(sql`c.level = ANY(${s.level}::text[])`);
+    if (s.level.length && omit !== 'level') conds.push(sql`c.levels && ${s.level}::text[]`);
+    if (s.kind.length && omit !== 'kind') conds.push(sql`c.kind = ANY(${s.kind}::text[])`);
+    for (const { definition, values } of this.attributeFilters) {
+      if (omit !== attributeFacetKey(definition.key)) {
+        conds.push(attributeCondition(definition, values));
+      }
+    }
     if (s.ectsMin !== undefined) conds.push(sql`c.ects >= ${s.ectsMin}`);
     if (s.ectsMax !== undefined) conds.push(sql`c.ects <= ${s.ectsMax}`);
     if (options.offerings !== false && this.needsOffering(omit)) {
@@ -180,16 +241,23 @@ export class CourseSearchSql {
         (SELECT t.title FROM course_texts t WHERE t.course_id = c.id AND t.lang = 'en')))`;
     const nextStart = sql`(SELECT min(o.start_date) FROM course_offerings o
         WHERE o.course_id = c.id AND ${this.offeringConditions({ forceUpcoming: true })})`;
+    // Next application deadline not yet passed (deadline day included).
+    const nextDeadline = sql`(SELECT min(o.application_deadline) FROM course_offerings o
+        WHERE o.course_id = c.id AND ${this.offeringConditions({ forceUpcoming: true })}
+          AND o.application_deadline >= ${this.today}::date)`;
     const order =
       s.sort === 'relevance' && this.text
         ? sql`h.rank DESC, next_start ASC NULLS LAST, title_key ASC, c.id`
         : s.sort === 'title'
           ? sql`title_key ASC, c.id`
-          : sql`next_start ASC NULLS LAST, title_key ASC, c.id`;
+          : s.sort === 'deadline'
+            ? sql`next_deadline ASC NULLS LAST, next_start ASC NULLS LAST, title_key ASC, c.id`
+            : sql`next_start ASC NULLS LAST, title_key ASC, c.id`;
+    const deadlineColumn = s.sort === 'deadline' ? sql`, ${nextDeadline} AS next_deadline` : sql``;
     const hitsJoin = this.text ? sql`JOIN hits h ON h.course_id = c.id` : sql``;
     return sql<{
       id: string;
-    }>`${this.with()}SELECT c.id, ${nextStart} AS next_start, ${title} AS title_key
+    }>`${this.with()}SELECT c.id, ${nextStart} AS next_start, ${title} AS title_key${deadlineColumn}
       FROM courses c JOIN organizations org ON org.id = c.organization_id ${hitsJoin}
       WHERE ${this.courseConditions()}
       ORDER BY ${order}
@@ -200,14 +268,37 @@ export class CourseSearchSql {
   facetQuery(facet: FacetKey): RawBuilder<{ value: string; count: string }> {
     const from = sql`FROM courses c JOIN organizations org ON org.id = c.organization_id`;
     const order = sql`ORDER BY count DESC, value ASC`;
+    if (facet.startsWith('attr:')) {
+      const definition = this.definitions.get(facet.slice(5));
+      if (!definition) throw new Error(`Unknown attribute facet ${facet}`);
+      const value = sql`c.attributes -> ${definition.key}::text`;
+      const where = sql`${this.courseConditions({ omit: facet })}`;
+      switch (definition.value_type) {
+        case 'multi_enum':
+          return sql`${this.with()}SELECT v.value, count(DISTINCT c.id) AS count ${from}
+            CROSS JOIN LATERAL jsonb_array_elements_text(
+              CASE WHEN jsonb_typeof(${value}) = 'array' THEN ${value} ELSE '[]'::jsonb END) AS v(value)
+            WHERE ${where} GROUP BY v.value ${order}`;
+        case 'boolean':
+          return sql`${this.with()}SELECT (${value})::text AS value, count(*) AS count ${from}
+            WHERE ${where} AND jsonb_typeof(${value}) = 'boolean' GROUP BY 1 ${order}`;
+        default:
+          return sql`${this.with()}SELECT c.attributes ->> ${definition.key}::text AS value, count(*) AS count ${from}
+            WHERE ${where} AND jsonb_typeof(${value}) = 'string' GROUP BY 1 ${order}`;
+      }
+    }
     switch (facet) {
       case 'partner':
         return sql`${this.with()}SELECT org.slug AS value, count(*) AS count ${from}
           WHERE ${this.courseConditions({ omit: 'partner' })} GROUP BY org.slug ${order}`;
       case 'level':
-        return sql`${this.with()}SELECT c.level AS value, count(*) AS count ${from}
-          WHERE ${this.courseConditions({ omit: 'level' })} AND c.level IS NOT NULL
-          GROUP BY c.level ${order}`;
+        return sql`${this.with()}SELECT lv.value, count(DISTINCT c.id) AS count ${from}
+          CROSS JOIN LATERAL unnest(c.levels) AS lv(value)
+          WHERE ${this.courseConditions({ omit: 'level' })}
+          GROUP BY lv.value ${order}`;
+      case 'kind':
+        return sql`${this.with()}SELECT c.kind AS value, count(*) AS count ${from}
+          WHERE ${this.courseConditions({ omit: 'kind' })} GROUP BY c.kind ${order}`;
       case 'isced':
         return sql`${this.with()}SELECT i.broad_code AS value, count(DISTINCT c.id) AS count ${from}
           JOIN course_isced_codes i ON i.course_id = c.id
@@ -226,6 +317,8 @@ export class CourseSearchSql {
           WHERE ${this.courseConditions({ omit: 'lang', offerings: false })}
             AND ${this.offeringConditions({ omit: 'lang' })}
           GROUP BY split_part(tl.tag, '-', 1) ${order}`;
+      default:
+        throw new Error(`Unknown facet ${facet}`);
     }
   }
 }

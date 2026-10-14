@@ -30,6 +30,7 @@ import { CsvQueue } from '../../src/ingestion/csv/csv.queue.js';
 import { UploadStorage } from '../../src/ingestion/csv/upload-storage.js';
 import { SyncRunsRepository } from '../../src/ingestion/sync-runs.repository.js';
 import { BASE_CLAIMS, createTestTokens } from '../support/admin-tokens.js';
+import { seedAttributeDefinitions } from '../support/attribute-definitions.js';
 import { configStub } from '../support/config-stub.js';
 import {
   createTestDatabase,
@@ -126,6 +127,7 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       { ...BASE_CLAIMS, roles: ['alliance_admin'], org_id: ORG.aurora },
       ALLIANCE_SUB,
     )}`;
+    await seedAttributeDefinitions(tdb.db);
     // UIBK harvests over OEAPI: CSV is refused there (spec §6.5).
     await tdb.db
       .insertInto('partner_integrations')
@@ -163,7 +165,7 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       run: {
         channel: 'csv',
         trigger_kind: 'upload',
-        schema_version: 'csv-1.0',
+        schema_version: 'csv-1.1',
         triggered_by: ALLIANCE_SUB,
         n_created: 16,
         n_updated: 0,
@@ -196,8 +198,19 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       source_channel: 'csv',
       source_ref: null,
       status: 'published',
+      kind: 'bip',
       level: 'master',
+      levels: ['master', 'bachelor'],
       eqf_level: 7,
+      attributes: {
+        educational_hub: ['social_entrepreneurship_innovation'],
+        sdg: ['sdg08', 'sdg09'],
+        micro_credential: false,
+        free_course: true,
+        enrolled_only: true,
+        open_to_alliance: true,
+        target_audience: ['students'],
+      },
     });
     expect(Number(course.ects)).toBe(6);
     const text = await tdb.db
@@ -232,6 +245,7 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
         'course_offerings.teaching_languages',
         'course_offerings.application_url',
         'course_offerings.application_deadline',
+        'course_offerings.application_instructions',
         'academic_sessions.ext_id as session',
       ])
       .where('course_offerings.course_id', '=', course.id)
@@ -241,8 +255,23 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       teaching_languages: ['en'],
       application_url: null,
       application_deadline: '2026-11-15',
+      application_instructions: {
+        en: expect.stringMatching(/^Apply through the Aurora office of your home university/),
+      },
       session: 'AUR-2026-27-S2',
     });
+    const kinds = await tdb.db
+      .selectFrom('courses')
+      .select(['kind', sql<string>`count(*)`.as('n')])
+      .where('organization_id', '=', ORG.aurora)
+      .groupBy('kind')
+      .orderBy('kind')
+      .execute();
+    expect(kinds.map((k) => [k.kind, Number(k.n)])).toEqual([
+      ['bip', 2],
+      ['course', 5],
+      ['lecture_series', 1],
+    ]);
     const sessions = await tdb.db
       .selectFrom('academic_sessions')
       .selectAll()
@@ -269,9 +298,9 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
     expect(history.filter((h) => h.entity_type === 'course')).toHaveLength(8);
     expect(history.filter((h) => h.entity_type === 'course_offering')).toHaveLength(8);
     expect(history.filter((h) => h.entity_type === 'academic_session')).toHaveLength(2);
-    expect(history.every((h) => h.channel === 'csv' && h.schema_version === 'csv-1.0')).toBe(true);
+    expect(history.every((h) => h.channel === 'csv' && h.schema_version === 'csv-1.1')).toBe(true);
     expect(history.find((h) => h.entity_type === 'course')?.raw_payload).toMatchObject({
-      template_version: '1.0',
+      template_version: '1.1',
     });
 
     const audit = await tdb.db
@@ -332,6 +361,17 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       .executeTakeFirstOrThrow();
     expect(kept.level).toBe('master');
     expect(kept.abstract).toMatch(/^Graduate course/);
+    // A 1.0 row leaves kind, levels and attributes as they were.
+    const attributes = await tdb.db
+      .selectFrom('courses')
+      .select(['kind', 'levels', 'attributes'])
+      .where('ext_id', '=', 'AVC-SUST-EDU')
+      .executeTakeFirstOrThrow();
+    expect(attributes).toMatchObject({
+      kind: 'course',
+      levels: ['master'],
+      attributes: { competence_framework: 'louis', micro_credential: true },
+    });
     const audit = await tdb.db
       .selectFrom('audit_log')
       .select(['action', 'changes'])
@@ -423,6 +463,52 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       severity: 'error',
     });
     expect(errors).toHaveLength(4);
+  });
+
+  it('updates attributes per column and rejects values outside the definitions', async () => {
+    const header = `${COURSES_HEADER},kind,levels,attr_free_course,attr_sdg`;
+    const ok = await upload(ORG.aurora, {
+      courses: `${header}
+1.1,AVC-GIS-SOCIETY,published,5,0532|0312,Analysing societal challenges using Geographical Information Systems,lecture_series,master,no,sdg13
+`,
+    }).expect(201);
+    expect(ok.body.run).toMatchObject({ n_updated: 1 });
+    const course = await tdb.db
+      .selectFrom('courses')
+      .select(['kind', 'level', 'levels', 'attributes'])
+      .where('ext_id', '=', 'AVC-GIS-SOCIETY')
+      .executeTakeFirstOrThrow();
+    expect(course).toEqual({
+      kind: 'lecture_series',
+      level: 'master',
+      levels: ['master'],
+      attributes: {
+        educational_hub: ['sustainability_climate_change', 'digital_society_global_citizenship'],
+        sdg: ['sdg13'],
+        micro_credential: false,
+        free_course: false,
+        enrolled_only: true,
+        open_to_alliance: true,
+        target_audience: ['students'],
+      },
+    });
+
+    const bad = await upload(ORG.aurora, {
+      courses: `${header},attr_hub
+1.1,AVC-GIS-SOCIETY,published,5,0532,GIS,course,master,maybe,sdg18,x
+`,
+    }).expect(422);
+    expect(bad.body.errors.map((e: Record<string, unknown>) => [e.row, e.column, e.code])).toEqual([
+      [1, 'attr_hub', 'oecp.content.unknown_attribute'],
+      [2, 'attr_free_course', 'oecp.content.invalid_attribute_value'],
+      [2, 'attr_sdg', 'oecp.content.unknown_attribute_option'],
+    ]);
+    const unchanged = await tdb.db
+      .selectFrom('courses')
+      .select('kind')
+      .where('ext_id', '=', 'AVC-GIS-SOCIETY')
+      .executeTakeFirstOrThrow();
+    expect(unchanged.kind).toBe('lecture_series');
   });
 
   it('rejects files that are not UTF-8', async () => {
@@ -520,6 +606,19 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
     expect(courses.headers['content-type']).toMatch(/^text\/csv/);
     expect(courses.headers['content-disposition']).toBe('attachment; filename="courses.csv"');
     expect(courses.text.startsWith('\uFEFFtemplate_version,course_code,status,')).toBe(true);
+    const header = courses.text.slice(1).split('\r\n')[0]!.split(',');
+    expect(header).toEqual(expect.arrayContaining(['kind', 'levels']));
+    expect(header.filter((c) => c.startsWith('attr_'))).toEqual([
+      'attr_educational_hub',
+      'attr_sdg',
+      'attr_competence_framework',
+      'attr_micro_credential',
+      'attr_free_course',
+      'attr_enrolled_only',
+      'attr_open_to_alliance',
+      'attr_target_audience',
+    ]);
+    expect(courses.text.split('\r\n')[1]!.startsWith('1.1,')).toBe(true);
     const offerings = await http()
       .get('/api/admin/v1/csv-template/offerings.csv')
       .set('Authorization', auth.partner)
@@ -530,8 +629,9 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       .set('Authorization', auth.partner)
       .expect(200);
     expect(schema.headers['content-type']).toMatch(/^application\/schema\+json/);
+    expect(schema.headers['content-disposition']).toContain('oecp-csv-1.1.schema.json');
     expect(JSON.parse(schema.text)).toMatchObject({
-      $id: 'urn:oecp:schema:csv:1.0',
+      $id: 'urn:oecp:schema:csv:1.1',
       $defs: { courseRow: expect.any(Object), offeringRow: expect.any(Object) },
     });
     await http().get('/api/admin/v1/csv-template/courses.csv').expect(401);

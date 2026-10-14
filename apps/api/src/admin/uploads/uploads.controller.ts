@@ -13,6 +13,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import {
+  type AttributeDefinition,
   type CsvFileKind,
   type CsvIssue,
   type CsvUploadResponse,
@@ -45,7 +46,7 @@ const MAX_PROBLEM_ERRORS = 1_000;
 
 const uuid = new ParseUUIDPipe();
 const CSV_SCHEMA_PATH = createRequire(import.meta.url).resolve(
-  '@oecp/schemas/json/csv/oecp-csv-1.0.schema.json',
+  '@oecp/schemas/json/csv/oecp-csv-1.1.schema.json',
 );
 let csvSchema: Promise<unknown> | undefined;
 
@@ -133,9 +134,10 @@ export class UploadsController {
     };
   }
 
+  /** Template 1.1 with one `attr_<key>` column per attribute definition of the alliance. */
   @Get('csv-template/courses.csv')
-  coursesTemplate(@Res({ passthrough: true }) response: HttpResponse): string {
-    return this.template('courses', response);
+  async coursesTemplate(@Res({ passthrough: true }) response: HttpResponse): Promise<string> {
+    return this.template('courses', response, await this.uploads.attributeDefinitions());
   }
 
   @Get('csv-template/offerings.csv')
@@ -143,19 +145,27 @@ export class UploadsController {
     return this.template('offerings', response);
   }
 
-  /** The generated JSON Schema 2020-12 of template 1.0 (spec §6.3). */
+  /**
+   * The generated JSON Schema 2020-12 of template 1.1 (spec §6.3), which also
+   * accepts 1.0 files; `attr_<key>` cells are checked against the definitions
+   * by the validator, not by the schema.
+   */
   @Get('csv-template/schema.json')
   async schema(@Res({ passthrough: true }) response: HttpResponse): Promise<unknown> {
     csvSchema ??= readFile(CSV_SCHEMA_PATH, 'utf8').then((text) => JSON.parse(text) as unknown);
     response.setHeader('Content-Type', 'application/schema+json; charset=utf-8');
-    response.setHeader('Content-Disposition', 'inline; filename="oecp-csv-1.0.schema.json"');
+    response.setHeader('Content-Disposition', 'inline; filename="oecp-csv-1.1.schema.json"');
     return csvSchema;
   }
 
-  private template(kind: CsvFileKind, response: HttpResponse): string {
+  private template(
+    kind: CsvFileKind,
+    response: HttpResponse,
+    attributeDefinitions: readonly AttributeDefinition[] = [],
+  ): string {
     response.setHeader('Content-Type', 'text/csv; charset=utf-8');
     response.setHeader('Content-Disposition', `attachment; filename="${kind}.csv"`);
     response.setHeader('X-Content-Type-Options', 'nosniff');
-    return csvTemplate(kind);
+    return csvTemplate(kind, { attributeDefinitions });
   }
 }

@@ -9,6 +9,7 @@ import type { Env } from '../config/env.js';
 import { DbModule } from '../db/db.module.js';
 import { SecretsModule } from '../secrets/secrets.module.js';
 import { BootstrapAllianceAdminCommand } from './bootstrap-alliance-admin.js';
+import { SeedAttributeDefinitionsCommand } from './seed-attribute-definitions.js';
 import { SeedOrganizationsCommand } from './seed-organizations.js';
 import { StoreSecretCommand } from './store-secret.js';
 
@@ -26,6 +27,11 @@ const CliLoggerModule = LoggerModule.forRootAsync({
 /** Application context of the `oecp` CLI: no HTTP server, no queues. */
 @Module({
   imports: [AppConfigModule, CliLoggerModule, DbModule, InvitationsModule, SecretsModule],
-  providers: [SeedOrganizationsCommand, BootstrapAllianceAdminCommand, StoreSecretCommand],
+  providers: [
+    SeedOrganizationsCommand,
+    SeedAttributeDefinitionsCommand,
+    BootstrapAllianceAdminCommand,
+    StoreSecretCommand,
+  ],
 })
 export class CliModule {}

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: EUPL-1.2
 import { readFileSync } from 'node:fs';
+import { attributeDefinitionSeedFile } from '../../src/cli/seed-attribute-definitions.js';
 import {
   course as courseSchema,
   courseOffering as courseOfferingSchema,
@@ -52,7 +53,10 @@ const baseOffering = {
 };
 
 const existingCourse: ExistingCourse = {
+  kind: 'course',
   level: 'master',
+  levels: ['master'],
+  attributes: {},
   eqf_level: 7,
   teaching_hours: 42,
   teaching_unit_ext_id: 'FAC',
@@ -110,8 +114,10 @@ describe('CsvAdapter.mapCourse', () => {
       ext_id: 'C-1',
       source_ref: null,
       status: 'published',
+      kind: 'course',
       ects: 7.5,
       level: 'master',
+      levels: ['master'],
       eqf_level: 7,
       teaching_hours: null,
       teaching_unit_ext_id: null,
@@ -140,6 +146,7 @@ describe('CsvAdapter.mapCourse', () => {
           is_machine_translated: false,
         },
       },
+      attributes: {},
     });
     expect(result.value.raw).toMatchObject({ course_code: 'C-1', abstract_en: 'Intro' });
     expect(courseSchema.safeParse(result.value.course).success).toBe(true);
@@ -200,6 +207,7 @@ describe('CsvAdapter.mapOffering', () => {
       seats_available: 4,
       seats_updated_at: UPLOADED.toISOString(),
       application_url: null,
+      application_instructions: {},
     });
     expect(courseOfferingSchema.safeParse(result.value.offering).success).toBe(true);
   });
@@ -216,6 +224,7 @@ describe('CsvAdapter.mapOffering', () => {
       seats_available: 3,
       seats_updated_at: '2026-09-01T00:00:00.000Z',
       application_url: 'https://apply.example.org',
+      application_instructions: { en: 'Old instructions' },
     };
     const result = adapter.mapOffering(offeringRow({ ...baseOffering, campus: '' }), existing, ctx);
     expect(result.ok && result.value.offering).toMatchObject({
@@ -282,6 +291,108 @@ describe('CsvAdapter.mapOffering', () => {
   });
 });
 
+describe('template 1.1 columns', () => {
+  const definitions = attributeDefinitionSeedFile.parse(
+    JSON.parse(
+      readFileSync(
+        new URL('../../db/seed/attribute-definitions.aurora.json', import.meta.url),
+        'utf8',
+      ),
+    ),
+  ).attribute_definitions;
+  const rows = (row: Record<string, string>) => {
+    const result = validateCsvRows('courses', [row], {
+      referenceData: { attributeDefinitions: definitions },
+    });
+    expect(result.errors).toEqual([]);
+    return result.normalized[0] as NormalizedCourseRow;
+  };
+
+  it('merges attribute columns into the current attributes; absent keys stay', () => {
+    const existing: ExistingCourse = {
+      ...existingCourse,
+      kind: 'bip',
+      levels: ['master', 'bachelor'],
+      attributes: { free_course: true, sdg: ['sdg01'] },
+    };
+    const result = adapter.mapCourse(
+      rows({
+        ...baseCourse,
+        template_version: '1.1',
+        attr_sdg: 'sdg13|sdg04',
+        attr_free_course: '',
+        attr_micro_credential: 'no',
+      }),
+      existing,
+    );
+    expect(result.ok && result.value.course).toMatchObject({
+      kind: 'bip',
+      level: 'master',
+      levels: ['master', 'bachelor'],
+      attributes: { micro_credential: false, sdg: ['sdg04', 'sdg13'] },
+    });
+    expect(result.ok && Object.keys(result.value.course.attributes)).toEqual([
+      'micro_credential',
+      'sdg',
+    ]);
+  });
+
+  it('sets kind and levels; empty cells reset them', () => {
+    const set = adapter.mapCourse(
+      rows({
+        ...baseCourse,
+        template_version: '1.1',
+        kind: 'lecture_series',
+        levels: 'bachelor|master',
+      }),
+      existingCourse,
+    );
+    expect(set.ok && set.value.course).toMatchObject({
+      kind: 'lecture_series',
+      level: 'bachelor',
+      levels: ['bachelor', 'master'],
+    });
+    const cleared = adapter.mapCourse(
+      rows({ ...baseCourse, template_version: '1.1', kind: '', levels: '' }),
+      { ...existingCourse, kind: 'bip' },
+    );
+    expect(cleared.ok && cleared.value.course).toMatchObject({
+      kind: 'course',
+      level: null,
+      levels: [],
+    });
+  });
+
+  it('merges application instructions per language', () => {
+    const result = adapter.mapOffering(
+      offeringRow({
+        ...baseOffering,
+        template_version: '1.1',
+        application_instructions_de: 'Bewerbung über das Aurora-Büro.',
+        application_instructions_fr: '',
+      }),
+      {
+        academic_session_ext_id: null,
+        enrol_start_date: null,
+        application_deadline: null,
+        timezone: 'Europe/Vienna',
+        campus: null,
+        max_students: null,
+        alliance_seats: null,
+        seats_available: null,
+        seats_updated_at: null,
+        application_url: null,
+        application_instructions: { en: 'Apply via your Aurora office.', fr: 'Postulez.' },
+      },
+      ctx,
+    );
+    expect(result.ok && result.value.offering.application_instructions).toEqual({
+      de: 'Bewerbung über das Aurora-Büro.',
+      en: 'Apply via your Aurora office.',
+    });
+  });
+});
+
 describe('Aurora Virtual Campus fixture', () => {
   const read = (file: string) =>
     readFileSync(
@@ -298,6 +409,14 @@ describe('Aurora Virtual Campus fixture', () => {
           deliveryModes: ['online', 'blended', 'hybrid', 'presential'],
           teachingUnitCodes: [],
           courseCodes: [],
+          attributeDefinitions: attributeDefinitionSeedFile.parse(
+            JSON.parse(
+              readFileSync(
+                new URL('../../db/seed/attribute-definitions.aurora.json', import.meta.url),
+                'utf8',
+              ),
+            ),
+          ).attribute_definitions,
         },
       },
     );
@@ -306,12 +425,25 @@ describe('Aurora Virtual Campus fixture', () => {
     expect(result.warningCount).toBe(0);
     expect(result.courses?.normalized).toHaveLength(8);
     expect(result.offerings?.normalized).toHaveLength(8);
-    for (const row of result.courses?.normalized ?? []) {
-      expect(adapter.mapCourse(row).ok).toBe(true);
-    }
+    const courses = (result.courses?.normalized ?? []).map((row) => {
+      const mapped = adapter.mapCourse(row);
+      expect(mapped.ok).toBe(true);
+      return mapped.ok ? mapped.value.course : null;
+    });
+    const byCode = new Map(courses.map((c) => [c?.ext_id, c]));
+    expect(byCode.get('AVC-BIP-AI-ETHICS')).toMatchObject({
+      kind: 'bip',
+      levels: ['bachelor', 'master'],
+      attributes: { educational_hub: ['digital_society_global_citizenship'], free_course: true },
+    });
+    expect(byCode.get('AVC-IDENT-DIV')?.kind).toBe('lecture_series');
+    expect(courses.filter((c) => c?.kind === 'bip')).toHaveLength(2);
     for (const row of result.offerings?.normalized ?? []) {
       const mapped = adapter.mapOffering(row, undefined, ctx);
       expect(mapped.ok && mapped.value.offering.application_url).toBeNull();
+      expect(mapped.ok && mapped.value.offering.application_instructions.en).toMatch(
+        /^Apply through the Aurora office of your home university/,
+      );
     }
   });
 });

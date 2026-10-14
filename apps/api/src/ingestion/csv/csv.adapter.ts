@@ -5,6 +5,9 @@ import {
   academicSession as academicSessionSchema,
   type Course,
   course as courseSchema,
+  type CourseAttributes,
+  type CourseKind,
+  type CourseLevel,
   type CourseOffering,
   courseOffering as courseOfferingSchema,
   type CourseText,
@@ -16,6 +19,7 @@ import {
   isErrorCode,
   type NormalizedCourseRow,
   type NormalizedOfferingRow,
+  resolveLevels,
 } from '@oecp/schemas';
 import type { z } from 'zod';
 
@@ -24,7 +28,10 @@ import type { z } from 'zod';
  * ("a column absent from the header leaves the field untouched", spec §6.3).
  */
 export interface ExistingCourse {
+  kind: CourseKind;
   level: Course['level'];
+  levels: CourseLevel[];
+  attributes: CourseAttributes;
   eqf_level: number | null;
   teaching_hours: number | null;
   teaching_unit_ext_id: string | null;
@@ -46,6 +53,7 @@ export interface ExistingOffering {
   seats_available: number | null;
   seats_updated_at: string | null;
   application_url: string | null;
+  application_instructions: Record<string, string>;
 }
 
 export interface CsvMappingContext {
@@ -81,6 +89,22 @@ const OFFERING_COLUMNS: Readonly<Record<string, string>> = {
   academic_session_ext_id: 'academic_session_code',
   seats_updated_at: 'seats_available',
 };
+
+/**
+ * Applies per-key cells to the current map: `null` removes the key, a value sets
+ * it, keys without a column stay. Keys sorted for a stable hash.
+ */
+function mergeKeyed<T>(
+  current: Readonly<Record<string, T>> | undefined,
+  given: Readonly<Record<string, T | null>>,
+): Record<string, T> {
+  const out: Record<string, T> = { ...current };
+  for (const [key, value] of Object.entries(given)) {
+    if (value === null) delete out[key];
+    else out[key] = value;
+  }
+  return sortKeys(out);
+}
 
 /** Absent column (`undefined`) keeps the current value; empty cell (`null`) clears it. */
 function pick<T>(value: T | null | undefined, current: T | null | undefined): T | null {
@@ -142,12 +166,18 @@ export class CsvAdapter {
       texts[lang] = text;
     }
 
+    const levels =
+      row.levels === undefined
+        ? resolveLevels(existing?.level, existing?.levels)
+        : resolveLevels(row.level ?? null, row.levels ?? []);
     const candidate: Course = {
       ext_id: row.course_code,
       source_ref: null,
       status: row.status,
+      kind: row.kind === undefined ? (existing?.kind ?? 'course') : (row.kind ?? 'course'),
       ects: row.ects,
-      level: pick(row.level, existing?.level),
+      level: levels.level,
+      levels: levels.levels,
       eqf_level: pick(row.eqf_level, existing?.eqf_level),
       teaching_hours: pick(row.teaching_hours, existing?.teaching_hours),
       teaching_unit_ext_id: pick(row.teaching_unit_code, existing?.teaching_unit_ext_id),
@@ -155,6 +185,7 @@ export class CsvAdapter {
       contact_email: pick(row.contact_email, existing?.contact_email),
       isced_codes: row.isced_codes,
       texts: sortKeys(texts),
+      attributes: mergeKeyed(existing?.attributes, row.attributes),
     };
     const checked = courseSchema.safeParse(candidate);
     if (!checked.success) {
@@ -166,6 +197,8 @@ export class CsvAdapter {
             const name = CSV_COURSE_TEXT_FIELDS.find((f) => f === field) ?? 'title';
             return lang ? `${name}_${lang}` : undefined;
           }
+          if (member === 'attributes') return lang ? `attr_${lang}` : undefined;
+          if (member === 'level' && row.levels !== undefined) return 'levels';
           return member ? (COURSE_COLUMNS[member] ?? member) : undefined;
         }),
       };
@@ -209,6 +242,10 @@ export class CsvAdapter {
       seats_available: seatsAvailable,
       seats_updated_at: seatsUpdatedAt,
       application_url: pick(row.application_url, existing?.application_url),
+      application_instructions: mergeKeyed(
+        existing?.application_instructions,
+        row.application_instructions,
+      ),
     };
     const checked = courseOfferingSchema.safeParse(candidate);
     if (!checked.success) {
@@ -216,6 +253,11 @@ export class CsvAdapter {
         ok: false,
         errors: canonicalIssues('offerings', row.row, checked.error, (path) => {
           const member = path[0] === undefined ? undefined : String(path[0]);
+          if (member === 'application_instructions') {
+            return path[1] === undefined
+              ? undefined
+              : `application_instructions_${String(path[1])}`;
+          }
           return member ? (OFFERING_COLUMNS[member] ?? member) : undefined;
         }),
       };

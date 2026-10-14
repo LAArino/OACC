@@ -324,6 +324,16 @@
             "cancelled"
           ]
         },
+        "kind": {
+          "default": "course",
+          "type": "string",
+          "enum": [
+            "course",
+            "bip",
+            "lecture_series",
+            "other"
+          ]
+        },
         "ects": {
           "type": "number",
           "exclusiveMinimum": 0,
@@ -345,6 +355,21 @@
               "type": "null"
             }
           ]
+        },
+        "levels": {
+          "default": [],
+          "maxItems": 5,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "short_cycle",
+              "bachelor",
+              "master",
+              "doctoral",
+              "other"
+            ]
+          }
         },
         "eqf_level": {
           "anyOf": [
@@ -473,6 +498,36 @@
             },
             "required": [
               "title"
+            ]
+          }
+        },
+        "attributes": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,39}$"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              {
+                "minItems": 1,
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                }
+              },
+              {
+                "type": "boolean"
+              }
             ]
           }
         }
@@ -708,6 +763,19 @@
               "type": "null"
             }
           ]
+        },
+        "application_instructions": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z]{2,3}$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          }
         }
       },
       "required": [
@@ -720,6 +788,156 @@
         "teaching_languages",
         "delivery_modes"
       ]
+    },
+    "attributeDefinition": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{1,39}$"
+        },
+        "value_type": {
+          "type": "string",
+          "enum": [
+            "enum",
+            "multi_enum",
+            "boolean",
+            "text"
+          ]
+        },
+        "label": {
+          "type": "object",
+          "properties": {
+            "en": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "en"
+          ],
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "description": {
+          "default": null,
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "en": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "en"
+              ],
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "options": {
+          "default": null,
+          "anyOf": [
+            {
+              "minItems": 1,
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9_-]{0,79}$"
+                  },
+                  "label": {
+                    "type": "object",
+                    "properties": {
+                      "en": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "en"
+                    ],
+                    "additionalProperties": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "required": [
+                  "value",
+                  "label"
+                ],
+                "additionalProperties": false
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "filterable": {
+          "default": false,
+          "type": "boolean"
+        },
+        "show_as_tag": {
+          "default": true,
+          "type": "boolean"
+        },
+        "sort_order": {
+          "default": 0,
+          "type": "integer",
+          "minimum": -32768,
+          "maximum": 32767
+        }
+      },
+      "required": [
+        "key",
+        "value_type",
+        "label"
+      ],
+      "additionalProperties": false
+    },
+    "courseAttributes": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{1,39}$"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          {
+            "minItems": 1,
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "type": "boolean"
+          }
+        ]
+      }
     },
     "languageTag": {
       "type": "string",

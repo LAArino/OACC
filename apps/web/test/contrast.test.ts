@@ -38,6 +38,8 @@ const TEXT: [string, string][] = [
   ['c-danger', 'c-bg'],
   ['c-danger', 'c-danger-bg'],
   ['c-text', 'c-notice-bg'],
+  // Deadline highlighted on cards when sorting by deadline (passed: danger).
+  ['c-danger', 'c-notice-bg'],
 ];
 const NON_TEXT: [string, string][] = [
   ['c-border', 'c-bg'],

@@ -14,7 +14,13 @@
  * The schemas are strict so contract tests catch any drift.
  */
 import { z } from 'zod';
-import { courseLevel, lifecycleStatus, schemaOrgCourseMode } from './enums.js';
+import {
+  attributeValueType,
+  courseKind,
+  courseLevel,
+  lifecycleStatus,
+  schemaOrgCourseMode,
+} from './enums.js';
 import { localizedLabel } from './primitives.js';
 
 const nullable = <T extends z.ZodType>(t: T) => t.nullable();
@@ -33,6 +39,27 @@ export type PublicOrganizationRef = z.infer<typeof publicOrganizationRef>;
 export const publicIscedField = z.strictObject({ code: z.string(), label: localizedLabel });
 export type PublicIscedField = z.infer<typeof publicIscedField>;
 
+/** One displayable value of an alliance attribute. */
+export const publicAttributeValue = z.strictObject({
+  /** Option value; `true`/`false` for booleans; the text for `text` attributes. */
+  value: z.string(),
+  /** Option label; `Yes`/`No` for booleans; `{en: text}` for `text` attributes. */
+  label: localizedLabel,
+});
+export type PublicAttributeValue = z.infer<typeof publicAttributeValue>;
+
+/**
+ * An alliance attribute of a course, resolved with its definition (decision 18).
+ * Ordered by the definition's `sort_order`, then key; values in option order.
+ */
+export const publicAttribute = z.strictObject({
+  key: z.string(),
+  /** The definition's label. */
+  label: localizedLabel,
+  values: z.array(publicAttributeValue).min(1),
+});
+export type PublicAttribute = z.infer<typeof publicAttribute>;
+
 /** The next offering on a search card: the earliest published offering not yet ended. */
 export const publicNextOffering = z.strictObject({
   id: z.uuid(),
@@ -44,6 +71,8 @@ export const publicNextOffering = z.strictObject({
   seats_available: nullable(z.int()),
   alliance_seats: nullable(z.int()),
   seats_updated_at: nullable(timestamp),
+  /** How to apply, in `locale`, else English, else the first language; null when none. */
+  application_instructions: nullable(z.string()),
 });
 export type PublicNextOffering = z.infer<typeof publicNextOffering>;
 
@@ -59,7 +88,16 @@ export const publicCourseCard = z.strictObject({
   abstract: nullable(z.string()),
   abstract_lang: nullable(z.string()),
   ects: z.number(),
+  kind: courseKind,
+  /** Primary level (`levels[0]`). */
   level: nullable(courseLevel),
+  /** Every study cycle, primary first. */
+  levels: z.array(courseLevel),
+  /**
+   * Tags of the card: attributes whose definition has `show_as_tag`, booleans
+   * only when true.
+   */
+  attributes: z.array(publicAttribute),
   /** Distinct broad fields, primary first. */
   isced_broad_fields: z.array(publicIscedField),
   /** Union over published offerings that have not ended (codes of `delivery_modes`). */
@@ -76,6 +114,10 @@ export type PublicCourseCard = z.infer<typeof publicCourseCard>;
 export const facetCount = z.strictObject({ value: z.string(), count: z.int().min(1) });
 export type FacetCount = z.infer<typeof facetCount>;
 
+/** Facet count of an attribute value, with its display label. */
+export const attributeFacetCount = facetCount.extend({ label: localizedLabel });
+export type AttributeFacetCount = z.infer<typeof attributeFacetCount>;
+
 /**
  * Facet counts (number of courses) for the current filters. Disjunctive: each
  * facet ignores its own filter, so the other values of a multi-select stay
@@ -87,6 +129,12 @@ export const courseSearchFacets = z.strictObject({
   lang: z.array(facetCount),
   isced: z.array(facetCount),
   level: z.array(facetCount),
+  kind: z.array(facetCount),
+  /**
+   * One entry per `filterable` attribute definition, keyed by attribute key (the
+   * query parameter is `attr_<key>`); booleans count `true` and `false`.
+   */
+  attributes: z.record(z.string(), z.array(attributeFacetCount)),
 });
 export type CourseSearchFacets = z.infer<typeof courseSearchFacets>;
 
@@ -155,6 +203,8 @@ export const publicOffering = z.strictObject({
   seats_available: nullable(z.int()),
   seats_updated_at: nullable(timestamp),
   application_url: nullable(z.string()),
+  /** How to apply (e.g. a nomination process), keyed by primary language subtag; may be empty. */
+  application_instructions: z.record(z.string(), z.string()),
 });
 export type PublicOffering = z.infer<typeof publicOffering>;
 
@@ -179,7 +229,11 @@ export const publicCourseDetail = z.strictObject({
   organization: publicCourseOrganization,
   teaching_unit: nullable(z.strictObject({ id: z.uuid(), slug: z.string(), name: localizedLabel })),
   ects: z.number(),
+  kind: courseKind,
+  /** Primary level (`levels[0]`). */
   level: nullable(courseLevel),
+  /** Every study cycle, primary first. */
+  levels: z.array(courseLevel),
   eqf_level: nullable(z.int()),
   teaching_hours: nullable(z.number()),
   info_url: nullable(z.string()),
@@ -188,6 +242,8 @@ export const publicCourseDetail = z.strictObject({
   /** Keyed by primary language subtag; always contains `en`. */
   texts: z.record(z.string(), publicCourseText),
   isced_codes: z.array(publicIscedCode),
+  /** Every attribute the course has (booleans true or false). */
+  attributes: z.array(publicAttribute),
   /**
    * Published offerings (past ones included) and cancelled offerings that have
    * not started, ordered by `start_date`.
@@ -212,6 +268,22 @@ export const suggestResponse = z.strictObject({
 });
 export type SuggestResponse = z.infer<typeof suggestResponse>;
 
+/** An alliance attribute definition, for filters, tags and labels. */
+export const publicAttributeDefinition = z.strictObject({
+  key: z.string(),
+  value_type: attributeValueType,
+  label: localizedLabel,
+  description: nullable(localizedLabel),
+  /** Options of `enum`/`multi_enum`, in display order; empty for `boolean`/`text`. */
+  options: z.array(publicAttributeValue),
+  /** Offered as `attr_<key>` filter with a facet. */
+  filterable: z.boolean(),
+  /** Shown as a tag on course cards. */
+  show_as_tag: z.boolean(),
+  sort_order: z.int(),
+});
+export type PublicAttributeDefinition = z.infer<typeof publicAttributeDefinition>;
+
 /** `GET /api/public/v1/reference` */
 export const referenceResponse = z.strictObject({
   organizations: z.array(
@@ -226,5 +298,8 @@ export const referenceResponse = z.strictObject({
   /** Primary subtags found in published offerings, sorted. */
   teaching_languages: z.array(z.string()),
   levels: z.array(courseLevel),
+  kinds: z.array(z.strictObject({ code: courseKind, label: localizedLabel })),
+  /** By `sort_order`, then key. */
+  attribute_definitions: z.array(publicAttributeDefinition),
 });
 export type ReferenceResponse = z.infer<typeof referenceResponse>;

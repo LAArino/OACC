@@ -4,18 +4,26 @@
  * non-deleted courses of non-deleted organizations are ever returned.
  */
 import { Inject, Injectable } from '@nestjs/common';
-import type { LocalizedLabel, NormalizedCourseSearch } from '@oecp/schemas';
+import type {
+  AttributeDefinition,
+  CourseAttributes,
+  CourseKind,
+  LocalizedLabel,
+  NormalizedCourseSearch,
+} from '@oecp/schemas';
 import { sql } from 'kysely';
+import { loadAttributeDefinitions } from '../attributes/attribute-definitions.js';
 import { type Db, KYSELY } from '../db/db.module.js';
 import { CourseSearchSql, type FacetKey } from './search-sql.js';
-
-export const FACET_KEYS: readonly FacetKey[] = ['partner', 'mode', 'lang', 'isced', 'level'];
 
 export interface CardCourseRow {
   id: string;
   ext_id: string;
+  kind: CourseKind;
   ects: string;
   level: string | null;
+  levels: string[];
+  attributes: CourseAttributes;
   org_id: string;
   org_slug: string;
   org_name: LocalizedLabel;
@@ -56,13 +64,16 @@ export interface CardOfferingRow {
   alliance_seats: number | null;
   seats_available: number | null;
   seats_updated_at: Date | null;
+  application_instructions: Record<string, string>;
   modes: ModeRef[];
 }
 
 export interface SearchResultRows {
   ids: string[];
   total: number;
-  facets: Record<FacetKey, { value: string; count: number }[]>;
+  /** Fixed facets and `attr:<key>` facets of filterable definitions. */
+  facets: Map<FacetKey, { value: string; count: number }[]>;
+  definitions: AttributeDefinition[];
   courses: CardCourseRow[];
   texts: CardTextRow[];
   isced: IscedRow[];
@@ -72,8 +83,11 @@ export interface SearchResultRows {
 export interface DetailCourseRow {
   id: string;
   ext_id: string;
+  kind: CourseKind;
   ects: string;
   level: string | null;
+  levels: string[];
+  attributes: CourseAttributes;
   eqf_level: number | null;
   teaching_hours: string | null;
   info_url: string | null;
@@ -120,6 +134,7 @@ export interface DetailOfferingRow {
   seats_available: number | null;
   seats_updated_at: Date | null;
   application_url: string | null;
+  application_instructions: Record<string, string>;
   updated_at: Date;
   session_id: string | null;
   session_name: LocalizedLabel | null;
@@ -133,6 +148,7 @@ export interface CourseDetailRows {
   texts: DetailTextRow[];
   isced: IscedRow[];
   offerings: DetailOfferingRow[];
+  definitions: AttributeDefinition[];
 }
 
 export interface SuggestRow {
@@ -157,6 +173,7 @@ export interface ReferenceRows {
   modes: ModeRef[];
   isced: { code: string; label: LocalizedLabel }[];
   languages: string[];
+  definitions: AttributeDefinition[];
 }
 
 /** Delivery modes of an offering `o`, as a JSON array ordered by `sort_order`. */
@@ -178,26 +195,37 @@ export class CatalogueRepository {
   constructor(@Inject(KYSELY) private readonly db: Db) {}
 
   async search(search: NormalizedCourseSearch, today: string): Promise<SearchResultRows> {
-    const plan = new CourseSearchSql(search, today);
+    const definitions = await loadAttributeDefinitions(this.db);
+    const plan = new CourseSearchSql(search, today, definitions);
+    const facetKeys = plan.facetKeys();
     const [page, count, ...facetRows] = await Promise.all([
       plan.pageQuery().execute(this.db),
       plan.countQuery().execute(this.db),
-      ...FACET_KEYS.map((key) => plan.facetQuery(key).execute(this.db)),
+      ...facetKeys.map((key) => plan.facetQuery(key).execute(this.db)),
     ]);
     const ids = page.rows.map((r) => r.id);
-    const facets = Object.fromEntries(
-      FACET_KEYS.map((key, i) => [
+    const facets = new Map(
+      facetKeys.map((key, i) => [
         key,
         (facetRows[i]?.rows ?? []).map((r) => ({ value: r.value, count: Number(r.count) })),
       ]),
-    ) as SearchResultRows['facets'];
+    );
     const total = Number(count.rows[0]?.total ?? 0);
     if (ids.length === 0) {
-      return { ids, total, facets, courses: [], texts: [], isced: [], offerings: [] };
+      return {
+        ids,
+        total,
+        facets,
+        definitions,
+        courses: [],
+        texts: [],
+        isced: [],
+        offerings: [],
+      };
     }
     const langs = [...new Set([search.locale, 'en'])];
     const [courses, texts, isced, offerings] = await Promise.all([
-      sql<CardCourseRow>`SELECT c.id, c.ext_id, c.ects, c.level,
+      sql<CardCourseRow>`SELECT c.id, c.ext_id, c.kind, c.ects, c.level, c.levels, c.attributes,
           org.id AS org_id, org.slug AS org_slug, org.name AS org_name,
           org.country_code AS org_country_code
         FROM courses c JOIN organizations org ON org.id = c.organization_id
@@ -209,7 +237,8 @@ export class CatalogueRepository {
       this.isced(ids),
       sql<CardOfferingRow>`SELECT o.id, o.course_id, o.start_date, o.end_date,
           o.application_deadline, o.enrol_start_date, o.timezone, o.teaching_languages,
-          o.alliance_seats, o.seats_available, o.seats_updated_at, ${OFFERING_MODES} AS modes
+          o.alliance_seats, o.seats_available, o.seats_updated_at, o.application_instructions,
+          ${OFFERING_MODES} AS modes
         FROM course_offerings o
         WHERE o.course_id = ANY(${ids}::uuid[]) AND o.status = 'published'
           AND o.deleted_at IS NULL AND o.end_date >= ${today}::date
@@ -219,6 +248,7 @@ export class CatalogueRepository {
       ids,
       total,
       facets,
+      definitions,
       courses: courses.rows,
       texts: texts.rows,
       isced: isced,
@@ -236,8 +266,8 @@ export class CatalogueRepository {
   }
 
   async courseDetail(id: string, today: string): Promise<CourseDetailRows | null> {
-    const { rows } = await sql<DetailCourseRow>`SELECT c.id, c.ext_id, c.ects, c.level,
-        c.eqf_level, c.teaching_hours, c.info_url, c.contact_email, c.updated_at,
+    const { rows } = await sql<DetailCourseRow>`SELECT c.id, c.ext_id, c.kind, c.ects, c.level,
+        c.levels, c.attributes, c.eqf_level, c.teaching_hours, c.info_url, c.contact_email, c.updated_at,
         org.id AS org_id, org.slug AS org_slug, org.name AS org_name,
         org.country_code AS org_country_code, org.logo_url AS org_logo_url,
         org.website_url AS org_website_url, org.contact_email AS org_contact_email,
@@ -248,7 +278,7 @@ export class CatalogueRepository {
       WHERE c.id = ${id}::uuid AND ${PUBLISHED}`.execute(this.db);
     const course = rows[0];
     if (!course) return null;
-    const [texts, isced, offerings] = await Promise.all([
+    const [texts, isced, offerings, definitions] = await Promise.all([
       sql<DetailTextRow>`SELECT t.lang, t.title, t.abstract, t.description, t.learning_outcomes,
           t.prerequisites, t.assessment, t.keywords, t.is_machine_translated, t.updated_at
         FROM course_texts t WHERE t.course_id = ${id}::uuid
@@ -257,7 +287,7 @@ export class CatalogueRepository {
       sql<DetailOfferingRow>`SELECT o.id, o.ext_offering_id, o.status, o.start_date, o.end_date,
           o.enrol_start_date, o.application_deadline, o.timezone, o.teaching_languages,
           o.campus, o.max_students, o.alliance_seats, o.seats_available, o.seats_updated_at,
-          o.application_url, o.updated_at,
+          o.application_url, o.application_instructions, o.updated_at,
           s.id AS session_id, s.name AS session_name, s.start_date AS session_start_date,
           s.end_date AS session_end_date, ${OFFERING_MODES} AS modes
         FROM course_offerings o
@@ -265,8 +295,9 @@ export class CatalogueRepository {
         WHERE o.course_id = ${id}::uuid AND o.deleted_at IS NULL
           AND (o.status = 'published' OR (o.status = 'cancelled' AND o.start_date >= ${today}::date))
         ORDER BY o.start_date, o.end_date, o.id`.execute(this.db),
+      loadAttributeDefinitions(this.db),
     ]);
-    return { course, texts: texts.rows, isced, offerings: offerings.rows };
+    return { course, texts: texts.rows, isced, offerings: offerings.rows, definitions };
   }
 
   /**
@@ -308,7 +339,7 @@ export class CatalogueRepository {
   }
 
   async reference(): Promise<ReferenceRows> {
-    const [organizations, modes, isced, languages] = await Promise.all([
+    const [organizations, modes, isced, languages, definitions] = await Promise.all([
       sql<ReferenceRows['organizations'][number]>`SELECT id, slug, name, country_code, logo_url,
           website_url, org_type, is_partner, parent_id
         FROM organizations WHERE deleted_at IS NULL
@@ -324,12 +355,14 @@ export class CatalogueRepository {
         CROSS JOIN LATERAL unnest(o.teaching_languages) AS tl(tag)
         WHERE o.status = 'published' AND o.deleted_at IS NULL AND ${PUBLISHED}
         ORDER BY 1`.execute(this.db),
+      loadAttributeDefinitions(this.db),
     ]);
     return {
       organizations: organizations.rows,
       modes: modes.rows,
       isced: isced.rows,
       languages: languages.rows.map((r) => r.lang),
+      definitions,
     };
   }
 

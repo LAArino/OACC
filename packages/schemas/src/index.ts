@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 export * from './enums.js';
 export * from './primitives.js';
+export * from './attributes.js';
 export * from './canonical.js';
 export * from './csv.js';
 export * from './csv-validate.js';

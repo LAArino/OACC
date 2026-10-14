@@ -194,6 +194,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `oecp.csv.file_too_large`, `oecp.csv.rate_limited`, `oecp.csv.no_files`,
     `oecp.csv.unexpected_file`, `oecp.request.not_found` and
     `oecp.integration.not_configured`.
+- Alliance attributes and Aurora Virtual Campus parity [DL 18], in `apps/api`
+  and `packages/schemas`:
+  - Migration `0005_alliance_attributes`: `courses.kind` (`course`, `bip`,
+    `lecture_series`, `other`), `courses.levels` (every study cycle, primary
+    first, backfilled from `level`, which stays the primary level), `courses.attributes`
+    (jsonb object keyed by attribute key, shape-checked, GIN `jsonb_path_ops`),
+    `course_offerings.application_instructions` (`{lang: text}`) and the table
+    `attribute_definitions` (key, value type `enum`/`multi_enum`/`boolean`/`text`,
+    labels, options, `filterable`, `show_as_tag`, `sort_order`). The down
+    migration restores the 0004 schema exactly.
+  - `oecp seed-attribute-definitions [--file] [--dry-run]` (upsert by key,
+    definitions missing from the file are kept) with Aurora's set in
+    `apps/api/db/seed/attribute-definitions.aurora.json` (educational hub, SDGs,
+    competence framework, micro-credential, free course, enrolled only, open to
+    the alliance, target audience), to be confirmed by the Aurora Foundation.
+  - `packages/schemas`: `attributes.ts` (`attributeDefinition`,
+    `buildAttributesSchema()`, `parseAttributeCell()`, `attributeValueLabels()`;
+    codes `oecp.content.unknown_attribute`, `oecp.content.invalid_attribute_value`,
+    `oecp.content.unknown_attribute_option`); canonical course `kind`, `levels`,
+    `attributes`; offering `application_instructions`; `resolveLevels()`.
+  - CSV template 1.1 (1.0 files stay valid): `courses.csv` `kind`, `levels`
+    (pipe-separated; `level` still accepted, not both: `oecp.csv.conflicting_columns`),
+    `attr_<key>` per definition (booleans `true/false/yes/no/1/0`);
+    `offerings.csv` `application_instructions_<lang>`; JSON Schema
+    `json/csv/oecp-csv-1.1.schema.json` (`attr_*` via `patternProperties`);
+    the courses template download lists the deployment's `attr_*` columns;
+    reference data gains `attributeDefinitions`; codes `oecp.csv.invalid_kind`.
+  - `CanonicalWriter` stores the new fields (overridable per field; level kept
+    equal to `levels[0]`), checks attributes against `attribute_definitions`
+    before writing (`CanonicalContentRejected`); the OEAPI harvester maps
+    `kind = course`, `levels = [level]`, no attributes, and
+    `ext.oecp.applicationInstructions` when a partner sends it
+    (`oecp.oeapi.invalid_extension` warning otherwise).
+  - `/api/public/v1`: cards and course pages gain `kind`, `levels` and resolved
+    `attributes` (`[{key, label, values: [{value, label}]}]`; cards only tags),
+    offerings `application_instructions`, the card's `next_offering`
+    `application_instructions` for `locale`; filters `kind`, `attr_<key>`,
+    `level` matching any of `levels`; `sort=deadline`; facets `kind` and
+    `attributes`; `/reference` `kinds` and `attribute_definitions`.
+  - `/oeapi/v5`: `ext.oecp.kind`, `ext.oecp.levels`, `ext.oecp.attributes` on
+    courses, `ext.oecp.applicationInstructions` on offerings.
+- Public catalogue parity with the Aurora Virtual Campus [DL 18], in `apps/web`
+  (works with the previous API too: absent members render as before):
+  - Result cards: badge for non-course kinds ("BIP", "Lecture series",
+    "Other"), every level ("Levels: Bachelor, Master"; falls back to `level`),
+    tags of the attributes whose definition has `show_as_tag` (booleans show
+    the definition label, enums the option labels), at most four plus "+N".
+  - Filters: "Type of course" (`kind`), one checkbox group per `filterable`
+    `enum`/`multi_enum` definition (`attr_<key>=<value>`, facet counts,
+    description as hint) and a "Course features" group with one checkbox per
+    boolean (`attr_<key>=true`); without facets the options come from
+    `/reference`. All in the GET form and the URL (`utils/catalogue.ts`:
+    `kind`, `attrs` in `SearchState`, `attr_*` keys sorted after the list
+    filters, `restrictAttributes()` drops keys and values the alliance schema
+    does not offer before calling the API); removable chips with labels.
+  - Sort "Application deadline" (`sort=deadline`), with the deadline
+    emphasised on each card.
+  - Course page: "Type" and "Levels" facts, a "Course attributes" list with
+    every attribute (booleans as Yes/No), and "How to apply" per offering with
+    `application_instructions` in the selected text language (English, then
+    any language, as fallback) as plain text with line breaks, above the
+    apply link or contact note. JSON-LD `educationalLevel` lists every level.
+  - Fixtures extended with kinds, attribute definitions, attributes, levels,
+    instructions and the new facets; the fixture server filters by `kind`,
+    `level` and `attr_*` and sorts by deadline; the contract test validates the
+    full fixtures once `@oecp/schemas` declares the new members.
 
 ### Changed
 
@@ -202,6 +268,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   harvester unless `OECP_ALLOW_INSECURE_PARTNER_HTTP=true`.
 - api: arrays of the `language_tag` domain (`teaching_languages`,
   `ui_languages`) are parsed as string arrays instead of PostgreSQL literals.
+- Channel B runs record `schema_version` `csv-1.1`; the template downloads are
+  version 1.1 and `/api/admin/v1/csv-template/schema.json` serves the 1.1 JSON
+  Schema (`oecp-csv-1.0.schema.json` stays as published). Content hashes now
+  cover `kind`, `levels`, `attributes` and `application_instructions`, so the
+  first harvest or upload after the upgrade reports existing records as updated.
 - `CanonicalWriter.transaction()` runs several upserts in one transaction
   (CSV all-or-nothing); CSV and form writes set `courses.teaching_unit_id` from
   `teaching_unit_ext_id` (descendant organizations with that `ext_id`).

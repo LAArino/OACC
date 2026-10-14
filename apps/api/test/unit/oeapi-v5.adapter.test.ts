@@ -109,8 +109,11 @@ describe('OeapiV5Adapter.mapCourse', () => {
       ext_id: '703001',
       source_ref: 'c-0001',
       status: 'published',
+      kind: 'course',
       ects: 7.5,
       level: 'master',
+      levels: ['master'],
+      attributes: {},
       eqf_level: 7,
       info_url: 'https://lfuonline.uibk.ac.at/public/lfuonline_lv.details?lvnr=703001',
       contact_email: 'aurora@uibk.ac.at',
@@ -296,6 +299,7 @@ describe('OeapiV5Adapter.mapOffering', () => {
       seats_available: 5,
       seats_updated_at: FETCHED_AT.toISOString(),
       application_url: 'https://lfuonline.uibk.ac.at/apply/703001-2026S',
+      application_instructions: {},
     });
     expect(result.value.session).toEqual({
       ext_id: 'as-ss2026',
@@ -305,6 +309,38 @@ describe('OeapiV5Adapter.mapOffering', () => {
       start_date: '2026-03-01',
       end_date: '2026-09-30',
     });
+  });
+
+  it('reads ext.oecp.applicationInstructions as language variants or a language map', () => {
+    const course = fixture('c-0001');
+    const source = expandedOffering(course, course.offerings[0]!) as Record<string, unknown>;
+    const withExt = (applicationInstructions: unknown) =>
+      adapter.mapOffering(
+        { ...source, ext: { oecp: { applicationInstructions } } },
+        mapped('c-0001'),
+        ctx,
+      );
+    const list = withExt([
+      { language: 'en-GB', value: ' Ask the Aurora office. ' },
+      { language: 'de', value: 'Fragen Sie das Aurora-Büro.' },
+      { language: 'mul', value: 'x' },
+    ]);
+    expect(list.ok && list.value.offering.application_instructions).toEqual({
+      de: 'Fragen Sie das Aurora-Büro.',
+      en: 'Ask the Aurora office.',
+    });
+    expect(list.warnings.map((w) => w.code)).toEqual(['oecp.oeapi.language_dropped']);
+    const map = withExt({ en: 'Apply online.' });
+    expect(map.ok && map.value.offering.application_instructions).toEqual({ en: 'Apply online.' });
+    const invalid = withExt([{ lang: 'en', text: 'x' }]);
+    expect(invalid.ok && invalid.value.offering.application_instructions).toEqual({});
+    expect(invalid.warnings).toEqual([
+      expect.objectContaining({
+        code: 'oecp.oeapi.invalid_extension',
+        severity: 'warning',
+        pointer: '/ext/oecp/applicationInstructions',
+      }),
+    ]);
   });
 
   it('accepts a past enrolment deadline and clamps seats at 0 when over-enrolled', () => {

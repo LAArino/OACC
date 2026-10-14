@@ -217,8 +217,11 @@ const bundle: CourseBundle = {
     organization_id: 'p',
     teaching_unit_id: 'f',
     ext_id: 'C-1',
+    kind: 'bip',
     ects: '7.50',
     level: 'short_cycle',
+    levels: ['short_cycle', 'bachelor'],
+    attributes: { free_course: true, sdg: ['sdg04'] },
     eqf_level: 5,
     teaching_hours: null,
     info_url: null,
@@ -269,6 +272,7 @@ const bundle: CourseBundle = {
       seats_available: null,
       seats_updated_at: null,
       application_url: null,
+      application_instructions: {},
       modes: ['blended'],
     },
     {
@@ -289,6 +293,7 @@ const bundle: CourseBundle = {
       seats_available: 0,
       seats_updated_at: new Date('2026-10-02T00:00:00Z'),
       application_url: 'https://x.example/apply',
+      application_instructions: { nl: 'Via het Aurora-bureau.', en: 'Via the Aurora office.' },
       modes: ['presential'],
     },
   ],
@@ -314,7 +319,16 @@ describe('courses and offerings', () => {
       fieldsOfStudy: '0613',
       consumers: [{ consumerKey: 'oecp', alliances: [{ name: 'aurora' }] }],
       organization: 'p',
-      ext: { oecp: { teachingUnit: 'f', keywords: [{ language: 'nl', value: ['k'] }] } },
+      ext: {
+        oecp: {
+          teachingUnit: 'f',
+          keywords: [{ language: 'nl', value: ['k'] }],
+          kind: 'bip',
+          level: 'short_cycle',
+          levels: ['short_cycle', 'bachelor'],
+          attributes: { free_course: true, sdg: ['sdg04'] },
+        },
+      },
     });
     for (const key of ['firstStartDate', 'learningOutcomes', 'admissionRequirements', 'link']) {
       expect(v5).not.toHaveProperty(key);
@@ -345,9 +359,16 @@ describe('courses and offerings', () => {
           seatsUpdatedAt: '2026-10-02T00:00:00.000Z',
           teachingLanguages: ['en', 'nl'],
           deliveryModes: ['presential'],
+          applicationInstructions: [
+            { language: 'en', value: 'Via the Aurora office.' },
+            { language: 'nl', value: 'Via het Aurora-bureau.' },
+          ],
         },
       },
     });
+    expect(toV5Offering(bundle.offerings[0]!, bundle, ctx).ext.oecp).not.toHaveProperty(
+      'applicationInstructions',
+    );
     expect(v5).not.toHaveProperty('enrolledNumberStudents');
     expect(oeapiV5Offering.safeParse(v5).success).toBe(true);
     expect(

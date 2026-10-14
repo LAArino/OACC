@@ -2,6 +2,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
+  type AttributeDefinition,
   CSV_SCHEMA_VERSION,
   CSV_UPLOADS_PER_HOUR,
   type CsvFileKind,
@@ -11,6 +12,7 @@ import {
 } from '@oecp/schemas';
 import { sql } from 'kysely';
 import { ProblemException } from '../../common/problem.js';
+import { loadAttributeDefinitions } from '../../attributes/attribute-definitions.js';
 import { type Db, KYSELY } from '../../db/db.module.js';
 import {
   type CsvRunOutcome,
@@ -56,6 +58,11 @@ export class UploadsService {
     @Optional() @Inject(UPLOADS_CLOCK) clock?: () => Date,
   ) {
     this.now = clock ?? (() => new Date());
+  }
+
+  /** The alliance's attribute definitions (`attr_<key>` columns of `courses.csv`). */
+  attributeDefinitions(): Promise<AttributeDefinition[]> {
+    return loadAttributeDefinitions(this.db);
   }
 
   async create(

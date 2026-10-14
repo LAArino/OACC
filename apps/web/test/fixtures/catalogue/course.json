@@ -1,6 +1,7 @@
 {
   "id": "6f1d2c3b-0000-4000-8000-000000000001",
   "ext_id": "URV-20345",
+  "kind": "bip",
   "organization": {
     "id": "0b9f6c1e-1d7a-4f39-9a51-6c1e0f0a0001",
     "slug": "urv",
@@ -20,6 +21,7 @@
   },
   "ects": 6,
   "level": "master",
+  "levels": ["bachelor", "master"],
   "eqf_level": 7,
   "teaching_hours": 48,
   "info_url": "https://www.urv.cat/en/studies/climate",
@@ -64,6 +66,132 @@
       "is_primary": false
     }
   ],
+  "attributes": [
+    {
+      "key": "educational_hub",
+      "label": {
+        "en": "Educational hub"
+      },
+      "values": [
+        {
+          "value": "sustainability",
+          "label": {
+            "en": "Sustainability"
+          }
+        }
+      ]
+    },
+    {
+      "key": "sdg",
+      "label": {
+        "en": "Sustainable Development Goals"
+      },
+      "values": [
+        {
+          "value": "sdg_13",
+          "label": {
+            "en": "SDG 13: Climate action"
+          }
+        },
+        {
+          "value": "sdg_14",
+          "label": {
+            "en": "SDG 14: Life below water"
+          }
+        }
+      ]
+    },
+    {
+      "key": "target_audience",
+      "label": {
+        "en": "Target audience"
+      },
+      "values": [
+        {
+          "value": "students",
+          "label": {
+            "en": "Students"
+          }
+        },
+        {
+          "value": "phd",
+          "label": {
+            "en": "Doctoral candidates"
+          }
+        }
+      ]
+    },
+    {
+      "key": "competence_framework",
+      "label": {
+        "en": "Aurora competence framework"
+      },
+      "values": [
+        {
+          "value": "louis",
+          "label": {
+            "en": "LOUIS"
+          }
+        }
+      ]
+    },
+    {
+      "key": "micro_credential",
+      "label": {
+        "en": "Micro-credential"
+      },
+      "values": [
+        {
+          "value": "true",
+          "label": {
+            "en": "Yes"
+          }
+        }
+      ]
+    },
+    {
+      "key": "free_course",
+      "label": {
+        "en": "Free course"
+      },
+      "values": [
+        {
+          "value": "true",
+          "label": {
+            "en": "Yes"
+          }
+        }
+      ]
+    },
+    {
+      "key": "only_enrolled",
+      "label": {
+        "en": "Only for enrolled students"
+      },
+      "values": [
+        {
+          "value": "false",
+          "label": {
+            "en": "No"
+          }
+        }
+      ]
+    },
+    {
+      "key": "faculty",
+      "label": {
+        "en": "Faculty"
+      },
+      "values": [
+        {
+          "value": "Faculty of Chemistry; Faculty of Tourism and Geography",
+          "label": {
+            "en": "Faculty of Chemistry; Faculty of Tourism and Geography"
+          }
+        }
+      ]
+    }
+  ],
   "offerings": [
     {
       "id": "a1b2c3d4-0000-4000-8000-000000000011",
@@ -90,7 +218,11 @@
       "seats_available": 12,
       "seats_updated_at": "2026-10-10T06:00:00Z",
       "application_url": "https://apply.urv.cat/aurora/20345",
-      "status": "published"
+      "status": "published",
+      "application_instructions": {
+        "en": "Contact the Aurora office of your home university before 1 October 2026; it nominates up to two students.\nThe host then sends the application form to nominated students.",
+        "ca": "Contacta amb l'oficina Aurora de la teva universitat abans de l'1 d'octubre de 2026; nomina fins a dos estudiants.\nLa universitat d'acollida envia el formulari als estudiants nominats."
+      }
     },
     {
       "id": "a1b2c3d4-0000-4000-8000-000000000012",
@@ -109,7 +241,8 @@
       "seats_available": null,
       "seats_updated_at": null,
       "application_url": null,
-      "status": "published"
+      "status": "published",
+      "application_instructions": {}
     }
   ],
   "updated_at": "2026-10-12T09:30:00Z"
