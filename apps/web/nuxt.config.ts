@@ -24,7 +24,11 @@ export default defineNuxtConfig({
       // NUXT_PUBLIC_OIDC_AUTHORITY: https://{auth-host}/realms/oecp
       oidcAuthority: '',
       oidcClientId: 'oecp-admin',
-      oidcRedirectPath: '/en/admin',
+      // Paths on the portal origin; must match the redirect URIs and
+      // post-logout redirect URIs of client `oecp-admin` (identity/keycloak).
+      oidcRedirectPath: '/en/admin/callback',
+      oidcPostLogoutPath: '/en',
+      oidcHomePath: '/en/admin',
     },
   },
 

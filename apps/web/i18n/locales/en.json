@@ -27,11 +27,54 @@
   "admin": {
     "title": "Administration",
     "signIn": "Sign in",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "signInPrompt": "Sign in with your organization account to open the administration dashboard.",
+    "signInFailed": "Sign-in could not be started. Try again later.",
+    "loadingAccount": "Loading your account…",
+    "accountHeading": "Your account",
+    "email": "E-mail",
+    "roles": "Roles",
+    "organization": "Organization",
+    "idp": "Signed in through",
+    "none": "None",
+    "noRole": "Your account has no administration role yet. If you received an invitation, open the link in that e-mail.",
+    "errorCode": "Error code: {code}"
   },
   "accept": {
     "title": "Accept invitation",
-    "missingToken": "This invitation link is incomplete.",
-    "signIn": "Sign in to accept"
+    "missingToken": "This invitation link is incomplete or was already used on this page. Open the link from the invitation e-mail again.",
+    "signInPrompt": "Sign in to accept your invitation",
+    "signInHint": "Use the account and e-mail address the invitation was sent to.",
+    "signIn": "Sign in",
+    "signedInAs": "Signed in as {email}",
+    "accepting": "Accepting your invitation…",
+    "accepted": "Invitation accepted",
+    "acceptedRole": "Role: {role}",
+    "acceptedOrganization": "Organization: {org}",
+    "reloginRequired": "Your new role takes effect the next time you sign in.",
+    "relogin": "Sign out and sign in again",
+    "failed": "The invitation could not be accepted",
+    "signOut": "Sign out"
+  },
+  "roles": {
+    "partner_admin": "Partner administrator",
+    "alliance_admin": "Alliance administrator"
+  },
+  "callback": {
+    "title": "Signing in",
+    "working": "Completing sign-in…",
+    "failed": "Sign-in could not be completed.",
+    "backToAdmin": "Back to administration"
+  },
+  "problem": {
+    "invitationExpired": "This invitation has expired. Ask an alliance administrator to send you a new one.",
+    "invitationInvalid": "This invitation is not valid: it does not exist, was revoked or was already accepted.",
+    "invitationMismatch": "This invitation was issued for another account. Sign out, then sign in through your organization with the e-mail address the invitation was sent to.",
+    "signInAgain": "Your session has expired. Sign in again.",
+    "insufficientAcr": "This requires a sign-in with a second factor. Sign in again.",
+    "noRole": "Your account has no administration role.",
+    "forbidden": "Your account is not allowed to do this.",
+    "network": "The server could not be reached. Check your connection and try again.",
+    "generic": "Something went wrong. Try again later."
   }
 }

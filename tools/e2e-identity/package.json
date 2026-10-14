@@ -1,0 +1,14 @@
+{
+  "name": "@oecp/e2e-identity",
+  "private": true,
+  "description": "Manual end-to-end check of the identity path against the local Compose stack (not part of CI).",
+  "license": "EUPL-1.2",
+  "scripts": {
+    "setup-account": "node setup-account.js",
+    "accept": "node accept-flow.js",
+    "relogin": "node relogin.js"
+  },
+  "devDependencies": {
+    "playwright": "1.59.0"
+  }
+}

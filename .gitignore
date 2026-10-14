@@ -52,3 +52,6 @@ deploy/compose/data/
 .AppleDouble
 .LSOverride
 ._*
+tools/e2e-identity/node_modules
+tools/e2e-identity/shots
+docs/screenshots/

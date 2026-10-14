@@ -408,10 +408,12 @@ services:
       NODE_ENV: production
       # Origin only: apps/web appends the full path (/api/public/v1/...).
       NUXT_PUBLIC_API_BASE: https://${OECP_PORTAL_HOST}
-      # --- Proposed (ignored unless declared in apps/web runtimeConfig) -------
       # Server-side rendering cannot reach the public host from inside the
-      # container network; SSR fetches should use the internal API origin.
+      # container network; SSR fetches use the internal API origin.
       NUXT_API_INTERNAL_BASE: http://api:3000
+      # Admin SPA OIDC client (apps/web/app/composables/useAuth.ts). Redirect
+      # paths (/en/admin/callback, post-logout /en/...) are build-time defaults in
+      # apps/web/nuxt.config.ts and must match client `oecp-admin` in the realm.
       NUXT_PUBLIC_OIDC_AUTHORITY: https://${OECP_AUTH_HOST}/realms/oecp
       NUXT_PUBLIC_OIDC_CLIENT_ID: oecp-admin
       # @nuxtjs/i18n: absolute hreflang/canonical links (warns on every SSR request if unset).
