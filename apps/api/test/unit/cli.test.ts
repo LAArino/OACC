@@ -48,10 +48,45 @@ function handlers() {
       .fn<CliHandlers['bootstrapAllianceAdmin']>()
       .mockResolvedValue(EXIT.OK),
     storeSecret: vi.fn<CliHandlers['storeSecret']>().mockResolvedValue(EXIT.OK),
+    idpMetadataRefresh: vi.fn<CliHandlers['idpMetadataRefresh']>().mockResolvedValue(EXIT.OK),
   };
 }
 
 describe('oecp command line', () => {
+  it('parses idp-metadata-refresh with defaults', async () => {
+    const h = handlers();
+    await expect(runProgram(['idp-metadata-refresh'], h, capture().output)).resolves.toBe(EXIT.OK);
+    expect(h.idpMetadataRefresh).toHaveBeenCalledWith({ dryRun: false, verify: true });
+  });
+
+  it('parses idp-metadata-refresh --dry-run --alias --file --no-verify', async () => {
+    const h = handlers();
+    await runProgram(
+      ['idp-metadata-refresh', '--dry-run', '--alias', 'urv', '--file', 'md.xml', '--no-verify'],
+      h,
+      capture().output,
+    );
+    expect(h.idpMetadataRefresh).toHaveBeenCalledWith({
+      dryRun: true,
+      verify: false,
+      alias: 'urv',
+      file: resolve('md.xml'),
+    });
+  });
+
+  it('refuses --no-verify without --file and an invalid alias', async () => {
+    const h = handlers();
+    const c = capture();
+    await expect(runProgram(['idp-metadata-refresh', '--no-verify'], h, c.output)).resolves.toBe(
+      EXIT.USAGE,
+    );
+    expect(c.err.join('')).toContain('--no-verify is only allowed with --file');
+    await expect(
+      runProgram(['idp-metadata-refresh', '--alias', 'Not An Alias'], h, capture().output),
+    ).resolves.toBe(EXIT.USAGE);
+    expect(h.idpMetadataRefresh).not.toHaveBeenCalled();
+  });
+
   it('parses store-secret with a purpose label', async () => {
     const h = handlers();
     await expect(

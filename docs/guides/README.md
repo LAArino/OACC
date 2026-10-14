@@ -11,7 +11,7 @@ Each organization has exactly **one authoritative channel** (`oeapi`, `csv` or `
 
 **[API integration](api-integration.md)** is for partner IT teams that expose, or will expose, an **OEAPI v5.0** endpoint for OECP to harvest. It lists the exact requests the harvester sends (order, URLs, `consumer`, `since`, paging, headers), the authentication schemes and how the credential is stored, the network requirements (https on 443, host approval, no cross-host redirects), the complete OEAPI v5 → OECP mapping as implemented, what is deliberately not read, every warning and rejection code with cause and fix, run statuses, withdrawal by absence with its 30% guard, how to test with "Test connection", "Sync now" and the sync-run API, and how to run the OECP mock partner to compare behaviour.
 
-**[CSV authoring](csv-authoring.md)** is for partner administrators and IT teams that produce `courses.csv` and `offerings.csv`, by hand or from an export. It is the column reference of template 1.1 (with 1.0 compatibility), the encoding, separator and multi-value rules, the `attr_<key>` columns of the alliance attributes, status semantics, limits, inline and queued processing, the all-or-nothing rule, validation in the browser, the complete `oecp.csv.*` and `oecp.content.*` code table, CSV injection and a worked example based on the Aurora Virtual Campus data.
+**[CSV authoring](csv-authoring.md)** is for partner administrators and IT teams that produce `courses.csv` and `offerings.csv`, by hand or from an export. It is the column reference of template 1.2 (with 1.0 and 1.1 compatibility), including the instructors and the optional handbook texts, the encoding, separator and multi-value rules, the `attr_<key>` columns of the alliance attributes, status semantics, limits, inline and queued processing, the all-or-nothing rule, validation in the browser, the handbook publication rule, the complete `oecp.csv.*` and `oecp.content.*` code table, CSV injection and a worked example based on the Aurora Virtual Campus data.
 
 **[Web form](web-form.md)** is for partner administrators who maintain a few courses by hand, and for administrators of harvested organizations who need to correct or complete harvested data. It walks through the four-step course wizard, the offering form, the status actions and what each status means in the public portal, overrides mode for harvested records, what cannot be edited and why, the history panel, and the admin API calls behind each screen for scripting.
 
@@ -34,6 +34,17 @@ A course can only be `published` when it has an English text with a title (`text
 | OEAPI | A course with an English `name` is stored `published`; without one it is stored as `draft` with the warning `oecp.content.english_missing`. |
 
 Other languages are optional, but a language is only stored when it has its own title.
+
+### Handbook publication rule
+
+The Aurora IT Handbook (decision 21) shows a course only when all its obligatory fields are filled: the English title, description, learning outcomes, prerequisites and assessment; ECTS; at least one level; a contact (the course's, else the organization's); at least one instructor; and a published offering with start and end dates, application start, application deadline, a teaching language and a delivery mode. Every channel checks the courses it writes with the same rule (spec §6.1) and reports what is missing with the warning `oecp.content.handbook_incomplete`. The deployment's `OECP_PUBLISH_RULE` decides what an incomplete `published` course becomes:
+
+| Mode | Effect |
+|---|---|
+| `warn` (default during the transition period) | published as before; warning only |
+| `enforce` | stored as `draft`; same warning |
+
+Nothing is ever rejected because of this rule. The admin console shows a *Completeness* column in the course list and a *Completeness* card in the course wizard. Instructors, and the optional texts mode of repetition, methods, literature, privacy notice and remarks, are carried by every channel: CSV columns from template 1.2, the web form, and for OEAPI expanded `coordinators` or the `ext.oecp` extensions (see each guide).
 
 ### Fields of study: ISCED-F 2013
 

@@ -27,7 +27,13 @@ export type Label = string | Readonly<Record<string, string>>;
 
 export type OrganizationRef = PublicOrganizationRef;
 export type IscedField = PublicIscedField;
-export type CourseTexts = PublicCourseText;
+/** Optional texts of the Aurora IT Handbook data model [DL 21]. */
+export type HandbookTextField =
+  'mode_of_repetition' | 'methods' | 'literature' | 'privacy_notice' | 'remarks';
+/** Null or absent when not provided (older API: always absent). */
+type HandbookTexts = { [K in HandbookTextField]?: string | null };
+
+export type CourseTexts = Omit<PublicCourseText, HandbookTextField> & HandbookTexts;
 export type CourseIscedCode = PublicIscedCode;
 export type AcademicSessionRef = PublicAcademicSession;
 export type SuggestResponse = SchemaSuggestResponse;
@@ -105,8 +111,16 @@ export type Offering = Omit<PublicOffering, 'application_instructions'> & {
   application_instructions?: Readonly<Record<string, string>> | null;
 };
 
-export type CourseDetail = Omit<PublicCourseDetail, NewCourseKeys | 'offerings'> &
-  CourseExtras & { offerings: Offering[] };
+export type CourseDetail = Omit<
+  PublicCourseDetail,
+  NewCourseKeys | 'offerings' | 'texts' | 'instructors'
+> &
+  CourseExtras & {
+    offerings: Offering[];
+    texts: Record<string, CourseTexts>;
+    /** Instructor names [DL 21]; absent from an older API. */
+    instructors?: string[];
+  };
 
 export type ReferenceData = Omit<ReferenceResponse, 'kinds' | 'attribute_definitions'> & {
   kinds?: KindRef[];

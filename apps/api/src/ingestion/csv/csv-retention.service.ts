@@ -15,6 +15,15 @@ export interface RetentionResult {
   staleRuns: number;
 }
 
+/** Counters of a run, as recorded in `maintenance_runs` (job `csv-retention`). */
+export function retentionCounters(result: RetentionResult): Record<string, number> {
+  return {
+    uploads_purged: result.purged,
+    orphan_directories: result.orphans,
+    stale_runs_failed: result.staleRuns,
+  };
+}
+
 /**
  * Spec §10: uploads are kept 90 days. Deletes the files of older Channel B runs,
  * keeps the `sync_runs` row (its `upload_object_key` becomes null, audited as

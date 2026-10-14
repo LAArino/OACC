@@ -24,7 +24,7 @@ OECP connects **directly** to your endpoint, not through SURFeduhub [DL 14]. SUR
 | Consumer profile | OECP adds `consumer=<profile>` to every request; default `eduxchange`, or another value your endpoint supports |
 | Data selection | OECP publishes **everything** your endpoint returns for that profile. It does not filter by `alliances.name`. Make sure the profile returns only the courses you want in the alliance catalogue |
 
-OECP reads `GET /organizations?organizationType=root`, `/courses`, `/courses/{id}/offerings` and `/offerings/{id}?expand=academicSession`. It never calls person or enrolment endpoints and never expands `coordinators`.
+OECP reads `GET /organizations?organizationType=root`, `/courses`, `/courses/{id}/offerings` and `/offerings/{id}?expand=academicSession`. It never calls person or enrolment endpoints and never asks for `expand=coordinators`; if your course items already contain coordinators **with their names**, OECP keeps only those names, as the course's instructors (below).
 
 ## 1. Agree the channel
 
@@ -123,6 +123,7 @@ Under *Test and run*, choose *Test connection*. OECP calls `GET /` and `GET /cou
 | `oecp.oeapi.unmappable_delivery_mode` | error | Rejected: no `modeOfDelivery` OECP understands |
 | `oecp.oeapi.study_load_unit` | error | Rejected: `studyLoad` not in ECTS or not above 0 |
 | `oecp.oeapi.missing_primary_code` | error | Course rejected: no `primaryCode` |
+| `oecp.content.handbook_incomplete` | warning | The course lacks fields the Aurora IT Handbook requires to show it (the message lists them, e.g. `instructors`, `texts.en.assessment`, `offerings.enrol_start_date`). Published anyway while the alliance runs the rule in `warn` mode; stored as **draft** once it is set to `enforce`. See *Completeness* below |
 
 The full list is in the [API integration guide](../guides/api-integration.md). Fix data at the source and run again.
 
@@ -130,7 +131,9 @@ The full list is in the [API integration guide](../guides/api-integration.md). F
 
 ## What is mapped and what is not
 
-Mapped from OEAPI: titles and texts per language, ECTS, ISCED fields, level, information and application links, dates and application deadline, academic sessions, teaching language, delivery mode, and seats when you publish `maxNumberStudents` and `enrolledNumberStudents`.
+Mapped from OEAPI: titles and texts per language, ECTS, ISCED fields, level, information and application links, dates and application deadline, academic sessions, teaching language, delivery mode, seats when you publish `maxNumberStudents` and `enrolledNumberStudents`, and **instructors** from `coordinators` when your endpoint returns them expanded with a name (`displayName`, or given name and surname). Coordinators given only as ids are ignored, and nothing else about the person (e-mail, phone, identifiers) is kept. The names are shown on the public course page, so return only names your university already publishes for the course.
+
+Optional OECP extensions your IT can add if it wants (same shape as OECP's own read API): `ext.oecp.instructors` (a list of names or role descriptions, used when no coordinator has a name), `ext.oecp.texts` (mode of repetition, methods, literature, privacy notice, remarks per language) on the course, and `ext.oecp.applicationInstructions` on the offering. Details and an example: [API integration guide](../guides/api-integration.md#handbook-completeness).
 
 Not available from OEAPI in 0.2.0:
 
@@ -139,10 +142,14 @@ Not available from OEAPI in 0.2.0:
 - **"How to apply" instructions**: set by override, or, if your IT can add it, the optional extension `ext.oecp.applicationInstructions` on the offering.
 - Teaching hours, campus and seats reserved for the alliance: override only.
 
+### Completeness
+
+The alliance applies the Aurora IT Handbook's publication rule: a course is shown only with English description, learning outcomes, prerequisites and assessment, ECTS, a study cycle, a contact, at least one instructor, and a published offering with start and end dates, application start and deadline, a teaching language and a delivery mode. After each harvest the run report lists every published course that misses something (`oecp.content.handbook_incomplete`), and the course list of the admin dashboard shows a *Completeness* column. During the transition (`warn`) such courses stay public; once the alliance switches to `enforce`, they are kept as drafts until a harvest finds them complete. **Instructors are the usual gap**, since few endpoints return named coordinators: return them expanded in your course listing, send `ext.oecp.instructors`, or set an *Instructors* override in the dashboard (it survives every harvest). Fix everything else at the source.
+
 ## 9. Keep it running
 
 - **Withdrawal by absence.** A course or offering missing from three complete daily harvests in a row is withdrawn; it comes back when it reappears. Failed or incomplete harvests never withdraw anything, and if 30% or more of your published courses vanish at once, absences are not counted.
-- **Overrides.** In the admin dashboard, open a course: each field shows the harvested value with an *Override* box. Ticked values survive every harvest until you untick them. Use this for alliance attributes, kind and instructions, not to correct errors your own system should fix. See the [web form guide](../guides/web-form.md).
+- **Overrides.** In the admin dashboard, open a course: each field shows the harvested value with an *Override* box. Ticked values survive every harvest until you untick them. Use this for alliance attributes, kind, instructors and instructions, not to correct errors your own system should fix. See the [web form guide](../guides/web-form.md).
 - **Unpublishing.** Change the status in your own system, or set a status override in OECP.
 - **Credential rotation.** On *Integration settings* choose *Replace it* under *Stored credential*, enter the new credential and save; then *Test connection*.
 
@@ -157,3 +164,4 @@ Not available from OEAPI in 0.2.0:
 - [ ] First harvest reviewed: no unexpected rejections, English names present
 - [ ] *Harvest on the schedule* switched on; daily runs visible in *Sync history*
 - [ ] Alliance attributes, kind and application instructions added as overrides
+- [ ] *Completeness* reviewed: instructors delivered (named coordinators, `ext.oecp.instructors` or overrides) and no other handbook field missing

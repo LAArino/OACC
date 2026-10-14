@@ -12,7 +12,11 @@ import {
   EMAIL_PATTERN,
   ERROR_CODES,
   type ErrorCode,
+  HANDBOOK_TEXT_FIELDS,
+  type HandbookTextField,
   HTTPS_URL_PATTERN,
+  INSTRUCTOR_MAX_LENGTH,
+  INSTRUCTORS_MAX,
   issuesToProblemErrors,
   ISCED_CODE_PATTERN,
   type LocalizedLabel,
@@ -23,6 +27,7 @@ import {
   oeapiV5Offering,
   type OeapiV5Organization,
   oeapiV5Organization,
+  oeapiV5Person,
   type ProblemError,
   resolveLevels,
   type SessionType,
@@ -315,6 +320,8 @@ export class OeapiV5Adapter {
     const ects = Math.round(load.value * 100) / 100;
 
     const texts = this.texts(src, issues);
+    handbookTexts(raw, texts, issues);
+    const instructors = coordinators(src.coordinators, issues) ?? extInstructors(raw, issues);
 
     // fieldsOfStudy → ISCED-F codes; first valid is primary.
     const isced: string[] = [];
@@ -355,6 +362,7 @@ export class OeapiV5Adapter {
       info_url: link.url,
       contact_email: contact && EMAIL_PATTERN.test(contact) ? contact : null,
       isced_codes: isced,
+      instructors,
       texts,
       attributes: {},
     };
@@ -518,6 +526,11 @@ export class OeapiV5Adapter {
         learning_outcomes: null,
         prerequisites: null,
         assessment: null,
+        mode_of_repetition: null,
+        methods: null,
+        literature: null,
+        privacy_notice: null,
+        remarks: null,
         keywords: [],
         is_machine_translated: false,
       };
@@ -585,6 +598,148 @@ export class OeapiV5Adapter {
 
 const MAX_INSTRUCTIONS = 20_000;
 const INSTRUCTIONS_POINTER = '/ext/oecp/applicationInstructions';
+const INSTRUCTORS_POINTER = '/ext/oecp/instructors';
+const MAX_HANDBOOK_TEXT = 20_000;
+
+/** Display name of an expanded v5 `Person`: `displayName`, else given name + surname. */
+function personName(value: unknown): string | null {
+  const parsed = oeapiV5Person.safeParse(value);
+  if (!parsed.success) return null;
+  const p = parsed.data;
+  const display = p.displayName?.trim();
+  if (display) return display;
+  const surname = (p.surname ?? p.surName)?.trim();
+  const given = p.givenName?.trim();
+  if (!given || !surname) return null;
+  return [given, p.surnamePrefix?.trim(), surname].filter(Boolean).join(' ');
+}
+
+/** Distinct names, cut to the DDL limits (200 characters, 50 entries) with a warning. */
+function cleanInstructors(names: readonly string[], pointer: string, issues: Issues): string[] {
+  const out: string[] = [];
+  for (const name of names) {
+    let value = name.replace(/\s+/g, ' ').trim();
+    if (!value) continue;
+    if (value.length > INSTRUCTOR_MAX_LENGTH) {
+      issues.warn('oecp.oeapi.value_truncated', pointer, `instructor name`);
+      value = value.slice(0, INSTRUCTOR_MAX_LENGTH).trim();
+    }
+    if (!out.includes(value)) out.push(value);
+  }
+  if (out.length > INSTRUCTORS_MAX) {
+    issues.warn('oecp.oeapi.value_truncated', pointer, `${out.length} instructors`);
+    return out.slice(0, INSTRUCTORS_MAX);
+  }
+  return out;
+}
+
+/**
+ * v5 course `coordinators` → `instructors` (decision 21a). Only persons the
+ * endpoint already returns expanded with a name (`displayName`, or `givenName`
+ * and `surname`) are used; bare `personId`s are ignored: the harvester makes no
+ * extra request and never looks persons up.
+ *
+ * GDPR: the names of teaching staff are personal data. OECP republishes only
+ * the names the university itself publishes in its course catalogue for this
+ * course, for the same purpose (informing prospective students), under the
+ * alliance's public-interest task (decision 21a; the partner's access
+ * agreement covers the republication, spec §10). Nothing else of the `Person`
+ * (e-mail, phone, affiliation, ids) is read or kept in the canonical record.
+ *
+ * `undefined` when the course has no coordinator with a name (the OECP
+ * extension `ext.oecp.instructors` may then supply them).
+ */
+function coordinators(value: unknown, issues: Issues): string[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value)) {
+    issues.warn('oecp.oeapi.invalid_payload', '/coordinators', 'expected an array');
+    return undefined;
+  }
+  const names = value.map(personName).filter((n): n is string => n !== null);
+  if (names.length === 0) return undefined;
+  return cleanInstructors(names, '/coordinators', issues);
+}
+
+/**
+ * Optional OECP extension `ext.oecp.instructors` (string[], as the OECP read API
+ * emits it), used when `coordinators` gives no name. Anything else is ignored
+ * with a warning; absent → `[]`.
+ */
+function extInstructors(raw: unknown, issues: Issues): string[] {
+  const value = extOecp(raw)?.['instructors'];
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || !value.every((v) => typeof v === 'string')) {
+    issues.warn('oecp.oeapi.invalid_extension', INSTRUCTORS_POINTER, 'expected [string]');
+    return [];
+  }
+  return cleanInstructors(value as string[], INSTRUCTORS_POINTER, issues);
+}
+
+function extOecp(raw: unknown): Record<string, unknown> | null {
+  const ext = isRecord(raw) && isRecord(raw['ext']) ? raw['ext'] : null;
+  return ext && isRecord(ext['oecp']) ? ext['oecp'] : null;
+}
+
+/** `course_texts` column → member of `ext.oecp.texts` (camelCase, as the read API emits it). */
+const HANDBOOK_TEXT_MEMBERS: Readonly<Record<HandbookTextField, string>> = {
+  mode_of_repetition: 'modeOfRepetition',
+  methods: 'methods',
+  literature: 'literature',
+  privacy_notice: 'privacyNotice',
+  remarks: 'remarks',
+};
+
+/**
+ * Optional OECP extension `ext.oecp.texts.{modeOfRepetition, methods, literature,
+ * privacyNotice, remarks}` (decision 21b; OEAPI v5 has no such members): each
+ * LanguageTypedString[] or `{lang: text}`, assigned to the languages that have a
+ * title. Malformed members are ignored with a warning.
+ */
+function handbookTexts(raw: unknown, texts: Record<string, CourseText>, issues: Issues): void {
+  const ext = extOecp(raw)?.['texts'];
+  if (ext === undefined || ext === null) return;
+  if (!isRecord(ext)) {
+    issues.warn('oecp.oeapi.invalid_extension', '/ext/oecp/texts', 'expected an object');
+    return;
+  }
+  for (const field of HANDBOOK_TEXT_FIELDS) {
+    const member = HANDBOOK_TEXT_MEMBERS[field];
+    const pointer = `/ext/oecp/texts/${member}`;
+    const list = languageTypedStrings(ext[member]);
+    if (list === undefined) continue;
+    if (list === null) {
+      issues.warn('oecp.oeapi.invalid_extension', pointer, 'expected [{language, value}]');
+      continue;
+    }
+    for (const [lang, value] of byLanguage(list, pointer, issues)) {
+      const text = texts[lang];
+      if (!text) {
+        issues.warn('oecp.oeapi.text_without_title', pointer, lang);
+        continue;
+      }
+      if (value.length > MAX_HANDBOOK_TEXT) {
+        issues.warn('oecp.oeapi.value_truncated', pointer, `${lang} text`);
+      }
+      text[field] = value.slice(0, MAX_HANDBOOK_TEXT);
+    }
+  }
+}
+
+/** LanguageTypedString[] or `{lang: text}` → list; `undefined` when absent, `null` when malformed. */
+function languageTypedStrings(value: unknown): OeapiV5LanguageTypedString[] | null | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (Array.isArray(value)) {
+    return value.every(
+      (v) => isRecord(v) && typeof v['language'] === 'string' && typeof v['value'] === 'string',
+    )
+      ? (value as OeapiV5LanguageTypedString[])
+      : null;
+  }
+  if (isRecord(value) && Object.values(value).every((v) => typeof v === 'string')) {
+    return Object.entries(value).map(([language, text]) => ({ language, value: text as string }));
+  }
+  return null;
+}
 
 /**
  * Optional `ext.oecp.applicationInstructions` of an offering (an OECP extension a

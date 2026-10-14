@@ -51,6 +51,8 @@ export interface CourseRow {
   teaching_hours: string | null;
   info_url: string | null;
   contact_email: string | null;
+  /** Teaching staff (decision 21a). */
+  instructors: string[];
   updated_at: Date;
 }
 
@@ -63,6 +65,11 @@ export interface CourseTextRow {
   learning_outcomes: string | null;
   prerequisites: string | null;
   assessment: string | null;
+  mode_of_repetition: string | null;
+  methods: string | null;
+  literature: string | null;
+  privacy_notice: string | null;
+  remarks: string | null;
   keywords: string[];
 }
 
@@ -176,11 +183,27 @@ export interface V5Course {
       keywords?: { language: string; value: string[] }[];
       teachingUnit: string | null;
       contactEmail: string | null;
+      /**
+       * Teaching staff (decision 21a). Not v5 `coordinators`, which are `Person`
+       * objects (or their ids); OECP stores names only.
+       */
+      instructors: string[];
+      /** Optional IT Handbook texts (decision 21b); absent when the course has none. */
+      texts?: V5HandbookTexts;
       /** Alliance attributes keyed by attribute key (definitions in `/api/public/v1/reference`). */
       attributes: Record<string, unknown>;
       updatedAt: string;
     };
   };
+}
+
+/** `ext.oecp.texts`: members present only when some language has the text. */
+export interface V5HandbookTexts {
+  modeOfRepetition?: LanguageTypedString[];
+  methods?: LanguageTypedString[];
+  literature?: LanguageTypedString[];
+  privacyNotice?: LanguageTypedString[];
+  remarks?: LanguageTypedString[];
 }
 
 export interface V5Offering {
@@ -454,6 +477,7 @@ export function toV5Course(
   const abstract = lts(texts.map((t) => [t.lang, t.abstract]));
   const admission = lts(texts.map((t) => [t.lang, t.prerequisites]));
   const assessment = lts(texts.map((t) => [t.lang, t.assessment]));
+  const handbook = handbookTexts(texts);
   return {
     courseId: c.id,
     primaryCode: { codeType: 'identifier', code: c.ext_id },
@@ -484,11 +508,30 @@ export function toV5Course(
         ...(keywords.length ? { keywords } : {}),
         teachingUnit: c.teaching_unit_id,
         contactEmail: c.contact_email,
+        instructors: c.instructors ?? [],
+        ...(handbook ? { texts: handbook } : {}),
         attributes: c.attributes ?? {},
         updatedAt: c.updated_at.toISOString(),
       },
     },
   };
+}
+
+/** `ext.oecp.texts` from the course texts; undefined when no language has any of them. */
+export function handbookTexts(texts: CourseTextRow[]): V5HandbookTexts | undefined {
+  const out: V5HandbookTexts = {};
+  const members = [
+    ['modeOfRepetition', 'mode_of_repetition'],
+    ['methods', 'methods'],
+    ['literature', 'literature'],
+    ['privacyNotice', 'privacy_notice'],
+    ['remarks', 'remarks'],
+  ] as const;
+  for (const [member, column] of members) {
+    const values = lts(texts.map((t) => [t.lang, t[column]]));
+    if (values.length > 0) out[member] = values;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 // --- offerings -----------------------------------------------------------------

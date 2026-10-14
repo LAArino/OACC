@@ -12,6 +12,8 @@ import type {
   CourseKind,
   LifecycleStatus,
   LocalizedLabel,
+  MaintenanceRunStatus,
+  MaintenanceTrigger,
   SourceChannel,
   SyncRunStatus,
 } from '@oecp/schemas';
@@ -100,6 +102,8 @@ export interface CoursesTable {
   teaching_hours: Numeric | null;
   info_url: string | null;
   contact_email: string | null;
+  /** Migration 0007: teaching staff as published by the university (decision 21a). */
+  instructors: Generated<string[]>;
   overrides: Overrides;
   content_hash: Buffer | null;
   absent_count: Generated<number>;
@@ -118,6 +122,12 @@ export interface CourseTextsTable {
   learning_outcomes: string | null;
   prerequisites: string | null;
   assessment: string | null;
+  /** Migration 0007: optional texts of the IT Handbook (decision 21b). */
+  mode_of_repetition: string | null;
+  methods: string | null;
+  literature: string | null;
+  privacy_notice: string | null;
+  remarks: string | null;
   keywords: Generated<string[]>;
   is_machine_translated: Generated<boolean>;
   overrides: Overrides;
@@ -305,6 +315,32 @@ export interface AuditLogTable {
   >;
 }
 
+/** Migration 0006: one row per run of a worker maintenance job. */
+export interface MaintenanceRunsTable {
+  id: Generated<string>;
+  job: string;
+  trigger_kind: MaintenanceTrigger;
+  triggered_by: string | null;
+  status: Generated<MaintenanceRunStatus>;
+  started_at: Timestamp;
+  finished_at: Timestamp | null;
+  counters: JsonObject<Record<string, number>>;
+  details: ColumnType<
+    Record<string, unknown> | null,
+    Record<string, unknown> | null | undefined,
+    Record<string, unknown> | null
+  >;
+  error: string | null;
+}
+
+/** Migration 0006: last use of the admin API per administrator (no IP, no user agent). */
+export interface AdminActivityTable {
+  sub: string;
+  organization_id: string | null;
+  last_seen_at: Timestamp;
+  updated_at: Timestamp;
+}
+
 export interface Database {
   organizations: OrganizationsTable;
   delivery_modes: DeliveryModesTable;
@@ -323,4 +359,6 @@ export interface Database {
   ext_metadata_history: ExtMetadataHistoryTable;
   admin_invitations: AdminInvitationsTable;
   audit_log: AuditLogTable;
+  maintenance_runs: MaintenanceRunsTable;
+  admin_activity: AdminActivityTable;
 }

@@ -140,6 +140,8 @@ export interface NormalizedCourseRow {
   teaching_unit_code?: string | null;
   info_url?: string | null;
   contact_email?: string | null;
+  /** Template 1.2: names or role descriptions, distinct, in file order; `null` (empty cell) clears them. */
+  instructors?: string[] | null;
   /** Languages with at least one column in the header and one non-empty cell. */
   texts: Record<string, NormalizedCourseText>;
   /** Header languages whose cells are all empty: deleted (never `en`). */
@@ -441,6 +443,7 @@ const MULTI_VALUE_COLUMNS = new Set([
   'teaching_languages',
   'delivery_modes',
   'levels',
+  'instructors',
 ]);
 const HEADER_CODES = new Set<ErrorCode>(['oecp.csv.missing_column', 'oecp.csv.unknown_column']);
 
@@ -757,6 +760,7 @@ function validateCourses(
       teaching_unit_code: unit,
       info_url: optional(cells, 'info_url', identity),
       contact_email: optional(cells, 'contact_email', identity),
+      instructors: optional(cells, 'instructors', (x) => [...new Set(splitMultiValue(x))]),
       texts,
       deleted_languages: deleted,
       attributes,
@@ -1006,11 +1010,17 @@ export const CSV_TEMPLATE_EXAMPLES: Readonly<
     teaching_unit_code: '',
     info_url: 'https://www.example.org/courses/aur-sust-101',
     contact_email: 'courses@example.org',
+    instructors: 'Course coordinator, Example University|Teaching team, Example University',
     abstract_en: 'An interdisciplinary introduction to sustainability challenges.',
     description_en: 'Weekly online seminars combine lectures, case studies and group work.',
     learning_outcomes_en: 'Explain the main sustainability frameworks.',
     prerequisites_en: 'None.',
     assessment_en: 'Group project and final essay.',
+    mode_of_repetition_en: 'Every summer semester.',
+    methods_en: 'Online lectures, case studies and group work.',
+    literature_en: 'Reading list provided in the online learning environment.',
+    privacy_notice_en: '',
+    remarks_en: '',
     keywords_en: 'sustainability|climate|society',
   },
   offerings: {

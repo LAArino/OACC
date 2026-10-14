@@ -3,7 +3,10 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createRemoteJWKSet } from 'jose';
 import type { Env } from '../config/env.js';
+import { MaintenanceApiModule } from '../maintenance/maintenance-api.module.js';
+import { MaintenanceController } from '../maintenance/maintenance.controller.js';
 import { AdminController } from './admin.controller.js';
+import { AdminActivityRecorder } from './auth/admin-activity.recorder.js';
 import { AdminJwtGuard } from './auth/admin-jwt.guard.js';
 import { AdminTokenVerifier } from './auth/admin-token-verifier.js';
 import {
@@ -30,7 +33,7 @@ import { UploadsController } from './uploads/uploads.controller.js';
 import { UploadsService } from './uploads/uploads.service.js';
 
 @Module({
-  imports: [InvitationsModule, IngestionModule, CsvIngestionModule],
+  imports: [InvitationsModule, IngestionModule, CsvIngestionModule, MaintenanceApiModule],
   controllers: [
     AdminController,
     InvitationsController,
@@ -39,6 +42,7 @@ import { UploadsService } from './uploads/uploads.service.js';
     CoursesController,
     OrganizationsController,
     NetworkStatusController,
+    MaintenanceController,
   ],
   providers: [
     {
@@ -52,6 +56,7 @@ import { UploadsService } from './uploads/uploads.service.js';
     },
     { provide: ORGANIZATION_DIRECTORY, useClass: KyselyOrganizationDirectory },
     AdminJwtGuard,
+    AdminActivityRecorder,
     OrganizationAccess,
     IntegrationsService,
     UploadsService,

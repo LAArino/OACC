@@ -44,3 +44,44 @@ describe('Channel A environment', () => {
     expect(() => validateEnv({ ...base, SURFEDUHUB_GATEWAY_URL: 'http://gateway' })).toThrow();
   });
 });
+
+describe('idp-metadata-refresh environment', () => {
+  it('is off by default with safe defaults', () => {
+    const env = validateEnv(base);
+    expect(env.OECP_IDP_METADATA_URL).toBeUndefined();
+    expect(env).toMatchObject({
+      OECP_IDP_METADATA_REQUIRE_VALID_UNTIL: true,
+      OECP_IDP_METADATA_CACHE_DIR: '/data/idp-metadata',
+      OECP_IDP_METADATA_MAX_BYTES: 150 * 1024 * 1024,
+      OECP_IDP_METADATA_INCLUDE_DISABLED: false,
+      OECP_IDP_METADATA_REFRESH_ON_START: true,
+    });
+    expect(
+      validateEnv({ ...base, OECP_IDP_METADATA_URL: '' }).OECP_IDP_METADATA_URL,
+    ).toBeUndefined();
+  });
+
+  it('requires an HTTPS URL and the pinned certificate with it', () => {
+    const url = 'https://mds.edugain.org/edugain-v2.xml';
+    expect(() => validateEnv({ ...base, OECP_IDP_METADATA_URL: url })).toThrow(
+      /OECP_IDP_METADATA_SIGNING_CERT_FILE/,
+    );
+    expect(() =>
+      validateEnv({
+        ...base,
+        OECP_IDP_METADATA_URL: 'http://mds.edugain.org/edugain-v2.xml',
+        OECP_IDP_METADATA_SIGNING_CERT_FILE: '/run/secrets/edugain.pem',
+      }),
+    ).toThrow();
+    const env = validateEnv({
+      ...base,
+      OECP_IDP_METADATA_URL: url,
+      OECP_IDP_METADATA_SIGNING_CERT_FILE: '/etc/oecp/edugain-signer.pem',
+      OECP_IDP_METADATA_REQUIRE_VALID_UNTIL: 'false',
+    });
+    expect(env).toMatchObject({
+      OECP_IDP_METADATA_URL: url,
+      OECP_IDP_METADATA_REQUIRE_VALID_UNTIL: false,
+    });
+  });
+});

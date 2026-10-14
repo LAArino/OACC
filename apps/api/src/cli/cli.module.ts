@@ -7,8 +7,10 @@ import { InvitationsModule } from '../admin/invitations/invitations.module.js';
 import { AppConfigModule } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
 import { DbModule } from '../db/db.module.js';
+import { IdpMetadataRefreshModule } from '../identity/metadata-refresh/idp-metadata-refresh.module.js';
 import { SecretsModule } from '../secrets/secrets.module.js';
 import { BootstrapAllianceAdminCommand } from './bootstrap-alliance-admin.js';
+import { IdpMetadataRefreshCommand } from './idp-metadata-refresh.js';
 import { SeedAttributeDefinitionsCommand } from './seed-attribute-definitions.js';
 import { SeedOrganizationsCommand } from './seed-organizations.js';
 import { StoreSecretCommand } from './store-secret.js';
@@ -26,12 +28,20 @@ const CliLoggerModule = LoggerModule.forRootAsync({
 
 /** Application context of the `oecp` CLI: no HTTP server, no queues. */
 @Module({
-  imports: [AppConfigModule, CliLoggerModule, DbModule, InvitationsModule, SecretsModule],
+  imports: [
+    AppConfigModule,
+    CliLoggerModule,
+    DbModule,
+    InvitationsModule,
+    SecretsModule,
+    IdpMetadataRefreshModule,
+  ],
   providers: [
     SeedOrganizationsCommand,
     SeedAttributeDefinitionsCommand,
     BootstrapAllianceAdminCommand,
     StoreSecretCommand,
+    IdpMetadataRefreshCommand,
   ],
 })
 export class CliModule {}

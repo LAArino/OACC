@@ -231,6 +231,11 @@ export function toCourseDetail(rows: CourseDetailRows): PublicCourseDetail {
       learning_outcomes: t.learning_outcomes,
       prerequisites: t.prerequisites,
       assessment: t.assessment,
+      mode_of_repetition: t.mode_of_repetition,
+      methods: t.methods,
+      literature: t.literature,
+      privacy_notice: t.privacy_notice,
+      remarks: t.remarks,
       keywords: t.keywords,
       is_machine_translated: t.is_machine_translated,
     };
@@ -264,6 +269,7 @@ export function toCourseDetail(rows: CourseDetailRows): PublicCourseDetail {
     teaching_hours: toNumber(c.teaching_hours),
     info_url: c.info_url,
     contact_email: c.contact_email ?? c.org_contact_email,
+    instructors: c.instructors ?? [],
     texts,
     isced_codes: rows.isced.map((i) => ({
       code: i.isced_code,

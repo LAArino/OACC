@@ -142,6 +142,10 @@ export const ERROR_CODES = {
     message:
       'The organization still has courses, sub-units, administrators, pending invitations or an enabled harvest',
   },
+  'oecp.content.handbook_incomplete': {
+    severity: 'warning',
+    message: 'Course is missing fields the Aurora IT Handbook requires to publish',
+  },
 
   'oecp.admin.cannot_remove_self': {
     severity: 'error',

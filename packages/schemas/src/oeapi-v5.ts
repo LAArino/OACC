@@ -126,6 +126,20 @@ export const oeapiV5AcademicSession = z.looseObject({
 });
 export type OeapiV5AcademicSession = z.infer<typeof oeapiV5AcademicSession>;
 
+/**
+ * `Person` (subset): the members that make a display name. v5 spells the family
+ * name `surname`; `surName` is accepted too (seen in the wild).
+ */
+export const oeapiV5Person = z.looseObject({
+  personId: id.optional(),
+  displayName: z.string().optional(),
+  givenName: z.string().optional(),
+  surnamePrefix: z.string().optional(),
+  surname: z.string().optional(),
+  surName: z.string().optional(),
+});
+export type OeapiV5Person = z.infer<typeof oeapiV5Person>;
+
 /** `Course` (`CourseId` + `CourseProperties`). */
 export const oeapiV5Course = z.looseObject({
   courseId: id,
@@ -148,6 +162,12 @@ export const oeapiV5Course = z.looseObject({
   /** ISCED-F code (v5 allows one, up to 4 characters). */
   fieldsOfStudy: z.string().optional(),
   link: z.string().optional(),
+  /**
+   * `personId`s, or `Person` objects when the endpoint expands them. Unchecked
+   * here: a malformed value never rejects the course (the adapter reads only
+   * expanded persons with a name, spec §6.2.4).
+   */
+  coordinators: z.unknown().optional(),
   consumers: z.array(oeapiV5Consumer).optional(),
   organization: ref(z.looseObject({ organizationId: id })).optional(),
   validFrom: isoDate.optional(),

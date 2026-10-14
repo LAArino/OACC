@@ -32,7 +32,7 @@ Technical reference for whoever supplies course data, accurate to release 0.2.0;
 
 - [guides/README.md](guides/README.md) — overview of the three guides and the data-quality rules shared by every channel (English title, ISCED-F, ECTS, dates, language tags, delivery modes, status lifecycle).
 - [guides/api-integration.md](guides/api-integration.md) — for partner IT: the OEAPI v5 requests OECP sends, authentication, network requirements, the full v5 → OECP mapping, harvester codes, withdrawal by absence, testing and the mock partner.
-- [guides/csv-authoring.md](guides/csv-authoring.md) — template 1.1 column reference for `courses.csv` and `offerings.csv`, limits, processing, browser validation, the `oecp.csv.*`/`oecp.content.*` code table and a worked example.
+- [guides/csv-authoring.md](guides/csv-authoring.md) — template 1.2 column reference for `courses.csv` and `offerings.csv`, the handbook publication rule, limits, processing, browser validation, the `oecp.csv.*`/`oecp.content.*` code table and a worked example.
 - [guides/web-form.md](guides/web-form.md) — the course wizard, offerings, status actions, overrides on harvested records, history and the admin API equivalents.
 
 ## Reviews
@@ -46,6 +46,7 @@ Technical reference for whoever supplies course data, accurate to release 0.2.0;
 
 - [partner-oeapi-endpoints.md](research/partner-oeapi-endpoints.md) — [RP] what is publicly discoverable about the partners' OEAPI endpoints and how eduXchange consumes them.
 - [aurora-virtual-campus-draft.md](research/aurora-virtual-campus-draft.md) — what the Aurora "Virtual Campus" listing shows today; basis of decision 18 and ADR-0012.
+- [aurora-it-handbook-data-model.md](research/aurora-it-handbook-data-model.md) — the catalogue data model of the Aurora IT Handbook §3.4 compared with OECP; basis of decision 21 and ADR-0016.
 
 ## Architecture decision records
 
@@ -66,8 +67,14 @@ See the [ADR index](adr/README.md) for the process and template.
 - [0013 — Admin session tokens kept in memory only](adr/0013-admin-tokens-in-memory-only.md)
 - [0014 — Strict `consumer` semantics on the OEAPI read API](adr/0014-strict-consumer-semantics-on-oeapi-read-api.md)
 - [0015 — Withdrawal by absence after N complete harvests, with a mass-absence guard](adr/0015-withdrawal-by-absence-with-mass-absence-guard.md)
+- [0016 — Handbook publish rule with `warn` and `enforce` modes](adr/0016-handbook-publish-rule-with-warn-and-enforce.md)
+- [0017 — IdP metadata refresh from a pinned-signature aggregate](adr/0017-idp-metadata-refresh-from-pinned-signature-aggregate.md)
 
 ## Project documents
 
 - [README](../README.md) · [CONTRIBUTING](../CONTRIBUTING.md) · [GOVERNANCE](../GOVERNANCE.md) · [SECURITY](../SECURITY.md) · [CODE_OF_CONDUCT](../CODE_OF_CONDUCT.md) · [CHANGELOG](../CHANGELOG.md) · [RELEASING](RELEASING.md)
 - Deployment: [deploy/compose/README.md](../deploy/compose/README.md) (Docker Compose reference deployment, quick start and smoke test).
+
+## Screenshots
+
+- [images/README.md](images/README.md): annotated screenshots of the public portal and the administration panel (release 0.3.0, simulated data).

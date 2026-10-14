@@ -5,6 +5,7 @@ import {
   adminCourse,
   adminCourseHistory,
   adminCourseList,
+  adminCourseListItem,
   adminReference,
   courseInput,
   courseOverridesPatch,
@@ -16,9 +17,13 @@ import {
   adminFieldDomId,
   buildOverridesPatch,
   adminLabel,
+  COURSE_FORM_OVERRIDE_FIELDS,
+  completenessFieldLabel,
   courseFormFromCourse,
+  courseFormValue,
   courseInputFromForm,
   courseOverrideKeyOf,
+  courseValueText,
   emptyCourseForm,
   emptyOfferingForm,
   formIssueMessageKey,
@@ -27,6 +32,7 @@ import {
   offeringFormFromOffering,
   offeringInputFromForm,
   OTHER_SESSION,
+  parseInstructors,
   parseKeywords,
   resolveIssueField,
   serverFormIssues,
@@ -34,7 +40,52 @@ import {
   validateCourseForm,
   validateOfferingForm,
 } from '../app/utils/adminCourseForm';
-import { course, courseList, history, listItem, offering, reference } from './helpers/adminCourses';
+import {
+  course,
+  courseList,
+  handbookCourse,
+  history,
+  listItem,
+  offering,
+  reference,
+} from './helpers/adminCourses';
+
+const HANDBOOK_TEXTS = [
+  'methods',
+  'mode_of_repetition',
+  'literature',
+  'remarks',
+  'privacy_notice',
+] as const;
+type Json = Record<string, unknown>;
+/** Whether the installed schemas declare the DL 21 members yet. */
+const declares = (schema: unknown, key: string) =>
+  key in ((schema as { shape?: Json }).shape ?? {});
+const declaresDl21 = declares(adminCourse, 'instructors');
+const declaresListDl21 = declares(adminCourseListItem, 'complete');
+const declaresInputDl21 = declares(courseInput, 'instructors');
+/** A body without the DL 21 members, as an API without them accepts it. */
+function withoutDl21<T>(body: T): T {
+  if (declaresInputDl21) return body;
+  const { instructors: _i, texts, ...rest } = body as Json & { texts?: Record<string, Json> };
+  return {
+    ...rest,
+    ...(texts
+      ? {
+          texts: Object.fromEntries(
+            Object.entries(texts).map(([lang, text]) => [
+              lang,
+              Object.fromEntries(
+                Object.entries(text).filter(
+                  ([k]) => !(HANDBOOK_TEXTS as readonly string[]).includes(k),
+                ),
+              ),
+            ]),
+          ),
+        }
+      : {}),
+  } as T;
+}
 
 describe('helpers', () => {
   it('reads plain and localized labels', () => {
@@ -47,6 +98,38 @@ describe('helpers', () => {
   it('derives DOM ids from JSON pointers', () => {
     expect(adminFieldDomId('course', '/texts/en/title')).toBe('course-texts-en-title');
     expect(adminFieldDomId('course', '/isced_codes/0/code')).toBe('course-isced_codes-0-code');
+  });
+
+  it('splits instructors on new lines, without blanks and duplicates', () => {
+    expect(parseInstructors(' Dr. Ada Lovelace \n\nProf. Alan Turing\nDr. Ada Lovelace\n')).toEqual(
+      ['Dr. Ada Lovelace', 'Prof. Alan Turing'],
+    );
+    expect(parseInstructors('')).toEqual([]);
+  });
+
+  it('labels completeness keys, falling back to the key itself', () => {
+    const messages: Record<string, string> = {
+      'admin.completeness.fields.texts_en_description': 'Content: description (English)',
+      'admin.completeness.fields.description': 'Content: description',
+      'admin.completeness.fields.offerings_application_deadline': 'Offering application deadline',
+    };
+    const t = (key: string, params?: Record<string, unknown>) =>
+      key === 'admin.completeness.inLanguage'
+        ? `${String(params?.field)} (${String(params?.lang)})`
+        : (messages[key] ?? key);
+    const te = (key: string) => key in messages;
+    expect(completenessFieldLabel('texts.en.description', t, te)).toBe(
+      'Content: description (English)',
+    );
+    expect(completenessFieldLabel('offerings.application_deadline', t, te)).toBe(
+      'Offering application deadline',
+    );
+    expect(
+      completenessFieldLabel('texts.de.description', t, te, (tag) =>
+        tag === 'de' ? 'German' : tag,
+      ),
+    ).toBe('Content: description (German)');
+    expect(completenessFieldLabel('shoe_size', t, te)).toBe('shoe_size');
   });
 
   it('splits keywords on commas and new lines', () => {
@@ -124,6 +207,56 @@ describe('course form', () => {
       texts: { en: { title: 'Applied statistics', keywords: ['statistics', 'data'] } },
       status: 'draft',
     });
+  });
+
+  it('round-trips instructors and the IT Handbook texts [DL 21]', () => {
+    const form = courseFormFromCourse(handbookCourse(), reference());
+    expect(form.instructors).toBe('Dr. Ada Lovelace\nProf. Alan Turing');
+    expect(form.texts.en!.methods).toBe('Lectures and computer labs.');
+    const input = courseInputFromForm(form);
+    expect(input.instructors).toEqual(['Dr. Ada Lovelace', 'Prof. Alan Turing']);
+    expect(input.texts.en).toMatchObject({
+      methods: 'Lectures and computer labs.',
+      mode_of_repetition: 'Every autumn semester.',
+      literature: null,
+      remarks: null,
+      privacy_notice: 'Applicant data is processed for admission only.',
+    });
+    expect(courseFormValue(form, 'instructors')).toEqual(['Dr. Ada Lovelace', 'Prof. Alan Turing']);
+    expect(courseFormValue(form, 'texts.en.methods')).toBe('Lectures and computer labs.');
+    const t = (key: string) => key;
+    expect(courseValueText('instructors', input.instructors, null, t, 'en')).toBe(
+      'Dr. Ada Lovelace; Prof. Alan Turing',
+    );
+    expect(COURSE_FORM_OVERRIDE_FIELDS).toContain('instructors');
+    expect(courseOverrideKeyOf('/instructors')).toBe('instructors');
+    expect(courseOverrideKeyOf('/texts/en/privacy_notice')).toBe('texts.en.privacy_notice');
+  });
+
+  it('reads a course from an older API without instructors or the new texts', () => {
+    const form = courseFormFromCourse(course(), reference());
+    expect(form.instructors).toBe('');
+    expect(form.texts.en!.remarks).toBe('');
+    const input = courseInputFromForm(form);
+    expect(input.instructors).toEqual([]);
+    expect(input.texts.en).toMatchObject({ methods: null, privacy_notice: null });
+  });
+
+  it('validates the number and length of instructors', () => {
+    const form = courseFormFromCourse(course(), reference());
+    const check = () =>
+      validateCourseForm(form, { reference: reference(), creating: false }).map((i) => [
+        i.field,
+        i.code,
+      ]);
+    form.instructors = Array.from({ length: 50 }, (_, i) => `Instructor ${i}`).join('\n');
+    expect(check()).toEqual([]);
+    form.instructors += '\nOne too many';
+    expect(check()).toEqual([['/instructors', 'tooManyInstructors']]);
+    form.instructors = `Short\n${'x'.repeat(201)}`;
+    expect(check()).toEqual([['/instructors', 'instructorTooLong']]);
+    form.instructors = 'x'.repeat(200);
+    expect(check()).toEqual([]);
   });
 
   it('drops empty optional values, empty languages and unset attributes', () => {
@@ -271,26 +404,34 @@ describe('offering form', () => {
 describe('contract (@oecp/schemas admin-courses)', () => {
   it('the test fixtures are valid API responses', () => {
     expect(() => adminReference.parse(reference())).not.toThrow();
-    expect(() => adminCourse.parse(course())).not.toThrow();
-    expect(() => adminCourseList.parse(courseList([listItem(1), listItem(2)]))).not.toThrow();
+    // Fixtures with the DL 21 members once the installed schemas declare them.
+    expect(adminCourse.safeParse(declaresDl21 ? handbookCourse() : course()).error).toBeUndefined();
+    const items = declaresListDl21
+      ? [listItem(1, { complete: true }), listItem(2, { complete: false })]
+      : [listItem(1), listItem(2)];
+    expect(adminCourseList.safeParse(courseList(items)).error).toBeUndefined();
     expect(() => adminCourseHistory.parse(history())).not.toThrow();
   });
 
   it('the bodies the form sends are valid requests', () => {
     const ref = reference();
     const edited = courseInputFromForm(courseFormFromCourse(course(), ref));
-    expect(courseInput.safeParse(edited).error).toBeUndefined();
+    expect(courseInput.safeParse(withoutDl21(edited)).error).toBeUndefined();
+    const handbook = courseInputFromForm(courseFormFromCourse(handbookCourse(), ref));
+    expect(courseInput.safeParse(withoutDl21(handbook)).error).toBeUndefined();
 
     const created = emptyCourseForm();
     Object.assign(created, { ext_id: 'NEW-1', ects: '5', levels: ['master'] });
     created.isced = [{ code: '0613' }];
     created.texts.en!.title = 'New';
     created.texts.en!.keywords = 'a, b';
-    expect(courseInput.safeParse(courseInputFromForm(created)).error).toBeUndefined();
+    expect(courseInput.safeParse(withoutDl21(courseInputFromForm(created))).error).toBeUndefined();
 
     const withdrawn = courseFormFromCourse(course({ status: 'withdrawn' }), ref);
     expect(courseInputFromForm(withdrawn)).not.toHaveProperty('status');
-    expect(courseInput.safeParse(courseInputFromForm(withdrawn)).error).toBeUndefined();
+    expect(
+      courseInput.safeParse(withoutDl21(courseInputFromForm(withdrawn))).error,
+    ).toBeUndefined();
 
     const offeringBody = offeringInputFromForm(offeringFormFromOffering(offering(), ref));
     expect(offeringInput.safeParse(offeringBody).error).toBeUndefined();
@@ -308,6 +449,13 @@ describe('contract (@oecp/schemas admin-courses)', () => {
       () => undefined,
     );
     expect(courseOverridesPatch.safeParse(patch).error).toBeUndefined();
+    if (declaresInputDl21) {
+      const dl21 = {
+        set: { instructors: ['Dr. Ada Lovelace'], 'texts.en.methods': 'Labs.' },
+        clear: [],
+      };
+      expect(courseOverridesPatch.safeParse(dl21).error).toBeUndefined();
+    }
     expect(
       offeringOverridesPatch.safeParse({ set: { alliance_seats: 3, campus: null }, clear: [] })
         .error,

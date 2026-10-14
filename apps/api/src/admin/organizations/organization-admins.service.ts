@@ -91,10 +91,8 @@ export class OrganizationAdminsService {
       const holders = await this.keycloak.countUsersWithRole('alliance_admin');
       if (holders <= 1) throw new ProblemException(409, 'oecp.admin.last_alliance_admin');
     }
-    // Each call is idempotent: after a partial failure the same request can be retried.
-    for (const role of roles) await this.keycloak.removeRealmRole(sub, role);
-    await this.keycloak.setUserAttribute(sub, OECP_ORG_ID_ATTRIBUTE, null);
-    await this.keycloak.logoutUser(sub);
+    // Idempotent: after a partial failure the same request can be retried.
+    await this.keycloak.revokeOecpAccess(sub, roles);
 
     await this.db
       .insertInto('audit_log')

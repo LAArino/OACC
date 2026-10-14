@@ -57,6 +57,11 @@ export function courseFromInput(
       learning_outcomes: text.learning_outcomes,
       prerequisites: text.prerequisites,
       assessment: text.assessment,
+      mode_of_repetition: text.mode_of_repetition,
+      methods: text.methods,
+      literature: text.literature,
+      privacy_notice: text.privacy_notice,
+      remarks: text.remarks,
       keywords: text.keywords,
       // Texts entered in the form are written by people.
       is_machine_translated: false,
@@ -76,6 +81,7 @@ export function courseFromInput(
     info_url: input.info_url ?? null,
     contact_email: input.contact_email ?? null,
     isced_codes: iscedList(input.isced_codes),
+    instructors: input.instructors,
     texts: sorted(texts),
     attributes: sorted(input.attributes),
   };
@@ -97,6 +103,7 @@ export function courseFromAdmin(course: AdminCourse, status: LifecycleStatus): C
     info_url: course.info_url,
     contact_email: course.contact_email,
     isced_codes: iscedList(course.isced_codes),
+    instructors: course.instructors,
     texts: sorted(course.texts),
     attributes: sorted(course.attributes),
   };
@@ -122,6 +129,7 @@ export function courseFromEffective(
     info_url: c.info_url,
     contact_email: c.contact_email,
     isced_codes: c.isced_codes,
+    instructors: c.instructors,
     texts: next.texts,
     attributes: c.attributes,
   };
@@ -225,6 +233,7 @@ export function courseFields(course: AdminCourse | undefined): Record<string, un
     contact_email: course.contact_email,
     teaching_unit_ext_id: course.teaching_unit_ext_id,
     isced_codes: course.isced_codes,
+    instructors: course.instructors,
     attributes: sorted(course.attributes),
   };
   for (const [lang, text] of Object.entries(course.texts)) out[`texts.${lang}`] = text;

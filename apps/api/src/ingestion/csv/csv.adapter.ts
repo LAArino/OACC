@@ -37,6 +37,7 @@ export interface ExistingCourse {
   teaching_unit_ext_id: string | null;
   info_url: string | null;
   contact_email: string | null;
+  instructors: string[];
   /** Keyed by language. */
   texts: Record<string, CourseText>;
 }
@@ -159,6 +160,11 @@ export class CsvAdapter {
         learning_outcomes: pick(given.learning_outcomes, current?.learning_outcomes),
         prerequisites: pick(given.prerequisites, current?.prerequisites),
         assessment: pick(given.assessment, current?.assessment),
+        mode_of_repetition: pick(given.mode_of_repetition, current?.mode_of_repetition),
+        methods: pick(given.methods, current?.methods),
+        literature: pick(given.literature, current?.literature),
+        privacy_notice: pick(given.privacy_notice, current?.privacy_notice),
+        remarks: pick(given.remarks, current?.remarks),
         keywords: given.keywords === undefined ? (current?.keywords ?? []) : (given.keywords ?? []),
         // Uploaded texts are written by people.
         is_machine_translated: false,
@@ -184,6 +190,8 @@ export class CsvAdapter {
       info_url: pick(row.info_url, existing?.info_url),
       contact_email: pick(row.contact_email, existing?.contact_email),
       isced_codes: row.isced_codes,
+      instructors:
+        row.instructors === undefined ? (existing?.instructors ?? []) : (row.instructors ?? []),
       texts: sortKeys(texts),
       attributes: mergeKeyed(existing?.attributes, row.attributes),
     };

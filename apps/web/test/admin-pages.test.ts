@@ -494,6 +494,33 @@ describe('CSV console', () => {
     );
   });
 
+  it('offers template 1.2 and explains its new course columns [DL 21]', async () => {
+    serve({
+      'GET /api/admin/v1/csv-template/schema.json': ok(
+        new Blob(['{}'], { type: 'application/schema+json' }),
+      ),
+    });
+    const saved: string[] = [];
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:tpl');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      saved.push(this.download);
+    });
+    const w = await mountPage(CsvPage, '/en/admin/csv');
+    expect(w.text()).toContain('(template 1.2, at most 5 MB');
+    expect(w.text()).toContain(
+      'Template 1.2 adds optional course columns: instructors (names separated by |) and, per language, methods_xx',
+    );
+    const links = w.findAll('[aria-labelledby="templates-heading"] a');
+    expect(links[2]!.text()).toBe('Download the JSON Schema of template 1.2');
+    await links[2]!.trigger('click');
+    await flushPromises();
+    expect(saved).toEqual(['oecp-csv-1.2.schema.json']);
+    expect(await axeViolations(w.html())).toEqual([]);
+  });
+
   it('uses the ?org= organization of an alliance administrator', async () => {
     serve({
       [ME]: ok(fixtures.me(['alliance_admin'], null)),

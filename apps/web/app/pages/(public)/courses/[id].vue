@@ -3,14 +3,21 @@
 // Course page (spec §7): partner header, key facts (with the course kind,
 // levels and every alliance attribute [DL 18]), course texts per language,
 // offerings with how to apply, schema.org/Course JSON-LD, canonical URL.
+// Instructors and the optional texts of the Aurora IT Handbook [DL 21] are
+// shown when the API sends them (an older API does not).
 import type { CourseTexts } from '~/types/catalogue';
 
+/** Text sections in page order; the privacy notice is shown last, after the keywords. */
 const TEXT_SECTIONS = [
   'abstract',
   'description',
   'learning_outcomes',
   'prerequisites',
   'assessment',
+  'methods',
+  'mode_of_repetition',
+  'literature',
+  'remarks',
 ] as const satisfies readonly (keyof CourseTexts)[];
 
 const { t, locale } = useI18n();
@@ -53,6 +60,11 @@ const textLang = computed(() => {
   return asked && textLanguages.value.includes(asked) ? asked : defaultTextLang.value;
 });
 const shownText = computed(() => course.value?.texts[textLang.value]);
+/** A text section of the shown language, or undefined when missing or blank. */
+function sectionText(section: keyof CourseTexts): string | undefined {
+  const value = shownText.value?.[section];
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
 /** Title in the page locale (English fallback), used in the header and the head. */
 const pageText = computed(() =>
   course.value ? pickLocalized(course.value.texts, locale.value) : undefined,
@@ -132,6 +144,7 @@ const offerings = computed(() =>
 );
 const infoUrl = computed(() => safeHttpUrl(course.value?.info_url));
 const contactEmail = computed(() => safeEmail(course.value?.contact_email));
+const instructors = computed(() => courseInstructors(course.value));
 
 // --- Back to results -----------------------------------------------------------
 const listPath = computed(() => localePath('/courses'));
@@ -253,6 +266,14 @@ useHead({
         </template>
         <dt>{{ t('facts.courseCode') }}</dt>
         <dd>{{ course.ext_id }}</dd>
+        <template v-if="instructors.length">
+          <dt>{{ t('facts.instructors', instructors.length) }}</dt>
+          <dd>
+            <ul class="course__instructors">
+              <li v-for="(name, index) in instructors" :key="index">{{ name }}</li>
+            </ul>
+          </dd>
+        </template>
         <template v-if="contactEmail">
           <dt>{{ t('facts.contact') }}</dt>
           <dd>
@@ -311,9 +332,9 @@ useHead({
           <strong>{{ shownText.title }}</strong>
         </p>
         <template v-for="section in TEXT_SECTIONS" :key="section">
-          <section v-if="shownText[section]" class="course__text-section">
+          <section v-if="sectionText(section)" class="course__text-section">
             <h3 :lang="locale">{{ t(`course.sections.${section}`) }}</h3>
-            <p class="text-block">{{ shownText[section] }}</p>
+            <p class="text-block">{{ sectionText(section) }}</p>
           </section>
         </template>
         <section v-if="shownText.keywords.length" class="course__text-section">
@@ -321,6 +342,10 @@ useHead({
           <ul class="tag-list">
             <li v-for="keyword in shownText.keywords" :key="keyword">{{ keyword }}</li>
           </ul>
+        </section>
+        <section v-if="sectionText('privacy_notice')" class="course__text-section course__privacy">
+          <h3 :lang="locale">{{ t('course.sections.privacy_notice') }}</h3>
+          <p class="text-block">{{ sectionText('privacy_notice') }}</p>
         </section>
       </div>
     </section>
@@ -392,6 +417,20 @@ useHead({
 }
 .course__text-section p {
   margin: 0;
+}
+.course__instructors {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.course__privacy {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--c-divider);
+  color: var(--c-muted);
+  font-size: 0.9rem;
+}
+.course__privacy h3 {
+  font-size: 1rem;
 }
 .course__mt {
   color: var(--c-muted);

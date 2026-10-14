@@ -368,15 +368,19 @@ export class IntegrationsService {
   ): Promise<{ organizationId: string; detail: SyncRunDetail }> {
     const run = await this.runs.get(id);
     if (!run) throw new ProblemException(404, 'oecp.request.not_found', 'Sync run not found');
-    const { items, total } = await this.runs.errors(id, {
-      page: query.page,
-      pageSize: query.page_size,
-      severity: query.severity,
-    });
+    const [{ items, total }, handbookIncomplete] = await Promise.all([
+      this.runs.errors(id, {
+        page: query.page,
+        pageSize: query.page_size,
+        severity: query.severity,
+      }),
+      this.runs.handbookIncomplete(id),
+    ]);
     return {
       organizationId: run.organization_id,
       detail: {
         ...toApiSyncRun(run),
+        handbook_incomplete: handbookIncomplete,
         errors: {
           items: items.map((e) => ({
             id: String(e.id),

@@ -274,6 +274,109 @@ describe('OeapiV5Adapter.mapCourse', () => {
   });
 });
 
+describe('OeapiV5Adapter.mapCourse: instructors and handbook texts (decision 21)', () => {
+  const withMembers = (members: Record<string, unknown>) =>
+    adapter.mapCourse({ ...servedCourse(fixture('c-0001')), ...members }, ctx);
+
+  it('has no instructors when the course has no coordinators', () => {
+    const result = withMembers({});
+    expect(result.ok && result.value.course.instructors).toEqual([]);
+  });
+
+  it('maps expanded coordinators with displayName or givenName + surname, in order, distinct', () => {
+    const result = withMembers({
+      coordinators: [
+        { personId: 'p-1', displayName: '  Dr.  A.   Example ' },
+        { personId: 'p-2', givenName: 'Bea', surnamePrefix: 'van', surname: 'Teacher' },
+        { personId: 'p-3', givenName: 'Cai', surName: 'Lecturer' },
+        { personId: 'p-4', displayName: 'Dr. A. Example', mail: 'a@uibk.example' },
+      ],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.course.instructors).toEqual([
+      'Dr. A. Example',
+      'Bea van Teacher',
+      'Cai Lecturer',
+    ]);
+    expect(result.warnings).toEqual([]);
+    // Only names reach the canonical record (no e-mail, ids or other Person members).
+    expect(JSON.stringify(result.value.course)).not.toContain('a@uibk.example');
+  });
+
+  it('ignores coordinators given as ids or without a usable name, with no request and no warning', () => {
+    const result = withMembers({
+      coordinators: ['p-1', 'p-2', { personId: 'p-3' }, { personId: 'p-4', givenName: 'Only' }],
+    });
+    expect(result.ok && result.value.course.instructors).toEqual([]);
+    expect(result.ok && result.warnings).toEqual([]);
+  });
+
+  it('keeps the course when coordinators are malformed (warning only)', () => {
+    const result = withMembers({ coordinators: { personId: 'p-1' } });
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value.course.instructors).toEqual([]);
+    expect(result.ok && codes(result.warnings)).toEqual(['oecp.oeapi.invalid_payload']);
+  });
+
+  it('cuts names over 200 characters and lists over 50 entries with warnings', () => {
+    const many = Array.from({ length: 55 }, (_, i) => ({
+      personId: `p${i}`,
+      displayName: `T${i}`,
+    }));
+    const result = withMembers({
+      coordinators: [{ personId: 'x', displayName: 'n'.repeat(250) }, ...many],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.course.instructors).toHaveLength(50);
+    expect(result.value.course.instructors[0]).toHaveLength(200);
+    expect(codes(result.warnings)).toEqual([
+      'oecp.oeapi.value_truncated',
+      'oecp.oeapi.value_truncated',
+    ]);
+  });
+
+  it('reads ext.oecp.instructors and ext.oecp.texts (the OECP read API extension)', () => {
+    const result = withMembers({
+      ext: {
+        oecp: {
+          instructors: ['Course team, University of Innsbruck'],
+          texts: {
+            modeOfRepetition: [{ language: 'en-GB', value: 'Every winter semester.' }],
+            methods: { en: 'Seminars.', de: 'Seminare.', fr: 'Séminaires.' },
+            literature: 'not a list',
+          },
+        },
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.course.instructors).toEqual(['Course team, University of Innsbruck']);
+    expect(result.value.course.texts['en']).toMatchObject({
+      mode_of_repetition: 'Every winter semester.',
+      methods: 'Seminars.',
+      literature: null,
+      privacy_notice: null,
+      remarks: null,
+    });
+    expect(result.value.course.texts['de']?.methods).toBe('Seminare.');
+    // fr has no title: dropped with a warning; the malformed member is ignored with a warning.
+    expect(codes(result.warnings).sort()).toEqual([
+      'oecp.oeapi.invalid_extension',
+      'oecp.oeapi.text_without_title',
+    ]);
+  });
+
+  it('prefers named coordinators over ext.oecp.instructors', () => {
+    const result = withMembers({
+      coordinators: [{ personId: 'p-1', displayName: 'Dr. A. Example' }],
+      ext: { oecp: { instructors: ['Course team'] } },
+    });
+    expect(result.ok && result.value.course.instructors).toEqual(['Dr. A. Example']);
+  });
+});
+
 describe('OeapiV5Adapter.mapOffering', () => {
   it('maps dates, seats, modes, language, session and application URL', () => {
     const result = offering('c-0001', 'o-0001-a');

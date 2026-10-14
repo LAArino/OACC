@@ -226,6 +226,7 @@ const bundle: CourseBundle = {
     teaching_hours: null,
     info_url: null,
     contact_email: 'c@uibk.example',
+    instructors: ['Course team, University of Innsbruck'],
     updated_at: new Date('2026-10-01T00:00:00Z'),
   },
   texts: [
@@ -238,6 +239,11 @@ const bundle: CourseBundle = {
       learning_outcomes: null,
       prerequisites: null,
       assessment: null,
+      mode_of_repetition: 'Every winter semester.',
+      methods: 'Lectures.',
+      literature: null,
+      privacy_notice: null,
+      remarks: null,
       keywords: [],
     },
     {
@@ -249,6 +255,11 @@ const bundle: CourseBundle = {
       learning_outcomes: null,
       prerequisites: null,
       assessment: null,
+      mode_of_repetition: null,
+      methods: 'Colleges.',
+      literature: null,
+      privacy_notice: null,
+      remarks: null,
       keywords: ['k'],
     },
   ],
@@ -327,12 +338,28 @@ describe('courses and offerings', () => {
           level: 'short_cycle',
           levels: ['short_cycle', 'bachelor'],
           attributes: { free_course: true, sdg: ['sdg04'] },
+          instructors: ['Course team, University of Innsbruck'],
+          texts: {
+            modeOfRepetition: [{ language: 'en', value: 'Every winter semester.' }],
+            methods: [
+              { language: 'en', value: 'Lectures.' },
+              { language: 'nl', value: 'Colleges.' },
+            ],
+          },
         },
       },
     });
-    for (const key of ['firstStartDate', 'learningOutcomes', 'admissionRequirements', 'link']) {
+    // v5 coordinators are Person objects: OECP keeps names only, in ext.oecp.
+    for (const key of [
+      'firstStartDate',
+      'learningOutcomes',
+      'admissionRequirements',
+      'link',
+      'coordinators',
+    ]) {
       expect(v5).not.toHaveProperty(key);
     }
+    expect(Object.keys(v5.ext.oecp.texts ?? {})).toEqual(['modeOfRepetition', 'methods']);
     expect(oeapiV5Course.safeParse(v5).success).toBe(true);
   });
 

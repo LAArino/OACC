@@ -91,6 +91,7 @@ const harvested = (patch: Partial<Course> = {}): Course => ({
   info_url: 'https://uibk.example/ml',
   contact_email: 'aurora@uibk.example',
   isced_codes: ['0613'],
+  instructors: [],
   attributes: {},
   texts: {
     en: {

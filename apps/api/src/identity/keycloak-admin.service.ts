@@ -45,6 +45,18 @@ export interface KeycloakIdentityProvider {
   providerId?: string;
 }
 
+/**
+ * Full IdentityProviderRepresentation as returned by
+ * `GET /identity-provider/instances/{alias}`. Unknown members are kept so that a
+ * PUT of the representation preserves everything this client does not model.
+ */
+export interface KeycloakIdentityProviderRepresentation extends KeycloakIdentityProvider {
+  internalId?: string;
+  /** Provider-specific settings, all string-valued (e.g. SAML `idpEntityId`). */
+  config?: Record<string, string>;
+  [key: string]: unknown;
+}
+
 /** Result of {@link KeycloakAdminService.lastLogin}. */
 export type LastLogin =
   | { available: true; at: Date | null }
@@ -210,6 +222,43 @@ export class KeycloakAdminService {
     return (await response.json()) as KeycloakIdentityProvider[];
   }
 
+  /** One identity provider with its config, or undefined if the alias does not exist. */
+  async getIdentityProvider(
+    alias: string,
+  ): Promise<KeycloakIdentityProviderRepresentation | undefined> {
+    const response = await this.request(
+      'get identity provider',
+      'GET',
+      `/identity-provider/instances/${enc(alias)}`,
+      { accept: [404] },
+    );
+    if (response.status === 404) {
+      await response.body?.cancel();
+      return undefined;
+    }
+    return (await response.json()) as KeycloakIdentityProviderRepresentation;
+  }
+
+  /**
+   * Replaces an identity provider (`manage-identity-providers`). Keycloak replaces
+   * the whole representation, config map included: pass the representation read
+   * with {@link getIdentityProvider}, modified, never a partial one.
+   */
+  async updateIdentityProvider(
+    alias: string,
+    representation: KeycloakIdentityProviderRepresentation,
+  ): Promise<void> {
+    if (representation.alias !== alias) {
+      throw new Error(`Identity provider alias mismatch (${representation.alias} != ${alias})`);
+    }
+    await this.request(
+      'update identity provider',
+      'PUT',
+      `/identity-provider/instances/${enc(alias)}`,
+      { body: representation },
+    );
+  }
+
   /** Creates an enabled local user (username = e-mail) and returns its id. */
   async createLocalUser(input: CreateLocalUserInput): Promise<string> {
     const email = input.email.toLowerCase();
@@ -294,6 +343,18 @@ export class KeycloakAdminService {
     });
   }
 
+  /**
+   * Revocation of OECP access (spec §2.2), shared by the administrators panel and
+   * the dormancy job: removes the given realm roles and `oecp_org_id`, then ends
+   * every session. The account itself is kept. Each step is idempotent, so a
+   * partially failed revocation can be retried.
+   */
+  async revokeOecpAccess(userId: string, roles: readonly string[]): Promise<void> {
+    for (const role of roles) await this.removeRealmRole(userId, role);
+    await this.setUserAttribute(userId, OECP_ORG_ID_ATTRIBUTE, null);
+    await this.logoutUser(userId);
+  }
+
   /** Ends every session of the user (spec §2.2 revocation). */
   async logoutUser(userId: string): Promise<void> {
     await this.request('log out user', 'POST', `/users/${enc(userId)}/logout`);
@@ -320,6 +381,46 @@ export class KeycloakAdminService {
       const page = (await response.json()) as KeycloakUser[];
       count += page.length;
       if (page.length < PAGE_SIZE) return count;
+    }
+  }
+
+  /**
+   * Users (full representation: attributes, `createdTimestamp`) with a direct
+   * mapping of the realm role. Like {@link countUsersWithRole}, falls back to
+   * scanning every user's role mappings when `GET /roles/{name}/users` is
+   * refused (403 without view-realm).
+   */
+  async usersWithRealmRole(roleName: string): Promise<KeycloakUser[]> {
+    const found: KeycloakUser[] = [];
+    for (let first = 0; ; first += PAGE_SIZE) {
+      const response = await this.request(
+        'list role members',
+        'GET',
+        `/roles/${enc(roleName)}/users`,
+        { query: { first, max: PAGE_SIZE, briefRepresentation: false }, accept: [403] },
+      );
+      if (response.status === 403) {
+        await response.body?.cancel();
+        return this.usersWithRealmRoleByScan(roleName);
+      }
+      const page = (await response.json()) as KeycloakUser[];
+      found.push(...page);
+      if (page.length < PAGE_SIZE) return found;
+    }
+  }
+
+  private async usersWithRealmRoleByScan(roleName: string): Promise<KeycloakUser[]> {
+    const found: KeycloakUser[] = [];
+    for (let first = 0; ; first += PAGE_SIZE) {
+      const response = await this.request('list users', 'GET', '/users', {
+        query: { first, max: PAGE_SIZE, briefRepresentation: false },
+      });
+      const page = (await response.json()) as KeycloakUser[];
+      for (const user of page) {
+        const roles = await this.realmRoleMappings(user.id);
+        if (roles.some((r) => r.name === roleName)) found.push(user);
+      }
+      if (page.length < PAGE_SIZE) return found;
     }
   }
 

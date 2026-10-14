@@ -54,7 +54,8 @@ describe.runIf(describeWithDatabase === 'run')('migration 0005_alliance_attribut
         WHERE id = ${COURSE_MASTER}`.execute(tdb.db)
     ).rows[0]!.updated_at;
     before = await snapshot(tdb);
-    await migrate(tdb.url, 'up');
+    // Exactly 0005: later migrations would otherwise be the ones the down step reverts.
+    await migrate(tdb.url, 'up', 1);
   }, 60_000);
 
   afterAll(async () => {
@@ -151,7 +152,7 @@ describe.runIf(describeWithDatabase === 'run')('migration 0005_alliance_attribut
     expect(rows[0]!.level).toBe('master');
     expect(Object.keys(rows[0]!.overrides)).toEqual(['ects']);
 
-    await migrate(tdb.url, 'up');
+    await migrate(tdb.url, 'up', 1);
     const again = await sql<{ levels: string[] }>`SELECT levels FROM courses
       WHERE id = ${COURSE_MASTER}`.execute(tdb.db);
     expect(again.rows[0]!.levels).toEqual(['master']);

@@ -57,12 +57,89 @@ export const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+  /**
+   * Aurora IT Handbook publication rule (decision 21c, spec §6.1): `warn` publishes
+   * incomplete courses with the warning `oecp.content.handbook_incomplete`;
+   * `enforce` stores them as `draft` with the same warning. Read by `api` (form,
+   * CSV uploads processed inline) and `worker` (harvests, queued uploads): set both.
+   */
+  OECP_PUBLISH_RULE: z.enum(['warn', 'enforce']).default('warn'),
+  /** Worker process only: port of its internal `/health` and `/ready` HTTP server. */
+  WORKER_HEALTH_PORT: z.coerce.number().int().min(0).max(65535).default(3001),
+  /** Spec §10 retention (months): `ext_metadata_history` partitions (raw payloads). */
+  OECP_RETENTION_HISTORY_MONTHS: z.coerce.number().int().min(1).max(120).default(12),
+  /** Spec §10 retention (months): `sync_errors`. */
+  OECP_RETENTION_SYNC_ERRORS_MONTHS: z.coerce.number().int().min(1).max(120).default(12),
+  /** Spec §10 retention (months): `sync_runs` (with their remaining errors). */
+  OECP_RETENTION_SYNC_RUNS_MONTHS: z.coerce.number().int().min(1).max(120).default(24),
+  /** Spec §10 retention (months): `audit_log`. */
+  OECP_RETENTION_AUDIT_MONTHS: z.coerce.number().int().min(1).max(240).default(36),
+  /** Spec §2.2: OECP roles are removed after this many days without activity. */
+  OECP_DORMANCY_DAYS: z.coerce.number().int().min(30).max(3650).default(180),
+  /**
+   * Spec §2.2: when true (the default), the dormancy job only reports the
+   * administrators it would revoke (log and `maintenance_runs.details`).
+   */
+  OECP_DORMANCY_DRY_RUN: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  /**
+   * Federation metadata aggregate for the daily `idp-metadata-refresh` job (spec §4),
+   * e.g. the eduGAIN aggregate `https://mds.edugain.org/edugain-v2.xml`. When empty
+   * the job only logs that it is not configured.
+   */
+  OECP_IDP_METADATA_URL: z
+    .union([z.literal('').transform(() => undefined), z.url({ protocol: /^https$/ })])
+    .optional(),
+  /** PEM certificate of the aggregate's signer (pinned); required with `OECP_IDP_METADATA_URL`. */
+  OECP_IDP_METADATA_SIGNING_CERT_FILE: z
+    .string()
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+  /** Refuse an aggregate without `validUntil` (one in the past is always refused). */
+  OECP_IDP_METADATA_REQUIRE_VALID_UNTIL: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  /** Last good aggregate, reused for up to 7 days when a download or verification fails. */
+  OECP_IDP_METADATA_CACHE_DIR: z.string().min(1).default('/data/idp-metadata'),
+  /** Download limit in bytes (default 150 MiB: the eduGAIN aggregate is ~94 MB). */
+  OECP_IDP_METADATA_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1024)
+    .default(150 * 1024 * 1024),
+  /** Also refresh IdPs that are disabled in Keycloak. */
+  OECP_IDP_METADATA_INCLUDE_DISABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  /**
+   * The worker also runs the job shortly after it starts (reusing an aggregate cached
+   * less than 24 h ago), so a keycloak-config-cli re-import is corrected within minutes.
+   */
+  OECP_IDP_METADATA_REFRESH_ON_START: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;
 
+/** Cross-field rules, checked by {@link validateEnv}. */
+function crossFieldRules(env: Env, ctx: z.RefinementCtx): void {
+  if (env.OECP_IDP_METADATA_URL && !env.OECP_IDP_METADATA_SIGNING_CERT_FILE) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['OECP_IDP_METADATA_SIGNING_CERT_FILE'],
+      message: 'Required when OECP_IDP_METADATA_URL is set (pinned signing certificate)',
+    });
+  }
+}
+
 export function validateEnv(raw: Record<string, unknown>): Env {
-  const result = envSchema.safeParse(raw);
+  const result = envSchema.superRefine(crossFieldRules).safeParse(raw);
   if (!result.success) {
     throw new Error(`Invalid environment:\n${z.prettifyError(result.error)}`);
   }

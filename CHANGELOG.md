@@ -10,8 +10,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.3.0] - 2026-10-14
+
+Maintenance jobs (history partitions, retention, dormancy dry run, worker health), IdP metadata refresh from a pinned-signature aggregate, test SAML IdP in the dev profile with the brokered sign-in verified, and the IT Handbook data-model alignment (instructors, five optional texts, CSV template 1.2, publish rule warn/enforce, completeness in the admin panel).
+
 ### Added
 
+- Web: Aurora IT Handbook alignment (decision 21). The public course page shows
+  an "Instructors" fact (hidden when empty), the optional texts Methods, Mode of
+  repetition, Literature and Remarks after Assessment, and the Privacy notice
+  last in small muted print, all as plain text with line breaks in the selected
+  text language; the JSON-LD names the instructors as schema.org `Person` on each
+  `CourseInstance`. The course editor gains an "Instructors" field on Basics (one
+  per line, at most 50 names of 200 characters, overridable on harvested
+  courses), a collapsed "More texts" group per language on Texts, and a
+  Completeness card on Review listing the obligatory fields the saved course
+  lacks; the courses list shows a Completeness column. The CSV console offers
+  template 1.2 (`oecp-csv-1.2.schema.json`) and mentions its new columns. All of
+  it degrades gracefully when the API does not send the new members.
+- API: Aurora IT Handbook alignment (decision 21, spec §5–§9). Migration
+  `0007_handbook_alignment`: `courses.instructors text[]` (names or role
+  descriptions as the university publishes them; ≤ 50 entries of 1–200
+  characters) and five optional multilingual texts in `course_texts`
+  (`mode_of_repetition`, `methods`, `literature`, `privacy_notice`, `remarks`);
+  methods, literature and remarks are searchable (weight C). Canonical model,
+  admin course API (`instructors`, the texts, overrides `instructors` and
+  `texts.<lang>.<field>`), public course page (`instructors`, texts) and the
+  OEAPI read API (`ext.oecp.instructors`, `ext.oecp.texts.*`; v5 `coordinators`
+  are not emitted) carry them; the content hash includes them, so the first
+  harvest or upload after the upgrade reports every course as updated once.
+  The harvester maps v5 `coordinators` to instructors only when the endpoint
+  returns them expanded with a name (no extra request, no person lookup), and
+  reads the OECP extensions `ext.oecp.instructors` and `ext.oecp.texts`.
+- CSV template 1.2 (`json/csv/oecp-csv-1.2.schema.json`; 1.0 and 1.1 stay
+  accepted and their schemas frozen): optional `instructors` (`|`-separated)
+  and `mode_of_repetition_<lang>`, `methods_<lang>`, `literature_<lang>`,
+  `privacy_notice_<lang>`, `remarks_<lang>` in `courses.csv`; a column newer
+  than the row's `template_version` fails the row. Runs record
+  `schema_version` `csv-1.2`.
+- Handbook publication rule (decision 21c): `completeness(course, offerings)` in
+  `@oecp/schemas` (`{complete, missing}`), applied by the writer on harvests, CSV
+  uploads and form saves once a course's offerings are written.
+  `OECP_PUBLISH_RULE=warn` (default) publishes an incomplete course as before
+  with the warning `oecp.content.handbook_incomplete` (missing fields in the
+  message); `enforce` stores it as `draft` with the same warning; neither
+  rejects anything. `AdminCourse.completeness`, `complete` on admin list items,
+  `handbook_incomplete` (courses with the warning) on the sync run detail.
 - Test SAML IdP for local development (compose profile `dev`, service
   `test-saml-idp`, SimpleSAMLphp 1.19.9) playing partner URV, and realm IdP
   `urv` pointing at it, enabled only with `OECP_DEV_IDP_ENABLED=true`
@@ -22,6 +68,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the university chooser, administrators list with `idp: "urv"`, and the
   e-mail, IdP and schacHomeOrganization mismatches (403
   `oecp.invitation.mismatch`).
+- Daily `idp-metadata-refresh` job (spec §4): downloads the federation
+  aggregate (`OECP_IDP_METADATA_URL`, 50 MiB / 60 s limits), verifies its
+  signature against a pinned certificate (`OECP_IDP_METADATA_SIGNING_CERT_FILE`;
+  exclusive c14n, RSA-SHA256, xml-crypto) and `validUntil`, keeps the last good
+  copy (`OECP_IDP_METADATA_CACHE_DIR`, usable for 7 days), and updates each
+  partner IdP's signing certificates (expired ones dropped, 30-day expiry
+  warning), SSO/SLO endpoints and binding flags through the Keycloak Admin API,
+  writing only changed keys and one `idp.metadata_refresh` audit row per
+  updated IdP. BullMQ queue and scheduler `idp-metadata-refresh` (04:15 UTC,
+  plus a start-up run), and CLI `oecp idp-metadata-refresh [--dry-run]
+  [--alias <a>] [--file <xml> [--no-verify]]`.
+- Maintenance jobs in the worker (queue `maintenance`, spec §5.4, §10), each
+  run recorded in the new `maintenance_runs` table under a PostgreSQL advisory
+  lock:
+  - `history-partitions` (at worker start and daily 00:10 UTC): monthly
+    partitions `ext_metadata_history_YYYY_MM` for the current month and the next
+    three; rows that fell into the default partition are moved into their month
+    (batched, in one transaction); partitions older than
+    `OECP_RETENTION_HISTORY_MONTHS` (12) are detached and dropped.
+  - `retention` (daily 04:45 UTC, batched deletes): `sync_errors` 12 months,
+    `sync_runs` 24 months, `audit_log` 36 months
+    (`OECP_RETENTION_SYNC_ERRORS_MONTHS`, `_SYNC_RUNS_MONTHS`, `_AUDIT_MONTHS`),
+    settled `admin_invitations`, `maintenance_runs` and idle `admin_activity`
+    12 months.
+  - `dormancy` (daily 05:00 UTC, spec §2.2): administrators without activity
+    for `OECP_DORMANCY_DAYS` (180) days lose their OECP roles and
+    `oecp_org_id` and are logged out (audit `admin.dormant_revoke`,
+    `system:dormancy`); never the last alliance_admin, never accounts younger
+    than the threshold, never inactivity before the upgrade. **Dry run by
+    default** (`OECP_DORMANCY_DRY_RUN=true`): the run lists the candidates.
+  - The daily `csv-retention` is now recorded in `maintenance_runs` too.
+- Admin activity tracking: the admin guard upserts `admin_activity (sub,
+  organization_id, last_seen_at)` at most once an hour per administrator (no
+  IP address, no user agent).
+- Admin API (alliance_admin): `GET /api/admin/v1/maintenance/runs?limit=&job=`
+  and `POST /api/admin/v1/maintenance/jobs/{name}/run` (202 `queued` /
+  `already_queued`, 404 for unknown jobs, audited
+  `maintenance.run_requested`); contracts in `@oecp/schemas`
+  (`admin-maintenance.ts`).
+- Worker health endpoints on `WORKER_HEALTH_PORT` (3001, internal):
+  `GET /health` with the registered repeatable jobs, `GET /ready` (PostgreSQL
+  and Valkey); Compose healthcheck for `worker`.
+- Migration `0006_maintenance`: `maintenance_runs`, `admin_activity`, indexes
+  for the retention deletes and for `ext_metadata_history.sync_run_id`.
 
 ## [0.2.0] - 2026-10-14
 
@@ -482,6 +572,7 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/AURORA-OECP/compare/v0.2.0...main
+[Unreleased]: https://github.com/LAArino/AURORA-OECP/compare/v0.3.0...main
+[0.3.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.3.0
 [0.2.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.2.0
 [0.1.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.1.0

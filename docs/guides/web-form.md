@@ -18,7 +18,7 @@ The mode follows the organization's authoritative channel (`GET …/reference` r
 
 ## Courses list
 
-**Courses** lists every course of the organization, any status, with filters for text (code or any title), status, type and source channel, 25 per page. Each row shows code, title (English, else the first language), status, source, ECTS, offerings, last update and whether overrides exist. **New course** opens the wizard (write mode only).
+**Courses** lists every course of the organization, any status, with filters for text (code or any title), status, type and source channel, 25 per page. Each row shows code, title (English, else the first language), status, source, ECTS, offerings, last update, whether overrides exist and **Completeness** (*Complete* or *Incomplete* against the [publication rule](#publication-rule-completeness)). **New course** opens the wizard (write mode only).
 
 ## The course wizard
 
@@ -35,13 +35,25 @@ Four steps. A new course is filled in order and each step is checked before **Ne
 | Teaching hours | optional, > 0, 1 decimal |
 | ISCED-F fields of study | 1 to 10 codes of 2–6 digits with a known broad field (shown next to the code); mark one as primary |
 | Teaching unit | optional; a sub-unit of your organization that has a code |
-| Information page, Contact e-mail | optional; `https://` only; e-mail address |
+| Information page, Contact e-mail | optional; `https://` only; e-mail address (without one, the organization's contact is shown) |
+| Instructors | optional; **one name per line**, primary first, at most 50 names of up to 200 characters (blank lines and repeats are dropped). Names (or role descriptions such as "Course team, Faculty of Law") of the teaching staff exactly as your university already publishes them for this course; they are shown on the public course page. Do not add e-mail addresses or names your university does not publish. Required by the [publication rule](#publication-rule-completeness) |
 
-**2. Texts.** One tab per language; English is always present and its title is required by the form. Add languages from the 29 EU/EEA languages offered. Per language: title (required for that language, ≤ 500), abstract (shown on course cards, first 300 characters), description, learning outcomes, prerequisites, assessment (each ≤ 20,000) and keywords (separated by commas or new lines, ≤ 50 of ≤ 100 characters). A language whose fields are all empty is not sent; on save, **languages you removed are deleted**, except English.
+**2. Texts.** One tab per language; English is always present and its title is required by the form. Add languages from the 29 EU/EEA languages offered. Per language: title (required for that language, ≤ 500), abstract (shown on course cards, first 300 characters), description, learning outcomes, prerequisites, assessment (each ≤ 20,000) and keywords (separated by commas or new lines, ≤ 50 of ≤ 100 characters). **More texts (optional)**, collapsed under each language, holds the five optional texts of the Aurora course data model (each ≤ 20,000): *Methods*, *Mode of repetition* (how often the course is offered, e.g. every winter semester), *Literature*, *Remarks* and *Privacy notice*. Each appears on the public course page only when filled in, after Assessment; the privacy notice comes last, in smaller print. Methods, literature and remarks are searchable. For the publication rule, description, learning outcomes, prerequisites and assessment are needed in English. A language whose fields are all empty is not sent; on save, **languages you removed are deleted**, except English.
 
 **3. Attributes.** One control per alliance attribute definition: a checkbox group for `multi_enum` (Aurora: educational hub, SDGs, target audience), a list for `enum` (competence framework, with "Not set"), a checkbox for `boolean` (micro-credential, free course, enrolled only, open to the alliance; ticked stores `true`, unticked leaves it unset, keeping an explicit `false` that came from CSV), a text field for `text` (≤ 500).
 
-**4. Review and status.** A summary of everything entered, then the status: **Draft** (not shown in the public catalogue) or **Published** (requires the English title). A new course starts as draft. For an existing course that is withdrawn or cancelled the choice stays empty and saving keeps that status; use the status actions to change it. **Create course** sends `POST`, **Save** sends `PUT` (a full replace of the record).
+**4. Review and status.** A summary of everything entered and, for a saved course, the **Completeness** card: *Complete*, or the list of fields the Aurora catalogue requires that are still missing (for the last saved version, offerings included). Then the status: **Draft** (not shown in the public catalogue) or **Published** (requires the English title). A new course starts as draft. For an existing course that is withdrawn or cancelled the choice stays empty and saving keeps that status; use the status actions to change it. **Create course** sends `POST`, **Save** sends `PUT` (a full replace of the record).
+
+## Publication rule (completeness)
+
+The Aurora IT Handbook shows a course only when every obligatory field is filled: English title, description, learning outcomes, prerequisites and assessment; ECTS; at least one level; a contact (the course's e-mail or the organization's); at least one instructor; and at least one **published** offering with start and end dates, application period start, application deadline, a teaching language and a delivery mode. After every save of a course or of one of its offerings, and after a status action, OECP checks the course if it is (or is being) published. What it does depends on the deployment's `OECP_PUBLISH_RULE`:
+
+| Mode | Incomplete course you publish |
+|---|---|
+| `warn` (default, transition period) | Published; the save records the warning `oecp.content.handbook_incomplete` with the missing fields |
+| `enforce` | Kept as **draft** with the same warning. A new course needs its offerings first: create it as draft, add a published offering, then **Publish** |
+
+A save is never refused because of this rule. In `enforce` mode, withdrawing or deleting the last published offering of a published course, or emptying an obligatory field, turns the course back to draft. The Completeness column and card always show the result for the saved version, whatever the status and the mode.
 
 ## Offerings
 
@@ -88,9 +100,9 @@ When the organization is harvested from its OEAPI endpoint, course and offering 
 - The review step lists the pending changes ("Override *field*: *value*", "Revert *field* to the source value"); **Save overrides** sends only those, as one `PATCH …/overrides` with `set` and `clear`.
 - The status actions store a **`status` override**. It wins over the harvested status and over withdrawal by absence, so "Withdraw" is the immediate way to take a harvested course down. The console cannot remove a status override; use the API (`"clear": ["status"]`).
 
-Overridable: course type, levels, ECTS, teaching hours, information page, contact e-mail, attributes (as one value), ISCED codes and every text field per language (adding a title in a new language adds that language until the title override is cleared); offering dates, time zone, teaching languages, delivery modes, campus, seat figures, application page and instructions.
+Overridable: course type, levels, ECTS, teaching hours, information page, contact e-mail, instructors (as one list), attributes (as one value), ISCED codes and every text field per language, the five optional texts included (adding a title in a new language adds that language until the title override is cleared); offering dates, time zone, teaching languages, delivery modes, campus, seat figures, application page and instructions.
 
-**What survives a harvest.** Every override. The harvester compares payloads before overrides are applied, keeps writing the latest source value next to each override (that is the value displayed and restored when you revert) and never removes an override. Partners cannot send course types or alliance attributes through OEAPI, so overrides are the way to add them to harvested courses. If the organization later switches to `form` or `csv`, the first save of a record in the wizard drops its leftover overrides; CSV uploads do not.
+**What survives a harvest.** Every override. The harvester compares payloads before overrides are applied, keeps writing the latest source value next to each override (that is the value displayed and restored when you revert) and never removes an override. Partners cannot send course types or alliance attributes through OEAPI, and most endpoints do not return named coordinators, so overrides are the way to add course types, attributes and instructors to harvested courses (an `instructors` override is often what makes a harvested course complete). If the organization later switches to `form` or `csv`, the first save of a record in the wizard drops its leftover overrides; CSV uploads do not.
 
 ## What cannot be edited, and why
 
@@ -132,7 +144,9 @@ curl -sS -X POST "$API/organizations/$ORG/courses" -H "Authorization: Bearer $TO
   "ects": 6, "teaching_hours": 45, "info_url": "https://www.example.org/courses/ds-101",
   "isced_codes": [{"code": "0612", "is_primary": true}, {"code": "0541"}],
   "attributes": {"sdg": ["sdg04"], "open_to_alliance": true},
-  "texts": {"en": {"title": "Data Science for Society", "keywords": ["data", "society"]},
+  "instructors": ["Maria Puig", "Course team, Faculty of Economics"],
+  "texts": {"en": {"title": "Data Science for Society", "keywords": ["data", "society"],
+                  "methods": "Lectures and a group project.", "mode_of_repetition": "Every spring semester."},
             "ca": {"title": "Ciència de dades per a la societat"}}}'
 curl -sS -X POST "$API/courses/$COURSE/offerings" -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d '{
@@ -145,7 +159,7 @@ curl -sS -X PATCH "$API/courses/$COURSE/overrides" -H "Authorization: Bearer $TO
   -d '{"set": {"kind": "bip", "texts.en.abstract": "Blended Intensive Programme."}, "clear": ["info_url"]}'
 ```
 
-Request rules: `status` on create or replace is `draft` or `published` (default `draft`; a replace keeps the current status when omitted); `PUT` is a full replace of the record; codes in the body must match the existing record; `timezone` defaults to the organization's; `seats_available` stamps `seats_updated_at`. Override keys: `status`, `kind`, `levels`, `ects`, `teaching_hours`, `info_url`, `contact_email`, `attributes`, `isced_codes`, `texts.<lang>.<field>` for courses; `status`, the four dates, `timezone`, `teaching_languages`, `delivery_modes`, `campus`, `max_students`, `alliance_seats`, `seats_available`, `application_url`, `application_instructions` for offerings; at least one change, at most 100 keys each, never a key in both `set` and `clear`. Responses carry the effective values plus `overrides`, `override_meta` (`{by, at}`) and `source_values`.
+Request rules: `status` on create or replace is `draft` or `published` (default `draft`; a replace keeps the current status when omitted); `PUT` is a full replace of the record; codes in the body must match the existing record; `timezone` defaults to the organization's; `seats_available` stamps `seats_updated_at`. Course bodies take `instructors` (array of strings, default `[]`, each 1–200 characters, at most 50, no duplicates) and, per language, `mode_of_repetition`, `methods`, `literature`, `privacy_notice`, `remarks` (≤ 20,000; trimmed; empty becomes null). Responses add `instructors` and `completeness` (`{complete, missing[]}`, the [publication rule](#publication-rule-completeness) on the effective values, whatever the status); list items carry `complete`. Override keys: `status`, `kind`, `levels`, `ects`, `teaching_hours`, `info_url`, `contact_email`, `attributes`, `isced_codes`, `instructors`, `texts.<lang>.<field>` (the five optional texts included) for courses; `status`, the four dates, `timezone`, `teaching_languages`, `delivery_modes`, `campus`, `max_students`, `alliance_seats`, `seats_available`, `application_url`, `application_instructions` for offerings; at least one change, at most 100 keys each, never a key in both `set` and `clear`. Responses carry the effective values plus `overrides`, `override_meta` (`{by, at}`) and `source_values`.
 
 **Bearer tokens.** The API accepts only Keycloak access tokens issued to the `oecp-admin` client with multi-factor authentication (`acr=mfa`); they live 300 seconds. Release 0.2.0 has no API keys or service accounts for administrators, so a script must use a token from an interactive sign-in (for example taken from the `Authorization` header of a console request in the browser's developer tools). Treat it as a password. For bulk changes, prefer [CSV](csv-authoring.md).
 
@@ -155,9 +169,9 @@ Problems are `application/problem+json` with `errors[]` items carrying `code` an
 
 | HTTP | When | Codes |
 |---|---|---|
-| 400 | Body shape and field rules | `oecp.request.validation_failed` with items such as `oecp.content.english_missing` (publishing without `texts.en`), `invalid_code`, `unsupported_language` (not one of the 29), `duplicate_isced`, `unknown_isced_field`, `date_order`, `seats_exceed_capacity`, `invalid_value`, `override_not_allowed` (unknown override key) |
+| 400 | Body shape and field rules | `oecp.request.validation_failed` with items such as `oecp.content.english_missing` (publishing without `texts.en`), `invalid_code`, `unsupported_language` (not one of the 29), `duplicate_isced`, `unknown_isced_field`, `date_order`, `seats_exceed_capacity`, `invalid_value` (also `instructors`: too many, too long or repeated), `override_not_allowed` (unknown override key) |
 | 422 | Checks against the database and the resulting record | `oecp.content.unknown_isced_field`, `unknown_teaching_unit`, `unknown_delivery_mode`, `unknown_attribute`, `invalid_attribute_value`, `unknown_attribute_option`, `english_missing` (status action), `date_order` (after overrides), `unsupported_language`, `invalid_value` |
 | 409 | State conflicts | `oecp.sync.channel_disabled` (create, replace or delete in overrides mode), `oecp.content.override_not_allowed` (overrides in write mode), `duplicate_ext_id`, `ext_id_immutable`, `has_published_offerings`, `published_not_deletable`, `harvested_not_deletable` |
 | 404, 403, 401 | Unknown record; organization outside your scope; missing or expired token, MFA missing | `oecp.request.not_found`, `oecp.auth.forbidden_organization`, `oecp.auth.missing_token`, `invalid_token`, `insufficient_acr` |
 
-Every successful save is one sync run (`form`, schema `form-1`) and one audit entry; a refused save writes nothing.
+Every successful save is one sync run (`form`, schema `form-1`) and one audit entry; a refused save writes nothing. The publication rule's warning `oecp.content.handbook_incomplete` is stored with the save's run (visible under **Sync history**) and in the audit entry (`publish_rule` with mode, status and missing fields); it never makes a save fail.

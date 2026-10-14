@@ -33,6 +33,7 @@ const course = (patch: Partial<Course> = {}): Course => ({
   info_url: 'https://example.org/c1',
   contact_email: null,
   isced_codes: ['0613', '0611'],
+  instructors: [],
   texts: {
     en: {
       title: 'Machine Learning',

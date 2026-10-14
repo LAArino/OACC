@@ -202,6 +202,12 @@ export const syncRunDetailQuery = z.object({
 export type SyncRunDetailQuery = z.infer<typeof syncRunDetailQuery>;
 
 export const syncRunDetail = syncRun.extend({
+  /**
+   * Courses this run published, or would have published, while missing fields of
+   * the IT Handbook publication rule (distinct `ext_id` of the warnings
+   * `oecp.content.handbook_incomplete`; decision 21c).
+   */
+  handbook_incomplete: z.int().min(0),
   errors: z.object({
     items: z.array(syncError),
     page: z.int(),

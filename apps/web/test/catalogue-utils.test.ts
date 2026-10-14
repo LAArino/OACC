@@ -6,6 +6,7 @@ import {
   attributeTags,
   catalogueBackPath,
   countryName,
+  courseInstructors,
   courseLevels,
   emptySearchState,
   facetOptions,
@@ -343,6 +344,15 @@ describe('attributes, levels and instructions [DL 18]', () => {
     expect(courseLevels({ levels: [], level: null })).toEqual([]);
   });
 
+  it('reads instructors defensively [DL 21]', () => {
+    expect(
+      courseInstructors({ instructors: [' Dr. Ada Lovelace ', '', 42, 'Prof. Alan Turing'] }),
+    ).toEqual(['Dr. Ada Lovelace', 'Prof. Alan Turing']);
+    expect(courseInstructors({})).toEqual([]);
+    expect(courseInstructors({ instructors: null })).toEqual([]);
+    expect(courseInstructors(undefined)).toEqual([]);
+  });
+
   it('picks instructions in the text language, else English, else any', () => {
     const byLang = { en: 'Apply', ca: 'Sol·licita', de: '  ' };
     expect(textIn(byLang, 'ca')).toEqual({ value: 'Sol·licita', lang: 'ca' });
@@ -476,6 +486,13 @@ describe('courseJsonLd', () => {
       url: 'https://apply.urv.cat/aurora/20345',
     });
     expect(instances[1]).not.toHaveProperty('location');
+  });
+
+  it('names no instructor when the API sends none', () => {
+    const { instructors: _i, ...old } = detail;
+    const instances = courseJsonLd(old as CourseDetail, { url, locale: 'en' })
+      .hasCourseInstance as Record<string, unknown>[];
+    expect(instances[0]).not.toHaveProperty('instructor');
   });
 
   it('uses the single level of an older API', () => {

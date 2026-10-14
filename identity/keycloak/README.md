@@ -185,9 +185,9 @@ here: the next run reverts it. Runtime data (users, roles of users,
 
 ## Adding a partner IdP
 
-1. **Organization first.** In 0.1.0 organizations come only from the seed
-   file (`oecp seed-organizations`, see docs/onboarding/alliance.md); there is
-   no organizations API or screen yet. The partner row needs its `slug`,
+1. **Organization first.** Create the partner organization from the seed file
+   (`oecp seed-organizations`) or, since 0.2.0, on the Organizations page of the
+   admin panel. The partner row needs its `slug`,
    `schac_home_organization` and `keycloak_idp_alias` = `slug`.
 2. **Find the IdP** in the eduGAIN metadata (or the hub of a hub-and-spoke
    federation: SURFconext for VUA, WAYF for CBS, spec §4). Note its
@@ -225,27 +225,111 @@ authenticator; it is not part of the MVP.
 ## Metadata refresh (owned by the API)
 
 Keycloak cannot consume federation aggregates (spec §4, [R01 §1]), so the
-daily worker job **`idp-metadata-refresh`** (module `identity` of `apps/api`)
-keeps the IdPs current:
+worker job **`idp-metadata-refresh`** (`apps/api/src/identity/metadata-refresh/`)
+keeps the partner IdPs current. It runs daily at 04:15 UTC (BullMQ job
+scheduler `idp-metadata-refresh` on queue `idp-metadata-refresh`) and, unless
+`OECP_IDP_METADATA_REFRESH_ON_START=false`, about a minute after every worker
+start (reusing an aggregate downloaded in the last 24 h; only when
+`OECP_IDP_METADATA_URL` is set), so certificates reset by a keycloak-config-cli
+re-import are restored within minutes. An `alliance_admin` can also start a run
+with `POST /api/admin/v1/maintenance/jobs/idp-metadata-refresh/run` (spec §8.2):
+that run goes through the worker's `maintenance` queue and is recorded in
+`maintenance_runs` (`GET /api/admin/v1/maintenance/runs?job=idp-metadata-refresh`);
+the daily and start-up runs are reported only in the worker log and the audit
+log.
 
-1. Download the eduGAIN aggregate (or the federation's, for hub IdPs) over
-   HTTPS from an allowlisted host.
-2. Verify its signature against the **pinned federation signing
-   certificate** and reject it if `validUntil` has passed.
-3. For each Keycloak IdP whose alias matches an organization, extract the
-   `EntityDescriptor` by `idpEntityId` and compare signing certificates,
-   `SingleSignOnService` and `SingleLogoutService`.
-4. Update changed values through the Admin API with the `oecp-backend`
-   service account (`manage-identity-providers`), and audit the change.
-5. On any failure (download, signature, expiry, missing entity), keep the
-   last good configuration, record the failure and raise the
-   "metadata-refresh failure" alert (spec §10).
+| Variable | Default | Meaning |
+|---|---|---|
+| `OECP_IDP_METADATA_URL` | empty | HTTPS aggregate, e.g. `https://mds.edugain.org/edugain-v2.xml` (or the hub federation's feed). Empty: the job logs "not set" and does nothing |
+| `OECP_IDP_METADATA_SIGNING_CERT_FILE` | (required with the URL) | PEM file with exactly one certificate: the federation's metadata signing certificate, pinned |
+| `OECP_IDP_METADATA_REQUIRE_VALID_UNTIL` | `true` | refuse an aggregate without `validUntil` (a past one is always refused) |
+| `OECP_IDP_METADATA_CACHE_DIR` | `/data/idp-metadata` | last good aggregate (`aggregate.xml`, `aggregate.json`); must be writable by the worker and persistent |
+| `OECP_IDP_METADATA_MAX_BYTES` | 52428800 (50 MiB); Compose: 157286400 | download limit. The eduGAIN aggregate is larger (94 MB in October 2026), hence the Compose default of 150 MiB |
+| `OECP_IDP_METADATA_INCLUDE_DISABLED` | `false` | also refresh IdPs disabled in Keycloak |
+| `OECP_IDP_METADATA_REFRESH_ON_START` | `true` | the start-up run described above |
+
+What one run does:
+
+1. **Download** the aggregate (60 s timeout, size limit, redirects only to
+   HTTPS) to a temporary file in the cache directory.
+2. **Verify** it: one enveloped `ds:Signature` as a direct child of the root,
+   exclusive c14n, RSA-SHA256, a single SHA-256 reference to the whole document,
+   checked with xml-crypto against the **pinned certificate only** (a key in
+   `KeyInfo` is ignored); no DOCTYPE; `validUntil` in the future. The verified
+   file becomes the last good aggregate.
+3. **On download or verification failure** the last good aggregate is
+   re-verified and used, with a warning, for up to **7 days** after its
+   download; after that every IdP fails and the job fails (alert).
+4. For every organization with a `keycloak_idp_alias`, read the IdP
+   (`GET /identity-provider/instances/{alias}`); skip it (warning) if it is
+   missing, not SAML, disabled, or has no `idpEntityId`. Find the
+   `EntityDescriptor` with that entity ID (streaming parse; only the wanted
+   entities are kept in memory) and its SAML 2.0 `IDPSSODescriptor`.
+5. **Compute** the managed keys: `signingCertificate` (`KeyDescriptor`
+   `use="signing"` or without `use`; expired certificates dropped, a warning
+   for those expiring within 30 days; comma-separated base64 DER),
+   `singleSignOnServiceUrl` and `postBindingAuthnRequest` (the binding the
+   IdP is configured with, POST by default; the other one, with a warning, if
+   the metadata does not offer it), `singleLogoutServiceUrl` and
+   `postBindingLogout` (the key is removed when the IdP declares no SLO, since
+   Keycloak rejects an empty value). The NameID policy is only checked
+   (warning). No usable certificate or no SSO endpoint: the IdP fails and
+   keeps its configuration.
+6. **Update** only the keys that differ (certificates compared as a set),
+   re-reading the IdP just before a `PUT` of the full representation: flows,
+   principal type, `hideOnLogin` and every other key stay as they are. One
+   `audit_log` row `idp.metadata_refresh` (actor `system:metadata-refresh`,
+   entity = the organization) per updated IdP lists the keys, old and new
+   URLs and certificate SHA-256 fingerprints (never certificate bodies).
+7. A failure for one IdP never stops the others; any failed IdP fails the job
+   (an error in the worker log; there is no alerting yet, spec §10).
+
+Run it by hand with the CLI. In Compose, use the `worker` service, which has
+the cache volume (`idp-metadata`), the mounted signing certificate and the
+memory (the `api` service has neither the volume nor, unless you add it, the
+certificate):
+
+```sh
+docker compose run --rm worker node dist/cli.js idp-metadata-refresh --dry-run
+```
+
+Inside a container the commands are:
+
+```sh
+node dist/cli.js idp-metadata-refresh --dry-run              # what would change
+node dist/cli.js idp-metadata-refresh --alias vua             # one IdP, applied
+node dist/cli.js idp-metadata-refresh --file /tmp/md.xml      # local signed aggregate
+node dist/cli.js idp-metadata-refresh --file /tmp/md.xml --no-verify --dry-run
+```
+
+`--no-verify` is accepted only with `--file` (never for the URL); it exists for
+unsigned development metadata such as the test IdP's (below) and a missing
+`validUntil` is then tolerated. Exit code 0 if no IdP failed, 1 otherwise.
+Against the test IdP's metadata (`curl -s
+http://127.0.0.1:8091/simplesaml/saml2/idp/metadata.php`, mounted into the
+container) a dry run for `urv` checks the managed keys against a real
+SimpleSAMLphp descriptor. The test IdP now declares HTTP-POST (first) and
+HTTP-Redirect endpoints for both sign-in and logout
+(`deploy/compose/test-saml-idp/saml20-idp-hosted.php`), matching the realm
+entry's `postBindingAuthnRequest` and `postBindingLogout` = `true`, so the
+binding flags stay unchanged; until then the job would have switched both to
+HTTP-Redirect. Since the realm entry declares no `singleLogoutServiceUrl`, the
+dry run still reports that key as one to add.
+
+**Resources.** Signature verification needs the whole aggregate in memory
+(xml-crypto canonicalises the document): a synthetic 75 MB aggregate took 16 s
+and 750 MB RSS in the api image; extraction is a streaming pass (about 140 MB
+RSS). With the full eduGAIN aggregate give the worker at least 2 GB and, if
+needed, `NODE_OPTIONS=--max-old-space-size=3072`. Compose sets no memory limit
+on the worker; if you add one, keep it at 2 GB or more.
 
 Because the job writes certificates and endpoints at runtime, a later run of
-keycloak-config-cli would reset them to the values in this file. Either keep
-the values here in sync when committing a new partner, or (recommended) have
-the worker also run the job at start-up, so that a re-import is corrected
-within minutes.
+keycloak-config-cli (every `docker compose up`) resets them to the values in
+`realm-oecp.yaml` until the next run of the job, normally the start-up run a
+minute after the worker starts: keep the committed values reasonably current
+when adding a partner. Only the five managed keys are ever written; anything
+else changed by hand in the console is reverted by the next re-import as
+usual.
 
 ## Local development tips
 
@@ -332,7 +416,8 @@ flag, `urv` is updated in place: a re-import keeps the links (verified).
 4. **No SLO with the test IdP.** The realm entry declares no
    `singleLogoutServiceUrl`, so signing out of OECP leaves the IdP session; the
    next login through the chooser is a silent single sign-on at the IdP
-   (still followed by the OTP form in Keycloak).
+   (still followed by the OTP form in Keycloak). An applied (not dry) run of
+   the metadata refresh adds the IdP's SLO endpoint until the next re-import.
 
 When URV joins with its real IdP, replace the values of the `urv` block
 (entity ID, SSO URL, certificate, principal attribute per step 4 above) and

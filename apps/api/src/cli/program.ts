@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: EUPL-1.2
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { email as emailSchema, INVITATION_MAX_TTL_HOURS, slug as slugSchema } from '@oecp/schemas';
+import {
+  email as emailSchema,
+  INVITATION_MAX_TTL_HOURS,
+  isIdpAlias,
+  slug as slugSchema,
+} from '@oecp/schemas';
 import { Command, CommanderError, InvalidArgumentError } from 'commander';
 
 /** Process exit codes of `oecp` commands. */
@@ -49,11 +54,21 @@ export interface StoreSecretOptions {
   purpose: string;
 }
 
+export interface IdpMetadataRefreshCliOptions {
+  dryRun: boolean;
+  alias?: string;
+  /** Absolute path of a local aggregate, instead of OECP_IDP_METADATA_URL. */
+  file?: string;
+  /** False only with `file` (`--no-verify`, unsigned development metadata). */
+  verify: boolean;
+}
+
 export interface CliHandlers {
   seedOrganizations(options: SeedOrganizationsOptions): Promise<ExitCode>;
   seedAttributeDefinitions(options: SeedAttributeDefinitionsOptions): Promise<ExitCode>;
   bootstrapAllianceAdmin(options: BootstrapAllianceAdminOptions): Promise<ExitCode>;
   storeSecret(options: StoreSecretOptions): Promise<ExitCode>;
+  idpMetadataRefresh(options: IdpMetadataRefreshCliOptions): Promise<ExitCode>;
 }
 
 export interface CliOutput {
@@ -80,6 +95,11 @@ function parsePurpose(value: string): string {
       'Expected a purpose label ([a-z0-9:._-], up to 100 characters).',
     );
   }
+  return value;
+}
+
+function parseIdpAlias(value: string): string {
+  if (!isIdpAlias(value)) throw new InvalidArgumentError('Expected a Keycloak IdP alias.');
   return value;
 }
 
@@ -158,6 +178,39 @@ export function buildProgram(
     .action(async (opts: StoreSecretOptions) => {
       onResult(await handlers.storeSecret(opts));
     });
+
+  program
+    .command('idp-metadata-refresh')
+    .description(
+      'Refresh the partner SAML IdPs in Keycloak (signing certificates, SSO/SLO endpoints) ' +
+        'from the verified federation aggregate (OECP_IDP_METADATA_URL) or a local file; ' +
+        'exit 1 if any IdP failed',
+    )
+    .option('--dry-run', 'report the changes without writing to Keycloak', false)
+    .option('--alias <alias>', 'refresh only this IdP alias', parseIdpAlias)
+    .option('--file <path>', 'local aggregate or EntityDescriptor instead of the URL')
+    .option(
+      '--no-verify',
+      'with --file only: skip the signature check (unsigned development metadata)',
+    )
+    .action(
+      async (
+        opts: { dryRun: boolean; alias?: string; file?: string; verify: boolean },
+        command: Command,
+      ) => {
+        if (!opts.verify && !opts.file) {
+          command.error('error: --no-verify is only allowed with --file', { exitCode: EXIT.USAGE });
+        }
+        onResult(
+          await handlers.idpMetadataRefresh({
+            dryRun: opts.dryRun,
+            verify: opts.verify,
+            ...(opts.alias ? { alias: opts.alias } : {}),
+            ...(opts.file ? { file: resolve(opts.file) } : {}),
+          }),
+        );
+      },
+    );
 
   return program;
 }

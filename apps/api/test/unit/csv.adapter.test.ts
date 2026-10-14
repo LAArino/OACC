@@ -62,6 +62,7 @@ const existingCourse: ExistingCourse = {
   teaching_unit_ext_id: 'FAC',
   info_url: 'https://old.example.org',
   contact_email: 'old@example.org',
+  instructors: ['Old course team'],
   texts: {
     en: {
       title: 'Old',
@@ -70,6 +71,7 @@ const existingCourse: ExistingCourse = {
       learning_outcomes: null,
       prerequisites: null,
       assessment: null,
+      methods: 'Old methods',
       keywords: ['old'],
       is_machine_translated: false,
     },
@@ -94,6 +96,14 @@ const existingCourse: ExistingCourse = {
       is_machine_translated: false,
     },
   },
+};
+
+const NO_HANDBOOK_TEXTS = {
+  mode_of_repetition: null,
+  methods: null,
+  literature: null,
+  privacy_notice: null,
+  remarks: null,
 };
 
 describe('CsvAdapter.mapCourse', () => {
@@ -132,6 +142,7 @@ describe('CsvAdapter.mapCourse', () => {
           learning_outcomes: null,
           prerequisites: null,
           assessment: null,
+          ...NO_HANDBOOK_TEXTS,
           keywords: [],
           is_machine_translated: false,
         },
@@ -142,10 +153,12 @@ describe('CsvAdapter.mapCourse', () => {
           learning_outcomes: null,
           prerequisites: null,
           assessment: null,
+          ...NO_HANDBOOK_TEXTS,
           keywords: ['ml', 'ai'],
           is_machine_translated: false,
         },
       },
+      instructors: [],
       attributes: {},
     });
     expect(result.value.raw).toMatchObject({ course_code: 'C-1', abstract_en: 'Intro' });
@@ -167,15 +180,51 @@ describe('CsvAdapter.mapCourse', () => {
       teaching_unit_ext_id: 'FAC',
       contact_email: 'old@example.org',
       info_url: null,
+      instructors: ['Old course team'],
     });
     expect(Object.keys(course.texts)).toEqual(['en', 'fr']);
     expect(course.texts['en']).toMatchObject({
       title: 'Machine learning',
       abstract: 'New',
       description: 'Old description',
+      methods: 'Old methods',
       keywords: ['old'],
     });
     expect(course.texts['fr']?.title).toBe('Ancien');
+  });
+
+  it('maps template 1.2 columns: instructors and the handbook texts (set, clear, keep)', () => {
+    const set = adapter.mapCourse(
+      courseRow({
+        ...baseCourse,
+        template_version: '1.2',
+        instructors: 'Course team, University of Iceland|Dr. A. Example',
+        methods_en: 'Seminars.',
+        literature_en: '',
+        remarks_en: 'Taught in English.',
+      }),
+      existingCourse,
+    );
+    expect(set.ok).toBe(true);
+    if (!set.ok) return;
+    expect(set.value.course.instructors).toEqual([
+      'Course team, University of Iceland',
+      'Dr. A. Example',
+    ]);
+    expect(set.value.course.texts['en']).toMatchObject({
+      methods: 'Seminars.',
+      literature: null,
+      remarks: 'Taught in English.',
+      mode_of_repetition: null,
+    });
+    expect(courseSchema.safeParse(set.value.course).success).toBe(true);
+
+    const cleared = adapter.mapCourse(
+      courseRow({ ...baseCourse, template_version: '1.2', instructors: '', methods_en: '' }),
+      existingCourse,
+    );
+    expect(cleared.ok && cleared.value.course.instructors).toEqual([]);
+    expect(cleared.ok && cleared.value.course.texts['en']?.methods).toBeNull();
   });
 });
 

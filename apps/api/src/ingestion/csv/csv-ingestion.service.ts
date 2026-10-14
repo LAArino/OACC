@@ -11,6 +11,7 @@ import {
   type CsvIssue,
   type CsvReferenceData,
   decodeCsvBytes,
+  type LifecycleStatus,
   ERROR_CODES,
   type ErrorCode,
   isErrorCode,
@@ -268,6 +269,7 @@ export class CsvIngestionService {
 
     // 4. All-or-nothing write.
     const uploadedAt = new Date(run.created_at);
+    const publishWarnings: CsvIssue[] = [];
     try {
       const counters = await this.writer.transaction((writer, trx) =>
         this.write(writer, trx, ctx, {
@@ -276,16 +278,18 @@ export class CsvIngestionService {
           defaultTimezone: organization.default_timezone,
           uploadedAt,
           warnings,
+          publishWarnings,
         }),
       );
+      const warningCount = validation.warningCount + publishWarnings.length;
       return {
         ok: true,
         counters,
         errors: [],
-        warnings,
+        warnings: [...warnings, ...publishWarnings],
         errorCount: 0,
-        warningCount: validation.warningCount,
-        summary: validation.warningCount > 0 ? `${validation.warningCount} warning(s)` : null,
+        warningCount,
+        summary: warningCount > 0 ? `${warningCount} warning(s)` : null,
       };
     } catch (error) {
       if (error instanceof CanonicalRejected) return this.failure(error.issues, warnings);
@@ -307,6 +311,8 @@ export class CsvIngestionService {
       defaultTimezone: string;
       uploadedAt: Date;
       warnings: readonly CsvIssue[];
+      /** Filled with the `oecp.content.handbook_incomplete` warnings (already recorded). */
+      publishWarnings: CsvIssue[];
     },
   ): Promise<RunCounters> {
     // One upload per organization at a time: the snapshot below stays current.
@@ -371,9 +377,14 @@ export class CsvIngestionService {
     // Courses first, so every offering's course exists (in the database or this transaction).
     // The writer checks attributes against the definitions before writing anything, so a
     // rejection leaves the transaction usable; every rejection is reported, then all roll back.
+    const requested = new Map<string, LifecycleStatus | undefined>();
+    const courseRows = new Map<string, number>();
     for (const { course, raw, row } of courses) {
       try {
-        counters[`n_${(await writer.upsertCourse(ctx, course, raw)).outcome}`] += 1;
+        const result = await writer.upsertCourse(ctx, course, raw);
+        counters[`n_${result.outcome}`] += 1;
+        requested.set(course.ext_id, result.requestedStatus);
+        courseRows.set(course.ext_id, row);
       } catch (error) {
         if (!(error instanceof CanonicalContentRejected)) throw error;
         issues.push(...error.errors.map((e) => writerIssue(e, row)));
@@ -382,8 +393,25 @@ export class CsvIngestionService {
     if (issues.length > 0) throw new CanonicalRejected(issues);
     for (const { offering, raw } of offerings) {
       counters[`n_${(await writer.upsertOffering(ctx, offering, raw)).outcome}`] += 1;
+      if (!requested.has(offering.course_ext_id)) requested.set(offering.course_ext_id, undefined);
     }
     await writer.recordIssues(ctx, input.warnings);
+    // Decision 21c: the IT Handbook publication rule, once every offering is written.
+    // Courses only reached through offerings.csv keep their status unless they lose
+    // completeness. The writer records the warnings; they are also returned.
+    for (const [extId, status] of requested) {
+      const outcome = await writer.applyPublishRule(ctx, { extId }, status);
+      if (!outcome?.warning) continue;
+      const issue: CsvIssue = {
+        code: 'oecp.content.handbook_incomplete',
+        severity: 'warning',
+        file: courseRows.has(extId) ? 'courses' : 'offerings',
+        message: `${extId}: ${outcome.warning.message}`,
+      };
+      const row = courseRows.get(extId);
+      if (row !== undefined) issue.row = row;
+      input.publishWarnings.push(issue);
+    }
     return counters;
   }
 
@@ -431,6 +459,7 @@ export class CsvIngestionService {
         'c.teaching_hours',
         'c.info_url',
         'c.contact_email',
+        'c.instructors',
         'tu.ext_id as teaching_unit_ext_id',
       ])
       .where('c.organization_id', '=', organizationId)
@@ -448,6 +477,11 @@ export class CsvIngestionService {
         'learning_outcomes',
         'prerequisites',
         'assessment',
+        'mode_of_repetition',
+        'methods',
+        'literature',
+        'privacy_notice',
+        'remarks',
         'keywords',
         'is_machine_translated',
       ])
@@ -467,6 +501,11 @@ export class CsvIngestionService {
         learning_outcomes: t.learning_outcomes,
         prerequisites: t.prerequisites,
         assessment: t.assessment,
+        mode_of_repetition: t.mode_of_repetition,
+        methods: t.methods,
+        literature: t.literature,
+        privacy_notice: t.privacy_notice,
+        remarks: t.remarks,
         keywords: t.keywords,
         is_machine_translated: t.is_machine_translated,
       };
@@ -483,6 +522,7 @@ export class CsvIngestionService {
         teaching_unit_ext_id: r.teaching_unit_ext_id ?? null,
         info_url: r.info_url,
         contact_email: r.contact_email,
+        instructors: r.instructors,
         texts: byCourse.get(r.id) ?? {},
       });
     }

@@ -26,6 +26,7 @@ For universities whose IT team can spend some days or weeks on an integration bu
 | Reuse elsewhere | Same endpoint serves eduXchange and other consumers | OECP only |
 | Removing a course | Automatic when it disappears for three complete harvests | Explicit: set `status` to `withdrawn` |
 | Alliance attributes, course kind, application instructions, alliance seats | Not expressible: added by hand as overrides | Columns in the file (template 1.1) |
+| Instructors and the optional handbook texts (methods, literature…) | Instructors from `coordinators` expanded with names, or the OECP extensions `ext.oecp.instructors` and `ext.oecp.texts`; else overrides | Columns in the file (template 1.2) |
 | Legal step | Bilateral access agreement | None beyond the alliance's own rules |
 | Mixing with the web form | Form can only override | Form and CSV write the same records |
 
@@ -55,7 +56,7 @@ Choose (a) if your university wants an OEAPI endpoint anyway (national registrie
 
 **Who:** partner IT builds the export; partner admin uploads and checks.
 
-1. **Download the templates** from the admin console (*CSV upload* > Templates): `courses.csv`, `offerings.csv` and the JSON Schema of template 1.1. The courses template has one `attr_<key>` column for each alliance attribute, so download it from your own deployment.
+1. **Download the templates** from the admin console (*CSV upload* > Templates): `courses.csv`, `offerings.csv` and the JSON Schema of template 1.2. The courses template has one `attr_<key>` column for each alliance attribute, so download it from your own deployment.
 2. **Map your SIS fields** to the columns, using the [CSV authoring guide](../guides/csv-authoring.md). Required course columns: `template_version`, `course_code`, `status`, `ects`, `isced_codes`, `title_en`. Required offering columns: `template_version`, `course_code`, `offering_code`, `status`, `start_date`, `end_date`, `teaching_languages`, `delivery_modes`.
 3. **Keep codes stable.** `course_code` and `offering_code` identify records forever; never reuse a code for a different course.
 4. **Write status explicitly.** Leaving a row out changes nothing; to remove a course or offering, export it with `status` `withdrawn` (or `cancelled` for an offering that will not take place).

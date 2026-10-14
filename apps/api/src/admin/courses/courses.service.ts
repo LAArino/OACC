@@ -71,6 +71,12 @@ interface Saved {
   entityId: string;
   /** Extra audit members (ext_id, fields…); never payload bodies. */
   audit: Record<string, unknown>;
+  /**
+   * The course whose IT Handbook publication rule (decision 21c) runs after the
+   * save, and the status the save asks for (none: offering saves, which never
+   * publish a course).
+   */
+  publish?: { courseId: string; requested?: LifecycleStatus | undefined };
 }
 
 /** 422 problem+json with every error (spec §6.6). */
@@ -229,6 +235,7 @@ export class CoursesService {
           outcome: 'created',
           entityId: result.entityId,
           audit: { ext_id: dto.ext_id, status: dto.status, ...(existing ? { revived: true } : {}) },
+          publish: { courseId: result.entityId, requested: result.requestedStatus },
         };
       },
     );
@@ -269,6 +276,7 @@ export class CoursesService {
           fields: changedKeys(courseFields(before), courseFields(after)),
           ...(dropped ? { overrides_dropped: dropped } : {}),
         },
+        publish: { courseId, requested: result.requestedStatus },
       };
     });
     return this.loadCourse(courseId);
@@ -304,6 +312,7 @@ export class CoursesService {
           status: { from: before.status, to: status },
           ...(dropped ? { overrides_dropped: dropped } : {}),
         },
+        publish: { courseId, requested: result.requestedStatus },
       };
     });
     return this.loadCourse(courseId);
@@ -334,6 +343,7 @@ export class CoursesService {
           fields: result.changed,
           ...statusAudit(before.status, await this.currentStatus(trx, 'courses', courseId)),
         },
+        publish: { courseId, requested: result.requestedStatus },
       };
     });
     return this.loadCourse(courseId);
@@ -427,6 +437,7 @@ export class CoursesService {
             status: dto.status,
             ...(existing ? { revived: true } : {}),
           },
+          publish: { courseId },
         };
       },
     );
@@ -476,6 +487,7 @@ export class CoursesService {
             fields: changedKeys(offeringFields(before), offeringFields(after)),
             ...(dropped ? { overrides_dropped: dropped } : {}),
           },
+          publish: { courseId: before.course_id },
         };
       },
     );
@@ -516,6 +528,7 @@ export class CoursesService {
             status: { from: before.status, to: status },
             ...(dropped ? { overrides_dropped: dropped } : {}),
           },
+          publish: { courseId: before.course_id },
         };
       },
     );
@@ -564,6 +577,7 @@ export class CoursesService {
             await this.currentStatus(trx, 'course_offerings', offeringId),
           ),
         },
+        publish: { courseId: before.course_id },
       };
     });
     return this.loadOffering(offeringId);
@@ -680,6 +694,14 @@ export class CoursesService {
           })
           .execute();
         const saved = await work(writer, trx, ctx);
+        // Decision 21c: after the save, so the rule sees the course with its offerings.
+        const rule = saved.publish
+          ? await writer.applyPublishRule(
+              ctx,
+              { id: saved.publish.courseId },
+              saved.publish.requested,
+            )
+          : null;
         const finished = this.now();
         await trx
           .updateTable('sync_runs')
@@ -707,6 +729,15 @@ export class CoursesService {
               channel: 'form',
               outcome: saved.outcome,
               ...saved.audit,
+              ...(rule?.warning
+                ? {
+                    publish_rule: {
+                      mode: writer.publishRule,
+                      status: rule.status,
+                      missing: rule.completeness.missing,
+                    },
+                  }
+                : {}),
             },
           })
           .execute();

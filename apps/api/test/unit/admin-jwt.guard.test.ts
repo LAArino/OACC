@@ -9,6 +9,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { type JWTPayload, SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from 'jose';
 import { beforeAll, describe, expect, it } from 'vitest';
+import type { AdminActivityRecorder } from '../../src/admin/auth/admin-activity.recorder.js';
 import { AdminJwtGuard } from '../../src/admin/auth/admin-jwt.guard.js';
 import { AdminTokenVerifier } from '../../src/admin/auth/admin-token-verifier.js';
 import type { AdminPrincipal } from '../../src/admin/auth/claims.js';
@@ -61,6 +62,7 @@ describe('AdminJwtGuard', () => {
   let privateKey: PrivateKey;
   let otherKey: PrivateKey;
   let guard: AdminJwtGuard;
+  let verifier: AdminTokenVerifier;
 
   const sign = (claims: JWTPayload, key: PrivateKey = privateKey, issuer = ISSUER) =>
     new SignJWT(claims)
@@ -86,7 +88,7 @@ describe('AdminJwtGuard', () => {
     privateKey = pair.privateKey;
     otherKey = (await generateKeyPair('ES256')).privateKey;
     const jwk = { ...(await exportJWK(pair.publicKey)), kid: 'test', alg: 'ES256', use: 'sig' };
-    const verifier = new AdminTokenVerifier({
+    verifier = new AdminTokenVerifier({
       issuer: ISSUER,
       getKey: createLocalJWKSet({ keys: [jwk] }),
     });
@@ -194,5 +196,28 @@ describe('AdminJwtGuard', () => {
     expect(codeOf(await rejection(guard.canActivate(httpContext(mismatch).context)))).toBe(
       'oecp.auth.idp_mismatch',
     );
+  });
+  it('records the activity of every authenticated request, never of a rejected one', async () => {
+    const recorded: [string, string | null][] = [];
+    const recorder = {
+      record: async (sub: string, orgId: string | null) => {
+        recorded.push([sub, orgId]);
+        return true;
+      },
+    } as unknown as AdminActivityRecorder;
+    const tracking = new AdminJwtGuard(verifier, organizations, new Reflector(), recorder);
+
+    await tracking.canActivate(httpContext(await sign(valid)).context);
+    await tracking.canActivate(
+      httpContext(await sign({ ...valid, roles: [], org_id: undefined }), 'acceptInvitation')
+        .context,
+    );
+    await rejection(tracking.canActivate(httpContext(await sign(valid), 'allianceOnly').context));
+    await rejection(tracking.canActivate(httpContext(undefined).context));
+
+    expect(recorded).toEqual([
+      ['5f0c2a47-1b7e-4d1e-9b0a-6f6e2b1d9c3a', ORG_ID],
+      ['5f0c2a47-1b7e-4d1e-9b0a-6f6e2b1d9c3a', null],
+    ]);
   });
 });

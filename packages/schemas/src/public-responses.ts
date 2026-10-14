@@ -156,6 +156,12 @@ export const publicCourseText = z.strictObject({
   learning_outcomes: nullable(z.string()),
   prerequisites: nullable(z.string()),
   assessment: nullable(z.string()),
+  /** Optional texts of the Aurora IT Handbook (decision 21b). */
+  mode_of_repetition: nullable(z.string()),
+  methods: nullable(z.string()),
+  literature: nullable(z.string()),
+  privacy_notice: nullable(z.string()),
+  remarks: nullable(z.string()),
   keywords: z.array(z.string()),
   is_machine_translated: z.boolean(),
 });
@@ -239,6 +245,11 @@ export const publicCourseDetail = z.strictObject({
   info_url: nullable(z.string()),
   /** The course contact, else the organization's (spec §6.2.4). */
   contact_email: nullable(z.string()),
+  /**
+   * Teaching staff as the university publishes them (decision 21a): names or role
+   * descriptions, primary first; may be empty.
+   */
+  instructors: z.array(z.string()),
   /** Keyed by primary language subtag; always contains `en`. */
   texts: z.record(z.string(), publicCourseText),
   isced_codes: z.array(publicIscedCode),

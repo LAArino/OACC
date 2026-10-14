@@ -368,8 +368,10 @@ export class HarvestService {
     }
 
     let accepted = true;
+    let requested = mapped.value.course.status;
     try {
       const result = await this.writer.upsertCourse(ctx, mapped.value.course, raw, mapped.warnings);
+      requested = result.requestedStatus ?? requested;
       state.count(result.outcome);
     } catch (error) {
       accepted = false;
@@ -389,6 +391,26 @@ export class HarvestService {
       since,
       signal,
     );
+    // Decision 21c: the handbook rule needs the course's offerings, so it runs last.
+    if (accepted) await this.publishRule(ctx, mapped.value.course.ext_id, requested);
+  }
+
+  /** {@link CanonicalWriter.applyPublishRule}; bookkeeping, never aborts the run. */
+  private async publishRule(
+    ctx: WriteContext,
+    extId: string,
+    requested: Parameters<CanonicalWriter['applyPublishRule']>[2],
+  ): Promise<void> {
+    try {
+      await this.writer.applyPublishRule(ctx, { extId }, requested);
+    } catch (error) {
+      this.logger.error(error);
+      await this.safeRecord(ctx, [
+        problem('oecp.internal', `publication rule: ${(error as Error).message}`, {
+          ext_id: extId,
+        }),
+      ]);
+    }
   }
 
   /** Lists the course's offerings; with `course = null` (rejected course) they are all rejected. */

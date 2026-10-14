@@ -51,6 +51,25 @@ x-oecp-backend-env: &oecp-backend-env
   # the SSRF rules of spec §6.2.6. Set to "true" ONLY for local development against
   # the `oeapi-mock` service (dev profile). Never in production.
   OECP_ALLOW_INSECURE_PARTNER_HTTP: ${OECP_ALLOW_INSECURE_PARTNER_HTTP:-false}
+  # IT Handbook publication rule (decision 21c, spec §6.1): `warn` publishes
+  # incomplete courses with a warning, `enforce` stores them as draft.
+  OECP_PUBLISH_RULE: ${OECP_PUBLISH_RULE:-warn}
+  # Maintenance (spec §10): dormancy stays a dry run until the alliance enables it.
+  OECP_DORMANCY_DRY_RUN: ${OECP_DORMANCY_DRY_RUN:-true}
+  OECP_DORMANCY_DAYS: ${OECP_DORMANCY_DAYS:-180}
+  # IdP metadata refresh (spec §4): empty URL = job disabled. The eduGAIN aggregate
+  # is ~94 MB, hence the raised size limit; mount the pinned signing certificate.
+  OECP_IDP_METADATA_URL: ${OECP_IDP_METADATA_URL:-}
+  OECP_IDP_METADATA_SIGNING_CERT_FILE: ${OECP_IDP_METADATA_SIGNING_CERT_FILE:-}
+  OECP_IDP_METADATA_MAX_BYTES: ${OECP_IDP_METADATA_MAX_BYTES:-157286400}
+  OECP_IDP_METADATA_CACHE_DIR: /data/idp-metadata
+  OECP_IDP_METADATA_REQUIRE_VALID_UNTIL: ${OECP_IDP_METADATA_REQUIRE_VALID_UNTIL:-true}
+  OECP_IDP_METADATA_INCLUDE_DISABLED: ${OECP_IDP_METADATA_INCLUDE_DISABLED:-false}
+  OECP_IDP_METADATA_REFRESH_ON_START: ${OECP_IDP_METADATA_REFRESH_ON_START:-true}
+  OECP_RETENTION_HISTORY_MONTHS: ${OECP_RETENTION_HISTORY_MONTHS:-12}
+  OECP_RETENTION_SYNC_ERRORS_MONTHS: ${OECP_RETENTION_SYNC_ERRORS_MONTHS:-12}
+  OECP_RETENTION_SYNC_RUNS_MONTHS: ${OECP_RETENTION_SYNC_RUNS_MONTHS:-24}
+  OECP_RETENTION_AUDIT_MONTHS: ${OECP_RETENTION_AUDIT_MONTHS:-36}
   SMTP_HOST: ${OECP_SMTP_HOST:-}
   SMTP_PORT: ${OECP_SMTP_PORT:-25}
   SMTP_FROM: ${OECP_SMTP_FROM:-no-reply@example.org}
@@ -326,6 +345,7 @@ services:
     secrets: *oecp-backend-secrets
     volumes:
       - uploads:/data/uploads
+      - idp-metadata:/data/idp-metadata
     depends_on:
       postgres:
         condition: service_healthy
@@ -394,6 +414,8 @@ services:
     secrets: *oecp-backend-secrets
     volumes:
       - uploads:/data/uploads
+      # eduGAIN aggregate cache of the idp-metadata-refresh job (spec §4).
+      - idp-metadata:/data/idp-metadata
     # Same image as `api` (built by the `api` service; `docker compose up` builds
     # every image before creating containers).
     depends_on:
@@ -405,6 +427,15 @@ services:
       - backend
       # Outbound HTTPS to partner OEAPI endpoints (allowlisted in the application, spec §6.2.6).
       - egress
+    healthcheck:
+      # Readiness of the worker's internal HTTP server (WORKER_HEALTH_PORT, default
+      # 3001; not published, no Traefik route): PostgreSQL and Valkey reachable.
+      # `/health` (liveness) also lists the repeatable jobs registered in Valkey.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/ready').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     logging: *default-logging
 
   web:
@@ -665,6 +696,7 @@ networks:
     name: oecp-egress
 
 volumes:
+  idp-metadata:
   postgres_data:
   valkey_data:
   # CSV uploads (spec §3 `/data/uploads`; S3-compatible storage in v1). Back up daily (spec §10).

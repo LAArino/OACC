@@ -218,6 +218,20 @@ export class SyncRunsRepository {
     return this.db.selectFrom('sync_runs').selectAll().where('id', '=', id).executeTakeFirst();
   }
 
+  /**
+   * Courses of the run with the warning `oecp.content.handbook_incomplete`
+   * (distinct `ext_id`; decision 21c).
+   */
+  async handbookIncomplete(id: string): Promise<number> {
+    const row = await this.db
+      .selectFrom('sync_errors')
+      .select(sql<string>`count(distinct ext_id)`.as('n'))
+      .where('sync_run_id', '=', id)
+      .where('code', '=', 'oecp.content.handbook_incomplete')
+      .executeTakeFirstOrThrow();
+    return Number(row.n);
+  }
+
   async errors(
     id: string,
     options: { page: number; pageSize: number; severity?: 'error' | 'warning' | undefined },
