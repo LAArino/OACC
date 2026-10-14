@@ -11,6 +11,9 @@ import {
   ORGANIZATION_DIRECTORY,
 } from './auth/organization-directory.js';
 import { CsvIngestionModule } from '../ingestion/csv/csv-ingestion.module.js';
+import { CoursesController } from './courses/courses.controller.js';
+import { CoursesRepository } from './courses/courses.repository.js';
+import { CoursesService } from './courses/courses.service.js';
 import { IngestionModule } from '../ingestion/ingestion.module.js';
 import { IntegrationsController } from './integrations/integrations.controller.js';
 import { IntegrationsService } from './integrations/integrations.service.js';
@@ -23,7 +26,13 @@ import { UploadsService } from './uploads/uploads.service.js';
 
 @Module({
   imports: [InvitationsModule, IngestionModule, CsvIngestionModule],
-  controllers: [AdminController, InvitationsController, IntegrationsController, UploadsController],
+  controllers: [
+    AdminController,
+    InvitationsController,
+    IntegrationsController,
+    UploadsController,
+    CoursesController,
+  ],
   providers: [
     {
       provide: AdminTokenVerifier,
@@ -40,6 +49,8 @@ import { UploadsService } from './uploads/uploads.service.js';
     IntegrationsService,
     UploadsService,
     CsvUploadInterceptor,
+    CoursesRepository,
+    CoursesService,
   ],
 })
 export class AdminModule {}

@@ -2,9 +2,14 @@
 <script setup lang="ts">
 // Explains a failed admin API call: a translated message for the stable error
 // code, then the server's problem title/detail and the code itself (spec §6.6).
-const props = defineProps<{ error: AdminApiError; heading?: string }>();
+const props = defineProps<{
+  error: AdminApiError;
+  heading?: string;
+  /** i18n key replacing the generic message of the error code (context-specific wording). */
+  messageKey?: string;
+}>();
 const { t } = useI18n();
-const message = computed(() => t(problemMessageKey(props.error)));
+const message = computed(() => t(props.messageKey ?? problemMessageKey(props.error)));
 const retryMinutes = computed(() =>
   props.error.retryAfterSeconds === undefined
     ? undefined

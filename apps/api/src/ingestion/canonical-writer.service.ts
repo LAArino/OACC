@@ -20,6 +20,13 @@ import { loadAttributeDefinitions } from '../attributes/attribute-definitions.js
 import type { Database, HistoryEntityType } from '../db/database.js';
 import { type Db, KYSELY } from '../db/db.module.js';
 import { jcsSha256 } from './jcs.js';
+import {
+  clearOverrides,
+  hasOverrides,
+  type OverrideMap,
+  setOverrides,
+  withSources,
+} from './overrides.js';
 import { teachingUnits } from './teaching-units.js';
 import type {
   AbsenceResult,
@@ -29,7 +36,7 @@ import type {
 } from './ports/canonical-writer.js';
 
 type Trx = Transaction<Database>;
-type Overrides = Record<string, { value: unknown; by: string; at: string }>;
+type Overrides = OverrideMap;
 
 /** Spec §6.2.5: absence is not counted when this share of published courses is missing. */
 export const MASS_ABSENCE_RATIO = 0.3;
@@ -145,6 +152,81 @@ export interface OfferingUpsertResult extends UpsertResult {
   /** Issues found while resolving references (e.g. unknown academic session). */
   warnings: ProblemError[];
 }
+
+/** Effective course values in the writer's shapes (ISCED codes primary first). */
+export interface CourseEffective {
+  status: LifecycleStatus;
+  kind: CourseKind;
+  ects: number;
+  level: CourseLevel | null;
+  levels: CourseLevel[];
+  attributes: CourseAttributes;
+  eqf_level: number | null;
+  teaching_hours: number | null;
+  info_url: string | null;
+  contact_email: string | null;
+  isced_codes: string[];
+}
+
+export interface TextEffective {
+  title: string;
+  abstract: string | null;
+  description: string | null;
+  learning_outcomes: string | null;
+  prerequisites: string | null;
+  assessment: string | null;
+  keywords: string[];
+  is_machine_translated: boolean;
+}
+
+export interface OfferingEffective {
+  status: LifecycleStatus;
+  start_date: string;
+  end_date: string;
+  enrol_start_date: string | null;
+  application_deadline: string | null;
+  timezone: string;
+  teaching_languages: string[];
+  delivery_modes: string[];
+  campus: string | null;
+  max_students: number | null;
+  alliance_seats: number | null;
+  seats_available: number | null;
+  seats_updated_at: string | null;
+  application_url: string | null;
+  application_instructions: Record<string, string>;
+}
+
+/** Overrides to store (`set`, values in the writer's shapes) and to remove (`clear`). */
+export interface OverrideChange {
+  set: Readonly<Record<string, unknown>>;
+  clear: readonly string[];
+}
+
+export interface CourseOverrideChange extends OverrideChange {
+  /** Per language (`course_texts`); a language without row needs `title` in `set`. */
+  texts: Readonly<Record<string, OverrideChange>>;
+}
+
+export interface OverrideOutcome {
+  outcome: 'updated' | 'unchanged';
+  entityId: string;
+  /** Keys whose override or effective value changed (`texts.<lang>.<field>` for texts). */
+  changed: string[];
+}
+
+/** Final check of the effective record before anything is written; throws to refuse. */
+export type CourseOverrideCheck = (next: {
+  course: CourseEffective;
+  texts: Record<string, TextEffective>;
+}) => void | Promise<void>;
+export type OfferingOverrideCheck = (next: OfferingEffective) => void | Promise<void>;
+
+const same = (a: unknown, b: unknown): boolean =>
+  Buffer.compare(jcsSha256(a ?? null), jcsSha256(b ?? null)) === 0;
+
+const isoOrNull = (d: Date | string | null): string | null =>
+  d === null ? null : new Date(d).toISOString();
 
 function eqBytes(a: Buffer | null | undefined, b: Buffer): boolean {
   return a !== null && a !== undefined && Buffer.compare(a, b) === 0;
@@ -269,23 +351,20 @@ export class CanonicalWriter {
         .forUpdate()
         .executeTakeFirst();
 
-      const effective = applyOverrides(
-        {
-          status: course.status as LifecycleStatus,
-          kind: course.kind as CourseKind,
-          ects: course.ects,
-          level: course.level ?? null,
-          levels: course.levels as unknown,
-          attributes: course.attributes as unknown,
-          eqf_level: course.eqf_level ?? null,
-          teaching_hours: course.teaching_hours ?? null,
-          info_url: course.info_url ?? null,
-          contact_email: course.contact_email ?? null,
-          isced_codes: course.isced_codes as unknown,
-        },
-        existing?.overrides,
-        COURSE_OVERRIDABLE,
-      );
+      const source = {
+        status: course.status as LifecycleStatus,
+        kind: course.kind as CourseKind,
+        ects: course.ects,
+        level: course.level ?? null,
+        levels: course.levels as unknown,
+        attributes: course.attributes as unknown,
+        eqf_level: course.eqf_level ?? null,
+        teaching_hours: course.teaching_hours ?? null,
+        info_url: course.info_url ?? null,
+        contact_email: course.contact_email ?? null,
+        isced_codes: course.isced_codes as unknown,
+      };
+      const effective = applyOverrides(source, existing?.overrides, COURSE_OVERRIDABLE);
       const levels = effectiveLevels(effective, existing?.overrides);
 
       let outcome: UpsertResult['outcome'];
@@ -335,6 +414,15 @@ export class CanonicalWriter {
           content_hash: contentHash,
           absent_count: 0,
           last_seen_at: ctx.now,
+          // Overrides keep the source values they hide (restored when removed).
+          ...(hasOverrides(existing?.overrides)
+            ? {
+                overrides: withSources(existing.overrides, {
+                  ...source,
+                  ...resolveLevels(course.level ?? null, course.levels),
+                }),
+              }
+            : {}),
         };
         if (existing) {
           entityId = existing.id;
@@ -413,27 +501,24 @@ export class CanonicalWriter {
         .forUpdate()
         .executeTakeFirst();
 
-      const effective = applyOverrides(
-        {
-          status: offering.status as LifecycleStatus,
-          start_date: offering.start_date,
-          end_date: offering.end_date,
-          enrol_start_date: offering.enrol_start_date ?? null,
-          application_deadline: offering.application_deadline ?? null,
-          timezone: offering.timezone,
-          teaching_languages: offering.teaching_languages as unknown,
-          delivery_modes: offering.delivery_modes as unknown,
-          campus: offering.campus ?? null,
-          max_students: offering.max_students ?? null,
-          alliance_seats: offering.alliance_seats ?? null,
-          seats_available: offering.seats_available ?? null,
-          seats_updated_at: (offering.seats_updated_at ?? null) as string | null,
-          application_url: offering.application_url ?? null,
-          application_instructions: offering.application_instructions as unknown,
-        },
-        existing?.overrides,
-        OFFERING_OVERRIDABLE,
-      );
+      const source = {
+        status: offering.status as LifecycleStatus,
+        start_date: offering.start_date,
+        end_date: offering.end_date,
+        enrol_start_date: offering.enrol_start_date ?? null,
+        application_deadline: offering.application_deadline ?? null,
+        timezone: offering.timezone,
+        teaching_languages: offering.teaching_languages as unknown,
+        delivery_modes: offering.delivery_modes as unknown,
+        campus: offering.campus ?? null,
+        max_students: offering.max_students ?? null,
+        alliance_seats: offering.alliance_seats ?? null,
+        seats_available: offering.seats_available ?? null,
+        seats_updated_at: (offering.seats_updated_at ?? null) as string | null,
+        application_url: offering.application_url ?? null,
+        application_instructions: offering.application_instructions as unknown,
+      };
+      const effective = applyOverrides(source, existing?.overrides, OFFERING_OVERRIDABLE);
 
       let outcome: UpsertResult['outcome'];
       let entityId: string;
@@ -482,6 +567,9 @@ export class CanonicalWriter {
           content_hash: contentHash,
           absent_count: 0,
           last_seen_at: ctx.now,
+          ...(hasOverrides(existing?.overrides)
+            ? { overrides: withSources(existing.overrides, source) }
+            : {}),
         };
         if (existing) {
           entityId = existing.id;
@@ -531,6 +619,313 @@ export class CanonicalWriter {
       await this.history(trx, ctx, 'course_offering', entityId, historyId, raw, 'accepted');
       await this.insertIssues(trx, ctx, 'course_offering', historyId, issues);
       return { outcome, entityId, contentHash, warnings: issues };
+    });
+  }
+
+  /**
+   * Stores and removes overrides of a course and its texts (spec §5 "Overrides",
+   * §6.5 form in `oeapi` organizations). The source values stay in place: only
+   * `overrides` and the effective columns change; `content_hash` too only when a
+   * removed override has no recorded source (the next harvest rewrites the record).
+   * A language the source does not have exists through its `title` override and
+   * goes when that override is removed. `check` sees the effective record first.
+   */
+  async applyCourseOverrides(
+    ctx: WriteContext,
+    courseId: string,
+    change: CourseOverrideChange,
+    raw: unknown,
+    check?: CourseOverrideCheck,
+  ): Promise<OverrideOutcome> {
+    return this.run(async (trx) => {
+      const row = await trx
+        .selectFrom('courses')
+        .selectAll()
+        .where('id', '=', courseId)
+        .forUpdate()
+        .executeTakeFirstOrThrow();
+      const isced = await trx
+        .selectFrom('course_isced_codes')
+        .select('isced_code')
+        .where('course_id', '=', courseId)
+        .orderBy('is_primary', 'desc')
+        .orderBy('isced_code')
+        .execute();
+      const current: CourseEffective = {
+        status: row.status,
+        kind: row.kind,
+        ects: Number(row.ects),
+        level: row.level as CourseLevel | null,
+        levels: row.levels as CourseLevel[],
+        attributes: row.attributes,
+        eqf_level: row.eqf_level,
+        teaching_hours: row.teaching_hours === null ? null : Number(row.teaching_hours),
+        info_url: row.info_url,
+        contact_email: row.contact_email,
+        isced_codes: isced.map((r) => r.isced_code),
+      };
+      const at = ctx.now.toISOString();
+      const cleared = clearOverrides(row.overrides, change.clear);
+      const overrides = setOverrides(
+        cleared.map,
+        change.set,
+        current as unknown as Record<string, unknown>,
+        ctx.actor,
+        at,
+      );
+      const next = { ...current, ...cleared.restored, ...change.set } as CourseEffective;
+      if ('levels' in change.set || 'levels' in cleared.restored) {
+        Object.assign(next, resolveLevels(null, next.levels ?? []));
+      }
+
+      const textRows = await trx
+        .selectFrom('course_texts')
+        .select([
+          'lang',
+          'title',
+          'abstract',
+          'description',
+          'learning_outcomes',
+          'prerequisites',
+          'assessment',
+          'keywords',
+          'is_machine_translated',
+          'overrides',
+        ])
+        .where('course_id', '=', courseId)
+        .forUpdate()
+        .execute();
+      const texts: Record<string, TextEffective> = {};
+      for (const { lang, overrides: _o, ...text } of textRows) texts[lang] = text;
+      const textWrites: {
+        lang: string;
+        next: TextEffective | null;
+        overrides: Overrides;
+        changed: string[];
+      }[] = [];
+      const changed: string[] = [];
+      for (const [lang, textChange] of Object.entries(change.texts)) {
+        const existing = textRows.find((r) => r.lang === lang);
+        const before = texts[lang];
+        const currentText: Record<string, unknown> = before
+          ? { ...before }
+          : Object.fromEntries(TEXT_OVERRIDABLE.map((f) => [f, null]));
+        const textCleared = clearOverrides(existing?.overrides, textChange.clear);
+        const textOverrides = setOverrides(
+          textCleared.map,
+          textChange.set,
+          currentText,
+          ctx.actor,
+          at,
+        );
+        // No row, or a title override without source: the source lacks this language.
+        const titleEntry = existing?.overrides?.['title'];
+        const sourceless =
+          !existing ||
+          (titleEntry !== undefined && 'source' in titleEntry && titleEntry.source === null);
+        let nextText: TextEffective | null;
+        if (sourceless && !textOverrides['title']) {
+          nextText = null;
+        } else {
+          const merged = { ...currentText, ...textCleared.restored, ...textChange.set };
+          if (typeof merged['title'] !== 'string' || merged['title'] === '') {
+            throw new CanonicalContentRejected([
+              {
+                code: 'oecp.content.invalid_value',
+                severity: 'error',
+                message: `texts.${lang}.title is required`,
+                pointer: `/texts/${lang}/title`,
+              },
+            ]);
+          }
+          nextText = {
+            ...(merged as unknown as TextEffective),
+            keywords: (merged['keywords'] as string[] | null) ?? [],
+            is_machine_translated: (merged['is_machine_translated'] as boolean | null) ?? false,
+          };
+        }
+        const fields = TEXT_OVERRIDABLE.filter(
+          (f) =>
+            !same(before?.[f], nextText?.[f]) || !same(existing?.overrides?.[f], textOverrides[f]),
+        );
+        if (nextText) texts[lang] = nextText;
+        else delete texts[lang];
+        textWrites.push({ lang, next: nextText, overrides: textOverrides, changed: fields });
+        changed.push(...fields.map((f) => `texts.${lang}.${f}`));
+      }
+
+      const fields = COURSE_OVERRIDABLE.filter(
+        (f) =>
+          !same(current[f as keyof CourseEffective], next[f as keyof CourseEffective]) ||
+          !same(row.overrides?.[f], overrides[f]),
+      );
+      changed.unshift(...fields);
+      await check?.({ course: next, texts });
+
+      if (fields.length > 0) {
+        await trx
+          .updateTable('courses')
+          .set({
+            overrides,
+            status: next.status,
+            kind: next.kind,
+            ects: next.ects,
+            level: next.level,
+            levels: next.levels,
+            attributes: next.attributes,
+            eqf_level: next.eqf_level,
+            teaching_hours: next.teaching_hours,
+            info_url: next.info_url,
+            contact_email: next.contact_email,
+            ...(cleared.unknownSource.length > 0 ? { content_hash: null } : {}),
+          })
+          .where('id', '=', courseId)
+          .execute();
+        if (!same(current.isced_codes, next.isced_codes)) {
+          await this.writeIsced(trx, courseId, next.isced_codes);
+        }
+        if (current.status !== next.status) {
+          await this.auditStatus(trx, ctx, 'course', courseId, row, next.status);
+        }
+      }
+      for (const write of textWrites) {
+        if (write.changed.length === 0) continue;
+        if (!write.next) {
+          await trx
+            .deleteFrom('course_texts')
+            .where('course_id', '=', courseId)
+            .where('lang', '=', write.lang)
+            .execute();
+          continue;
+        }
+        const values = { ...write.next, overrides: write.overrides };
+        await trx
+          .insertInto('course_texts')
+          .values({ course_id: courseId, lang: write.lang, ...values })
+          .onConflict((oc) => oc.columns(['course_id', 'lang']).doUpdateSet(values))
+          .execute();
+      }
+      await this.history(trx, ctx, 'course', courseId, row.ext_id, raw, 'accepted');
+      return {
+        outcome: changed.length > 0 ? 'updated' : 'unchanged',
+        entityId: courseId,
+        changed,
+      };
+    });
+  }
+
+  /**
+   * Stores and removes overrides of an offering; see {@link applyCourseOverrides}.
+   * `seats_updated_at` is stored with `seats_available` by the caller.
+   */
+  async applyOfferingOverrides(
+    ctx: WriteContext,
+    offeringId: string,
+    change: OverrideChange,
+    raw: unknown,
+    check?: OfferingOverrideCheck,
+  ): Promise<OverrideOutcome> {
+    return this.run(async (trx) => {
+      const row = await trx
+        .selectFrom('course_offerings as o')
+        .innerJoin('courses as c', 'c.id', 'o.course_id')
+        .selectAll('o')
+        .select('c.ext_id as course_ext_id')
+        .where('o.id', '=', offeringId)
+        .forUpdate()
+        .executeTakeFirstOrThrow();
+      const modes = await trx
+        .selectFrom('course_offering_delivery_modes')
+        .select('mode_code')
+        .where('offering_id', '=', offeringId)
+        .orderBy('mode_code')
+        .execute();
+      const current: OfferingEffective = {
+        status: row.status,
+        start_date: row.start_date,
+        end_date: row.end_date,
+        enrol_start_date: row.enrol_start_date,
+        application_deadline: row.application_deadline,
+        timezone: row.timezone,
+        teaching_languages: row.teaching_languages,
+        delivery_modes: modes.map((m) => m.mode_code),
+        campus: row.campus,
+        max_students: row.max_students,
+        alliance_seats: row.alliance_seats,
+        seats_available: row.seats_available,
+        seats_updated_at: isoOrNull(row.seats_updated_at),
+        application_url: row.application_url,
+        application_instructions: row.application_instructions,
+      };
+      const cleared = clearOverrides(row.overrides, change.clear);
+      const overrides = setOverrides(
+        cleared.map,
+        change.set,
+        current as unknown as Record<string, unknown>,
+        ctx.actor,
+        ctx.now.toISOString(),
+      );
+      const next = { ...current, ...cleared.restored, ...change.set } as OfferingEffective;
+      if (next.seats_available === null) next.seats_updated_at = null;
+      const changed = OFFERING_OVERRIDABLE.filter(
+        (f) => !same(current[f], next[f]) || !same(row.overrides?.[f], overrides[f]),
+      );
+      await check?.(next);
+
+      if (changed.length > 0) {
+        await trx
+          .updateTable('course_offerings')
+          .set({
+            overrides,
+            status: next.status,
+            start_date: next.start_date,
+            end_date: next.end_date,
+            enrol_start_date: next.enrol_start_date,
+            application_deadline: next.application_deadline,
+            timezone: next.timezone,
+            teaching_languages: next.teaching_languages,
+            campus: next.campus,
+            max_students: next.max_students,
+            alliance_seats: next.alliance_seats,
+            seats_available: next.seats_available,
+            seats_updated_at: next.seats_updated_at,
+            application_url: next.application_url,
+            application_instructions: next.application_instructions,
+            ...(cleared.unknownSource.length > 0 ? { content_hash: null } : {}),
+          })
+          .where('id', '=', offeringId)
+          .execute();
+        if (!same(current.delivery_modes, next.delivery_modes)) {
+          await trx
+            .deleteFrom('course_offering_delivery_modes')
+            .where('offering_id', '=', offeringId)
+            .execute();
+          const list = [...new Set(next.delivery_modes)];
+          if (list.length > 0) {
+            await trx
+              .insertInto('course_offering_delivery_modes')
+              .values(list.map((mode_code) => ({ offering_id: offeringId, mode_code })))
+              .execute();
+          }
+        }
+        if (current.status !== next.status) {
+          await this.auditStatus(trx, ctx, 'course_offering', offeringId, row, next.status);
+        }
+      }
+      await this.history(
+        trx,
+        ctx,
+        'course_offering',
+        offeringId,
+        offeringHistoryId(row.course_ext_id, row.ext_offering_id),
+        raw,
+        'accepted',
+      );
+      return {
+        outcome: changed.length > 0 ? 'updated' : 'unchanged',
+        entityId: offeringId,
+        changed,
+      };
     });
   }
 
@@ -737,34 +1132,51 @@ export class CanonicalWriter {
   ): Promise<void> {
     const existing = await trx
       .selectFrom('course_texts')
-      .select(['lang', 'overrides'])
+      .select(['lang', 'title', 'overrides'])
       .where('course_id', '=', courseId)
       .execute();
     const overridesByLang = new Map(existing.map((row) => [row.lang, row.overrides]));
     for (const [lang, text] of Object.entries(texts)) {
-      const effective = applyOverrides(
-        {
-          title: text.title,
-          abstract: text.abstract ?? null,
-          description: text.description ?? null,
-          learning_outcomes: text.learning_outcomes ?? null,
-          prerequisites: text.prerequisites ?? null,
-          assessment: text.assessment ?? null,
-          keywords: text.keywords as unknown,
-          is_machine_translated: text.is_machine_translated as unknown,
-        },
-        overridesByLang.get(lang),
-        TEXT_OVERRIDABLE,
-      );
+      const source = {
+        title: text.title,
+        abstract: text.abstract ?? null,
+        description: text.description ?? null,
+        learning_outcomes: text.learning_outcomes ?? null,
+        prerequisites: text.prerequisites ?? null,
+        assessment: text.assessment ?? null,
+        keywords: text.keywords as unknown,
+        is_machine_translated: text.is_machine_translated as unknown,
+      };
+      const overrides = overridesByLang.get(lang);
+      const effective = applyOverrides(source, overrides, TEXT_OVERRIDABLE);
       const values = {
         ...effective,
         keywords: effective.keywords as string[],
         is_machine_translated: effective.is_machine_translated as boolean,
+        ...(hasOverrides(overrides) ? { overrides: withSources(overrides, source) } : {}),
       };
       await trx
         .insertInto('course_texts')
         .values({ course_id: courseId, lang, ...values })
         .onConflict((oc) => oc.columns(['course_id', 'lang']).doUpdateSet(values))
+        .execute();
+    }
+    // Languages the source no longer has but overrides keep: no source value any more,
+    // and the title becomes an override (the language now exists through overrides only).
+    for (const row of existing) {
+      if (row.lang in texts || !hasOverrides(row.overrides)) continue;
+      const entries = Object.values(row.overrides);
+      if (row.overrides['title'] && entries.every((e) => 'source' in e && e.source === null)) {
+        continue;
+      }
+      const first = Object.values(row.overrides)[0] as { by: string; at: string };
+      const overrides = withSources(row.overrides, {});
+      overrides['title'] ??= { value: row.title, by: first.by, at: first.at, source: null };
+      await trx
+        .updateTable('course_texts')
+        .set({ overrides })
+        .where('course_id', '=', courseId)
+        .where('lang', '=', row.lang)
         .execute();
     }
     // Languages the source no longer has go, except English and rows carrying overrides.

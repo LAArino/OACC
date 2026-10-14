@@ -125,6 +125,7 @@ describe('dashboard', () => {
     expect(w.find('#account-heading').exists()).toBe(true);
     const links = w.findAll('nav[aria-labelledby="modules-heading"] .admin-modules a');
     expect(links.map((a) => [a.text(), a.attributes('href')])).toEqual([
+      ['Courses', '/en/admin/courses'],
       ['CSV upload', '/en/admin/csv'],
       ['Sync history', '/en/admin/sync-runs'],
       ['Integration settings', '/en/admin/integration'],
@@ -149,7 +150,7 @@ describe('dashboard', () => {
     const w2 = await mountPage(DashboardPage, `/en/admin?org=${OTHER_ORG_ID}`);
     expect((w2.find('nav select').element as HTMLSelectElement).value).toBe(OTHER_ORG_ID);
     expect(w2.find('.admin-modules a').attributes('href')).toBe(
-      `/en/admin/csv?org=${OTHER_ORG_ID}`,
+      `/en/admin/courses?org=${OTHER_ORG_ID}`,
     );
     expect(await axeViolations(w2.html())).toEqual([]);
   });

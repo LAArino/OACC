@@ -87,6 +87,39 @@ export const ERROR_CODES = {
     severity: 'error',
     message: 'Attribute value is not one of the defined options',
   },
+  'oecp.content.invalid_code': {
+    severity: 'error',
+    message: 'Codes start with a letter or digit and use letters, digits, . _ / - (≤ 200)',
+  },
+  'oecp.content.unsupported_language': {
+    severity: 'error',
+    message: 'Language is not in the list of supported languages',
+  },
+  'oecp.content.duplicate_ext_id': {
+    severity: 'error',
+    message: 'A record with this code already exists',
+  },
+  'oecp.content.ext_id_immutable': {
+    severity: 'error',
+    message: 'The code of an existing record cannot be changed',
+  },
+  'oecp.content.override_not_allowed': {
+    severity: 'error',
+    message:
+      'Overrides apply only to harvested records (organizations whose authoritative channel is oeapi)',
+  },
+  'oecp.content.has_published_offerings': {
+    severity: 'error',
+    message: 'The course has published offerings; withdraw or cancel them first',
+  },
+  'oecp.content.published_not_deletable': {
+    severity: 'error',
+    message: 'A published record cannot be deleted; withdraw or cancel it instead',
+  },
+  'oecp.content.harvested_not_deletable': {
+    severity: 'error',
+    message: 'Harvested records cannot be deleted; withdraw them with a status override',
+  },
 
   'oecp.csv.missing_column': { severity: 'error', message: 'Required column is missing' },
   'oecp.csv.unknown_column': { severity: 'error', message: 'Unknown column' },

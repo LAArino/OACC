@@ -119,6 +119,12 @@ const MESSAGE_KEYS: Readonly<Record<string, string>> = {
   'oecp.csv.no_files': 'problem.noFiles',
   'oecp.csv.unexpected_file': 'problem.unexpectedFile',
   'oecp.integration.not_configured': 'problem.integrationNotConfigured',
+  'oecp.content.duplicate_ext_id': 'problem.duplicateExtId',
+  'oecp.content.ext_id_immutable': 'problem.extIdImmutable',
+  'oecp.content.override_not_allowed': 'problem.overrideNotAllowed',
+  'oecp.content.has_published_offerings': 'problem.hasPublishedOfferings',
+  'oecp.content.published_not_deletable': 'problem.publishedNotDeletable',
+  'oecp.content.harvested_not_deletable': 'problem.harvestedNotDeletable',
 };
 
 /** Translation key of the human message for an error (falls back on generic messages). */

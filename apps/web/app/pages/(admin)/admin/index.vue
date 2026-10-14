@@ -19,6 +19,7 @@ const modules = computed(() => {
   if (!canManage.value || !orgId.value) return [];
   const query = orgQuery.value;
   return [
+    { key: 'courses', to: localePath({ path: '/admin/courses', query }) },
     { key: 'csv', to: localePath({ path: '/admin/csv', query }) },
     { key: 'syncRuns', to: localePath({ path: '/admin/sync-runs', query }) },
     { key: 'integration', to: localePath({ path: '/admin/integration', query }) },

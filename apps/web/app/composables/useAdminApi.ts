@@ -7,7 +7,8 @@ export interface AdminRequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /** JSON body, or `FormData` for `multipart/form-data` uploads (the CSV console). */
   body?: Record<string, unknown> | FormData;
-  query?: Record<string, string | number | undefined>;
+  /** Arrays are sent as repeated keys (`status=a&status=b`). */
+  query?: Record<string, string | number | readonly string[] | undefined>;
   /** `blob` for file downloads (CSV templates); JSON otherwise. */
   responseType?: 'json' | 'blob';
 }
