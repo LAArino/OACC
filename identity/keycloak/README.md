@@ -185,8 +185,9 @@ here: the next run reverts it. Runtime data (users, roles of users,
 
 ## Adding a partner IdP
 
-1. **Organization first.** An `alliance_admin` creates the partner
-   organization in OECP (spec §8.2) with its `slug`,
+1. **Organization first.** In 0.1.0 organizations come only from the seed
+   file (`oecp seed-organizations`, see docs/onboarding/alliance.md); there is
+   no organizations API or screen yet. The partner row needs its `slug`,
    `schac_home_organization` and `keycloak_idp_alias` = `slug`.
 2. **Find the IdP** in the eduGAIN metadata (or the hub of a hub-and-spoke
    federation: SURFconext for VUA, WAYF for CBS, spec §4). Note its
