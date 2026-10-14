@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: EUPL-1.2
 import { describe, expect, it } from 'vitest';
-import { AdminApiError, problemMessageKey, toAdminApiError } from '../app/utils/problem';
+import {
+  AdminApiError,
+  asAdminApiError,
+  parseRetryAfter,
+  problemMessageKey,
+  toAdminApiError,
+} from '../app/utils/problem';
 
 function problem(code: string, status: number, detail?: string) {
   return {
@@ -95,6 +101,13 @@ describe('translations', () => {
       'oecp.auth.insufficient_acr',
       'oecp.auth.no_role',
       'oecp.auth.forbidden_role',
+      'oecp.request.not_found',
+      'oecp.sync.channel_disabled',
+      'oecp.csv.file_too_large',
+      'oecp.csv.rate_limited',
+      'oecp.csv.no_files',
+      'oecp.csv.unexpected_file',
+      'oecp.integration.not_configured',
     ];
     const keys = [
       ...codes.map((code) => problemMessageKey({ status: 400, codes: [code] })),
@@ -103,5 +116,44 @@ describe('translations', () => {
     for (const key of keys) {
       expect(en.problem[key.replace(/^problem\./, '')], key).toBeTypeOf('string');
     }
+  });
+});
+
+describe('CSV upload problems', () => {
+  it.each([
+    ['oecp.sync.channel_disabled', 409, 'problem.channelDisabled'],
+    ['oecp.csv.file_too_large', 413, 'problem.fileTooLarge'],
+    ['oecp.csv.rate_limited', 429, 'problem.uploadRateLimited'],
+    ['oecp.csv.no_files', 400, 'problem.noFiles'],
+  ])('maps %s to a message', (code, status, key) => {
+    expect(problemMessageKey(toAdminApiError(status, problem(code, status)))).toBe(key);
+  });
+
+  it('keeps the problem body with its extension members and Retry-After', () => {
+    const body = {
+      ...problem('oecp.csv.invalid_date', 422),
+      title: 'Upload validation failed',
+      sync_run_id: 'run-1',
+      error_count: 3,
+    };
+    const error = toAdminApiError(422, body, '120');
+    expect(error.problem).toMatchObject({ sync_run_id: 'run-1', error_count: 3, status: 422 });
+    expect(error.problem?.errors).toHaveLength(1);
+    expect(error.retryAfterSeconds).toBe(120);
+    expect(toAdminApiError(500, 'oops').problem).toBeUndefined();
+  });
+
+  it('parses Retry-After seconds and dates', () => {
+    expect(parseRetryAfter('30')).toBe(30);
+    expect(parseRetryAfter(null)).toBeUndefined();
+    expect(parseRetryAfter('soon')).toBeUndefined();
+    const inAMinute = new Date(Date.now() + 60_000).toUTCString();
+    expect(parseRetryAfter(inAMinute)).toBeGreaterThanOrEqual(58);
+  });
+
+  it('wraps anything thrown', () => {
+    const known = new AdminApiError({ status: 409, title: 'x' });
+    expect(asAdminApiError(known)).toBe(known);
+    expect(asAdminApiError(new Error('boom')).status).toBe(0);
   });
 });

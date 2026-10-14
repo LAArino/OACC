@@ -186,7 +186,183 @@
     "idp": "Signed in through",
     "none": "None",
     "noRole": "Your account has no administration role yet. If you received an invitation, open the link in that e-mail.",
-    "errorCode": "Error code: {code}"
+    "errorCode": "Error code: {code}",
+    "backToDashboard": "Back to the dashboard",
+    "comingSoon": "Coming soon: this module is not available yet.",
+    "yes": "Yes",
+    "no": "No",
+    "modules": {
+      "heading": "Modules",
+      "chooseOrganization": "Choose an organization to open its modules.",
+      "allianceHeading": "Alliance administration",
+      "csv": {
+        "title": "CSV upload",
+        "description": "Download the templates, check your files in the browser and upload courses and offerings."
+      },
+      "syncRuns": {
+        "title": "Sync history",
+        "description": "Uploads and harvests of the organization, with their counters and errors."
+      },
+      "integration": {
+        "title": "Integration settings",
+        "description": "Authoritative channel and OEAPI harvesting of the organization."
+      },
+      "organizations": {
+        "title": "Organizations",
+        "description": "Partners and sub-units of the alliance, with their identifiers and settings."
+      }
+    },
+    "org": {
+      "select": "Organization",
+      "choose": "Choose an organization",
+      "none": "Your account is not linked to an organization."
+    },
+    "dropZone": {
+      "target": "Drop CSV files here, or activate this area to choose files",
+      "input": "Or choose CSV files"
+    },
+    "issues": {
+      "filter": "Show",
+      "all": "All issues",
+      "errors": "Errors only",
+      "warnings": "Warnings only",
+      "download": "Download report as CSV",
+      "showing": "Showing {shown} of {total} issues.",
+      "none": "No issues to show.",
+      "severity": "Severity",
+      "file": "File",
+      "row": "Row",
+      "column": "Column",
+      "code": "Code",
+      "message": "Message",
+      "severityLabel": {
+        "error": "Error",
+        "warning": "Warning"
+      }
+    },
+    "runStatus": {
+      "queued": "Queued",
+      "running": "Running",
+      "succeeded": "Succeeded",
+      "partial": "Partly succeeded",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "channel": {
+      "oeapi": "OEAPI harvest",
+      "csv": "CSV upload",
+      "form": "Web form"
+    },
+    "trigger": {
+      "schedule": "Scheduled",
+      "manual": "Sync now",
+      "upload": "Upload",
+      "form": "Form"
+    },
+    "counters": {
+      "created": "Created",
+      "updated": "Updated",
+      "unchanged": "Unchanged",
+      "rejected": "Rejected",
+      "withdrawn": "Withdrawn"
+    },
+    "run": {
+      "title": "Sync run",
+      "loading": "Loading the run…",
+      "id": "Run ID:",
+      "summaryHeading": "Summary",
+      "status": "Status",
+      "channel": "Channel",
+      "trigger": "Trigger",
+      "queuedAt": "Requested",
+      "startedAt": "Started",
+      "finishedAt": "Finished",
+      "duration": "Duration",
+      "files": "Uploaded files",
+      "summary": "Message",
+      "open": "Open the run page",
+      "errorsHeading": "Errors and warnings ({n})",
+      "errorsCaption": "Errors and warnings recorded for this run",
+      "pagination": "Pages of errors",
+      "page": "Page {page} of {pages}"
+    },
+    "syncRuns": {
+      "title": "Sync history",
+      "refresh": "Refresh",
+      "loading": "Loading the runs…",
+      "empty": "No runs yet for this organization.",
+      "caption": "Latest {n} runs, newest first",
+      "started": "Started",
+      "back": "Back to the sync history"
+    },
+    "csv": {
+      "title": "CSV upload",
+      "intro": "Upload courses.csv and/or offerings.csv (template 1.0, at most 5 MB and {rows} rows each). Your files are checked in this browser first; the server checks them again.",
+      "templatesHeading": "Templates",
+      "templateCourses": "Download the courses.csv template",
+      "templateOfferings": "Download the offerings.csv template",
+      "templateSchema": "Download the JSON Schema of template 1.0",
+      "filesHeading": "Files",
+      "dropHint": "Up to two files: one with courses, one with offerings. The type is detected from the header columns or the file name; you can change it.",
+      "selectedCaption": "Selected files",
+      "fileName": "File",
+      "fileSize": "Size",
+      "fileKind": "Type",
+      "fileActions": "Actions",
+      "tooLarge": "Larger than 5 MB",
+      "kindLabel": "Type of {name}",
+      "kindChoose": "Choose the type",
+      "kindCourses": "Courses (courses.csv)",
+      "kindOfferings": "Offerings (offerings.csv)",
+      "detectedHeader": "Detected from the header columns.",
+      "detectedName": "Detected from the file name.",
+      "detectedManual": "Chosen by you.",
+      "detectedNone": "Not detected: choose the type.",
+      "remove": "Remove {name}",
+      "kindMissing": "Choose the type of every file to check it.",
+      "kindDuplicate": "Both files have the same type: upload one courses file and one offerings file.",
+      "tooManyFiles": "At most two files can be uploaded together; extra files were ignored.",
+      "validating": "Checking the files…",
+      "statusErrors": "Check finished: {errors} errors and {warnings} warnings. Fix the errors before uploading.",
+      "statusReady": "Check finished: no errors, {warnings} warnings. You can upload the files.",
+      "reportHeading": "Check report",
+      "rows": "Rows",
+      "errors": "Errors",
+      "warnings": "Warnings",
+      "referenceUnavailable": "The reference lists could not be loaded, so field-of-study and delivery-mode codes were not checked here. The server will check them.",
+      "truncated": "Only the first {shown} issues are listed; the counts above are complete.",
+      "reportCaption": "Issues found in your files",
+      "upload": "Upload",
+      "uploading": "Uploading…",
+      "reset": "Start over",
+      "uploadNeedsFiles": "Select at least one file to upload.",
+      "uploadBlocked": "Upload is available once the check finds no errors. Warnings do not block the upload.",
+      "uploadReady": "The files passed the check; the server checks them again on upload.",
+      "uploadDone": "These files were uploaded. Start over to upload other files.",
+      "resultHeading": "Upload result",
+      "processed": "Upload processed. Status: {status}.",
+      "warningsCaption": "Warnings reported by the server",
+      "queued": "The upload is queued for processing. This page checks its progress every few seconds.",
+      "queuedDone": "Processing finished. Status: {status}.",
+      "rejected": "The server rejected the upload: {errors} errors and {warnings} warnings. Nothing was saved.",
+      "runId": "Run:",
+      "serverCaption": "Issues reported by the server",
+      "failed": "The upload failed"
+    },
+    "integration": {
+      "title": "Integration settings",
+      "loading": "Loading the integration…",
+      "notConfigured": "No integration is configured for this organization: courses are maintained by CSV upload or the web form.",
+      "summaryHeading": "Current settings",
+      "channel": "Authoritative channel",
+      "accessMode": "Access mode",
+      "mode": {
+        "direct": "Direct",
+        "surfeduhub": "Through SURFeduhub"
+      },
+      "enabled": "Harvesting enabled",
+      "lastRun": "Last run"
+    }
   },
   "accept": {
     "title": "Accept invitation",
@@ -223,6 +399,14 @@
     "noRole": "Your account has no administration role.",
     "forbidden": "Your account is not allowed to do this.",
     "network": "The server could not be reached. Check your connection and try again.",
-    "generic": "Something went wrong. Try again later."
+    "generic": "Something went wrong. Try again later.",
+    "notFound": "The requested item does not exist or is no longer available.",
+    "channelDisabled": "This organization is harvested through OEAPI, so CSV uploads are disabled. Change the authoritative channel in the integration settings first.",
+    "fileTooLarge": "A file is larger than 5 MB. Split it into smaller files.",
+    "uploadRateLimited": "The upload limit of 10 uploads per hour for this organization has been reached.",
+    "noFiles": "No file was received. Select courses.csv and/or offerings.csv.",
+    "unexpectedFile": "The upload contained an unexpected file. Upload only one courses file and one offerings file.",
+    "integrationNotConfigured": "No integration is configured for this organization.",
+    "retryAfter": "Try again in about {minutes} minutes."
   }
 }

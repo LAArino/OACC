@@ -1,0 +1,118 @@
+/* SPDX-License-Identifier: EUPL-1.2 */
+/*
+ * Shared styles of the client-only admin pages (loaded by them with
+ * `<style src>`). Only the colour tokens of main.css are used; their pairs are
+ * checked for WCAG 2.1 AA in test/contrast.test.ts.
+ */
+
+.admin-page {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--gutter) 3rem;
+}
+
+.admin-back {
+  display: inline-block;
+  margin-top: 1rem;
+}
+
+.admin-card {
+  border: 1px solid var(--c-divider);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+.admin-card > :first-child {
+  margin-top: 0;
+}
+.admin-card > :last-child {
+  margin-bottom: 0;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+
+.admin-field label {
+  display: block;
+  font-weight: 600;
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+  margin: 0.5rem 0 1rem;
+}
+.admin-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.95rem;
+}
+.admin-table caption {
+  text-align: left;
+  font-weight: 600;
+  padding: 0.25rem 0;
+}
+.admin-table th,
+.admin-table td {
+  border-bottom: 1px solid var(--c-divider);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+.admin-table thead th {
+  background: var(--c-surface);
+  border-bottom: 2px solid var(--c-border);
+  white-space: nowrap;
+}
+.admin-table td.num,
+.admin-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.admin-table tbody tr.admin-table__link-row {
+  cursor: pointer;
+}
+.admin-table tbody tr.admin-table__link-row:hover {
+  background: var(--c-chip);
+}
+
+.admin-modules {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+}
+.admin-modules li {
+  border: 1px solid var(--c-divider);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+.admin-modules a {
+  font-weight: 600;
+}
+.admin-modules p {
+  margin: 0.25rem 0 0;
+  color: var(--c-muted);
+}
+
+.admin-pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+button.button:disabled,
+button.button[aria-disabled='true'] {
+  cursor: not-allowed;
+  background: var(--c-surface);
+  border-color: var(--c-border);
+  color: var(--c-muted);
+}
