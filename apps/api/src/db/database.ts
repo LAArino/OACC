@@ -20,7 +20,11 @@ import type { ColumnType, Generated } from 'kysely';
 type Timestamp = ColumnType<Date, Date | string | undefined, Date | string>;
 type Numeric = ColumnType<string, number | string, number | string>;
 type Json<T> = ColumnType<T, T, T>;
-export type OverrideMap = Record<string, { value: unknown; by: string; at: string }>;
+/** See ingestion/overrides.ts; `source` is the last source value of the field. */
+export type OverrideMap = Record<
+  string,
+  { value: unknown; by: string; at: string; source?: unknown }
+>;
 /** `overrides` jsonb (spec §5 "Overrides"); DEFAULT '{}' makes it optional on insert. */
 type Overrides = ColumnType<OverrideMap, OverrideMap | undefined, OverrideMap>;
 /** jsonb object with DEFAULT '{}' (optional on insert). */

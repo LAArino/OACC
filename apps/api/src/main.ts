@@ -12,6 +12,8 @@ app.useLogger(app.get(Logger));
 app.enableShutdownHooks();
 app.set('trust proxy', 1); // Traefik terminates TLS and sets X-Forwarded-*.
 app.disable('x-powered-by');
+// Course texts in several languages exceed the 100 kB default (spec §6.4 form saves).
+app.useBodyParser('json', { limit: '1mb' });
 
 const config = app.get<ConfigService<Env, true>>(ConfigService);
 await app.listen(config.get('PORT', { infer: true }));

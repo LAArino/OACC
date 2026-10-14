@@ -261,6 +261,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `level` and `attr_*` and sorts by deadline; the contract test validates the
     full fixtures once `@oecp/schemas` declares the new members.
 
+- Channel C, the web form (spec §6.4, §6.5, §8.1 "Course wizard"), in
+  `apps/api` and `packages/schemas`:
+  - `packages/schemas` `admin-courses.ts`: `courseInput`, `offeringInput`,
+    `statusChangeRequest`, `overridesPatch` (`courseOverridesPatch`,
+    `offeringOverridesPatch`, key helpers `parseCourseOverrideKey`,
+    `COURSE_OVERRIDE_FIELDS`, `TEXT_OVERRIDE_FIELDS`, `OFFERING_OVERRIDE_FIELDS`),
+    responses `adminCourse`, `adminOffering`, `adminCourseList(Item)`,
+    `adminCourseHistory`, `adminReference`, the form language list
+    `FORM_LANGUAGES` (29 EU/EEA primary subtags) and
+    `csvReferenceDataFromAdminReference()` for the CSV console; new codes
+    `oecp.content.invalid_code`, `unsupported_language`, `duplicate_ext_id`,
+    `ext_id_immutable`, `override_not_allowed`, `has_published_offerings`,
+    `published_not_deletable`, `harvested_not_deletable`.
+  - `GET /api/admin/v1/organizations/{orgId}/reference` (levels, kinds, delivery
+    modes, ISCED broad fields, languages, attribute definitions, academic
+    sessions, teaching units, default time zone, authoritative channel and
+    `form_mode` `write`/`overrides`).
+  - `GET …/organizations/{orgId}/courses` (search, status/kind/channel filters,
+    pagination ≤ 100), `POST …/organizations/{orgId}/courses`,
+    `GET`/`PUT`/`DELETE /api/admin/v1/courses/{id}`,
+    `PATCH …/courses/{id}/overrides`, `POST …/courses/{id}/status`,
+    `GET …/courses/{id}/history`, `POST …/courses/{id}/offerings`,
+    `GET`/`PUT`/`DELETE /api/admin/v1/offerings/{id}`,
+    `PATCH …/offerings/{id}/overrides`, `POST …/offerings/{id}/status`;
+    partner_admin of the organization (and sub-units) or alliance_admin.
+    Organizations whose authoritative channel is `oeapi` get overrides only
+    (409 `oecp.sync.channel_disabled` for record writes); the others create,
+    replace and soft-delete records (409 `oecp.content.override_not_allowed` for
+    overrides). Every save goes through `CanonicalWriter` in one transaction
+    with a single-entity `sync_runs` row (`form`/`form`, `form-1`, triggered by
+    the `sub`, counters), `ext_metadata_history` (the request body as raw
+    payload) and an audit row; refused saves write nothing.
+  - Unknown academic session codes of offerings create a minimal session (as
+    CSV uploads do); `seats_available` sets `seats_updated_at` to the save time.
+  - JSON request bodies up to 1 MB.
+
+- Course wizard in the admin dashboard (spec §6.4, §8.1), in `apps/web`
+  (client-only, bearer token, `@oecp/schemas` admin-courses contracts):
+  - `/admin/courses`: courses of the organization with search, status, kind and
+    source filters (native checkbox groups, state in the URL), pagination, status
+    badge, override indicator and "New course" (hidden, with an explanation,
+    when the organization is harvested through OEAPI); "Courses" module on the
+    dashboard.
+  - `/admin/courses/new` and `/admin/courses/{id}`: stepped wizard (Basics,
+    Texts per language with English required, alliance Attributes, Review and
+    status) with step navigation (`aria-current="step"`), focus moved to each
+    step heading, client validation mirroring the contract and an error summary
+    linked to the fields, server `errors[]` mapped to fields by JSON pointer;
+    `POST`/`PUT`, status actions (Publish, Withdraw, Cancel, Back to draft) and
+    delete confirmed in an accessible `<dialog>`, change history. Harvested
+    records (`form_mode` `overrides`) show each field's source value with an
+    "Override" toggle and save only toggled fields as `PATCH …/overrides`
+    `set`/`clear` (unticking a saved override reverts it).
+  - Offerings on the course page and `/admin/courses/{id}/offerings/new|{offeringId}`:
+    session select or typed code, dates, IANA time zone (organization default
+    first), teaching languages and delivery modes, seats (alliance seats ≤
+    maximum), application URL and per-language application instructions; same
+    overrides mode, status actions and delete.
+  - Components `AdminWizardSteps`, `AdminOverrideField`, `AdminFieldError`,
+    `AdminErrorSummary`, `AdminConfirm`, `AdminInputField`, `AdminCheckboxGroup`,
+    `AdminLanguageTabs`, `AdminLifecycleBadge`, `AdminStatusActions`,
+    `AdminCourseEditor`, `AdminOfferingForm`, `AdminCourseHistory`; composable
+    `useAdminCoursesApi()`; form logic in `utils/adminCourseForm.ts`; tests with
+    axe checks on every page and a contract test of the request bodies against
+    `@oecp/schemas`.
+
 ### Changed
 
 - Migration `0003_partner_base_url_http`: `partner_integrations.base_url` may
@@ -273,6 +339,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Schema (`oecp-csv-1.0.schema.json` stays as published). Content hashes now
   cover `kind`, `levels`, `attributes` and `application_instructions`, so the
   first harvest or upload after the upgrade reports existing records as updated.
+- Overrides record the value they hide (`overrides.<field>.source`), refreshed
+  by `CanonicalWriter` on every changed payload, so removing an override
+  restores the last harvested value at once; a language the source drops but
+  overrides keep becomes override-only (its title an override without source).
+  New writer methods `applyCourseOverrides()` and `applyOfferingOverrides()`.
 - `CanonicalWriter.transaction()` runs several upserts in one transaction
   (CSV all-or-nothing); CSV and form writes set `courses.teaching_unit_id` from
   `teaching_unit_ext_id` (descendant organizations with that `ext_id`).
