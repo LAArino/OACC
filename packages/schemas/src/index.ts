@@ -13,3 +13,4 @@ export * from './oeapi-v5.js';
 export * from './integrations.js';
 export * from './public-responses.js';
 export * from './admin-courses.js';
+export * from './admin-organizations.js';

@@ -15,7 +15,9 @@ http:
         # Enable only once the domain is committed to HTTPS for the long term.
         stsPreload: false
         contentTypeNosniff: true
-        frameDeny: true
+        # SAMEORIGIN (not DENY): the admin SPA restores its session through a
+        # same-origin hidden iframe (/en/admin/silent-callback, spec §4).
+        customFrameOptionsValue: SAMEORIGIN
         referrerPolicy: strict-origin-when-cross-origin
         permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
         customResponseHeaders:

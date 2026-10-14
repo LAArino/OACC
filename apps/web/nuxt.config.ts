@@ -31,6 +31,9 @@ export default defineNuxtConfig({
       // Paths on the portal origin; must match the redirect URIs and
       // post-logout redirect URIs of client `oecp-admin` (identity/keycloak).
       oidcRedirectPath: '/en/admin/callback',
+      // Silent session restore (hidden iframe, prompt=none); covered by the
+      // `/en/admin/*` redirect URI pattern of `oecp-admin`.
+      oidcSilentRedirectPath: '/en/admin/silent-callback',
       oidcPostLogoutPath: '/en',
       oidcHomePath: '/en/admin',
     },

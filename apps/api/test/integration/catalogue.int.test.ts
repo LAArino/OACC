@@ -564,6 +564,8 @@ describe.runIf(describeWithDatabase === 'run')('public catalogue API (PostgreSQL
       'uibk-informatik',
     ]);
     expect(body.organizations[1]).toMatchObject({ is_partner: true, org_type: 'institution' });
+    // Only aliases of enabled Keycloak identity providers are published.
+    expect(body.organizations.map((o) => o.idp_alias)).toEqual([null, 'uibk', null, null]);
     expect(body.delivery_modes.map((m) => m.code)).toEqual([
       'presential',
       'online',

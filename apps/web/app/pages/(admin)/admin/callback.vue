@@ -3,7 +3,7 @@
 // OIDC redirect URI of client `oecp-admin`: exchanges the authorization code
 // (PKCE) for tokens kept in memory, then continues to the `returnTo` path that
 // travelled in the OIDC state (client-side navigation keeps the tokens).
-definePageMeta({ layout: 'admin' });
+definePageMeta({ layout: 'admin', sessionRestore: false });
 const { t } = useI18n();
 const localePath = useLocalePath();
 const auth = useAuth();

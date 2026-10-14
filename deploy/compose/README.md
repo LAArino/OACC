@@ -214,7 +214,7 @@ exercise retries and back-off.
 
 | Router | Middlewares |
 |---|---|
-| `web` (portal host, `/`) | `security-headers` (HSTS, nosniff, `X-Frame-Options: DENY`, referrer and permissions policy, COOP); the nonce-based CSP is the application's job |
+| `web` (portal host, `/`) | `security-headers` (HSTS, nosniff, `X-Frame-Options: SAMEORIGIN` (silent session restore iframe), referrer and permissions policy, COOP); the nonce-based CSP is the application's job |
 | `api` (`/api`, `/oeapi`) | `security-headers` + `security-headers-api` (`Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; …`) |
 | `api-search`, `api-suggest`, `oeapi`, `api-admin` | the above plus `ratelimit-search` (20 r/s, burst 40), `ratelimit-suggest` and `ratelimit-oeapi` (10 r/s, burst 20), `ratelimit-admin` (30 r/s, burst 60); excess requests get 429 |
 | `auth`, `auth-admin` (auth host) | `security-headers-auth` (transport headers only; Keycloak sets its own CSP), plus the IP allowlist on `auth-admin` |

@@ -41,4 +41,24 @@ export class OrganizationAccess {
     }
     throw new ProblemException(403, 'oecp.auth.forbidden_organization');
   }
+
+  /**
+   * Organizations the caller may read: undefined (all) for an alliance_admin,
+   * else the `org_id` organization and its descendants (deleted ones included,
+   * so callers can decide whether to show them).
+   */
+  async scope(admin: AdminPrincipal): Promise<string[] | undefined> {
+    if (admin.roles.includes('alliance_admin')) return undefined;
+    if (!admin.roles.includes('partner_admin') || !admin.orgId) return [];
+    const { rows } = await sql<{ id: string }>`
+      with recursive descendants(id, depth) as (
+        select id, 0 from organizations where id = ${admin.orgId}
+        union all
+        select o.id, d.depth + 1
+        from organizations o join descendants d on o.parent_id = d.id
+        where d.depth < 32
+      )
+      select distinct id from descendants`.execute(this.db);
+    return rows.map((r) => r.id);
+  }
 }

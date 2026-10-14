@@ -18,7 +18,10 @@ import {
   createInvitationRequest,
   type Invitation,
   type InvitationList,
+  type ResendInvitationRequest,
+  resendInvitationRequest,
 } from '@oecp/schemas';
+import { z } from 'zod';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe.js';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard.js';
 import type { AdminPrincipal } from '../auth/claims.js';
@@ -78,6 +81,27 @@ export class InvitationsController {
   async list(@CurrentAdmin() admin: AdminPrincipal): Promise<InvitationList> {
     const all = admin.roles.includes('alliance_admin');
     return { items: await this.invitations.list(all ? {} : { organizationId: admin.orgId }) };
+  }
+
+  /**
+   * Revokes the invitation and sends a new one (same e-mail, role, organization);
+   * returns the new invitation, never its token. Same roles as `POST /invitations`.
+   */
+  @Post(':id/resend')
+  @RequireRoles(['alliance_admin'])
+  @HttpCode(201)
+  async resend(
+    @CurrentAdmin() admin: AdminPrincipal,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body(new ZodValidationPipe(z.preprocess((v) => v ?? {}, resendInvitationRequest)))
+    body: ResendInvitationRequest,
+  ): Promise<Invitation> {
+    const { invitation } = await this.invitations.resend(
+      id,
+      { sub: admin.sub, orgId: admin.orgId },
+      body.ttl_hours,
+    );
+    return toApiInvitation(invitation, new Date());
   }
 
   @Delete(':id')

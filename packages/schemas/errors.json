@@ -159,6 +159,42 @@
     "severity": "error",
     "message": "Harvested records cannot be deleted; withdraw them with a status override"
   },
+  "oecp.content.duplicate_slug": {
+    "severity": "error",
+    "message": "Another organization already uses this slug"
+  },
+  "oecp.content.duplicate_identifier": {
+    "severity": "error",
+    "message": "Another organization already uses this identifier (SCHAC home organization, Erasmus code, PIC, IdP alias or code)"
+  },
+  "oecp.content.slug_immutable": {
+    "severity": "error",
+    "message": "The slug of an existing organization cannot be changed"
+  },
+  "oecp.content.invalid_parent": {
+    "severity": "error",
+    "message": "The parent organization does not exist, is deleted or would create a cycle"
+  },
+  "oecp.content.organization_in_use": {
+    "severity": "error",
+    "message": "The organization still has courses, sub-units, administrators, pending invitations or an enabled harvest"
+  },
+  "oecp.admin.cannot_remove_self": {
+    "severity": "error",
+    "message": "You cannot revoke your own administrator access"
+  },
+  "oecp.admin.last_alliance_admin": {
+    "severity": "error",
+    "message": "At least one alliance_admin must remain"
+  },
+  "oecp.admin.not_local_account": {
+    "severity": "error",
+    "message": "The account signs in through an institutional identity provider; it has no local setup"
+  },
+  "oecp.admin.setup_complete": {
+    "severity": "error",
+    "message": "The account has no pending password or authenticator setup"
+  },
   "oecp.csv.missing_column": {
     "severity": "error",
     "message": "Required column is missing"

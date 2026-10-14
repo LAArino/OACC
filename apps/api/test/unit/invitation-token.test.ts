@@ -36,4 +36,19 @@ describe('invitation tokens', () => {
     expect(url.search).toBe('');
     expect(url.hash).toBe('#token=abc_-123');
   });
+
+  it('adds the IdP alias of a brokered organization to the fragment', () => {
+    const link = buildInvitationLink('https://campus.example.org', 'abc_-123', {
+      idpAlias: 'uibk',
+    });
+    expect(link).toBe('https://campus.example.org/en/admin/accept#token=abc_-123&idp=uibk');
+    const fragment = new URLSearchParams(new URL(link).hash.slice(1));
+    expect(fragment.get('token')).toBe('abc_-123');
+    expect(fragment.get('idp')).toBe('uibk');
+    for (const idpAlias of [null, 'local', 'Not Valid']) {
+      expect(buildInvitationLink('https://c.example', 't', { idpAlias })).toBe(
+        'https://c.example/en/admin/accept#token=t',
+      );
+    }
+  });
 });

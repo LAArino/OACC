@@ -20,9 +20,9 @@ You are a `partner_admin`: you manage the courses, offerings and uploads of your
 
 1. Open the e-mail from the login service, set a password of at least 12 characters and scan the QR code with your authenticator app.
 2. Open the OECP invitation link and sign in with password and code; the page shows "Invitation accepted". Choose *Sign out and sign in again*: your new session carries the role.
-3. Ask the alliance admin to invite a second colleague, so your university is never blocked by one absence. Each person can administer one organization.
+3. Ask the alliance admin to invite a second colleague, so your university is never blocked by one absence. Each person can administer one organization. The *Invitations* page shows your organization's invitations; only alliance admins send, revoke or resend them.
 
-In 0.1.0 a page reload signs you out; sign in again. Sign-in with your university's own login is not yet available in 0.1.0.
+A page reload keeps you signed in while your login session is alive (30 minutes idle, 8 hours at most); after that, sign in again. If your university's identity provider is connected to OECP, your invitation link takes you to *Sign in through your university* and there is no separate password e-mail; later, choose your university under *Sign in through your university* on the sign-in page. Until it is connected, you use the OECP account from step 1.
 
 ## 2. Form or CSV?
 

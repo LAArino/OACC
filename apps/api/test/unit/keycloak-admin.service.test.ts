@@ -252,6 +252,86 @@ describe('KeycloakAdminService', () => {
     await expect(service(f.fetch).countUsersWithRole('alliance_admin')).resolves.toBe(1);
   });
 
+  it('searches users by attribute with q and re-filters the result', async () => {
+    const org = '0a000000-0000-4000-8000-000000000001';
+    const f = fakeFetch(
+      on('GET', '/users', () =>
+        json([
+          { id: 'a', attributes: { oecp_org_id: [org] } },
+          // Keycloak lists every user when it cannot parse q: never trust the page.
+          { id: 'b', attributes: { oecp_org_id: ['0a000000-0000-4000-8000-000000000002'] } },
+          { id: 'c' },
+        ]),
+      ),
+    );
+    const users = await service(f.fetch).findUsersByAttribute('oecp_org_id', org);
+    expect(users.map((u) => u.id)).toEqual(['a']);
+    const url = f.adminCalls()[0]!.url;
+    expect(url.searchParams.get('q')).toBe(`oecp_org_id:${org}`);
+    expect(url.searchParams.get('briefRepresentation')).toBe('false');
+    expect(url.searchParams.get('first')).toBe('0');
+  });
+
+  it('falls back to scanning users when the server rejects q (400)', async () => {
+    const f = fakeFetch(
+      on('GET', '/users', (call) =>
+        call.url.searchParams.has('q')
+          ? json({ error: 'unknown parameter' }, 400)
+          : json([{ id: 'a', attributes: { oecp_org_id: ['X'] } }, { id: 'b' }]),
+      ),
+    );
+    const users = await service(f.fetch).findUsersByAttribute('oecp_org_id', 'x');
+    expect(users.map((u) => u.id)).toEqual(['a']);
+    expect(f.adminCalls()).toHaveLength(2);
+  });
+
+  it('reads realm role names and federated identities', async () => {
+    const f = fakeFetch(
+      on('GET', `/users/${USER}/role-mappings/realm`, () =>
+        json([
+          { id: 'r1', name: 'partner_admin' },
+          { id: 'r2', name: 'default-roles-oecp' },
+        ]),
+      ),
+      on('GET', `/users/${USER}/federated-identity`, () =>
+        json([{ identityProvider: 'uibk', userId: 'x', userName: 'y' }]),
+      ),
+    );
+    const kc = service(f.fetch);
+    expect(await kc.realmRoleNames(USER)).toEqual(['partner_admin', 'default-roles-oecp']);
+    expect(await kc.federatedIdentities(USER)).toEqual([
+      { identityProvider: 'uibk', userId: 'x', userName: 'y' },
+    ]);
+  });
+
+  it('lists identity providers', async () => {
+    const f = fakeFetch(
+      on('GET', '/identity-provider/instances', () => json([{ alias: 'uibk', enabled: true }])),
+    );
+    expect(await service(f.fetch).listIdentityProviders()).toEqual([
+      { alias: 'uibk', enabled: true },
+    ]);
+  });
+
+  it('reads the latest LOGIN event, or reports that events are not readable', async () => {
+    const at = Date.UTC(2026, 9, 1, 8, 0, 0);
+    const readable = fakeFetch(on('GET', '/events', () => json([{ time: at, type: 'LOGIN' }])));
+    expect(await service(readable.fetch).lastLogin(USER)).toEqual({
+      available: true,
+      at: new Date(at),
+    });
+    const params = readable.adminCalls()[0]!.url.searchParams;
+    expect([params.get('user'), params.get('type'), params.get('max')]).toEqual([
+      USER,
+      'LOGIN',
+      '1',
+    ]);
+    const none = fakeFetch(on('GET', '/events', () => json([])));
+    expect(await service(none.fetch).lastLogin(USER)).toEqual({ available: true, at: null });
+    const forbidden = fakeFetch(on('GET', '/events', () => json({ error: 'forbidden' }, 403)));
+    expect(await service(forbidden.fetch).lastLogin(USER)).toEqual({ available: false });
+  });
+
   it('turns upstream errors into 502 problems without leaking the secret', async () => {
     const f = fakeFetch(on('POST', `/users/${USER}/logout`, () => empty(500)));
     const error = (await service(f.fetch)

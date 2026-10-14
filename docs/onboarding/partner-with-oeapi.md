@@ -8,7 +8,7 @@ For universities that already run an Open Education API (OEAPI, formerly OOAPI) 
 > **Before you start**
 >
 > - The alliance has finished [Guide A](alliance.md) and invited your partner admin.
-> - Your endpoint speaks OEAPI **v5.0** (v6 is not supported in 0.1.0) over `https` on port 443 at a public address.
+> - Your endpoint speaks OEAPI **v5.0** (v6 is not supported in 0.2.0) over `https` on port 443 at a public address.
 > - You know which **consumer profile** returns the courses meant for the alliance (usually `eduxchange`).
 > - Elapsed time: 2–8 weeks, most of it for the access agreement; the technical work is 1–2 days.
 
@@ -43,7 +43,7 @@ A bilateral agreement between the alliance (as data controller) and your univers
 - [ ] Credential handling: who issues it, how it is sent, rotation and revocation.
 - [ ] Technical and data contacts on both sides, and how to end the arrangement.
 
-No template is provided with 0.1.0.
+No template is provided with 0.2.0.
 
 ## 3. Issue a credential and open the firewall
 
@@ -65,36 +65,36 @@ No template is provided with 0.1.0.
 
 **Who:** partner admin. **Time:** 15 minutes.
 
-Follow the two e-mails: Keycloak's (set a password of at least 12 characters and enrol a TOTP app), then OECP's invitation link (sign in; the page confirms the acceptance; sign out and in again). In 0.1.0 partner admins use local OECP accounts; login through your university's identity provider is not yet available. A page reload signs you out.
+Follow the two e-mails: Keycloak's (set a password of at least 12 characters and enrol a TOTP app), then OECP's invitation link (sign in; the page confirms the acceptance; sign out and in again). Until your university's identity provider is connected to OECP and tested, partner admins use local OECP accounts; once it is, the invitation e-mail is the only one and its link takes you to *Sign in through your university*. A page reload keeps you signed in while your login session is alive (30 minutes idle, 8 hours at most).
 
 ## 5. Enter the integration settings
 
-**Who:** partner admin or, more often in 0.1.0, the alliance admin. **Time:** 30 minutes.
+**Who:** partner admin (or the alliance admin). **Time:** 30 minutes.
 
-In 0.1.0 the *Integration settings* page only **displays** the current settings; there is no form, no "Test connection" and no "Sync now" button. The settings are written through the admin API, using a bearer token as described in [Guide A, step 7](alliance.md#7-call-the-admin-api-in-010):
+Open the admin dashboard > *Integration settings* (an alliance admin first picks your organization) and fill in the *Settings* form:
 
-```sh
-curl -s -X PUT "$API/organizations/<org uuid>/integration" \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{
-    "authoritative_channel": "oeapi", "access_mode": "direct",
-    "base_url": "https://oeapi.uni.example/v5",
-    "auth_scheme": "basic", "secret": "oecp:<password>",
-    "consumer_profile": "eduxchange", "enabled": false }'
-```
+| Section | Value |
+|---|---|
+| Authoritative channel | *OEAPI harvest* |
+| Access mode and endpoint | *Direct*; *Base URL* `https://oeapi.uni.example/v5`; *Consumer profile* `eduxchange` unless agreed otherwise |
+| Credentials | *Authentication* (*Basic*, *Bearer token*, *API key in a header* with its header name, or *None*) and the credential from step 3 |
+| Schedule | *Daily at 03:00* (default), another preset or a cron expression, and its time zone (default Europe/Brussels) |
+| Limits | Page size 100, 2 requests per second, withdraw after 3 absences (defaults) |
+| Harvesting | Leave *Harvest on the schedule* **off** for now (step 8) |
 
-`PUT` replaces the whole document: members you omit go back to their defaults (schedule `0 3 * * *` Europe/Brussels, 100 items per page, 2 requests per second, withdrawal after 3 absences), except `secret`, which is kept when omitted. For `api_key_header`, also send `api_key_header_name`.
+Choose *Save settings*. The form checks every field before saving and lists what to fix. The credential is stored encrypted and never shown again: the page only says *A credential is stored*, and later you can keep, replace or delete it.
 
 ## 6. Approve the host
 
 **Who:** alliance admin. **Time:** 5 minutes.
 
-The alliance admin confirms with you, through a known contact, that the host of `base_url` is yours, then calls `POST $API/organizations/<org uuid>/integration/approve-host`. Nothing is requested from your endpoint before this. Changing the host later clears the approval.
+The *Host approval* card on the *Integration settings* page shows the host of your base URL as *Waiting for approval*. The alliance admin confirms with you, through a known contact, that the host is yours, then opens the same page and chooses *Approve host …* and confirms. Partner admins see a request to ask an alliance admin instead of the button. Nothing is requested from your endpoint before this. Changing the host later clears the approval; changing only the path keeps it.
 
 ## 7. Test the connection
 
 **Who:** partner admin or alliance admin, with partner IT on call. **Time:** 15 minutes.
 
-`POST $API/organizations/<org uuid>/integration/test-connection` calls `GET /` and `GET /courses?pageSize=1`. The answer has `ok`, the service document and the first course code, or an `error`:
+Under *Test and run*, choose *Test connection*. OECP calls `GET /` and `GET /courses?pageSize=1` with the **saved** settings (save your changes first). *The connection works* shows the service contact and documentation, the number of courses if your endpoint reports it and the first course code; *The connection failed* shows the error code, the HTTP status and a hint:
 
 | `error.code` | Usual cause |
 |---|---|
@@ -103,14 +103,14 @@ The alliance admin confirms with you, through a known contact, that the host of 
 | `oecp.oeapi.address_refused` | The name resolves to a private address |
 | `oecp.oeapi.invalid_payload` | `/courses` is not a v5 page (wrong path prefix or version) |
 
-A 409 instead means a setting is missing or the host is not approved yet.
+*The connection cannot be tested yet* means a setting is missing or the host is not approved yet.
 
 ## 8. Run the first harvest and read the report
 
 **Who:** partner admin. **Time:** an hour, plus fixes at the source.
 
-1. `POST $API/organizations/<org uuid>/integration/sync-now` queues a run (at most once every 15 minutes).
-2. Open the admin dashboard > *Sync history* and the run. Status is `succeeded` (nothing rejected), `partial` (some records rejected) or `failed` (nothing processed). Counters show created, updated, unchanged, rejected and withdrawn records.
+1. Choose *Sync now* under *Test and run*. It works while *Harvest on the schedule* is still off, needs *OEAPI harvest* as the saved channel and an approved host, and is limited to once every 15 minutes (the page says when you can try again) and to one run at a time.
+2. Choose *Follow the run*, or open *Sync history* and the run. Status is `succeeded` (nothing rejected), `partial` (some records rejected) or `failed` (nothing processed). Counters show created, updated, unchanged, rejected and withdrawn records.
 3. Read the errors and warnings, each with a JSON Pointer into your data:
 
 | Code | Severity | Meaning and fix |
@@ -126,13 +126,13 @@ A 409 instead means a setting is missing or the host is not approved yet.
 
 The full list is in the [API integration guide](../guides/api-integration.md). Fix data at the source and run again.
 
-4. When the result is right, send the same `PUT` with `"enabled": true` (omit `secret`). The daily schedule then starts.
+4. When the result is right, switch on *Harvest on the schedule*, keep the stored credential and choose *Save settings*. The daily schedule then starts; the page shows the last run.
 
 ## What is mapped and what is not
 
 Mapped from OEAPI: titles and texts per language, ECTS, ISCED fields, level, information and application links, dates and application deadline, academic sessions, teaching language, delivery mode, and seats when you publish `maxNumberStudents` and `enrolledNumberStudents`.
 
-Not available from OEAPI in 0.1.0:
+Not available from OEAPI in 0.2.0:
 
 - **Course kind**: every harvested course is `course`; BIPs and lecture series must be set by override.
 - **Alliance attributes** (for example educational hub or SDGs): always empty; set by override.
@@ -144,7 +144,7 @@ Not available from OEAPI in 0.1.0:
 - **Withdrawal by absence.** A course or offering missing from three complete daily harvests in a row is withdrawn; it comes back when it reappears. Failed or incomplete harvests never withdraw anything, and if 30% or more of your published courses vanish at once, absences are not counted.
 - **Overrides.** In the admin dashboard, open a course: each field shows the harvested value with an *Override* box. Ticked values survive every harvest until you untick them. Use this for alliance attributes, kind and instructions, not to correct errors your own system should fix. See the [web form guide](../guides/web-form.md).
 - **Unpublishing.** Change the status in your own system, or set a status override in OECP.
-- **Credential rotation.** Send a new `PUT` with the new `secret`.
+- **Credential rotation.** On *Integration settings* choose *Replace it* under *Stored credential*, enter the new credential and save; then *Test connection*.
 
 ## Checklist
 
@@ -152,8 +152,8 @@ Not available from OEAPI in 0.1.0:
 - [ ] Consumer profile returns only alliance courses
 - [ ] Read-only credential issued; OECP outbound IP allowlisted
 - [ ] Partner admin invitation accepted
-- [ ] Integration settings stored with `authoritative_channel` `oeapi`
-- [ ] Host approved by the alliance admin; test connection `ok: true`
+- [ ] Integration settings saved with authoritative channel *OEAPI harvest*
+- [ ] Host approved by the alliance admin; *Test connection* says *The connection works*
 - [ ] First harvest reviewed: no unexpected rejections, English names present
-- [ ] `enabled: true` set; daily runs visible in *Sync history*
+- [ ] *Harvest on the schedule* switched on; daily runs visible in *Sync history*
 - [ ] Alliance attributes, kind and application instructions added as overrides

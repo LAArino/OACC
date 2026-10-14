@@ -12,6 +12,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing yet.
 
+## [0.2.0] - 2026-10-14
+
+Administration panel completed: invitations, integration settings with host approval, test connection and sync now, organizations and administrators management, network status, federated sign-in chooser, silent session restore on reload. Realm: backend service account gains `view-events`; Traefik frame options SAMEORIGIN.
+
+### Added
+
+- Organizations admin API (spec §2, §8; alliance_admin writes, partner_admin
+  reads its organization and sub-units): `GET /api/admin/v1/organizations`
+  (`include_deleted`), `GET`/`PUT`/`DELETE /organizations/{id}`,
+  `POST /organizations` (201 + `Location`) and `POST /organizations/{id}/restore`.
+  Same derived rules as `oecp seed-organizations` (`partner_id = id` for
+  partners, inherited by sub-units and recomputed below an organization whose
+  partner changes); parent checks (exists, not deleted, no cycle, depth ≤ 32);
+  immutable slug; soft delete only without courses, sub-units, administrators,
+  pending invitations or an enabled harvest. Every write is audited
+  (`organization.create|update|delete|restore`); an IdP alias change carries a note.
+- Administrators: `GET /organizations/{orgId}/admins` (Keycloak users with
+  `oecp_org_id`, found with the Admin API attribute search `q=oecp_org_id:<id>`,
+  re-filtered, with a scan fallback), `DELETE /organizations/{orgId}/admins/{sub}`
+  (removes the OECP realm roles and `oecp_org_id`, ends the sessions, audits
+  `admin.revoke`; refuses yourself and the last alliance_admin) and
+  `POST …/admins/{sub}/resend-setup` (execute-actions e-mail for pending local
+  setup, audits `admin.resend_setup`).
+- Invitations: `POST /api/admin/v1/invitations/{id}/resend` (revokes and re-sends
+  in one transaction, audits `invitation.revoke` + `invitation.resend`),
+  `POST /organizations/{orgId}/invitations` (org-scoped alias of
+  `POST /invitations`, alliance_admin) and `GET /organizations/{orgId}/invitations`
+  with the derived `status`. Links of
+  brokered organizations carry the IdP alias: `#token=<t>&idp=<alias>` (also in
+  the `bootstrap-alliance-admin` output when the organization has an alias).
+- `GET /api/admin/v1/network-status` (alliance_admin): integration, latest run,
+  last success, course/offering counts, administrators, pending invitations and
+  a documented health verdict (`ok`, `warning`, `error`, `unconfigured`) per
+  organization.
+- `KeycloakAdminService`: attribute search, realm role names, federated
+  identities and latest LOGIN event (null without `view-events`).
+- `@oecp/schemas`: `admin-organizations.ts` (`organizationInput`,
+  `adminOrganization`, `organizationAdmin`, …), network status in
+  `integrations.ts`, `resendInvitationRequest`; error codes
+  `oecp.content.duplicate_slug`, `duplicate_identifier`, `slug_immutable`,
+  `invalid_parent`, `organization_in_use`, `oecp.admin.cannot_remove_self`,
+  `last_alliance_admin`, `not_local_account`, `setup_complete`.
+
+- Admin UI completion (web, backlog "Admin UI completion (v0.2)"): the
+  administration tasks of the onboarding guides no longer need curl.
+  - Federated sign-in: on `/{locale}/admin` a "Sign in through your university"
+    chooser lists the partner organizations of the public reference that have an
+    `idp_alias` and signs in with `kc_idp_hint`; the last choice is preselected
+    from `localStorage` (convenience only, alias only). The acceptance page reads
+    `#token=…&idp=…`, validates the alias (`IDP_ALIAS_PATTERN` of
+    `@oecp/schemas`, `local` refused), parks it in `sessionStorage` with the
+    token and sends it as `kc_idp_hint`.
+  - Session restore on reload: the admin layout tries once per page load to
+    restore the Keycloak session in a hidden iframe (`prompt=none`,
+    `silent_redirect_uri` `/en/admin/silent-callback`, 60-second limit),
+    holding the page back for at most 3 seconds and re-mounting it on a later
+    success; tokens stay in memory. Requires the auth host on the same site as
+    the portal and portal pages frameable by themselves; the reference Traefik
+    middleware now sends `X-Frame-Options: SAMEORIGIN` (see
+    `apps/web/app/composables/useAuth.ts`).
+  - `/admin/invitations`: create (role limited to the caller's role, validity
+    1–7 days), list with status badges, revoke and resend with confirmation
+    (alliance administrators); linked from the dashboard and the organization
+    page.
+  - `/admin/integration` replaces the read-only placeholder: the full settings
+    form (channel, access mode and endpoint, write-only credential with keep /
+    replace / delete and a "stored" indicator, schedule presets or cron with
+    time zone, limits, enabled), inline validation with an error summary, host
+    approval card, "Test connection" and "Sync now" with result cards (202,
+    409, 429), last run and sync history links.
+  - `/admin/organizations` (list with filters), `/admin/organizations/new` and
+    `/admin/organizations/{id}` (details form, delete and restore, administrators
+    with removal rules and set-up e-mails, invitations, integration and courses
+    links), for alliance administrators.
+  - `/admin/network`: network status with health badges, channel, harvesting,
+    host approval, last run, courses, upcoming offerings, administrators and
+    pending invitations; dashboard modules "Network status", "Organizations"
+    and "Invitations".
+
+### Changed
+
+- `/api/public/v1/reference`: organizations carry `idp_alias` for "sign in
+  through your university": the organization's alias only while Keycloak has an
+  enabled identity provider with it (`GET /identity-provider/instances`, cached
+  5 minutes, null when Keycloak does not answer and nothing is cached).
+- One IdP alias pattern for API, invitation links and the public reference:
+  `IDP_ALIAS_PATTERN` = `^[a-z0-9][a-z0-9._-]{1,99}$`, `local` reserved.
+- Web: the organizations placeholder page moved to
+  `pages/(admin)/admin/organizations/index.vue`; the integration page is no
+  longer read-only.
+
 ## [0.1.0] - 2026-10-14
 
 First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitations), the three ingestion channels (OEAPI v5 harvester, CSV upload, web form with overrides), the public catalogue with full-text search and alliance attributes, the OEAPI v5 read API, the reference Docker Compose deployment and the developer tooling. Verified against a simulated partner; no real partner data yet.
@@ -380,5 +471,6 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/AURORA-OECP/compare/v0.1.0...main
+[Unreleased]: https://github.com/LAArino/AURORA-OECP/compare/v0.2.0...main
+[0.2.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.2.0
 [0.1.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.1.0

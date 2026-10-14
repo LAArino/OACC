@@ -12,7 +12,8 @@
       "website_url": "https://www.urv.cat",
       "org_type": "institution",
       "is_partner": true,
-      "parent_id": null
+      "parent_id": null,
+      "idp_alias": null
     },
     {
       "id": "0b9f6c1e-1d7a-4f39-9a51-6c1e0f0a0002",
@@ -25,7 +26,8 @@
       "website_url": null,
       "org_type": "institution",
       "is_partner": true,
-      "parent_id": null
+      "parent_id": null,
+      "idp_alias": null
     },
     {
       "id": "0b9f6c1e-1d7a-4f39-9a51-6c1e0f0a0003",
@@ -38,7 +40,8 @@
       "website_url": null,
       "org_type": "institution",
       "is_partner": true,
-      "parent_id": null
+      "parent_id": null,
+      "idp_alias": null
     },
     {
       "id": "0b9f6c1e-1d7a-4f39-9a51-6c1e0f0a0009",
@@ -51,7 +54,8 @@
       "website_url": null,
       "org_type": "alliance",
       "is_partner": false,
-      "parent_id": null
+      "parent_id": null,
+      "idp_alias": null
     }
   ],
   "delivery_modes": [

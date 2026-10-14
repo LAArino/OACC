@@ -67,3 +67,24 @@ export const ianaTimeZone = z
   .refine(isIanaTimeZone, { message: 'Unknown IANA time zone' });
 export const deliveryModeCode = z.string().regex(DELIVERY_MODE_CODE_PATTERN);
 export const extId = z.string().min(1).max(200);
+
+/**
+ * Keycloak identity provider alias of a brokered organization (shared by the
+ * admin API, the invitation link and the public reference): lower case, digits,
+ * `.`, `_`, `-`, 2–100 characters. `local` is reserved: it is the `idp` claim
+ * value of accounts without an IdP (spec §4).
+ */
+export const IDP_ALIAS_PATTERN = /^[a-z0-9][a-z0-9._-]{1,99}$/;
+export const LOCAL_IDP_ALIAS = 'local';
+
+/** Whether `value` is a usable IdP alias ({@link IDP_ALIAS_PATTERN}, not `local`). */
+export function isIdpAlias(value: string | null | undefined): value is string {
+  return typeof value === 'string' && IDP_ALIAS_PATTERN.test(value) && value !== LOCAL_IDP_ALIAS;
+}
+
+export const idpAlias = z
+  .string()
+  .regex(IDP_ALIAS_PATTERN)
+  .refine((v) => v !== LOCAL_IDP_ALIAS, {
+    message: '"local" is reserved for accounts without an identity provider',
+  });

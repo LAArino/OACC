@@ -418,7 +418,6 @@ export class IntegrationsService {
 
   private async toApi(row: PartnerIntegrationRow): Promise<PartnerIntegration> {
     const [last] = await this.runs.list(row.organization_id, 1);
-    const host = hostOf(row.base_url);
     return {
       organization_id: row.organization_id,
       authoritative_channel: row.authoritative_channel,
@@ -433,11 +432,7 @@ export class IntegrationsService {
       approved_host: row.approved_host,
       approved_by: row.approved_by,
       approved_at: iso(row.approved_at),
-      host_approved:
-        row.access_mode === 'direct' &&
-        host !== null &&
-        row.approved_host !== null &&
-        row.approved_host.toLowerCase() === host,
+      host_approved: hostApproved(row),
       schedule_cron: row.schedule_cron,
       schedule_timezone: row.schedule_timezone,
       page_size: row.page_size,
@@ -449,6 +444,19 @@ export class IntegrationsService {
       last_run: last ? toApiSyncRun(last) : null,
     };
   }
+}
+
+/** `access_mode = direct` and `approved_host` equals the host of `base_url`. */
+export function hostApproved(
+  row: Pick<PartnerIntegrationRow, 'access_mode' | 'base_url' | 'approved_host'>,
+): boolean {
+  const host = hostOf(row.base_url);
+  return (
+    row.access_mode === 'direct' &&
+    host !== null &&
+    row.approved_host !== null &&
+    row.approved_host.toLowerCase() === host
+  );
 }
 
 function normalise(value: unknown): unknown {

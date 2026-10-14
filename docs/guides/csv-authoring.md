@@ -164,7 +164,7 @@ All `oecp.csv.*` and `oecp.content.*` codes of `errors.json`. "W" = warning; all
 | `oecp.csv.no_data_rows` (W) | header only | nothing is written for that file |
 | `oecp.csv.text_without_title` | texts in a language without `title_<lang>` on that row | add the title or empty the row's texts |
 | `oecp.csv.language_deleted` (W) | every cell of a language empty: the language is deleted | intended? otherwise fill the cells |
-| `oecp.csv.english_delete` | defined but not raised in 0.1.0 (`title_en` is always required) | |
+| `oecp.csv.english_delete` | defined but not raised in 0.2.0 (`title_en` is always required) | |
 | `oecp.csv.rate_limited` | 11th upload within an hour | wait `Retry-After` seconds |
 | `oecp.csv.no_files` | no `courses` or `offerings` file part | attach a file |
 | `oecp.csv.unexpected_file` | other multipart field or a second file in a field | only the two fields |

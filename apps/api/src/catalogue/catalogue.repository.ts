@@ -169,6 +169,7 @@ export interface ReferenceRows {
     org_type: string;
     is_partner: boolean;
     parent_id: string | null;
+    keycloak_idp_alias: string | null;
   }[];
   modes: ModeRef[];
   isced: { code: string; label: LocalizedLabel }[];
@@ -341,7 +342,7 @@ export class CatalogueRepository {
   async reference(): Promise<ReferenceRows> {
     const [organizations, modes, isced, languages, definitions] = await Promise.all([
       sql<ReferenceRows['organizations'][number]>`SELECT id, slug, name, country_code, logo_url,
-          website_url, org_type, is_partner, parent_id
+          website_url, org_type, is_partner, parent_id, keycloak_idp_alias
         FROM organizations WHERE deleted_at IS NULL
         ORDER BY (org_type = 'alliance') DESC, is_partner DESC, slug`.execute(this.db),
       sql<ModeRef>`SELECT code, sort_order, label, schema_org FROM delivery_modes

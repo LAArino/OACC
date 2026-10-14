@@ -20,6 +20,11 @@ import { IntegrationsService } from './integrations/integrations.service.js';
 import { OrganizationAccess } from './integrations/organization-access.js';
 import { InvitationsController } from './invitations/invitations.controller.js';
 import { InvitationsModule } from './invitations/invitations.module.js';
+import { NetworkStatusController } from './network/network-status.controller.js';
+import { NetworkStatusService } from './network/network-status.service.js';
+import { OrganizationAdminsService } from './organizations/organization-admins.service.js';
+import { OrganizationsController } from './organizations/organizations.controller.js';
+import { OrganizationsService } from './organizations/organizations.service.js';
 import { CsvUploadInterceptor } from './uploads/csv-upload.interceptor.js';
 import { UploadsController } from './uploads/uploads.controller.js';
 import { UploadsService } from './uploads/uploads.service.js';
@@ -32,6 +37,8 @@ import { UploadsService } from './uploads/uploads.service.js';
     IntegrationsController,
     UploadsController,
     CoursesController,
+    OrganizationsController,
+    NetworkStatusController,
   ],
   providers: [
     {
@@ -51,6 +58,9 @@ import { UploadsService } from './uploads/uploads.service.js';
     CsvUploadInterceptor,
     CoursesRepository,
     CoursesService,
+    OrganizationsService,
+    OrganizationAdminsService,
+    NetworkStatusService,
   ],
 })
 export class AdminModule {}

@@ -20,6 +20,7 @@ import {
   COURSE_KIND_LABELS,
   courseKind,
   courseLevel,
+  isIdpAlias,
   sortAttributeDefinitions,
 } from '@oecp/schemas';
 import type {
@@ -303,7 +304,15 @@ export function toCourseDetail(rows: CourseDetailRows): PublicCourseDetail {
   };
 }
 
-export function toReference(rows: ReferenceRows): ReferenceResponse {
+/**
+ * `enabledIdps`: aliases of the realm's enabled identity providers; an
+ * organization's alias is published only if it is one of them (null = unknown,
+ * nothing published), so the sign-in chooser never offers an unroutable IdP.
+ */
+export function toReference(
+  rows: ReferenceRows,
+  enabledIdps: ReadonlySet<string> | null = null,
+): ReferenceResponse {
   return {
     organizations: rows.organizations.map((o) => ({
       id: o.id,
@@ -315,6 +324,10 @@ export function toReference(rows: ReferenceRows): ReferenceResponse {
       org_type: o.org_type,
       is_partner: o.is_partner,
       parent_id: o.parent_id,
+      idp_alias:
+        isIdpAlias(o.keycloak_idp_alias) && enabledIdps?.has(o.keycloak_idp_alias)
+          ? o.keycloak_idp_alias
+          : null,
     })),
     delivery_modes: rows.modes.map(publicMode),
     isced_broad_fields: rows.isced.map((i) => ({ code: i.code, label: i.label })),

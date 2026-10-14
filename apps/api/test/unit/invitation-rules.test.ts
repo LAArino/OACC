@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: EUPL-1.2
+import { invitation } from '@oecp/schemas';
 import { describe, expect, it } from 'vitest';
 import {
   type AcceptingIdentity,
@@ -9,6 +10,7 @@ import {
   requiresSchacCheck,
   schacMatches,
 } from '../../src/admin/invitations/invitation-rules.js';
+import { toApiInvitation } from '../../src/admin/invitations/invitations.service.js';
 
 const NOW = new Date('2026-10-14T12:00:00Z');
 const ORG = '0b8f6c1e-6a3d-4c55-9a43-0f3d3c2b9a10';
@@ -103,5 +105,47 @@ describe('schacHomeOrganization check', () => {
     expect(schacMatches('urv.cat', ['example.org', 'urv.cat'])).toBe(true);
     expect(schacMatches('urv.cat', ['urv.es'])).toBe(false);
     expect(schacMatches('urv.cat', [])).toBe(false);
+  });
+});
+
+describe('toApiInvitation', () => {
+  const row = {
+    id: '7d1f6c1e-6a3d-4c55-9a43-0f3d3c2b9a99',
+    email: 'admin@urv.cat',
+    role: 'partner_admin' as const,
+    organization_id: ORG,
+    token_sha256: Buffer.alloc(32),
+    invited_by: 'kc-alliance',
+    expires_at: new Date('2026-10-20T12:00:00Z'),
+    accepted_at: null,
+    accepted_sub: null,
+    revoked_at: null,
+    created_at: new Date('2026-10-13T12:00:00Z'),
+  };
+
+  it.each([
+    [{}, NOW, 'pending'],
+    [{}, new Date('2026-10-21T00:00:00Z'), 'expired'],
+    [{ revoked_at: NOW }, NOW, 'revoked'],
+    [{ accepted_at: NOW, accepted_sub: 'kc-user' }, new Date('2026-12-01T00:00:00Z'), 'accepted'],
+  ] as const)('derives the status of %o at %s as %s', (patch, now, status) => {
+    const api = invitation.parse(toApiInvitation({ ...row, ...patch }, now));
+    expect(api.status).toBe(status);
+    expect(api).not.toHaveProperty('token_sha256');
+    expect(Object.keys(api).sort()).toEqual(
+      [
+        'accepted_at',
+        'accepted_sub',
+        'created_at',
+        'email',
+        'expires_at',
+        'id',
+        'invited_by',
+        'organization_id',
+        'revoked_at',
+        'role',
+        'status',
+      ].sort(),
+    );
   });
 });

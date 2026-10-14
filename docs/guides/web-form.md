@@ -5,7 +5,7 @@
 
 For partner administrators who maintain courses by hand (Channel C, spec §6.4), and for administrators of harvested organizations who correct or complete harvested data with overrides. Getting an account (invitation, password and TOTP) is covered by the onboarding guide [D. Partner without integration capacity](../onboarding/partner-manual.md); the shared data rules are in the [guides README](README.md#common-data-quality-rules).
 
-The admin console lives at `/{locale}/admin` (English only in 0.1.0). An `alliance_admin` first picks the organization (kept in `?org=`); a `partner_admin` works on their own organization and its sub-units. The session is kept in memory: **reloading the page signs you out** and unsaved changes are lost.
+The admin console lives at `/{locale}/admin` (English only in 0.2.0). An `alliance_admin` first picks the organization (kept in `?org=`); a `partner_admin` works on their own organization and its sub-units. The session is kept in memory: reloading the page restores it while your login session is alive (30 minutes idle, 8 hours at most), but **unsaved changes are lost**.
 
 ## Two modes
 
@@ -147,7 +147,7 @@ curl -sS -X PATCH "$API/courses/$COURSE/overrides" -H "Authorization: Bearer $TO
 
 Request rules: `status` on create or replace is `draft` or `published` (default `draft`; a replace keeps the current status when omitted); `PUT` is a full replace of the record; codes in the body must match the existing record; `timezone` defaults to the organization's; `seats_available` stamps `seats_updated_at`. Override keys: `status`, `kind`, `levels`, `ects`, `teaching_hours`, `info_url`, `contact_email`, `attributes`, `isced_codes`, `texts.<lang>.<field>` for courses; `status`, the four dates, `timezone`, `teaching_languages`, `delivery_modes`, `campus`, `max_students`, `alliance_seats`, `seats_available`, `application_url`, `application_instructions` for offerings; at least one change, at most 100 keys each, never a key in both `set` and `clear`. Responses carry the effective values plus `overrides`, `override_meta` (`{by, at}`) and `source_values`.
 
-**Bearer tokens.** The API accepts only Keycloak access tokens issued to the `oecp-admin` client with multi-factor authentication (`acr=mfa`); they live 300 seconds. Release 0.1.0 has no API keys or service accounts for administrators, so a script must use a token from an interactive sign-in (for example taken from the `Authorization` header of a console request in the browser's developer tools). Treat it as a password. For bulk changes, prefer [CSV](csv-authoring.md).
+**Bearer tokens.** The API accepts only Keycloak access tokens issued to the `oecp-admin` client with multi-factor authentication (`acr=mfa`); they live 300 seconds. Release 0.2.0 has no API keys or service accounts for administrators, so a script must use a token from an interactive sign-in (for example taken from the `Authorization` header of a console request in the browser's developer tools). Treat it as a password. For bulk changes, prefer [CSV](csv-authoring.md).
 
 ### Errors
 

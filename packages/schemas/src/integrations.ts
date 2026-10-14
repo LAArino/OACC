@@ -4,7 +4,7 @@
  * `/api/admin/v1/organizations/{orgId}/integration…` and `/api/admin/v1/sync-runs…`.
  */
 import { z } from 'zod';
-import { sourceChannel, syncRunStatus } from './enums.js';
+import { orgType, sourceChannel, syncRunStatus } from './enums.js';
 import { ianaTimeZone, isoDateTime, uuid } from './primitives.js';
 
 export const accessMode = z.enum(['direct', 'surfeduhub']);
@@ -267,3 +267,91 @@ export const syncNowResponse = z.object({
   status: z.literal('queued'),
 });
 export type SyncNowResponse = z.infer<typeof syncNowResponse>;
+
+/**
+ * Health of an organization's data supply in `GET /api/admin/v1/network-status`.
+ *
+ * Channel A (`authoritative_channel = oeapi`), judged on the latest finished
+ * harvest (`succeeded`, `partial` or `failed`; queued, running and cancelled
+ * runs are ignored):
+ *
+ * - `error`: harvesting is enabled and the integration is blocked (host not
+ *   approved, insecure or missing base URL, missing endpoint id…), or the latest
+ *   finished harvest failed;
+ * - `warning`: harvesting is disabled; or enabled but no harvest has finished yet,
+ *   the latest one is `partial` and incomplete, or it finished longer ago than
+ *   twice the longest gap of `schedule_cron` (stale);
+ * - `ok`: enabled, the latest finished harvest `succeeded` or is `partial` with
+ *   a complete listing, and it is not stale.
+ *
+ * Other organizations (no integration, or `csv`/`form` authoritative), judged on
+ * CSV uploads and form saves:
+ *
+ * - `unconfigured`: no CSV upload or form save ever;
+ * - `warning`: the latest finished one failed;
+ * - `ok`: otherwise.
+ */
+export const networkHealth = z.enum(['ok', 'warning', 'error', 'unconfigured']);
+export type NetworkHealth = z.infer<typeof networkHealth>;
+
+/** The run members shown by the network status page. */
+export const networkStatusRun = syncRun.pick({
+  id: true,
+  channel: true,
+  status: true,
+  is_complete: true,
+  started_at: true,
+  finished_at: true,
+  n_created: true,
+  n_updated: true,
+  n_unchanged: true,
+  n_rejected: true,
+  n_withdrawn: true,
+});
+export type NetworkStatusRun = z.infer<typeof networkStatusRun>;
+
+export const networkStatusItem = z.object({
+  organization: z.object({
+    id: uuid,
+    slug: z.string(),
+    name: z.record(z.string(), z.string()),
+    is_partner: z.boolean(),
+    org_type: orgType,
+    parent_id: uuid.nullable(),
+  }),
+  /** `form` when no integration is stored (the default). */
+  authoritative_channel: sourceChannel,
+  access_mode: accessMode.nullable(),
+  enabled: z.boolean(),
+  host_approved: z.boolean(),
+  secret_configured: z.boolean(),
+  schedule_cron: z.string().nullable(),
+  /**
+   * Latest run of the authoritative channel: `oeapi` runs for Channel A, else
+   * CSV uploads and form saves. Any status, so a running harvest shows here.
+   */
+  last_run: networkStatusRun.nullable(),
+  /** End of the latest run of those channels that succeeded or was partial but complete. */
+  last_success_at: isoDateTime.nullable(),
+  /** Courses of the organization itself (sub-units are separate items), not deleted. */
+  courses_total: z.int().nonnegative(),
+  courses_published: z.int().nonnegative(),
+  /** Published offerings of non-deleted courses starting today (UTC) or later. */
+  offerings_upcoming: z.int().nonnegative(),
+  /** Keycloak users with `oecp_org_id` = the organization; null if Keycloak did not answer. */
+  admins_count: z.int().nonnegative().nullable(),
+  /** Unaccepted, unrevoked, unexpired invitations. */
+  pending_invitations: z.int().nonnegative(),
+  health: networkHealth,
+});
+export type NetworkStatusItem = z.infer<typeof networkStatusItem>;
+
+/**
+ * `GET /api/admin/v1/network-status` (alliance_admin): every organization that is
+ * not deleted, alliance first, then partners, then other organizations, by slug.
+ */
+export const networkStatus = z.object({
+  generated_at: isoDateTime,
+  items: z.array(networkStatusItem),
+});
+export type NetworkStatus = z.infer<typeof networkStatus>;

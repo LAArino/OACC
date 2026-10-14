@@ -9,8 +9,6 @@ import { CSV_MAX_FILE_BYTES } from '@oecp/schemas';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CsvPage from '../app/pages/(admin)/admin/csv.vue';
 import DashboardPage from '../app/pages/(admin)/admin/index.vue';
-import IntegrationPage from '../app/pages/(admin)/admin/integration.vue';
-import OrganizationsPage from '../app/pages/(admin)/admin/organizations.vue';
 import RunPage from '../app/pages/(admin)/admin/sync-runs/[id].vue';
 import RunsPage from '../app/pages/(admin)/admin/sync-runs/index.vue';
 import {
@@ -54,9 +52,12 @@ mockNuxtImport('useAuth', () => () => ({
       return auth.signedIn ? auth.token : undefined;
     },
   },
+  restoring: { value: false },
   login: async () => undefined,
   logout: async () => undefined,
   handleCallback: async () => '/en/admin',
+  restoreSession: async () => auth.signedIn,
+  handleSilentCallback: async () => undefined,
 }));
 
 const ME = 'GET /api/admin/v1/me';
@@ -64,7 +65,6 @@ const REFERENCE = 'GET /api/public/v1/reference';
 const UPLOAD = `POST /api/admin/v1/organizations/${ORG_ID}/uploads`;
 const RUNS = `GET /api/admin/v1/organizations/${ORG_ID}/sync-runs`;
 const RUN = `GET /api/admin/v1/sync-runs/${RUN_ID}`;
-const INTEGRATION = `GET /api/admin/v1/organizations/${ORG_ID}/integration`;
 
 const ok =
   (body: unknown, status = 200): Route =>
@@ -129,7 +129,10 @@ describe('dashboard', () => {
       ['CSV upload', '/en/admin/csv'],
       ['Sync history', '/en/admin/sync-runs'],
       ['Integration settings', '/en/admin/integration'],
+      ['Invitations', '/en/admin/invitations'],
     ]);
+    // Alliance modules are for alliance administrators only.
+    expect(w.find('a[href="/en/admin/network"]').exists()).toBe(false);
     expect(w.find('nav select').exists()).toBe(false);
     expect(w.text()).toContain('Universitat Rovira i Virgili');
     expect(await axeViolations(w.html())).toEqual([]);
@@ -146,6 +149,7 @@ describe('dashboard', () => {
     expect(options).toContain('Vrije Universiteit Amsterdam');
     expect(w.text()).toContain('Choose an organization to open its modules.');
     expect(w.find('a[href="/en/admin/organizations"]').text()).toBe('Organizations');
+    expect(w.find('a[href="/en/admin/network"]').text()).toBe('Network status');
 
     const w2 = await mountPage(DashboardPage, `/en/admin?org=${OTHER_ORG_ID}`);
     expect((w2.find('nav select').element as HTMLSelectElement).value).toBe(OTHER_ORG_ID);
@@ -614,46 +618,5 @@ describe('run page', () => {
   it('explains a missing run', async () => {
     const w = await mountPage(RunPage, `/en/admin/sync-runs/${RUN_ID}`);
     expect(w.find('[role="alert"]').text()).toContain('does not exist');
-  });
-});
-
-describe('placeholders', () => {
-  it('shows the integration summary when one exists', async () => {
-    serve({
-      [INTEGRATION]: ok({
-        organization_id: ORG_ID,
-        authoritative_channel: 'oeapi',
-        access_mode: 'direct',
-        enabled: true,
-        last_run: fixtures.run({ channel: 'oeapi', trigger_kind: 'schedule' }),
-      }),
-    });
-    const w = await mountPage(IntegrationPage, '/en/admin/integration');
-    expect(w.text()).toContain('Coming soon');
-    expect(facts(w, '[aria-labelledby="integration-heading"] dl')).toMatchObject({
-      'Authoritative channel': 'OEAPI harvest',
-      'Access mode': 'Direct',
-      'Harvesting enabled': 'Yes',
-    });
-    expect(w.find('[aria-labelledby="integration-heading"] a').attributes('href')).toBe(
-      `/en/admin/sync-runs/${RUN_ID}`,
-    );
-    expect(await axeViolations(w.html())).toEqual([]);
-  });
-
-  it('says when no integration is configured', async () => {
-    serve({
-      [INTEGRATION]: () => ({ status: 404, body: problem(404, 'oecp.integration.not_configured') }),
-    });
-    const w = await mountPage(IntegrationPage, '/en/admin/integration');
-    expect(w.text()).toContain('No integration is configured for this organization');
-    expect(w.find('[role="alert"]').exists()).toBe(false);
-  });
-
-  it('has an organizations placeholder', async () => {
-    const w = await mountPage(OrganizationsPage, '/en/admin/organizations');
-    expect(w.find('h1').text()).toBe('Organizations');
-    expect(w.text()).toContain('Coming soon');
-    expect(await axeViolations(w.html())).toEqual([]);
   });
 });

@@ -9,7 +9,7 @@ Status: as built · Date: 2026-10-14 · Supersedes `docs/spec-v4.0.md` (kept unc
 
 ## Status of this document
 
-v4.1 describes OECP **as built on 2026-10-14** (`main`, 9 commits): three ingestion channels, identity, public catalogue and OEAPI read API, verified on the Docker Compose development stack. Where v4.0 promised something not built, this document says so.
+v4.1 describes OECP **as built on 2026-10-14** (`main`, 9 commits; release 0.1.0): three ingestion channels, identity, public catalogue and OEAPI read API, verified on the Docker Compose development stack. It is updated in place for **release 0.2.0** (admin UI completion: the v0.2 row below; §2, §4, §7.1, §8, Appendix A). Where v4.0 promised something not built, this document says so.
 
 **Markers:** **[Implemented]** in the code and tested or manually verified; **[Partial]** part built, the rest named; **[Deferred]** not built, with the `docs/backlog.md` item or "not in backlog". **Note for the owner** lines flag deviations from a decision or from v4.0.
 
@@ -27,9 +27,10 @@ v4.1 describes OECP **as built on 2026-10-14** (`main`, 9 commits): three ingest
 | CSV | Template 1.1 (1.0 accepted); one Zod validator in browser and server; inline ≤ 500 rows, else queued; all-or-nothing |
 | Overrides | Entries keep their `source` value (restored at once when cleared); form modes `write`/`overrides`; keys `texts.<lang>.<field>` |
 | Invitations | Defined failure statuses and codes, `relogin_required`, `GET /me` for role-less tokens |
-| Admin tokens | In memory: a page reload signs the administrator out |
+| Admin tokens | In memory; since 0.2.0 a page reload restores the session silently while the Keycloak SSO session lives, if the auth host is same-site with the portal (§4) |
 | Harvester | Always running in the worker; a partner is scheduled only when enabled, `oeapi`-authoritative and host-approved |
-| Admin UI | Built: CSV console, course wizard with overrides, sync monitor. Not built: integration settings, organizations, administrators, network status |
+| Admin UI | Built: CSV console, course wizard with overrides, sync monitor (0.1.0); invitations, integration settings, organizations with administrators, network status, federated sign-in (0.2.0) |
+| v0.2 (release 0.2.0) | Admin UI completion: pages `/admin/invitations`, `/admin/integration` (settings form, host approval, "Test connection", "Sync now"), `/admin/organizations` (list, new, detail with administrators and invitations), `/admin/network`; "Sign in through your university" (`kc_idp_hint`) on the sign-in prompt and the acceptance page (`#token=…&idp=…`); silent session restore on reload (portal `X-Frame-Options: SAMEORIGIN`). API: organizations CRUD and restore, administrators (list, revoke, resend set-up), invitation resend and organization-scoped invitations, `GET /network-status`, `idp_alias` in the public reference; `oecp-backend` gains `view-events` (§2, §4, §7.1, §8.2, §8.4) |
 
 ## 1. Purpose and scope
 
@@ -51,17 +52,17 @@ OECP is an EUPL-1.2 web application that publishes the course offer of a Europea
 | Actor | Auth | Permissions | Status |
 |---|---|---|---|
 | Anonymous visitor | none, no cookies | Public catalogue, `/api/public/v1`, `/oeapi/v5` | [Implemented] |
-| `partner_admin` | Keycloak + MFA | Courses, offerings, overrides, integration settings, uploads and sync runs of the organization in claim `org_id` and its descendants (`parent_id` chain, depth ≤ 32); lists its organization's invitations | [Implemented] |
-| `alliance_admin` | Keycloak + MFA | All of the above for every organization, plus invitations (create, revoke) and host approval | [Implemented]; organization management only through `oecp seed-organizations` |
+| `partner_admin` | Keycloak + MFA | Courses, offerings, overrides, integration settings, uploads and sync runs of the organization in claim `org_id` and its descendants (`parent_id` chain, depth ≤ 32); lists its organization's invitations and administrators (read only) | [Implemented] |
+| `alliance_admin` | Keycloak + MFA | All of the above for every organization, plus organizations (create, update, delete, restore), administrators (revoke, resend setup), invitations (create, resend, revoke), host approval and network status | [Implemented] |
 
 Roles are assigned in OECP through the Keycloak Admin API, never derived from federated attributes [R01 §2; DL 9]. Every admin endpoint resolves the target organization: unknown or soft-deleted → 404 `oecp.request.not_found`; outside the caller's scope → 403 `oecp.auth.forbidden_organization`.
 
 ### 2.1 Onboarding [Implemented for local accounts; Partial for brokered]
 
-1. The organization exists (seeded by `oecp seed-organizations`; no organizations API or UI) with `schac_home_organization` and, for eduGAIN partners, `keycloak_idp_alias`.
-2. An `alliance_admin` calls `POST /api/admin/v1/invitations` `{email, role, organization_id, ttl_hours?}` (default and maximum 168 h). The API stores only the SHA-256 of a 256-bit token (base64url, 43 characters), audits `invitation.create` and e-mails `{OECP_PUBLIC_BASE_URL}/en/admin/accept#token=…` in the same transaction: if the mail fails (502 `oecp.mail.unavailable`) nothing remains. With `SMTP_HOST` empty the mail is only logged.
+1. The organization exists (seeded by `oecp seed-organizations`, or created on `/{locale}/admin/organizations/new` or with `POST /api/admin/v1/organizations`, §8.2, §8.4) with `schac_home_organization` and, for eduGAIN partners, `keycloak_idp_alias`.
+2. An `alliance_admin` invites from `/{locale}/admin/invitations` or the organization page (validity 7, 3 or 1 days), which call `POST /api/admin/v1/organizations/{orgId}/invitations` `{email, role, ttl_hours?}`; `POST /api/admin/v1/invitations` `{email, role, organization_id, ttl_hours?}` is equivalent (default and maximum 168 h). The API stores only the SHA-256 of a 256-bit token (base64url, 43 characters), audits `invitation.create` and e-mails `{OECP_PUBLIC_BASE_URL}/en/admin/accept#token=<token>[&idp=<alias>]` in the same transaction: if the mail fails (502 `oecp.mail.unavailable`) nothing remains. With `SMTP_HOST` empty the mail is only logged. The fragment is form-encoded; `idp` is present only when the organization has a `keycloak_idp_alias`, and the accept page passes it to Keycloak as `kc_idp_hint` (partner IdPs are `hideOnLogin`). `oecp bootstrap-alliance-admin` prints the same link.
 3. **Organizations without IdP alias** (Aurora Foundation): the API also finds or creates a Keycloak local user with required actions `UPDATE_PASSWORD`, `CONFIGURE_TOTP` and has Keycloak send its execute-actions e-mail (lifespan = invitation TTL); a failure there is logged, not fatal.
-4. The page `/{locale}/admin/accept` reads the token from the fragment, clears the address bar, parks the token in `sessionStorage` only for the OIDC round trip, signs in (Authorization Code + PKCE, `acr_values=mfa`), then calls `GET /me` and `POST /api/admin/v1/invitations/accept` `{token}`.
+4. The page `/{locale}/admin/accept` reads the token and the optional `idp` alias from the fragment (the alias must match the IdP alias pattern of `@oecp/schemas`; `local` is refused), clears the address bar, parks both in `sessionStorage` only for the OIDC round trip, signs in (Authorization Code + PKCE, `acr_values=mfa`, plus `kc_idp_hint=<idp>` when present: "Sign in through your university"), then calls `GET /me` and `POST /api/admin/v1/invitations/accept` `{token}`.
 5. The API locks the invitation row and checks, in order:
    - unknown token → 404 `oecp.invitation.invalid`; accepted or revoked → 409 `oecp.invitation.invalid`; expired → 410 `oecp.invitation.expired`; organization deleted → 409 `oecp.invitation.invalid`;
    - `email` claim ≠ invited address (case-insensitive), or `idp` ≠ organization alias (`local` when NULL) → 403 `oecp.invitation.mismatch`;
@@ -70,9 +71,11 @@ Roles are assigned in OECP through the Keycloak Admin API, never derived from fe
 
 On success the API first sets the user attribute `oecp_org_id` and the realm role through the Admin API (idempotent; a Keycloak failure, 502/504 `oecp.identity.unavailable` or 409 `oecp.identity.conflict`, rolls back and keeps the invitation usable), then marks it accepted and audits `invitation.accept`. Response 200 `{role, org_id, relogin_required: true}`: the user must sign in again to get a token with the role.
 
-**Note for the owner:** no page sends `kc_idp_hint` (`useAuth.login()` supports it but is never called with one; the SPA cannot know the alias before acceptance), while partner IdPs are `hideOnLogin: true`. A brokered partner administrator therefore has no UI path to their IdP. Only the local-account path is verified end to end (backlog "Playwright E2E in CI with a test SAML IdP").
+**Federated sign-in** [Implemented, 0.2.0; brokered path not verified end to end]. Partner IdPs are `hideOnLogin: true`, so the SPA sends `kc_idp_hint` from two places: the acceptance page, with the `idp` of the invitation link (step 4), and the "Sign in through your university" chooser of the admin sign-in prompt (`AdminFederatedSignIn`, on every admin page, hidden when it has no choice). The chooser lists the partner organizations whose `idp_alias` is set in `GET /api/public/v1/reference` (§7.1: published only for aliases of IdPs that are enabled in the realm; the response is cached up to 300 s) and preselects the last choice from `localStorage` (the alias only, a convenience).
 
-**Invitation management:** `GET /invitations` (alliance: all; partner: own organization; 500 most recent; computed status `pending|accepted|revoked|expired`); `DELETE /invitations/{id}` (alliance; 204; 409 if accepted or revoked). No UI [Deferred: not in backlog].
+**Note for the owner:** only the local-account path is verified end to end; no partner IdP is configured (§4), so the brokered path is covered by unit tests only (backlog "Playwright E2E in CI with a test SAML IdP"). An invitation link carries `idp` whenever the organization has a `keycloak_idp_alias`, whether or not that IdP is enabled; Keycloak ignores a hint for an unknown or disabled IdP and shows its own login page, where partner IdPs are hidden, so enable the IdP before inviting.
+
+**Invitation management** (UI: `/{locale}/admin/invitations` and the organization page; partner administrators see their organization's list, only alliance administrators revoke and resend): `GET /invitations` (alliance: all; partner: own organization; 500 most recent; computed status `pending|accepted|revoked|expired`); `GET /organizations/{orgId}/invitations` (same, one organization within the caller's scope); `DELETE /invitations/{id}` (alliance; 204; 409 if accepted or revoked); `POST /invitations/{id}/resend` (alliance; optional `{ttl_hours}`, default the original lifetime; 201 with the new invitation): in one transaction the old invitation is revoked (audit `invitation.revoke`, `reason: resend`; an already revoked one is left as is) and a new one with the same e-mail, role and organization is created and e-mailed (audit `invitation.resend`, `replaces`); a failed mail rolls both back; accepted → 409 `oecp.invitation.invalid`.
 
 **Bootstrap** [Implemented]: `oecp bootstrap-alliance-admin` (Appendix C).
 
@@ -82,10 +85,10 @@ On success the API first sets the user attribute `oecp_org_id` and the realm rol
 |---|---|---|
 | MFA | LoA 2 (`acr=mfa`) on every login: flow `oecp-browser-mfa` (local), post-broker flow `oecp-post-broker-mfa` (brokered); WebAuthn or TOTP if configured, else TOTP enrolment | [Partial]: the SPA does not offer WebAuthn registration |
 | Lifetimes | Access 300 s; rotating single-use refresh tokens; SSO idle 30 min, max 8 h; no remember-me, no `offline_access` | [Implemented] |
-| SPA tokens | In memory; OIDC state only in `sessionStorage`; no silent renew, so a reload signs out | [Implemented]; renewal [Deferred: backlog "Admin session survives a page reload"] |
+| SPA tokens | In memory; OIDC state only in `sessionStorage`. After a reload the admin layout restores the session once through a hidden iframe (`prompt=none`) while the Keycloak SSO session lives, under the requirements of §4; otherwise the sign-in prompt appears. No renew timer: an access token that expires (300 s) while the page stays open leads to the sign-in prompt, which Keycloak completes without credentials while the SSO session lives | [Implemented, 0.2.0] (ADR-0013) |
 | Logout | RP-initiated; SAML SLO when the IdP declares it | [Implemented] |
-| Revocation | `removeRealmRole()`/`logoutUser()` exist in `KeycloakAdminService` but no endpoint uses them; use the Keycloak console | [Deferred: not in backlog] |
-| Dormancy (180 days), recertification | — | [Deferred: not in backlog] |
+| Revocation | Organization page > Administrators > *Remove*, i.e. `DELETE /api/admin/v1/organizations/{orgId}/admins/{sub}` (alliance): removes the OECP realm roles and `oecp_org_id`, ends every session (`/logout`), audits `admin.revoke`; the Keycloak account is kept. Refused for the caller (409 `oecp.admin.cannot_remove_self`) and while the target is the only `alliance_admin` (409 `oecp.admin.last_alliance_admin`). An access token already issued stays valid until it expires (≤ 300 s) | [Implemented] |
+| Dormancy (180 days), recertification | — (`last_login_at` is shown on the Administrators panel, §8.4, but nothing acts on it) | [Deferred: backlog "Dormancy (180 days)…"] |
 
 ## 3. Architecture
 
@@ -115,7 +118,12 @@ The public portal never loads OIDC code. **Health:** `GET /health` and `GET /rea
 
 **Partner IdPs** [Partial: none configured]. One SAML IdP per partner, alias = organization `slug`; the realm ships the disabled template `example-partner`: importers for `mail`, `schacHomeOrganization`, `displayName`, `givenName`, `sn` (sync FORCE), principal attribute `subject-id` (per partner `pairwise-id`, or ePPN with written confirmation), signed and encrypted assertions, `hideOnLogin: true`, first-broker-login `oecp-first-broker-login` (create if unique, no linking by e-mail). Not built: the daily `idp-metadata-refresh` job [Deferred: not in backlog], the multi-ACS SP metadata generator for SIR/eduGAIN [DL 15] (design only), the `schac_home_organization` claim mapper [Deferred: backlog "Keycloak mapper…"; the API reads the user attribute instead].
 
-**Clients.** `oecp-admin`: public, Authorization Code + PKCE S256, redirect `https://{portal}/en/admin/*`, minimum ACR `mfa`, scopes `basic, acr, email, web-origins, oecp`, role scope limited to the two OECP roles. `oecp-api`: audience only. `oecp-backend`: confidential service account (`manage-users`, `view-users`, `manage-identity-providers`, `view-identity-providers`). ACR-to-LoA map `{"mfa": 2}`.
+**Clients.** `oecp-admin`: public, Authorization Code + PKCE S256, redirect `https://{portal}/en/admin/*`, minimum ACR `mfa`, scopes `basic, acr, email, web-origins, oecp`, role scope limited to the two OECP roles. `oecp-api`: audience only. `oecp-backend`: confidential service account (`manage-users`, `view-users`, `manage-identity-providers`, `view-identity-providers`, `view-events` for `last_login_at`, §8.4). ACR-to-LoA map `{"mfa": 2}`.
+
+**Session restore after a reload** [Implemented, 0.2.0; unit-tested in `apps/web/test/useAuth.test.ts` and verified in a headless browser on the dev stack on 2026-10-14] (`apps/web/app/composables/useAuth.ts`, `layouts/admin.vue`; ADR-0013). Tokens stay in memory only, so a reload starts without a user. The admin layout then calls oidc-client-ts `signinSilent()` once per page load: a hidden iframe requests a new code with `prompt=none` (PKCE, `acr_values=mfa`) and `silent_redirect_uri` `/en/admin/silent-callback` (covered by the `/en/admin/*` redirect URI pattern), whose page hands the response to the parent window (same origin only), which exchanges the code. The page waits at most 3 s ("Restoring your session…", skippable), then shows its sign-in prompt and re-mounts if the restore succeeds later; the iframe is abandoned after 60 s. Without a live SSO session (idle 30 min, max 8 h) Keycloak answers `login_required` and the prompt stays. No renew timer, no session-monitor iframe; nothing is persisted. Requirements, without which the restore fails and the prompt appears:
+
+- **Same-site auth host.** Keycloak's session cookies must reach the auth host from an iframe embedded in the portal: put the auth host on the same registrable domain as the portal (`portal.example.eu` and `auth.example.eu`; the dev stack's `oecp.localhost` and `auth.oecp.localhost` qualify). A cross-site auth host is a third-party context whose cookies current browsers block.
+- **Portal pages frameable by themselves.** The portal must send `X-Frame-Options: SAMEORIGIN` or `frame-ancestors 'self'`, never `DENY`, at least for `/en/admin/silent-callback`; the reference Traefik middleware `security-headers` sends `SAMEORIGIN` since 0.2.0 (§10). `/api` and `/oeapi` keep `frame-ancestors 'none'`. Keycloak answers `prompt=none` with a redirect, so its own framing headers do not apply.
 
 **JWT contract** (`apps/api/src/admin/auth/claims.ts`) [Implemented]: signature by the cached realm JWKS (RS256, ES256); `iss` = `KEYCLOAK_ISSUER`; `aud` ∋ `oecp-api`; `azp` = `oecp-admin`; `exp`, `iat`, `sub`, `azp`, `acr` required, 30 s tolerance; `acr` = `mfa`, else 401 `oecp.auth.insufficient_acr` with the RFC 9470 challenge `Bearer error="insufficient_user_authentication", acr_values="mfa"`; `roles` flat, non-OECP values ignored, absent = `[]`, empty → 403 `oecp.auth.no_role` except on `GET /me` and `POST /invitations/accept`; with roles, `org_id` must name a non-deleted organization (403 `oecp.auth.unknown_organization`) whose alias, or `local` when NULL, equals `idp` (absent = `local`; 403 `oecp.auth.idp_mismatch`); `email`, `name`, `schac_home_organization` for display and invitation matching.
 
@@ -815,7 +823,7 @@ RFC 9457 `application/problem+json` for `/api/public/v1` and `/api/admin/v1`: `t
 | `/{locale}/partners/{slug}`, `/accessibility`, `/privacy` | — | [Deferred: not in backlog; statement text in backlog "Docs: GDPR set…"] |
 | `GET /api/public/v1/courses` · `/courses/{id}` | search with facets · course page (404 for malformed, unknown, unpublished or deleted ids) | [Implemented] |
 | `GET /api/public/v1/suggest?q&limit&locale` | `q` 2–100 characters, `limit` ≤ 10 | [Implemented] |
-| `GET /api/public/v1/reference` | organizations, active modes with `schema_org`, ISCED broad fields, teaching languages in use, levels, kinds, attribute definitions | [Implemented] |
+| `GET /api/public/v1/reference` | organizations (with `idp_alias`: the organization's `keycloak_idp_alias` when it names an IdP enabled in the realm (`GET /identity-provider/instances`, cached 5 minutes; on a Keycloak error the last known list, else null), else null; for "Sign in through your university", §2.1), active modes with `schema_org`, ISCED broad fields, teaching languages in use, levels, kinds, attribute definitions | [Implemented] |
 | `GET /api/public/v1/sitemap.xml` | proxied as `/sitemap.xml` | [Implemented] |
 
 **Search parameters:** `q` (≤ 200); repeatable `partner`, `mode`, `lang` (**teaching language**), `isced` (broad field), `level` (any of `levels`), `kind`, `attr_<key>` (≤ 20 keys; booleans `true`/`false`; unknown keys ignored); `ectsMin`/`ectsMax` (aliases `ects_min`/`ects_max`); `upcoming` (default `true`; `includeUnscheduled=true` is the old spelling of `false`); `sort` = `relevance` (default with `q`), `title`, `start_date` (default otherwise), `deadline` (next open application deadline first, none last); `page` (≤ 500); `pageSize`/`page_size` (≤ 50, default 20); `locale` (**display language**, English fallback). OR within a filter, AND across; facets (`partner`, `mode`, `lang`, `isced`, `level`, `kind`, one per `filterable` attribute) are disjunctive.
@@ -846,7 +854,7 @@ RFC 9457 `application/problem+json` for `/api/public/v1` and `/api/admin/v1`: `t
 
 ### 8.1 Dashboard (`/{locale}/admin`, client-rendered)
 
-The dashboard shows the account and the modules of the selected organization: the token's `org_id`, or for an `alliance_admin` one chosen from `/api/public/v1/reference` (kept in `?org=`).
+The dashboard shows the account and the modules of the selected organization: the token's `org_id`, or for an `alliance_admin` one chosen from `/api/public/v1/reference` (kept in `?org=`); alliance administrators also get the modules "Network status", "Organizations" and "Invitations". Signed out, every admin page shows the sign-in prompt after the silent restore attempt (§4), with "Sign in through your university" (§2.1) when at least one partner organization has a published `idp_alias`.
 
 | Module | As built | Status |
 |---|---|---|
@@ -854,8 +862,12 @@ The dashboard shows the account and the modules of the selected organization: th
 | Course wizard | basics → texts (English to publish) → attributes → review; offerings on their own pages; in `overrides` mode each field has an override toggle showing the source value, unticking reverts | [Implemented] |
 | CSV console | Templates, drag-and-drop, Web Worker validation, error table and report, server result | [Implemented] |
 | Sync monitor | Latest 50 runs of every channel; run page with errors by severity | [Implemented]; pending withdrawals and payload viewer [Deferred: not in backlog] |
-| Integration settings | Read-only placeholder; no form, "Test connection" or "Sync now" buttons (the API exists) | [Partial: not in backlog] |
-| Organizations, administrators, network status | Placeholder for organizations only | [Deferred: not in backlog] |
+| Integration settings (`/admin/integration`) | Full settings form (channel, access mode and endpoint, write-only credential: keep, replace or delete, with a "stored" indicator; schedule presets or cron with time zone; limits; enabled), inline validation with an error summary; host approval card (approve button for `alliance_admin`, a request to ask one for `partner_admin`); "Test connection" and "Sync now" on the saved settings with result cards (202, 409, 429); last run and sync history links | [Implemented, 0.2.0] |
+| Invitations (`/admin/invitations`) | Create (role limited to the caller's role, validity 7, 3 or 1 days), list with status badges; revoke and resend with confirmation for `alliance_admin` | [Implemented, 0.2.0]; see the note below |
+| Organizations (`/admin/organizations`, `…/new`, `…/{id}`) | `alliance_admin`: list with filters (search, type, partner, active/deleted); create; detail with the details form, delete and restore, Administrators panel (sign-in method, set-up state, last sign-in; remove, resend set-up e-mail), Invitations panel, integration and courses links | [Implemented, 0.2.0] |
+| Network status (`/admin/network`) | `alliance_admin`: health per organization (§8.4) with channel, harvesting, host approval, last run and last success, courses, upcoming offerings, administrators, pending invitations, sync history link; problems first | [Implemented, 0.2.0] |
+
+**Note for the owner:** the invitations form is also shown to a `partner_admin` (role fixed to `partner_admin`, hint "Partner administrators can invite partner administrators of their organization"), but both create endpoints require `alliance_admin` (§8.2), so a partner administrator's attempt ends in 403 `oecp.auth.forbidden_role`. Either hide the form for partner administrators or open the endpoint to them for their own organization.
 
 ### 8.2 Admin API (`/api/admin/v1`) [Implemented]
 
@@ -865,6 +877,11 @@ Bearer-only (§4). P = `partner_admin` (own scope), A = `alliance_admin`. Repeat
 |---|---|---|
 | `GET /me` · `POST /invitations/accept` | role-less allowed | §2.1 |
 | `POST /invitations` (201) · `DELETE /invitations/{id}` (204) · `GET /invitations` | A · A · P, A | §2.1 |
+| `GET /organizations?include_deleted` · `GET /organizations/{id}` | P, A | alliance: all (deleted ones on request; `GET /{id}` also when deleted); partner: own organization and sub-units. Each item: the organization's columns, `partner_id` and `counts {courses_total, courses_published, sub_units}` |
+| `POST /organizations` (201 + `Location`) · `PUT /organizations/{id}` · `DELETE /organizations/{id}` (204) · `POST /organizations/{id}/restore` | A | body `organizationInput` (§8.4) |
+| `GET /organizations/{orgId}/admins` · `DELETE …/admins/{sub}` (204) · `POST …/admins/{sub}/resend-setup` | P, A · A · A | §8.4; revocation §2.2 |
+| `GET /organizations/{orgId}/invitations` · `POST /organizations/{orgId}/invitations` (201) · `POST /invitations/{id}/resend` (201) | P, A · A · A | §2.1; the organization-scoped `POST` takes `{email, role, ttl_hours?}` and behaves as `POST /invitations` |
+| `GET /network-status` | A | §8.4 |
 | `GET`, `PUT /organizations/{orgId}/integration` | P, A | 404 `oecp.integration.not_configured` before the first `PUT` |
 | `POST …/integration/approve-host` | A | approves the host of the current `base_url` (direct only) |
 | `POST …/integration/test-connection` | P, A | `GET /` and `GET /courses?pageSize=1`; remote failures are 200 `{ok: false, error}`; blockers 409 |
@@ -883,6 +900,21 @@ Bearer-only (§4). P = `partner_admin` (own scope), A = `alliance_admin`. Repeat
 ### 8.3 Overrides API
 
 `PATCH …/overrides` `{set: {key: value}, clear: [key]}`: at least one change, ≤ 100 keys each, no key in both. Course keys: `status`, `kind`, `levels`, `ects`, `teaching_hours`, `info_url`, `contact_email`, `attributes`, `isced_codes`, `texts.<lang>.<field>` (`title`, `abstract`, `description`, `learning_outcomes`, `prerequisites`, `assessment`, `keywords`; a new language needs its title). Offering keys: `status`, the four dates, `timezone`, `teaching_languages`, `delivery_modes`, `campus`, `max_students`, `alliance_seats`, `seats_available`, `application_url`, `application_instructions`. Values have the shape of the create body; the effective record is validated before storing. In `overrides` mode `POST …/status` stores a `status` override.
+
+### 8.4 Organizations, administrators and network status [Implemented]
+
+Screens: §8.1 (0.2.0).
+
+**Organizations.** `organizationInput` (`@oecp/schemas`, `admin-organizations.ts`): `slug` (`^[a-z0-9-]{2,40}$`, immutable: 409 `oecp.content.slug_immutable`), `org_type`, `is_partner`, `parent_id?`, `name` (`en` required), `default_timezone` (IANA), `ui_languages` (≥ 1 primary subtags, no duplicates), and optional `country_code`, `schac_home_organization`, `keycloak_idp_alias` (`IDP_ALIAS_PATTERN` `^[a-z0-9][a-z0-9._-]{1,99}$`, not `local`; the invitation link and the public reference use the same pattern), `contact_email`, `website_url`/`logo_url` (https), `erasmus_code`, `pic`, `ext_id`; `PUT` is a full replace (omitted optional members become null). The rules of `oecp seed-organizations` apply: a partner is its own partner (`partner_id = id`), other organizations take the `partner_id` of their parent, and a change of `is_partner` or `parent_id` recomputes `partner_id` down the subtree. The parent must exist, not be deleted, not be the organization or one of its descendants, and keep the chain ≤ 32 levels (422 `oecp.content.invalid_parent`); an alliance has no parent and is not a partner. Taken slugs (deleted organizations included) → 409 `oecp.content.duplicate_slug`; taken `schac_home_organization`, `erasmus_code`, `pic`, `keycloak_idp_alias` or (`partner_id`, `ext_id`) → 409 `oecp.content.duplicate_identifier`. Changing `keycloak_idp_alias` is allowed; the audit row carries a note, because administrators must then sign in through the new IdP (`oecp.auth.idp_mismatch` otherwise). `DELETE` is soft and refused (409 `oecp.content.organization_in_use`, detail listing the reasons) while the organization has courses, sub-units, administrators, pending invitations or an enabled harvest; `restore` is idempotent and refused while the parent is deleted (409 `oecp.content.invalid_parent`). Audit actions `organization.create|update|delete|restore`.
+
+**Administrators.** Keycloak users whose attribute `oecp_org_id` is the organization (alliance admins under the alliance organization), found with the Admin API attribute search `GET /users?q=oecp_org_id:<id>&briefRepresentation=false` (Keycloak 26: exact, case-insensitive match; an unparsable `q` is ignored by Keycloak, so results are filtered again; a 400 falls back to scanning). Item: `sub`, `username`, `email`, `name`, `roles` (OECP realm roles), `idp` (linked IdP alias, else `local`), `enabled`, `email_verified`, `created_at`, `last_login_at` (latest `LOGIN` event; null while `oecp-backend` lacks `view-events`), `required_actions`. `resend-setup` re-sends Keycloak's execute-actions e-mail for pending `UPDATE_PASSWORD`/`CONFIGURE_TOTP` of a local account (409 `oecp.admin.not_local_account` for brokered accounts, `oecp.admin.setup_complete` when nothing is pending; audit `admin.resend_setup`). Keycloak failures: 502/504 `oecp.identity.unavailable`.
+
+**Network status** (`GET /network-status`, alliance): per non-deleted organization (alliance, partners, others; by slug) `organization {id, slug, name, is_partner, org_type, parent_id}`, `authoritative_channel` (`form` without integration), `access_mode`, `enabled`, `host_approved`, `secret_configured`, `schedule_cron`, `last_run` (latest run of the authoritative channel: `oeapi` runs, else CSV uploads and form saves), `last_success_at`, `courses_total`, `courses_published`, `offerings_upcoming` (published, starting today UTC or later), `admins_count` (null if Keycloak does not answer), `pending_invitations` and `health`:
+
+| Channel | `error` | `warning` | `ok` | `unconfigured` |
+|---|---|---|---|---|
+| `oeapi` | enabled and blocked (host not approved, insecure or missing URL, …) or the latest finished harvest failed | harvesting disabled; no finished harvest; latest partial and incomplete; or finished longer ago than 2 × the longest gap of `schedule_cron` | enabled, latest finished harvest succeeded or partial with a complete listing, not stale | — |
+| `csv`, `form`, none | — | latest upload or form save failed | otherwise | no upload or form save ever |
 
 ## 9. Public read API (OEAPI v5-compatible) [Implemented]
 
@@ -904,7 +936,7 @@ Anonymous, read-only: `GET /oeapi/v5/`, `/organizations[/{id}[/courses]]` (the a
 | Deliverables [DL 10] | `deploy/compose`: traefik, postgres, valkey, keycloak, keycloak-config, api, worker, web; profiles `dev`, `observability` | [Implemented]; Helm (README only) [Deferred to v1] |
 | Backups | volumes only | pgBackRest PITR [Deferred: backlog "pgBackRest…"] |
 | Observability | profile `observability` (OTel Collector, Prometheus, Loki, Grafana); Traefik metrics; pino JSON logs | [Partial]: no OTel SDK in the apps (`OTEL_*` passed but unused), no alerts |
-| Headers, TLS | HSTS, frame deny, referrer and permissions policies, API CSP; ACME prepared but commented out | [Partial]: portal CSP (§7.2) |
+| Headers, TLS | HSTS, `X-Frame-Options: SAMEORIGIN` on the portal (needed by the session restore, §4; `DENY` until 0.1.0), `frame-ancestors 'none'` on `/api` and `/oeapi`, referrer and permissions policies, API CSP; ACME prepared but commented out | [Partial]: portal CSP (§7.2) |
 | Rate limits per IP (Traefik) | search 20 r/s (burst 40), suggest 10, `/oeapi/v5` 10, admin 30 | [Implemented] |
 | Secrets | AES-256-GCM `secrets` table; Docker secrets for every password | [Implemented]; rotation tooling, OpenBao [v1] |
 | Supply chain | CI: lint, format, type check, tests, `reuse lint`, DCO, `docker compose config`, Trivy; Dependabot | [Partial]: SBOM, Semgrep, cosign [Deferred: not in backlog] |
@@ -933,7 +965,7 @@ tools/oeapi-mock  tools/e2e-identity  docs/adr  docs/research  docs/review
 
 | Phase | Scope | Status on 2026-10-14 |
 |---|---|---|
-| **MVP** | as v4.0 §12 | Built: portal, read API, three channels, sync monitor, local-account identity with MFA, Compose. Open before go-live: real partner harvest, SAML login, integration/organizations/admins/network UIs, revocation, backups, observability SDK, CSP, accessibility audit, GDPR documents, maintenance jobs (§5.4) |
+| **MVP** | as v4.0 §12 | Built: portal, read API, three channels, sync monitor, local-account identity with MFA, Compose (0.1.0); integration, invitations, organizations, administrators and network screens, revocation, federated sign-in UI, session restore on reload (0.2.0). Open before go-live: real partner harvest, SAML login verified end to end, backups, observability SDK, CSP, accessibility audit, GDPR documents, maintenance jobs (§5.4) |
 | **v1**, **v2** | as v4.0 §12 | Not started |
 
 ## 13. Glossary
@@ -950,7 +982,7 @@ tools/oeapi-mock  tools/e2e-identity  docs/adr  docs/research  docs/review
 
 ## Appendix A. Error codes
 
-Generated from `packages/schemas/errors.json` (identical to `ERROR_CODES` in `error-codes.ts`): 122 codes, grouped by prefix; the text is the default English message. *(W)* marks a warning by default, all others are errors; a channel may downgrade an error to a warning (the harvester reports `oecp.content.english_missing` as a warning and stores the course as `draft`).
+Generated from `packages/schemas/errors.json` (identical to `ERROR_CODES` in `error-codes.ts`): 131 codes, grouped by prefix; the text is the default English message. *(W)* marks a warning by default, all others are errors; a channel may downgrade an error to a warning (the harvester reports `oecp.content.english_missing` as a warning and stores the course as `draft`).
 
 **Request and internal**
 
@@ -975,6 +1007,13 @@ Generated from `packages/schemas/errors.json` (identical to `ERROR_CODES` in `er
 - `oecp.invitation.invalid`: Invitation is invalid or already used
 - `oecp.invitation.expired`: Invitation has expired
 - `oecp.invitation.mismatch`: Signed-in identity does not match the invitation
+
+**Administrators**
+
+- `oecp.admin.cannot_remove_self`: You cannot revoke your own administrator access
+- `oecp.admin.last_alliance_admin`: At least one alliance_admin must remain
+- `oecp.admin.not_local_account`: The account signs in through an institutional identity provider; it has no local setup
+- `oecp.admin.setup_complete`: The account has no pending password or authenticator setup
 
 **Identity service, mail and secrets**
 
@@ -1100,6 +1139,11 @@ Generated from `packages/schemas/errors.json` (identical to `ERROR_CODES` in `er
 - `oecp.content.has_published_offerings`: The course has published offerings; withdraw or cancel them first
 - `oecp.content.published_not_deletable`: A published record cannot be deleted; withdraw or cancel it instead
 - `oecp.content.harvested_not_deletable`: Harvested records cannot be deleted; withdraw them with a status override
+- `oecp.content.duplicate_slug`: Another organization already uses this slug
+- `oecp.content.duplicate_identifier`: Another organization already uses this identifier (SCHAC home organization, Erasmus code, PIC, IdP alias or code)
+- `oecp.content.slug_immutable`: The slug of an existing organization cannot be changed
+- `oecp.content.invalid_parent`: The parent organization does not exist, is deleted or would create a cycle
+- `oecp.content.organization_in_use`: The organization still has courses, sub-units, administrators, pending invitations or an enabled harvest
 
 
 ## Appendix B. Environment variables

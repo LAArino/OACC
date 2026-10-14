@@ -8,6 +8,11 @@ export type AdminOrganization = ReferenceResponse['organizations'][number];
 
 let cached: Promise<ReferenceResponse> | undefined;
 
+/** Forgets the cached reference data (tests; or after organizations changed). */
+export function resetAdminReference(): void {
+  cached = undefined;
+}
+
 export function useAdminReference() {
   const api = useApi();
   return {
