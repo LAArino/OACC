@@ -1,5 +1,6 @@
 {
   "name": "@oecp/e2e-identity",
+  "version": "0.1.0",
   "private": true,
   "description": "Manual end-to-end check of the identity path against the local Compose stack (not part of CI).",
   "license": "EUPL-1.2",

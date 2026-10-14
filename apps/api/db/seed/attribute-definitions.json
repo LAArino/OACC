@@ -1,7 +1,7 @@
 {
   "$comment": [
-    "SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño",
-    "SPDX-License-Identifier: EUPL-1.2",
+    "Copyright 2026 Lluís Alfons Ariño",
+    "Licence: EUPL-1.2",
     "Aurora alliance attribute definitions for `oecp seed-attribute-definitions` (upsert by key; decision 18).",
     "To be confirmed by the Aurora Foundation: the list mirrors the fields of the current Virtual Campus",
     "pages (docs/research/aurora-virtual-campus-draft.md) and must be agreed before the 13 current entries are migrated.",

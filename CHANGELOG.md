@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.0] - 2026-10-14
+
+First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitations), the three ingestion channels (OEAPI v5 harvester, CSV upload, web form with overrides), the public catalogue with full-text search and alliance attributes, the OEAPI v5 read API, the reference Docker Compose deployment and the developer tooling. Verified against a simulated partner; no real partner data yet.
+
 ### Added
 
 - Specification v4.0 as the implementation baseline (`docs/spec-v4.0.md`).
@@ -374,4 +380,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/<org>/oecp/commits/main
+[Unreleased]: https://github.com/LAArino/AURORA-OECP/compare/v0.1.0...main
+[0.1.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.1.0
