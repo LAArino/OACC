@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: EUPL-1.2
 /**
- * Kysely table types for db/migrations/0001_init.sql (hand-written stub;
- * tables not listed here are not queried yet). `date` columns are strings
- * (see db.module.ts), `numeric` columns come back from pg as strings.
+ * Kysely table types for db/migrations (hand-written; tables not listed here are
+ * not queried yet). `date` columns are strings (see db.module.ts), `numeric`
+ * columns come back from pg as strings, `bigint` identities as strings.
  */
 import type {
   AdminRole,
@@ -16,7 +16,9 @@ import type { ColumnType, Generated } from 'kysely';
 type Timestamp = ColumnType<Date, Date | string | undefined, Date | string>;
 type Numeric = ColumnType<string, number | string, number | string>;
 type Json<T> = ColumnType<T, T, T>;
-type Overrides = Json<Record<string, { value: unknown; by: string; at: string }>>;
+export type OverrideMap = Record<string, { value: unknown; by: string; at: string }>;
+/** `overrides` jsonb (spec §5 "Overrides"); DEFAULT '{}' makes it optional on insert. */
+type Overrides = ColumnType<OverrideMap, OverrideMap | undefined, OverrideMap>;
 
 export interface OrganizationsTable {
   id: Generated<string>;
@@ -37,8 +39,8 @@ export interface OrganizationsTable {
   ui_languages: Generated<string[]>;
   ext_id: string | null;
   keycloak_idp_alias: string | null;
-  created_at: Generated<Timestamp>;
-  updated_at: Generated<Timestamp>;
+  created_at: Timestamp;
+  updated_at: Timestamp;
   deleted_at: Timestamp | null;
 }
 
@@ -65,8 +67,8 @@ export interface AcademicSessionsTable {
   start_date: string;
   end_date: string;
   source_channel: SourceChannel;
-  created_at: Generated<Timestamp>;
-  updated_at: Generated<Timestamp>;
+  created_at: Timestamp;
+  updated_at: Timestamp;
   deleted_at: Timestamp | null;
 }
 
@@ -84,12 +86,12 @@ export interface CoursesTable {
   teaching_hours: Numeric | null;
   info_url: string | null;
   contact_email: string | null;
-  overrides: Generated<Overrides>;
+  overrides: Overrides;
   content_hash: Buffer | null;
   absent_count: Generated<number>;
   last_seen_at: Timestamp | null;
-  created_at: Generated<Timestamp>;
-  updated_at: Generated<Timestamp>;
+  created_at: Timestamp;
+  updated_at: Timestamp;
   deleted_at: Timestamp | null;
 }
 
@@ -104,8 +106,8 @@ export interface CourseTextsTable {
   assessment: string | null;
   keywords: Generated<string[]>;
   is_machine_translated: Generated<boolean>;
-  overrides: Generated<Overrides>;
-  updated_at: Generated<Timestamp>;
+  overrides: Overrides;
+  updated_at: Timestamp;
   search_vector: ColumnType<string, never, never>;
 }
 
@@ -136,12 +138,12 @@ export interface CourseOfferingsTable {
   seats_available: number | null;
   seats_updated_at: Timestamp | null;
   application_url: string | null;
-  overrides: Generated<Overrides>;
+  overrides: Overrides;
   content_hash: Buffer | null;
   absent_count: Generated<number>;
   last_seen_at: Timestamp | null;
-  created_at: Generated<Timestamp>;
-  updated_at: Generated<Timestamp>;
+  created_at: Timestamp;
+  updated_at: Timestamp;
   deleted_at: Timestamp | null;
 }
 
@@ -168,7 +170,7 @@ export interface SyncRunsTable {
   n_rejected: Generated<number>;
   n_withdrawn: Generated<number>;
   error_summary: string | null;
-  created_at: Generated<Timestamp>;
+  created_at: Timestamp;
 }
 
 export interface SyncErrorsTable {
@@ -183,7 +185,60 @@ export interface SyncErrorsTable {
   row_number: number | null;
   column_name: string | null;
   json_pointer: string | null;
-  created_at: Generated<Timestamp>;
+  created_at: Timestamp;
+}
+
+export interface SecretsTable {
+  id: string;
+  purpose: string;
+  key_version: number;
+  nonce: Buffer;
+  /** AES-256-GCM ciphertext followed by the 16-byte authentication tag. */
+  ciphertext: Buffer;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+export interface PartnerIntegrationsTable {
+  id: Generated<string>;
+  organization_id: string;
+  authoritative_channel: Generated<SourceChannel>;
+  access_mode: 'direct' | 'surfeduhub' | null;
+  oeapi_version: Generated<'5' | '6'>;
+  consumer_profile: Generated<string>;
+  base_url: string | null;
+  auth_scheme: Generated<'none' | 'basic' | 'bearer' | 'api_key_header'>;
+  api_key_header_name: string | null;
+  secret_ref: string | null;
+  surfeduhub_endpoint_id: string | null;
+  approved_host: string | null;
+  approved_by: string | null;
+  approved_at: Timestamp | null;
+  schedule_cron: Generated<string>;
+  schedule_timezone: Generated<string>;
+  page_size: Generated<number>;
+  max_requests_per_second: ColumnType<string, number | string | undefined, number | string>;
+  withdraw_after_absences: Generated<number>;
+  enabled: Generated<boolean>;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+export type HistoryEntityType = 'organization' | 'academic_session' | 'course' | 'course_offering';
+
+export interface ExtMetadataHistoryTable {
+  id: Generated<string>;
+  received_at: Timestamp;
+  sync_run_id: string;
+  organization_id: string;
+  entity_type: HistoryEntityType;
+  entity_id: string | null;
+  ext_id: string;
+  channel: SourceChannel;
+  schema_version: string;
+  payload_sha256: Buffer;
+  validation_result: 'accepted' | 'rejected';
+  raw_payload: Json<unknown>;
 }
 
 export interface AdminInvitationsTable {
@@ -231,8 +286,11 @@ export interface Database {
   course_isced_codes: CourseIscedCodesTable;
   course_offerings: CourseOfferingsTable;
   course_offering_delivery_modes: CourseOfferingDeliveryModesTable;
+  secrets: SecretsTable;
+  partner_integrations: PartnerIntegrationsTable;
   sync_runs: SyncRunsTable;
   sync_errors: SyncErrorsTable;
+  ext_metadata_history: ExtMetadataHistoryTable;
   admin_invitations: AdminInvitationsTable;
   audit_log: AuditLogTable;
 }

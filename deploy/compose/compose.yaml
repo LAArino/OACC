@@ -13,7 +13,8 @@
 # Optional observability stack (OpenTelemetry Collector, Prometheus, Loki, Grafana):
 #   docker compose --profile observability up -d
 #
-# Local development extras (Mailpit SMTP sink on http://127.0.0.1:8025):
+# Local development extras (Mailpit SMTP sink on http://127.0.0.1:8025, OEAPI v5
+# mock partner on http://127.0.0.1:8090 and http://oeapi-mock:8090):
 #   docker compose --profile dev up -d    (or COMPOSE_PROFILES=dev in .env)
 
 name: oecp
@@ -45,6 +46,10 @@ x-oecp-backend-env: &oecp-backend-env
   KEYCLOAK_REALM: oecp
   KEYCLOAK_ADMIN_CLIENT_ID: oecp-backend
   KEYCLOAK_ADMIN_CLIENT_SECRET_FILE: /run/secrets/oecp_backend_client_secret
+  # Partner OEAPI access over plain http and to private addresses is refused by
+  # the SSRF rules of spec §6.2.6. Set to "true" ONLY for local development against
+  # the `oeapi-mock` service (dev profile). Never in production.
+  OECP_ALLOW_INSECURE_PARTNER_HTTP: ${OECP_ALLOW_INSECURE_PARTNER_HTTP:-false}
   SMTP_HOST: ${OECP_SMTP_HOST:-}
   SMTP_PORT: ${OECP_SMTP_PORT:-25}
   SMTP_FROM: ${OECP_SMTP_FROM:-no-reply@example.org}
@@ -471,6 +476,51 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
+    logging: *default-logging
+
+  # -------------------------------------------------------------------------
+  # Local development only (profile `dev`): simulated partner university
+  # serving Open Education API v5.0 (consumer profile `eduxchange`) from a
+  # synthetic University of Innsbruck dataset, so the harvester (spec §6.2) can
+  # be developed and demonstrated without real partner credentials. Reached by
+  # api and worker as http://oeapi-mock:8090 (HTTP Basic, see .env.example);
+  # also published on 127.0.0.1:${OEAPI_MOCK_PORT:-8090} for curl. No Traefik
+  # route. See tools/oeapi-mock/README.md.
+  # -------------------------------------------------------------------------
+  oeapi-mock:
+    build:
+      context: ../../tools/oeapi-mock
+    image: oecp/oeapi-mock:${OECP_IMAGE_TAG:-dev}
+    profiles: ["dev"]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      PORT: "8090"
+      OEAPI_MOCK_AUTH: ${OEAPI_MOCK_AUTH:-basic:oecp:oecp-mock-secret}
+      # /app/data/uibk.json (baseline) or /app/data/uibk-next-run.json (two
+      # courses withdrawn, one changed); recreate the container to switch.
+      OEAPI_MOCK_DATASET: ${OEAPI_MOCK_DATASET:-/app/data/uibk.json}
+      OEAPI_MOCK_LATENCY_MS: ${OEAPI_MOCK_LATENCY_MS:-0}
+      OEAPI_MOCK_FAIL_RATE: ${OEAPI_MOCK_FAIL_RATE:-0}
+      OEAPI_MOCK_RATE_LIMIT_PER_SEC: ${OEAPI_MOCK_RATE_LIMIT_PER_SEC:-0}
+      OEAPI_MOCK_TODAY: ${OEAPI_MOCK_TODAY:-}
+    ports:
+      - "127.0.0.1:${OEAPI_MOCK_PORT:-8090}:8090"
+    networks:
+      # backend: reachable from api and worker by the name `oeapi-mock`;
+      # edge: required for the published port (backend is internal).
+      - backend
+      - edge
+    healthcheck:
+      # GET / with the configured credentials (tools/oeapi-mock/healthcheck.mjs).
+      test: ["CMD", "node", "/app/healthcheck.mjs"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     logging: *default-logging
 
   # -------------------------------------------------------------------------

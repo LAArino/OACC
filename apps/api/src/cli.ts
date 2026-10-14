@@ -3,6 +3,7 @@
  * `oecp` operations CLI, run inside the api container:
  *   node dist/cli.js seed-organizations [--file <path>] [--dry-run]
  *   node dist/cli.js bootstrap-alliance-admin --email <e> --org <slug> [--ttl-hours 24]
+ *   printf %s "$SECRET" | node dist/cli.js store-secret --purpose surfeduhub
  */
 import 'reflect-metadata';
 import { ConsoleLogger, type INestApplicationContext, type LogLevel } from '@nestjs/common';
@@ -18,6 +19,7 @@ import {
   runProgram,
 } from './cli/program.js';
 import { SeedOrganizationsCommand } from './cli/seed-organizations.js';
+import { readStdin, StoreSecretCommand } from './cli/store-secret.js';
 
 const output: CliOutput = {
   writeOut: (text) => process.stdout.write(text),
@@ -61,6 +63,10 @@ const handlers: CliHandlers = {
     withContext((app) => app.get(SeedOrganizationsCommand).run(options, output)),
   bootstrapAllianceAdmin: (options) =>
     withContext((app) => app.get(BootstrapAllianceAdminCommand).run(options, output)),
+  storeSecret: async (options) => {
+    const secret = await readStdin(process.stdin);
+    return withContext((app) => app.get(StoreSecretCommand).run(options, secret, output));
+  },
 };
 
 process.exit(await runProgram(process.argv.slice(2), handlers, output));

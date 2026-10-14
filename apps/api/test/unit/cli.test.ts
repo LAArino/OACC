@@ -34,10 +34,27 @@ function handlers() {
     bootstrapAllianceAdmin: vi
       .fn<CliHandlers['bootstrapAllianceAdmin']>()
       .mockResolvedValue(EXIT.OK),
+    storeSecret: vi.fn<CliHandlers['storeSecret']>().mockResolvedValue(EXIT.OK),
   };
 }
 
 describe('oecp command line', () => {
+  it('parses store-secret with a purpose label', async () => {
+    const h = handlers();
+    await expect(
+      runProgram(['store-secret', '--purpose', 'surfeduhub'], h, capture().output),
+    ).resolves.toBe(EXIT.OK);
+    expect(h.storeSecret).toHaveBeenCalledWith({ purpose: 'surfeduhub' });
+  });
+
+  it('rejects store-secret without a valid purpose', async () => {
+    const h = handlers();
+    await expect(
+      runProgram(['store-secret', '--purpose', 'Not Valid'], h, capture().output),
+    ).resolves.toBe(EXIT.USAGE);
+    expect(h.storeSecret).not.toHaveBeenCalled();
+  });
+
   it('parses seed-organizations with defaults', async () => {
     const h = handlers();
     await expect(runProgram(['seed-organizations'], h, capture().output)).resolves.toBe(EXIT.OK);

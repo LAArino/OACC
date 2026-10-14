@@ -10,12 +10,16 @@ import {
   KyselyOrganizationDirectory,
   ORGANIZATION_DIRECTORY,
 } from './auth/organization-directory.js';
+import { IngestionModule } from '../ingestion/ingestion.module.js';
+import { IntegrationsController } from './integrations/integrations.controller.js';
+import { IntegrationsService } from './integrations/integrations.service.js';
+import { OrganizationAccess } from './integrations/organization-access.js';
 import { InvitationsController } from './invitations/invitations.controller.js';
 import { InvitationsModule } from './invitations/invitations.module.js';
 
 @Module({
-  imports: [InvitationsModule],
-  controllers: [AdminController, InvitationsController],
+  imports: [InvitationsModule, IngestionModule],
+  controllers: [AdminController, InvitationsController, IntegrationsController],
   providers: [
     {
       provide: AdminTokenVerifier,
@@ -28,6 +32,8 @@ import { InvitationsModule } from './invitations/invitations.module.js';
     },
     { provide: ORGANIZATION_DIRECTORY, useClass: KyselyOrganizationDirectory },
     AdminJwtGuard,
+    OrganizationAccess,
+    IntegrationsService,
   ],
 })
 export class AdminModule {}

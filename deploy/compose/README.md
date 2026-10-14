@@ -18,6 +18,7 @@ scripts.
 | `keycloak` | built from `quay.io/keycloak/keycloak:26.8.1` | admin authentication (SAML brokering, MFA) |
 | `keycloak-config` | `adorsys/keycloak-config-cli:6.5.1-26.5.5` | one-shot: applies `identity/keycloak/realm-oecp.yaml` |
 | `mailpit` | `axllent/mailpit:v1.31.5` (MIT), profile `dev` | local SMTP sink with a web UI |
+| `oeapi-mock` | built from `tools/oeapi-mock` (`node:22.23.3-alpine3.24`), profile `dev` | simulated partner university serving OEAPI v5.0 for the harvester |
 | `otel-collector`, `prometheus`, `loki`, `grafana` | profile `observability` | metrics and logs (spec §10) |
 
 ```
@@ -99,6 +100,7 @@ Then open:
 | `https://oecp.localhost/oeapi/v5/` | public read API |
 | `https://auth.oecp.localhost/admin/` | Keycloak admin console: user `KEYCLOAK_ADMIN_USER` (default `admin`), password in `secrets/keycloak_admin_password`; reachable only from `KEYCLOAK_ADMIN_ALLOWLIST` |
 | `http://127.0.0.1:8025/` | Mailpit (profile `dev`): every e-mail sent by Keycloak and the api |
+| `http://127.0.0.1:8090/` | OEAPI v5.0 mock partner (profile `dev`), HTTP Basic `oecp` / `oecp-mock-secret` |
 | `http://127.0.0.1:8080/dashboard/` | Traefik dashboard (local development only) |
 | `http://127.0.0.1:3001/` | Grafana (profile `observability`), user `admin`, password in `secrets/grafana_admin_password` |
 
@@ -150,7 +152,7 @@ certificates); there is no undo.
 
 ### Local development profile (`dev`)
 
-The `dev` profile adds Mailpit only, in `compose.yaml` itself (like
+The `dev` profile adds Mailpit and the OEAPI mock, in `compose.yaml` itself (like
 `observability`) rather than in an override file, so `docker compose config`
 shows one complete model and the production deployment simply never enables
 the profile. Mailpit listens for SMTP on `mailpit:1025` (Docker networks only)
@@ -168,6 +170,45 @@ OECP_SMTP_STARTTLS=false      # Mailpit offers no TLS; Keycloak's STARTTLS is ma
 settings reach the realm with the next `up`. To check delivery, trigger
 an execute-actions e-mail for a test user (Admin console > Users > Credentials
 > "Credential reset") and look at `http://127.0.0.1:8025/`.
+
+#### OEAPI mock partner (`oeapi-mock`)
+
+A dependency-free Node server that plays a partner university's Open
+Education API v5.0 endpoint (consumer profile `eduxchange`) with a synthetic
+University of Innsbruck dataset: 25 courses (20 tagged for eduXchange), 40
+offerings, 3 academic sessions and deliberate edge cases for the harvester
+(spec §6.2). Details, edge-case list and identifiers:
+[`tools/oeapi-mock/README.md`](../../tools/oeapi-mock/README.md).
+
+| Setting | Value |
+|---|---|
+| Base URL from api and worker | `http://oeapi-mock:8090` (networks `backend`, `edge`) |
+| Base URL from the host | `http://127.0.0.1:${OEAPI_MOCK_PORT:-8090}` |
+| Authentication | HTTP Basic, user `oecp`, password `oecp-mock-secret` (`OEAPI_MOCK_AUTH`) |
+| Consumer profile | `eduxchange` |
+| Dataset | `OEAPI_MOCK_DATASET=/app/data/uibk.json`; `/app/data/uibk-next-run.json` for the next run |
+
+```sh
+docker compose --profile dev up -d --build oeapi-mock
+curl -s -u oecp:oecp-mock-secret 'http://127.0.0.1:8090/courses?consumer=eduxchange&pageSize=2'
+docker compose exec api wget -qO- \
+  --header="Authorization: Basic $(printf %s oecp:oecp-mock-secret | base64)" \
+  'http://oeapi-mock:8090/courses?pageSize=2'
+docker compose logs -f oeapi-mock          # one line per request
+```
+
+To point a partner integration at it, give the organization (in the admin
+UI or API) `access_mode` `direct`, `base_url` `http://oeapi-mock:8090`,
+`auth_scheme` `basic` with a secret holding `oecp:oecp-mock-secret`, and
+`consumer_profile` `eduxchange`. The production outbound rules of spec
+§6.2.6 (`https` on port 443 only, private addresses refused) reject this
+URL by design; api and worker accept it only with the development-only
+switch `OECP_ALLOW_INSECURE_PARTNER_HTTP=true` (default `false`, never in
+production). To simulate the next run (withdrawal by absence, change
+detection), set `OEAPI_MOCK_DATASET=/app/data/uibk-next-run.json` in `.env`
+and run `docker compose up -d oeapi-mock`; set `OEAPI_MOCK_FAIL_RATE`,
+`OEAPI_MOCK_RATE_LIMIT_PER_SEC` or `OEAPI_MOCK_LATENCY_MS` the same way to
+exercise retries and back-off.
 
 ### Security headers and rate limits
 

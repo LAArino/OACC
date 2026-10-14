@@ -7,8 +7,10 @@ import { InvitationsModule } from '../admin/invitations/invitations.module.js';
 import { AppConfigModule } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
 import { DbModule } from '../db/db.module.js';
+import { SecretsModule } from '../secrets/secrets.module.js';
 import { BootstrapAllianceAdminCommand } from './bootstrap-alliance-admin.js';
 import { SeedOrganizationsCommand } from './seed-organizations.js';
+import { StoreSecretCommand } from './store-secret.js';
 
 /** Logs go to stderr so that stdout carries only command output. */
 const CliLoggerModule = LoggerModule.forRootAsync({
@@ -23,7 +25,7 @@ const CliLoggerModule = LoggerModule.forRootAsync({
 
 /** Application context of the `oecp` CLI: no HTTP server, no queues. */
 @Module({
-  imports: [AppConfigModule, CliLoggerModule, DbModule, InvitationsModule],
-  providers: [SeedOrganizationsCommand, BootstrapAllianceAdminCommand],
+  imports: [AppConfigModule, CliLoggerModule, DbModule, InvitationsModule, SecretsModule],
+  providers: [SeedOrganizationsCommand, BootstrapAllianceAdminCommand, StoreSecretCommand],
 })
 export class CliModule {}
