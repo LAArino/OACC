@@ -1,0 +1,48 @@
+// SPDX-License-Identifier: EUPL-1.2
+//
+// Privacy contract for public pages (spec §7): no cookies, no auth, no analytics.
+// Nothing here may set a cookie: i18n browser detection runs without its cookie,
+// and OIDC code (oidc-client-ts) is only loaded by client-rendered /admin pages,
+// which keep tokens in memory.
+
+/** Enabled UI locales; English is mandatory and the content fallback (spec §5, §7). */
+const locales = [{ code: 'en', language: 'en', name: 'English', file: 'en.json' }];
+
+export default defineNuxtConfig({
+  compatibilityDate: '2026-10-01',
+  modules: ['@nuxtjs/i18n'],
+  devtools: { enabled: false },
+
+  runtimeConfig: {
+    public: {
+      // NUXT_PUBLIC_API_BASE: origin serving /api/public, /api/admin and /oeapi/v5.
+      apiBase: 'http://localhost:3000',
+      // NUXT_PUBLIC_OIDC_AUTHORITY: https://{auth-host}/realms/oecp
+      oidcAuthority: '',
+      oidcClientId: 'oecp-admin',
+      oidcRedirectPath: '/en/admin',
+    },
+  },
+
+  // Public catalogue is server-rendered; the admin dashboard is client-only.
+  routeRules: {
+    '/admin/**': { ssr: false },
+    ...Object.fromEntries(locales.map((l) => [`/${l.code}/admin/**`, { ssr: false }])),
+  },
+
+  i18n: {
+    strategy: 'prefix',
+    defaultLocale: 'en',
+    locales,
+    detectBrowserLanguage: {
+      // `/` redirects by Accept-Language; no language cookie.
+      useCookie: false,
+      redirectOn: 'root',
+      fallbackLocale: 'en',
+    },
+  },
+
+  typescript: {
+    strict: true,
+  },
+});

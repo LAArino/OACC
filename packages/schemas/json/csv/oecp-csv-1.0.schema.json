@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oecp:schema:csv:1.0",
+  "title": "OECP CSV template 1.0",
+  "$defs": {
+    "courseRow": {
+      "type": "object",
+      "properties": {
+        "template_version": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^1\\.0$"
+        },
+        "course_code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$"
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(draft|published|withdrawn|cancelled)$"
+        },
+        "ects": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "pattern": "^\\d{1,3}(\\.\\d{1,2})?$"
+        },
+        "isced_codes": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "pattern": "^\\d{2,6}(\\|\\d{2,6})*$"
+        },
+        "title_en": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "pattern": "^[\\s\\S]{1,500}$"
+        },
+        "level": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|(short_cycle|bachelor|master|doctoral|other))$"
+        },
+        "eqf_level": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|[1-8])$"
+        },
+        "teaching_hours": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|\\d{1,5}(\\.\\d)?)$"
+        },
+        "teaching_unit_code": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|[A-Za-z0-9][A-Za-z0-9._/-]{0,199})$"
+        },
+        "info_url": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|https:\\/\\/[^\\s/?#]+[^\\s]*)$"
+        },
+        "contact_email": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|[^@\\s]+@[^@\\s]+\\.[^@\\s]+)$"
+        }
+      },
+      "required": [
+        "template_version",
+        "course_code",
+        "status",
+        "ects",
+        "isced_codes",
+        "title_en"
+      ],
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(title|abstract|description|learning_outcomes|prerequisites|assessment|keywords)_[a-z]{2,3}$": {
+          "type": "string",
+          "maxLength": 20000
+        }
+      }
+    },
+    "offeringRow": {
+      "type": "object",
+      "properties": {
+        "template_version": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^1\\.0$"
+        },
+        "course_code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$"
+        },
+        "offering_code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$"
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(draft|published|withdrawn|cancelled)$"
+        },
+        "start_date": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+        },
+        "end_date": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+        },
+        "teaching_languages": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*(\\|[a-z]{2,3}(-[A-Za-z0-9]{1,8})*)*$"
+        },
+        "delivery_modes": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "pattern": "^(x-)?[a-z][a-z0-9_-]*(\\|(x-)?[a-z][a-z0-9_-]*)*$"
+        },
+        "academic_session_code": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|[A-Za-z0-9][A-Za-z0-9._/-]{0,199})$"
+        },
+        "enrol_start_date": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01]))$"
+        },
+        "application_deadline": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01]))$"
+        },
+        "timezone": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|[A-Za-z][A-Za-z0-9_+-]*(\\/[A-Za-z0-9_+-]+)*)$"
+        },
+        "campus": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|[\\s\\S]{1,200})$"
+        },
+        "max_students": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|[1-9]\\d{0,8})$"
+        },
+        "alliance_seats": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|\\d{1,9})$"
+        },
+        "seats_available": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|\\d{1,9})$"
+        },
+        "application_url": {
+          "type": "string",
+          "maxLength": 20000,
+          "pattern": "^(?:|https:\\/\\/[^\\s/?#]+[^\\s]*)$"
+        }
+      },
+      "required": [
+        "template_version",
+        "course_code",
+        "offering_code",
+        "status",
+        "start_date",
+        "end_date",
+        "teaching_languages",
+        "delivery_modes"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

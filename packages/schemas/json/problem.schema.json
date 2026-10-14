@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oecp:schema:problem:1",
+  "title": "RFC 9457 problem details (OECP)",
+  "type": "object",
+  "properties": {
+    "type": {
+      "default": "about:blank",
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "status": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 599
+    },
+    "detail": {
+      "type": "string"
+    },
+    "instance": {
+      "type": "string"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^oecp(\\.[a-z0-9_]+)+$"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string",
+            "enum": [
+              "courses",
+              "offerings"
+            ]
+          },
+          "row": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "column": {
+            "type": "string"
+          },
+          "pointer": {
+            "type": "string"
+          },
+          "ext_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ]
+      }
+    }
+  },
+  "required": [
+    "title",
+    "status"
+  ],
+  "additionalProperties": {}
+}

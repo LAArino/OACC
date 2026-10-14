@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+# Build context filter for web.Dockerfile (context = repository root).
+**/node_modules
+**/dist
+**/.nuxt
+**/.output
+**/coverage
+**/*.log
+**/.env
+**/.env.*
+.git
+.github
+docs
+identity
+deploy
+# Other apps stay in the context: pnpm --frozen-lockfile expects every workspace
+# project listed in pnpm-lock.yaml to be present.

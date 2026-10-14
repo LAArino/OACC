@@ -1,0 +1,158 @@
+// SPDX-License-Identifier: EUPL-1.2
+
+export interface ErrorCodeSpec {
+  /** Default severity; a channel may downgrade an error to a warning (e.g. harvester → draft). */
+  readonly severity: 'error' | 'warning';
+  /** Default English message; UIs translate by code. */
+  readonly message: string;
+}
+
+/**
+ * Stable error codes (spec §6.6). Codes are never renamed or reused;
+ * `errors.json` is generated from this table at build time.
+ */
+export const ERROR_CODES = {
+  'oecp.request.validation_failed': { severity: 'error', message: 'Request validation failed' },
+  'oecp.request.not_found': { severity: 'error', message: 'Resource not found' },
+  'oecp.request.not_implemented': { severity: 'error', message: 'Not implemented' },
+  'oecp.internal': { severity: 'error', message: 'Internal error' },
+
+  'oecp.auth.missing_token': { severity: 'error', message: 'Bearer token required' },
+  'oecp.auth.invalid_token': { severity: 'error', message: 'Token is invalid or expired' },
+  'oecp.auth.insufficient_acr': {
+    severity: 'error',
+    message: 'Multi-factor authentication required',
+  },
+  'oecp.auth.no_role': { severity: 'error', message: 'No OECP role assigned' },
+  'oecp.auth.unknown_organization': { severity: 'error', message: 'Organization does not exist' },
+  'oecp.auth.idp_mismatch': {
+    severity: 'error',
+    message: 'Identity provider does not match the organization',
+  },
+  'oecp.auth.forbidden_organization': {
+    severity: 'error',
+    message: 'Organization outside your scope',
+  },
+
+  'oecp.invitation.invalid': {
+    severity: 'error',
+    message: 'Invitation is invalid or already used',
+  },
+  'oecp.invitation.expired': { severity: 'error', message: 'Invitation has expired' },
+  'oecp.invitation.mismatch': {
+    severity: 'error',
+    message: 'Signed-in identity does not match the invitation',
+  },
+
+  'oecp.content.english_missing': {
+    severity: 'error',
+    message: 'English title is required to publish',
+  },
+  'oecp.content.invalid_value': { severity: 'error', message: 'Invalid value' },
+  'oecp.content.date_order': { severity: 'error', message: 'Dates are out of order' },
+  'oecp.content.seats_exceed_capacity': { severity: 'error', message: 'Seats exceed max_students' },
+  'oecp.content.seats_without_timestamp': {
+    severity: 'error',
+    message: 'seats_available requires seats_updated_at',
+  },
+  'oecp.content.duplicate_isced': { severity: 'error', message: 'Duplicate ISCED code' },
+  'oecp.content.unknown_isced_field': { severity: 'error', message: 'Unknown ISCED broad field' },
+  'oecp.content.unknown_delivery_mode': { severity: 'error', message: 'Unknown delivery mode' },
+  'oecp.content.unknown_teaching_unit': { severity: 'error', message: 'Unknown teaching unit' },
+  'oecp.content.unknown_session': { severity: 'error', message: 'Unknown academic session' },
+  'oecp.content.unknown_course': { severity: 'error', message: 'Unknown course code' },
+
+  'oecp.csv.missing_column': { severity: 'error', message: 'Required column is missing' },
+  'oecp.csv.unknown_column': { severity: 'error', message: 'Unknown column' },
+  'oecp.csv.missing_value': { severity: 'error', message: 'Required value is empty' },
+  'oecp.csv.invalid_template_version': {
+    severity: 'error',
+    message: 'Expected template_version 1.0',
+  },
+  'oecp.csv.invalid_code': { severity: 'error', message: 'Invalid course or offering code' },
+  'oecp.csv.invalid_status': {
+    severity: 'error',
+    message: 'Expected draft, published, withdrawn or cancelled',
+  },
+  'oecp.csv.invalid_date': { severity: 'error', message: 'Expected YYYY-MM-DD' },
+  'oecp.csv.invalid_number': { severity: 'error', message: 'Invalid number' },
+  'oecp.csv.invalid_url': { severity: 'error', message: 'Expected an https:// URL' },
+  'oecp.csv.invalid_email': { severity: 'error', message: 'Invalid email address' },
+  'oecp.csv.invalid_language': { severity: 'error', message: 'Invalid BCP 47 language tag' },
+  'oecp.csv.invalid_isced': { severity: 'error', message: 'Invalid ISCED-F code' },
+  'oecp.csv.invalid_delivery_mode': { severity: 'error', message: 'Invalid delivery mode code' },
+  'oecp.csv.invalid_level': { severity: 'error', message: 'Invalid level' },
+  'oecp.csv.invalid_timezone': { severity: 'error', message: 'Invalid IANA time zone' },
+  'oecp.csv.cell_too_long': { severity: 'error', message: 'Cell exceeds 20,000 characters' },
+  'oecp.csv.duplicate_row': { severity: 'error', message: 'Duplicate natural key in file' },
+  'oecp.csv.file_too_large': { severity: 'error', message: 'File exceeds 5 MB' },
+  'oecp.csv.too_many_rows': { severity: 'error', message: 'File exceeds 5,000 rows' },
+  'oecp.csv.too_many_columns': { severity: 'error', message: 'File exceeds 300 columns' },
+  'oecp.csv.encoding': { severity: 'error', message: 'File is not valid UTF-8' },
+  'oecp.csv.malformed': { severity: 'error', message: 'File is not valid RFC 4180 CSV' },
+  'oecp.csv.rate_limited': { severity: 'error', message: 'Upload limit reached (10 per hour)' },
+  'oecp.csv.english_delete': { severity: 'error', message: 'English texts cannot be deleted' },
+
+  'oecp.oeapi.mass_absence': {
+    severity: 'warning',
+    message: '30% or more of published courses missing; absences not counted',
+  },
+  'oecp.oeapi.unauthorized': {
+    severity: 'error',
+    message: 'Partner endpoint rejected the credentials',
+  },
+  'oecp.oeapi.unreachable': { severity: 'error', message: 'Partner endpoint unreachable' },
+  'oecp.oeapi.http_error': {
+    severity: 'error',
+    message: 'Unexpected HTTP status from partner endpoint',
+  },
+  'oecp.oeapi.host_not_approved': { severity: 'error', message: 'Harvest host not approved' },
+  'oecp.oeapi.address_refused': { severity: 'error', message: 'Resolved address is not public' },
+  'oecp.oeapi.body_too_large': { severity: 'error', message: 'Response body exceeds 20 MB' },
+  'oecp.oeapi.page_cap_reached': { severity: 'warning', message: 'Listing stopped at 1,000 pages' },
+  'oecp.oeapi.invalid_payload': { severity: 'error', message: 'Payload does not match OEAPI v5' },
+  'oecp.oeapi.missing_primary_code': { severity: 'error', message: 'Course has no primaryCode' },
+  'oecp.oeapi.study_load_unit': {
+    severity: 'error',
+    message: 'studyLoad must be in ECTS and greater than 0',
+  },
+  'oecp.oeapi.invalid_isced': {
+    severity: 'warning',
+    message: 'fieldsOfStudy is not a valid ISCED-F code',
+  },
+  'oecp.oeapi.language_dropped': {
+    severity: 'warning',
+    message: 'Language code mul/und/zxx/mis dropped',
+  },
+  'oecp.oeapi.unmappable_delivery_mode': {
+    severity: 'error',
+    message: 'No mappable modeOfDelivery',
+  },
+  'oecp.oeapi.parent_rejected': {
+    severity: 'error',
+    message: 'Offering rejected because its course was rejected',
+  },
+  'oecp.oeapi.root_not_matched': {
+    severity: 'error',
+    message: 'Root organization does not match the partner',
+  },
+
+  'oecp.sync.already_running': {
+    severity: 'error',
+    message: 'A run for this organization is in progress',
+  },
+  'oecp.sync.rate_limited': {
+    severity: 'error',
+    message: 'Sync now is limited to once per 15 minutes',
+  },
+  'oecp.sync.channel_disabled': {
+    severity: 'error',
+    message: 'Channel is not authoritative for this organization',
+  },
+} as const satisfies Record<string, ErrorCodeSpec>;
+
+export type ErrorCode = keyof typeof ERROR_CODES;
+
+export function isErrorCode(value: string): value is ErrorCode {
+  return Object.hasOwn(ERROR_CODES, value);
+}

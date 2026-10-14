@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: CC0-1.0
+
+# Dependencies (pnpm workspaces)
+node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Nuxt
+.nuxt/
+.output/
+.nitro/
+.data/
+.cache/
+
+# NestJS and TypeScript build output
+dist/
+build/
+*.tsbuildinfo
+
+# Tests and coverage
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+blob-report/
+
+# Environment files (keep the committed examples)
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Local deployment data (volumes bound by deploy/compose)
+deploy/compose/data/
+
+# IDE and editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
