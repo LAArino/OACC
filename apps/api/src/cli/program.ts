@@ -34,9 +34,15 @@ export interface BootstrapAllianceAdminOptions {
   ttlHours: number;
 }
 
+export interface StoreSecretOptions {
+  /** Free label stored with the ciphertext, e.g. `surfeduhub`. */
+  purpose: string;
+}
+
 export interface CliHandlers {
   seedOrganizations(options: SeedOrganizationsOptions): Promise<ExitCode>;
   bootstrapAllianceAdmin(options: BootstrapAllianceAdminOptions): Promise<ExitCode>;
+  storeSecret(options: StoreSecretOptions): Promise<ExitCode>;
 }
 
 export interface CliOutput {
@@ -53,6 +59,15 @@ function parseEmail(value: string): string {
 function parseSlug(value: string): string {
   if (!slugSchema.safeParse(value).success) {
     throw new InvalidArgumentError('Expected an organization slug ([a-z0-9-]{2,40}).');
+  }
+  return value;
+}
+
+function parsePurpose(value: string): string {
+  if (!/^[a-z0-9][a-z0-9:._-]{0,99}$/.test(value)) {
+    throw new InvalidArgumentError(
+      'Expected a purpose label ([a-z0-9:._-], up to 100 characters).',
+    );
   }
   return value;
 }
@@ -106,6 +121,17 @@ export function buildProgram(
     )
     .action(async (opts: BootstrapAllianceAdminOptions) => {
       onResult(await handlers.bootstrapAllianceAdmin(opts));
+    });
+
+  program
+    .command('store-secret')
+    .description(
+      'Encrypt a secret read from stdin into the secrets table and print its db:<uuid> ' +
+        'reference (e.g. for SURFEDUHUB_SECRET_REF; Basic credentials as username:password)',
+    )
+    .requiredOption('--purpose <label>', 'label stored with the secret', parsePurpose)
+    .action(async (opts: StoreSecretOptions) => {
+      onResult(await handlers.storeSecret(opts));
     });
 
   return program;

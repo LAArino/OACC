@@ -275,6 +275,114 @@
     "severity": "error",
     "message": "Root organization does not match the partner"
   },
+  "oecp.oeapi.insecure_url": {
+    "severity": "error",
+    "message": "Partner endpoint must use https on port 443"
+  },
+  "oecp.oeapi.redirect_refused": {
+    "severity": "error",
+    "message": "Redirect to another host, another scheme or more than 3 hops refused"
+  },
+  "oecp.oeapi.timeout": {
+    "severity": "error",
+    "message": "Partner endpoint did not answer in 30 s"
+  },
+  "oecp.oeapi.run_timeout": {
+    "severity": "error",
+    "message": "Harvest exceeded 2 hours"
+  },
+  "oecp.oeapi.listing_failed": {
+    "severity": "error",
+    "message": "A listing page failed; the harvest is incomplete"
+  },
+  "oecp.oeapi.empty_listing": {
+    "severity": "warning",
+    "message": "The course listing returned no courses"
+  },
+  "oecp.oeapi.detail_unavailable": {
+    "severity": "warning",
+    "message": "Offering detail unavailable; the listing item was used"
+  },
+  "oecp.oeapi.duplicate_entity": {
+    "severity": "warning",
+    "message": "Natural key already harvested in this run; duplicate ignored"
+  },
+  "oecp.oeapi.insecure_link": {
+    "severity": "warning",
+    "message": "Link is not an https URL and was dropped"
+  },
+  "oecp.oeapi.invalid_language": {
+    "severity": "warning",
+    "message": "Language code is not valid and was ignored"
+  },
+  "oecp.oeapi.missing_teaching_language": {
+    "severity": "error",
+    "message": "No usable teachingLanguage on the offering or its course"
+  },
+  "oecp.oeapi.text_without_title": {
+    "severity": "warning",
+    "message": "Texts in a language without a name in that language were ignored"
+  },
+  "oecp.oeapi.value_truncated": {
+    "severity": "warning",
+    "message": "Value truncated to the maximum length"
+  },
+  "oecp.oeapi.invalid_student_counts": {
+    "severity": "warning",
+    "message": "Student numbers ignored (maxNumberStudents must be greater than 0)"
+  },
+  "oecp.oeapi.write_failed": {
+    "severity": "error",
+    "message": "The canonical record could not be written"
+  },
+  "oecp.oeapi.secret_unavailable": {
+    "severity": "error",
+    "message": "The partner credential could not be read"
+  },
+  "oecp.integration.not_configured": {
+    "severity": "error",
+    "message": "No integration is configured for this organization"
+  },
+  "oecp.integration.access_mode_required": {
+    "severity": "error",
+    "message": "access_mode is required when the authoritative channel is oeapi"
+  },
+  "oecp.integration.base_url_required": {
+    "severity": "error",
+    "message": "base_url is required in direct access mode"
+  },
+  "oecp.integration.endpoint_id_required": {
+    "severity": "error",
+    "message": "surfeduhub_endpoint_id is required in surfeduhub access mode"
+  },
+  "oecp.integration.header_name_required": {
+    "severity": "error",
+    "message": "api_key_header_name is required for api_key_header authentication"
+  },
+  "oecp.integration.basic_secret_format": {
+    "severity": "error",
+    "message": "A basic credential must be username:password"
+  },
+  "oecp.integration.secret_required": {
+    "severity": "error",
+    "message": "A credential is required for this authentication scheme"
+  },
+  "oecp.integration.secret_not_expected": {
+    "severity": "error",
+    "message": "auth_scheme none takes no credential"
+  },
+  "oecp.integration.insecure_url": {
+    "severity": "error",
+    "message": "base_url must be an https URL on port 443"
+  },
+  "oecp.integration.surfeduhub_unavailable": {
+    "severity": "error",
+    "message": "SURFeduhub access is not configured in this deployment (SURFEDUHUB_SECRET_REF)"
+  },
+  "oecp.secrets.unavailable": {
+    "severity": "error",
+    "message": "Secret storage is unavailable (master key missing or invalid)"
+  },
   "oecp.sync.already_running": {
     "severity": "error",
     "message": "A run for this organization is in progress"

@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+# Only server.mjs, healthcheck.mjs and data/ go into the image.
+*
+!server.mjs
+!healthcheck.mjs
+!data/

@@ -33,6 +33,25 @@ export const envSchema = z.object({
   SMTP_HOST: z.string().default(''),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(25),
   SMTP_FROM: z.string().min(3).default('no-reply@example.org'),
+  /** SURFeduhub gateway for `access_mode = surfeduhub` (spec §6.2.2); allowlisted host. */
+  SURFEDUHUB_GATEWAY_URL: url(['https:'])
+    .transform((v) => v.replace(/\/+$/, ''))
+    .default('https://gateway.surfeduhub.nl'),
+  /** `db:<uuid>` of the alliance-level SURFeduhub Basic credential (`username:password`). */
+  SURFEDUHUB_SECRET_REF: z
+    .string()
+    .regex(/^(db:[0-9a-f-]{36}|openbao:[A-Za-z0-9/_-]+)$/)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+  /**
+   * Development only: lets partner endpoints use plain http, any port and private,
+   * loopback, CGNAT or ULA addresses (e.g. the OEAPI mock on the Compose network).
+   * Link-local, multicast and unspecified addresses stay refused. Never in production.
+   */
+  OECP_ALLOW_INSECURE_PARTNER_HTTP: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

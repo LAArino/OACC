@@ -42,3 +42,11 @@ path = "DCO"
 precedence = "override"
 SPDX-FileCopyrightText = "2004, 2006 The Linux Foundation and its contributors"
 SPDX-License-Identifier = "LicenseRef-DCO"
+
+# OEAPI v5.0 specification vendored for the OEAPI mock (tools/oeapi-mock),
+# from open-education-api/specification tag v5.0; see spec/NOTICE there.
+[[annotations]]
+path = ["tools/oeapi-mock/spec/oeapi-v5.0.bundled.json", "tools/oeapi-mock/spec/LICENSE.md"]
+precedence = "override"
+SPDX-FileCopyrightText = "2017 SURF U.A. Cooperative, Utrecht, The Netherlands"
+SPDX-License-Identifier = "BSD-3-Clause"

@@ -1,0 +1,26 @@
+SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+SPDX-License-Identifier: EUPL-1.2
+
+Open Education API (OEAPI) specification, version 5.0 -- third-party file
+
+File:        oeapi-v5.0.bundled.json
+Source:      https://github.com/open-education-api/specification
+Ref:         tag v5.0, commit 3d470c09f46b9f05f6bbf57a568297fdc9a280f1 (2026-01-23)
+Input:       v5/spec.yaml and the v5/**/*.yaml files it references
+Copyright:   (c) 2017, SURF U.A. Cooperative, Utrecht, The Netherlands
+Licence:     BSD-3-Clause (SPDX), full text with the upstream copyright notice in
+             LICENSE.md in this directory (copied verbatim from the same ref).
+             The upstream `main` branch has since been relicensed under
+             EUPL-1.2; the copy here is taken from the v5.0 tag and stays
+             under the BSD-3-Clause terms that tag carries. Both licences
+             permit redistribution inside this EUPL-1.2 project.
+Changes:     Bundled into a single JSON document with Redocly CLI 2.63.0
+             (`redocly bundle v5/spec.yaml -o bundled.json`): external $refs
+             inlined into components; no schema content edited. Images,
+             drawio sources and the rendered docs.html were not copied.
+REUSE:       declared in the repository's REUSE.toml; licence text in
+             LICENSES/BSD-3-Clause.txt.
+Reproduce:   sh tools/oeapi-mock/scripts/fetch-spec.sh [--check]
+
+Used only at development time, by scripts/validate.mjs, to check that the
+mock's responses conform to OEAPI v5.0. The mock server does not read it.

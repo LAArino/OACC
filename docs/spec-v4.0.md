@@ -314,7 +314,7 @@ CREATE TABLE partner_integrations (
   access_mode              text CHECK (access_mode IN ('direct', 'surfeduhub')),
   oeapi_version            text NOT NULL DEFAULT '5' CHECK (oeapi_version IN ('5', '6')),
   consumer_profile         text NOT NULL DEFAULT 'eduxchange',
-  base_url                 text CHECK (base_url ~ '^https://[^/?#@]+(/[^?#]*)?$'),
+  base_url                 text CHECK (base_url ~ '^https?://[^/?#@]+(/[^?#]*)?$'), -- migration 0003: http allowed in the DB; https enforced by the API unless OECP_ALLOW_INSECURE_PARTNER_HTTP=true (dev only)
   auth_scheme              text NOT NULL DEFAULT 'none' CHECK (auth_scheme IN
                              ('none', 'basic', 'bearer', 'api_key_header')),
   api_key_header_name      text CHECK (api_key_header_name ~ '^[A-Za-z0-9-]{1,64}$'),

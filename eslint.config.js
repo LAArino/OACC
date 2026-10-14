@@ -40,6 +40,12 @@ export default defineConfig(
     languageOptions: { globals: { ...globals.node } },
   },
   {
+    // Developer tools written as CommonJS scripts (Playwright E2E helpers).
+    files: ['tools/e2e-identity/**/*.js'],
+    languageOptions: { sourceType: 'commonjs', globals: { ...globals.node } },
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
+  {
     rules: {
       '@typescript-eslint/no-unused-vars': [
         'error',

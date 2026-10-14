@@ -7,3 +7,5 @@ export * from './problem.js';
 export * from './public-api.js';
 export * from './error-codes.js';
 export * from './admin.js';
+export * from './oeapi-v5.js';
+export * from './integrations.js';
