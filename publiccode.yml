@@ -7,7 +7,11 @@
 publiccodeYmlVersion: "0.4"
 
 name: Open European Campus Portal
-url: "https://github.com/<org>/oecp"
+url: "https://github.com/LAArino/AURORA-OECP"
+
+# Updated at every release (docs/RELEASING.md).
+softwareVersion: "0.1.0"
+releaseDate: "2026-10-14"
 
 platforms:
   - web
@@ -16,6 +20,8 @@ categories:
   - content-management
   - data-collection
 
+# Stays `development` until a deployment is in production use with partner
+# data (go-live prerequisites in docs/backlog.md); `beta` is reserved for that.
 developmentStatus: development
 
 softwareType: "standalone/web"

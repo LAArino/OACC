@@ -18,6 +18,15 @@ consequences. OECP writes ADRs in the [MADR](https://adr.github.io/madr/)
 | [0004](0004-keycloak-only-identity-one-saml-idp-per-partner.md) | Keycloak-only identity, one SAML IdP per partner | Accepted | 2026-10-14 |
 | [0005](0005-pull-only-oeapi-harvesting-canonical-model.md) | Pull-only OEAPI harvesting into a canonical model | Accepted | 2026-10-14 |
 | [0006](0006-tooling-pnpm-node-pg-migrate-kysely.md) | Tooling: pnpm, Node 22, node-pg-migrate, Kysely | Accepted | 2026-10-14 |
+| [0007](0007-full-text-search-in-postgresql.md) | Full-text search in PostgreSQL | Accepted | 2026-10-14 |
+| [0008](0008-partner-credentials-encrypted-in-postgresql.md) | Partner credentials encrypted in PostgreSQL behind `secret_ref` | Accepted | 2026-10-14 |
+| [0009](0009-direct-partner-oeapi-access-with-host-approval.md) | Direct access to partner OEAPI endpoints with host approval | Accepted | 2026-10-14 |
+| [0010](0010-overrides-on-harvested-records.md) | Per-field overrides on harvested records, one authoritative channel per organization | Accepted | 2026-10-14 |
+| [0011](0011-csv-uploads-all-or-nothing-shared-validator.md) | All-or-nothing CSV uploads with a shared validator and versioned templates | Accepted | 2026-10-14 |
+| [0012](0012-alliance-course-attributes-as-validated-jsonb.md) | Alliance course attributes as validated JSONB with per-deployment definitions | Accepted | 2026-10-14 |
+| [0013](0013-admin-tokens-in-memory-only.md) | Admin session tokens kept in memory only | Accepted | 2026-10-14 |
+| [0014](0014-strict-consumer-semantics-on-oeapi-read-api.md) | Strict `consumer` semantics on the OEAPI read API | Accepted | 2026-10-14 |
+| [0015](0015-withdrawal-by-absence-with-mass-absence-guard.md) | Withdrawal by absence after N complete harvests, with a mass-absence guard | Accepted | 2026-10-14 |
 
 ## When to write an ADR
 

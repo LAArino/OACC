@@ -3,7 +3,7 @@
 
 # Open European Campus Portal (OECP)
 
-Status: pre-alpha, specification v4.0
+Status: 0.1.0, pre-production (no real partner data yet); specification v4.1 (as built)
 
 OECP is an open-source web application that publishes the course offer of a
 European University alliance as one public catalogue and one read API. Partner
@@ -53,8 +53,13 @@ See [docs/README.md](docs/README.md) for an index of the documentation.
 
 ## Quick start
 
-Not yet available. The reference deployment with Docker Compose will be
-documented in [deploy/compose/README.md](deploy/compose/README.md).
+The reference deployment is Docker Compose; the verified first-run path
+(services, secrets, migrations, first alliance administrator, optional
+`dev` profile with a mail sink and a simulated OEAPI partner) is in
+[deploy/compose/README.md](deploy/compose/README.md). Developer tooling:
+[tools/oeapi-mock](tools/oeapi-mock/README.md) (simulated partner) and
+[tools/e2e-identity](tools/e2e-identity/README.md) (browser check of the
+administrator onboarding).
 
 ## Contributing
 

@@ -10,7 +10,7 @@ the `main` branch only.
 
 | Version | Supported |
 |---|---|
-| (none released) | — |
+| 0.1.x | Yes, latest patch only (pre-production) |
 
 This table will list the supported release lines once the first version is
 published.

@@ -49,6 +49,9 @@ jobs:
           --health-retries 20
     env:
       DATABASE_URL: postgres://oecp:oecp-ci@localhost:5432/oecp
+      # Enables the API integration suites (each creates its own database; the
+      # service user is a superuser in the official image).
+      DATABASE_URL_TEST: postgres://oecp:oecp-ci@localhost:5432/postgres
       VALKEY_URL: redis://localhost:6379/0
       # Tests must not reach a real Keycloak; these only satisfy configuration validation.
       KEYCLOAK_ISSUER: https://auth.ci.invalid/realms/oecp

@@ -127,6 +127,14 @@ deployment. Changes follow a stricter path:
    published; the change and the migration path for partners are described
    in the changelog.
 
+## Releases
+
+OECP uses Semantic Versioning with `0.x` rules until 1.0 and one version for
+the whole monorepo. Versioning, the contract and migration policies, the
+release procedure and the release checklist are in
+[docs/RELEASING.md](docs/RELEASING.md). Contributors only add `Unreleased`
+entries to the changelog; maintainers cut releases.
+
 ## Reporting bugs and requesting features
 
 Open an issue with steps to reproduce, expected and actual behaviour, and the

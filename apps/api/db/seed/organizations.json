@@ -1,7 +1,7 @@
 {
   "$comment": [
-    "SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño",
-    "SPDX-License-Identifier: EUPL-1.2",
+    "Copyright 2026 Lluís Alfons Ariño",
+    "Licence: EUPL-1.2",
     "Aurora alliance organizations for `oecp seed-organizations` (upsert by slug).",
     "erasmus_code and pic are left null on purpose: the alliance MUST verify them (and every",
     "schac_home_organization, keycloak_idp_alias and website_url) against the partners' official",
