@@ -10,16 +10,20 @@ import {
   KyselyOrganizationDirectory,
   ORGANIZATION_DIRECTORY,
 } from './auth/organization-directory.js';
+import { CsvIngestionModule } from '../ingestion/csv/csv-ingestion.module.js';
 import { IngestionModule } from '../ingestion/ingestion.module.js';
 import { IntegrationsController } from './integrations/integrations.controller.js';
 import { IntegrationsService } from './integrations/integrations.service.js';
 import { OrganizationAccess } from './integrations/organization-access.js';
 import { InvitationsController } from './invitations/invitations.controller.js';
 import { InvitationsModule } from './invitations/invitations.module.js';
+import { CsvUploadInterceptor } from './uploads/csv-upload.interceptor.js';
+import { UploadsController } from './uploads/uploads.controller.js';
+import { UploadsService } from './uploads/uploads.service.js';
 
 @Module({
-  imports: [InvitationsModule, IngestionModule],
-  controllers: [AdminController, InvitationsController, IntegrationsController],
+  imports: [InvitationsModule, IngestionModule, CsvIngestionModule],
+  controllers: [AdminController, InvitationsController, IntegrationsController, UploadsController],
   providers: [
     {
       provide: AdminTokenVerifier,
@@ -34,6 +38,8 @@ import { InvitationsModule } from './invitations/invitations.module.js';
     AdminJwtGuard,
     OrganizationAccess,
     IntegrationsService,
+    UploadsService,
+    CsvUploadInterceptor,
   ],
 })
 export class AdminModule {}

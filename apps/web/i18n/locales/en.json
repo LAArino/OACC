@@ -2,27 +2,175 @@
   "a11y": {
     "skipToContent": "Skip to main content"
   },
+  "site": {
+    "name": "Open European Campus",
+    "footer": "Course catalogue of {alliance}. This site sets no cookies and uses no analytics."
+  },
   "nav": {
     "main": "Main",
     "home": "Home",
     "courses": "Courses"
   },
+  "breadcrumb": {
+    "label": "Breadcrumb"
+  },
+  "search": {
+    "label": "Search courses",
+    "submit": "Search",
+    "suggestionsLabel": "Suggested courses",
+    "suggestions": "No suggestions | 1 suggestion available, use the up and down arrow keys to review it | {n} suggestions available, use the up and down arrow keys to review them",
+    "untitled": "Untitled course"
+  },
   "home": {
     "title": "Find a course",
-    "searchLabel": "Search courses",
-    "searchButton": "Search"
+    "allianceFallback": "the alliance",
+    "intro": "Browse courses offered by the universities of {alliance} and find out how to apply.",
+    "metaDescription": "Search the course catalogue of {alliance}: courses, dates, credits and how to apply.",
+    "courseCount": "No courses with upcoming offerings yet | Browse 1 course with upcoming offerings | Browse {n} courses with upcoming offerings",
+    "byField": "Browse by field of study",
+    "byPartner": "Browse by university",
+    "linkCount": "no courses | 1 course | {n} courses"
   },
   "courses": {
     "title": "Courses",
+    "titleFor": "Courses matching “{q}”",
+    "titlePage": "{title}, page {page}",
+    "metaDescription": "Search and filter the alliance course catalogue by university, delivery mode, language, field of study, level and credits.",
+    "resultCount": "No courses found | 1 course found | {n} courses found",
+    "showing": "Showing {from}–{to} of {total}",
     "empty": "No courses match your search.",
-    "error": "The catalogue is not available right now."
+    "emptyClearFilters": "Remove all filters",
+    "emptyIncludePast": "Include courses with past offerings",
+    "emptySpelling": "Check the spelling or try more general words.",
+    "errorRefresh": "The results could not be updated: the catalogue is temporarily unavailable. Try again in a moment.",
+    "noUpcoming": "No upcoming offering scheduled.",
+    "moreOfferings": "no other offerings | 1 more offering | {n} more offerings"
+  },
+  "sort": {
+    "label": "Sort by",
+    "relevance": "Best match",
+    "title": "Title (A–Z)",
+    "start_date": "Next start date",
+    "apply": "Sort"
+  },
+  "filters": {
+    "heading": "Filters",
+    "activeCount": "none active | 1 active | {n} active",
+    "show": "Show filters",
+    "hide": "Hide filters",
+    "partner": "University",
+    "mode": "Delivery mode",
+    "lang": "Teaching language",
+    "isced": "Field of study",
+    "level": "Level",
+    "ects": "ECTS credits",
+    "ectsMin": "Minimum",
+    "ectsMax": "Maximum",
+    "includePast": "Include past offerings",
+    "includePastHint": "Also show courses whose offerings have ended or that have no scheduled offering.",
+    "apply": "Apply filters",
+    "courseCount": "no courses | 1 course | {n} courses"
+  },
+  "chips": {
+    "heading": "Active filters",
+    "query": "Search: {q}",
+    "ectsMin": "At least {n} ECTS",
+    "ectsMax": "At most {n} ECTS",
+    "remove": "Remove filter {filter}",
+    "clearAll": "Clear all"
+  },
+  "pagination": {
+    "label": "Result pages",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {n}"
+  },
+  "level": {
+    "short_cycle": "Short cycle",
+    "bachelor": "Bachelor",
+    "master": "Master",
+    "doctoral": "Doctoral",
+    "other": "Other"
+  },
+  "facts": {
+    "ects": "ECTS credits",
+    "level": "Level",
+    "eqf": "EQF level {n}",
+    "teachingHours": "Teaching hours",
+    "fields": "Field of study",
+    "languages": "Teaching languages",
+    "modes": "Delivery mode",
+    "nextOffering": "Next offering",
+    "applicationDeadline": "Application deadline",
+    "courseCode": "Course code",
+    "contact": "Contact",
+    "teachingUnit": "Teaching unit",
+    "updated": "Last updated"
+  },
+  "dates": {
+    "range": "{start} – {end}"
   },
   "course": {
-    "notFound": "Course not found.",
-    "ects": "{n} ECTS"
+    "backToResults": "Back to results",
+    "factsHeading": "Key facts",
+    "moreInfo": "More information",
+    "aboutHeading": "About this course",
+    "textLanguage": "Language of the course description",
+    "sections": {
+      "abstract": "Summary",
+      "description": "Description",
+      "learning_outcomes": "Learning outcomes",
+      "prerequisites": "Prerequisites",
+      "assessment": "Assessment",
+      "keywords": "Keywords"
+    },
+    "offeringsHeading": "Offerings | Offering | Offerings ({n})",
+    "noOfferings": "No offering is scheduled for this course at the moment.",
+    "datesNote": "Dates and deadlines are in the time zone shown for each offering.",
+    "metaFallback": "Course offered by {partner}.",
+    "machineTranslated": "This text was machine-translated."
+  },
+  "offering": {
+    "dates": "Dates",
+    "enrolment": "Application period",
+    "enrolFrom": "From {date}",
+    "deadline": "Application deadline",
+    "deadlinePassed": "deadline passed",
+    "deadlinePassedBadge": "Application deadline passed",
+    "timezone": "Time zone",
+    "campus": "Campus",
+    "applyAt": "Apply at {partner}",
+    "contactToApply": "To apply, contact {partner}:",
+    "contactPartner": "To apply, contact {partner}.",
+    "cancelled": "Cancelled"
+  },
+  "seats": {
+    "available": "Seats available: {n} (as of {date})",
+    "alliance": "Alliance seats: {n}",
+    "separator": " · "
   },
   "common": {
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "retry": "Try again",
+    "newTab": "(opens in a new tab)"
+  },
+  "errors": {
+    "notFound": {
+      "title": "Page not found",
+      "body": "The page or course you are looking for does not exist or is no longer published."
+    },
+    "unavailable": {
+      "title": "Catalogue temporarily unavailable",
+      "body": "The course catalogue cannot be reached right now. Please try again in a few minutes."
+    },
+    "generic": {
+      "title": "Something went wrong",
+      "body": "The page could not be displayed. Please try again later."
+    },
+    "unavailableShort": "The course catalogue is temporarily unavailable. Please try again in a few minutes.",
+    "toCatalogue": "Go to the course catalogue",
+    "toHome": "Go to the home page",
+    "code": "Error {status}"
   },
   "admin": {
     "title": "Administration",

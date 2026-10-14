@@ -12,6 +12,7 @@ import { sql, type Transaction } from 'kysely';
 import type { Database, HistoryEntityType } from '../db/database.js';
 import { type Db, KYSELY } from '../db/db.module.js';
 import { jcsSha256 } from './jcs.js';
+import { teachingUnits } from './teaching-units.js';
 import type {
   AbsenceResult,
   SeenSet,
@@ -114,7 +115,29 @@ function eqBytes(a: Buffer | null | undefined, b: Buffer): boolean {
  */
 @Injectable()
 export class CanonicalWriter {
+  /** Set on the writer handed out by {@link transaction}: every write joins that transaction. */
+  private bound: Trx | null = null;
+
   constructor(@Inject(KYSELY) private readonly db: Db) {}
+
+  /**
+   * Runs `fn` with a writer whose writes all share one transaction (all-or-nothing,
+   * e.g. a CSV upload, spec §6.3): any error rolls every write back. Nested calls
+   * reuse the outer transaction.
+   */
+  async transaction<T>(fn: (writer: CanonicalWriter, trx: Trx) => Promise<T>): Promise<T> {
+    if (this.bound) return fn(this, this.bound);
+    return this.db.transaction().execute(async (trx) => {
+      const writer = new CanonicalWriter(trx);
+      writer.bound = trx;
+      return fn(writer, trx);
+    });
+  }
+
+  /** One transaction per entity, or the bound one. */
+  private run<T>(fn: (trx: Trx) => Promise<T>): Promise<T> {
+    return this.bound ? fn(this.bound) : this.db.transaction().execute(fn);
+  }
 
   async upsertAcademicSession(
     ctx: WriteContext,
@@ -122,7 +145,7 @@ export class CanonicalWriter {
     raw: unknown,
   ): Promise<UpsertResult> {
     const contentHash = jcsSha256(session);
-    return this.db.transaction().execute(async (trx) => {
+    return this.run(async (trx) => {
       const parentId = session.parent_ext_id
         ? ((
             await trx
@@ -190,7 +213,7 @@ export class CanonicalWriter {
     warnings: readonly ProblemError[] = [],
   ): Promise<UpsertResult> {
     const contentHash = jcsSha256(course);
-    return this.db.transaction().execute(async (trx) => {
+    return this.run(async (trx) => {
       const existing = await trx
         .selectFrom('courses')
         .select(['id', 'status', 'content_hash', 'overrides', 'absent_count'])
@@ -233,9 +256,21 @@ export class CanonicalWriter {
         }
         outcome = statusChanged ? 'updated' : 'unchanged';
       } else {
+        // Channel A never sets teaching units (sub-units come from CSV or the form).
+        const teachingUnit =
+          ctx.channel === 'oeapi'
+            ? {}
+            : {
+                teaching_unit_id: course.teaching_unit_ext_id
+                  ? ((await teachingUnits(trx, ctx.organizationId)).get(
+                      course.teaching_unit_ext_id,
+                    ) ?? null)
+                  : null,
+              };
         const columns = {
           source_ref: course.source_ref ?? null,
           source_channel: ctx.channel,
+          ...teachingUnit,
           status: effective.status,
           ects: effective.ects,
           level: effective.level,
@@ -284,7 +319,7 @@ export class CanonicalWriter {
     const { seats_updated_at: _fetchTime, ...hashed } = offering;
     const contentHash = jcsSha256(hashed);
     const historyId = offeringHistoryId(offering.course_ext_id, offering.ext_offering_id);
-    return this.db.transaction().execute(async (trx) => {
+    return this.run(async (trx) => {
       const issues = [...warnings];
       const course = await trx
         .selectFrom('courses')
@@ -452,7 +487,7 @@ export class CanonicalWriter {
     errors: readonly ProblemError[],
     warnings: readonly ProblemError[] = [],
   ): Promise<void> {
-    await this.db.transaction().execute(async (trx) => {
+    await this.run(async (trx) => {
       let entityId: string | null = null;
       if (ref.entityType === 'course' && ref.course) {
         entityId =
@@ -492,7 +527,7 @@ export class CanonicalWriter {
 
   /** History row of the root organization (matched, never written; spec §6.2.4). */
   async recordOrganization(ctx: WriteContext, extId: string, raw: unknown): Promise<void> {
-    await this.db.transaction().execute(async (trx) => {
+    await this.run(async (trx) => {
       await this.history(trx, ctx, 'organization', ctx.organizationId, extId, raw, 'accepted');
     });
   }
@@ -524,7 +559,7 @@ export class CanonicalWriter {
     const seenOfferingCourses = seenOfferings.map(([c]) => c ?? '');
     const seenOfferingCodes = seenOfferings.map(([, o]) => o ?? '');
 
-    return this.db.transaction().execute(async (trx) => {
+    return this.run(async (trx) => {
       const counts = await trx
         .selectFrom('courses')
         .select([

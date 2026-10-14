@@ -248,9 +248,8 @@ is checked.
 | `NUXT_PUBLIC_API_BASE` | web | `https://${OECP_PORTAL_HOST}` (origin only: the app appends `/api/public/v1/...`) |
 | `NUXT_PUBLIC_I18N_BASE_URL` | web | `https://${OECP_PORTAL_HOST}` (absolute hreflang links) |
 
-The compose file also passes a few **proposed** variables that the
-application does not read yet (`OECP_UPLOADS_DIR`, `NUXT_API_INTERNAL_BASE`,
-`NUXT_PUBLIC_OIDC_*`, `OTEL_*`); they are marked as such in `compose.yaml`.
+`OTEL_*` variables are passed for the observability profile; the application
+reads every other variable listed above.
 
 ## Production checklist
 

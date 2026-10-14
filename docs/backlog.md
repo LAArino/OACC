@@ -7,7 +7,9 @@
 |---|---|---|---|
 | Onboarding guides in `docs/onboarding/` | 2026-10-14 | After the first version is validated and tagged | Four guides: alliance; partner with an operational OEAPI endpoint (eduXchange); partner without eduXchange but with integration capacity (OEAPI v5 endpoint or automated CSV); partner without integration capacity (web form + CSV batch). See decisions log row 17. |
 | Harvest a real partner OEAPI endpoint (needs a bilateral credential; UIBK, UICE, VUA or UDE) | 2026-10-14 | When a partner grants access | Channel A verified against `tools/oeapi-mock` on 2026-10-14: create, change, withdraw-by-absence and republish. |
-| Channel B (CSV) and public catalogue API/UI | 2026-10-14 | Next | Catalogue tables now hold harvested data; `/api/public/v1` and `/oeapi/v5` read endpoints are still 501. |
+| Admin CSV console (drag-and-drop, browser validation with the shared validator, template download, run report) | 2026-10-14 | Next | API side of Channel B and the public catalogue are done (2026-10-14). |
+| Public portal: deadline sort, application instructions text, hub/SDG tags, per-field update dates, partner logos | 2026-10-14 | After alliance attributes decision | Parity gaps vs the Aurora Virtual Campus draft, reported by the UI build. |
+| Decide: should eduXchange be able to harvest `/oeapi/v5` with `consumer=eduxchange`? Today only `oecp` or no consumer returns data | 2026-10-14 | Owner decision | One condition in the OEAPI read service. |
 | Decide: offering with no usable teaching language (`mul`/`und`) is rejected today; alternatives are deriving from text languages or keeping `mul` | 2026-10-14 | Owner decision | Harvester default, spec §6.2.4. |
 | Playwright E2E in CI with a test SAML IdP (brokered login, `idp` claim, schacHomeOrganization check) | 2026-10-14 | Before partner onboarding | `tools/e2e-identity` covers only the local-account path. |
 | Worker health endpoint and Compose healthcheck | 2026-10-14 | v1 | Deploy review, 2026-10-14. |

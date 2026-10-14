@@ -81,7 +81,7 @@
       ],
       "additionalProperties": false,
       "patternProperties": {
-        "^(title|abstract|description|learning_outcomes|prerequisites|assessment|keywords)_[a-z]{2,3}$": {
+        "^(title|abstract|description|learning_outcomes|prerequisites|assessment|keywords)_([a-z]{2,3})$": {
           "type": "string",
           "maxLength": 20000
         }

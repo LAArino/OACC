@@ -4,47 +4,136 @@
  * by an RFC 4180 reader: every value is a string, an empty optional cell clears
  * the field, and a column absent from the header leaves the field untouched.
  * Issue messages are stable error codes from `errors.json`.
+ *
+ * Row-local DDL constraints (calendar dates, date order, seats, ISCED duplicates,
+ * IANA time zones, BCP 47 tags) are refinements: they run in the browser and on
+ * the server through {@link validateCsvRows} but cannot be expressed in the
+ * generated JSON Schema. Header, cross-row and reference checks live in
+ * `csv-validate.ts`.
  */
 import { z } from 'zod';
+import { syncRunStatus } from './enums.js';
 import type { ErrorCode } from './error-codes.js';
 import {
   CODE_PATTERN,
   EMAIL_PATTERN,
   HTTPS_URL_PATTERN,
+  ianaTimeZone,
   LANGUAGE_TAG_PATTERN,
+  languageTag,
+  uuid,
 } from './primitives.js';
 
 export const CSV_TEMPLATE_VERSION = '1.0';
+/** `sync_runs.schema_version` and `ext_metadata_history.schema_version` of Channel B. */
+export const CSV_SCHEMA_VERSION = 'csv-1.0';
 export const CSV_MAX_CELL_LENGTH = 20_000;
 export const CSV_MULTI_VALUE_SEPARATOR = '|';
+/** Spec §6.3 limits: 5 MB (MiB) and 5,000 rows per file, 300 columns, 10 uploads per hour. */
+export const CSV_MAX_FILE_BYTES = 5 * 1024 * 1024;
+export const CSV_MAX_ROWS = 5_000;
+export const CSV_MAX_COLUMNS = 300;
+export const CSV_UPLOADS_PER_HOUR = 10;
+
+export const csvFileKind = z.enum(['courses', 'offerings']);
+export type CsvFileKind = z.infer<typeof csvFileKind>;
 
 const LANG = '[a-z]{2,3}';
 const TAG = LANGUAGE_TAG_PATTERN.source.slice(1, -1);
 const DELIVERY_MODE = '(x-)?[a-z][a-z0-9_-]*';
 
+/** Per-language text fields of `courses.csv`, suffixed `_<lang>`. */
+export const CSV_COURSE_TEXT_FIELDS = [
+  'title',
+  'abstract',
+  'description',
+  'learning_outcomes',
+  'prerequisites',
+  'assessment',
+  'keywords',
+] as const;
+export type CsvCourseTextField = (typeof CSV_COURSE_TEXT_FIELDS)[number];
+
 /** Per-language text columns, e.g. `abstract_de`; `title_en` is a fixed required column. */
 export const CSV_COURSE_LANGUAGE_COLUMN = new RegExp(
-  `^(title|abstract|description|learning_outcomes|prerequisites|assessment|keywords)_${LANG}$`,
+  `^(${CSV_COURSE_TEXT_FIELDS.join('|')})_(${LANG})$`,
 );
 
-function cell(pattern: RegExp | null, code: ErrorCode) {
-  const base = z
-    .string({
-      error: (iss) => (iss.input === undefined ? 'oecp.csv.missing_column' : code),
-    })
-    .max(CSV_MAX_CELL_LENGTH, { error: 'oecp.csv.cell_too_long' });
-  return pattern ? base.regex(pattern, { error: code }) : base;
-}
-
-function required(pattern: RegExp | null, code: ErrorCode) {
-  return cell(pattern, code).min(1, { error: 'oecp.csv.missing_value' });
-}
-
-function blankOr(pattern: RegExp, code: ErrorCode) {
-  return cell(new RegExp(`^(?:|${pattern.source.slice(1, -1)})$`), code).optional();
-}
+export const CSV_COURSE_REQUIRED_COLUMNS = [
+  'template_version',
+  'course_code',
+  'status',
+  'ects',
+  'isced_codes',
+  'title_en',
+] as const;
+export const CSV_COURSE_OPTIONAL_COLUMNS = [
+  'level',
+  'eqf_level',
+  'teaching_hours',
+  'teaching_unit_code',
+  'info_url',
+  'contact_email',
+] as const;
+export const CSV_OFFERING_REQUIRED_COLUMNS = [
+  'template_version',
+  'course_code',
+  'offering_code',
+  'status',
+  'start_date',
+  'end_date',
+  'teaching_languages',
+  'delivery_modes',
+] as const;
+export const CSV_OFFERING_OPTIONAL_COLUMNS = [
+  'academic_session_code',
+  'enrol_start_date',
+  'application_deadline',
+  'timezone',
+  'campus',
+  'max_students',
+  'alliance_seats',
+  'seats_available',
+  'application_url',
+] as const;
 
 const ISO_DATE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+/** `YYYY-MM-DD` that exists in the Gregorian calendar (rejects 2027-02-30). */
+export function isCalendarDate(value: string): boolean {
+  if (!ISO_DATE.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number) as [number, number, number];
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
+/**
+ * A string cell. Checks abort on the first failure so that a cell yields one
+ * issue: missing column, then empty (required cells), length, pattern, refinement.
+ */
+function cell(pattern: RegExp | null, code: ErrorCode, nonEmpty = false) {
+  let base = z.string({
+    error: (iss) => (iss.input === undefined ? 'oecp.csv.missing_column' : code),
+  });
+  if (nonEmpty) base = base.min(1, { error: 'oecp.csv.missing_value', abort: true });
+  base = base.max(CSV_MAX_CELL_LENGTH, { error: 'oecp.csv.cell_too_long', abort: true });
+  return pattern ? base.regex(pattern, { error: code, abort: true }) : base;
+}
+
+function required(pattern: RegExp | null, code: ErrorCode, check?: (v: string) => boolean) {
+  const base = cell(pattern, code, true);
+  return check ? base.refine(check, { error: code }) : base;
+}
+
+function blankOr(pattern: RegExp, code: ErrorCode, check?: (v: string) => boolean) {
+  const base = cell(new RegExp(`^(?:|${pattern.source.slice(1, -1)})$`), code);
+  return (check ? base.refine((v) => v === '' || check(v), { error: code }) : base).optional();
+}
+
+const isTimeZone = (v: string) => ianaTimeZone.safeParse(v).success;
+const areLanguageTags = (v: string) =>
+  splitMultiValue(v).every((tag) => languageTag.safeParse(tag).success);
+
 const status = cell(/^(draft|published|withdrawn|cancelled)$/, 'oecp.csv.invalid_status');
 const templateVersion = cell(/^1\.0$/, 'oecp.csv.invalid_template_version');
 const code = required(CODE_PATTERN, 'oecp.csv.invalid_code');
@@ -58,10 +147,10 @@ const courseColumns = {
   title_en: required(/^[\s\S]{1,500}$/, 'oecp.content.english_missing'),
   level: blankOr(/^(short_cycle|bachelor|master|doctoral|other)$/, 'oecp.csv.invalid_level'),
   eqf_level: blankOr(/^[1-8]$/, 'oecp.csv.invalid_level'),
-  teaching_hours: blankOr(/^\d{1,5}(\.\d)?$/, 'oecp.csv.invalid_number'),
+  teaching_hours: blankOr(/^\d{1,5}(\.\d)?$/, 'oecp.csv.invalid_number', (v) => Number(v) > 0),
   teaching_unit_code: blankOr(CODE_PATTERN, 'oecp.csv.invalid_code'),
-  info_url: blankOr(HTTPS_URL_PATTERN, 'oecp.csv.invalid_url'),
-  contact_email: blankOr(EMAIL_PATTERN, 'oecp.csv.invalid_email'),
+  info_url: blankOr(HTTPS_URL_PATTERN, 'oecp.csv.invalid_url', (v) => v.length <= 2048),
+  contact_email: blankOr(EMAIL_PATTERN, 'oecp.csv.invalid_email', (v) => v.length <= 320),
 };
 
 /** One row of `courses.csv`. Extra keys must match {@link CSV_COURSE_LANGUAGE_COLUMN}. */
@@ -72,11 +161,21 @@ export const csvCourseRow = z
     for (const key of Object.keys(row)) {
       if (!(key in courseColumns) && !CSV_COURSE_LANGUAGE_COLUMN.test(key)) {
         ctx.addIssue({ code: 'custom', path: [key], message: 'oecp.csv.unknown_column' });
+      } else if (key.startsWith('title_') && String(row[key]).length > 500) {
+        ctx.addIssue({ code: 'custom', path: [key], message: 'oecp.content.invalid_value' });
       }
     }
     const ects = Number(row.ects);
     if (!(ects > 0 && ects <= 120)) {
       ctx.addIssue({ code: 'custom', path: ['ects'], message: 'oecp.csv.invalid_number' });
+    }
+    const isced = splitMultiValue(row.isced_codes);
+    if (new Set(isced).size !== isced.length) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['isced_codes'],
+        message: 'oecp.content.duplicate_isced',
+      });
     }
   })
   .meta({
@@ -87,7 +186,8 @@ export const csvCourseRow = z
   });
 export type CsvCourseRow = z.infer<typeof csvCourseRow>;
 
-const date = required(ISO_DATE, 'oecp.csv.invalid_date');
+const date = required(ISO_DATE, 'oecp.csv.invalid_date', isCalendarDate);
+const optionalDate = blankOr(ISO_DATE, 'oecp.csv.invalid_date', isCalendarDate);
 
 /** One row of `offerings.csv`. */
 export const csvOfferingRow = z
@@ -99,40 +199,51 @@ export const csvOfferingRow = z
       status,
       start_date: date,
       end_date: date,
-      teaching_languages: required(new RegExp(`^${TAG}(\\|${TAG})*$`), 'oecp.csv.invalid_language'),
+      teaching_languages: required(
+        new RegExp(`^${TAG}(\\|${TAG})*$`),
+        'oecp.csv.invalid_language',
+        areLanguageTags,
+      ),
       delivery_modes: required(
         new RegExp(`^${DELIVERY_MODE}(\\|${DELIVERY_MODE})*$`),
         'oecp.csv.invalid_delivery_mode',
       ),
       academic_session_code: blankOr(CODE_PATTERN, 'oecp.csv.invalid_code'),
-      enrol_start_date: blankOr(ISO_DATE, 'oecp.csv.invalid_date'),
-      application_deadline: blankOr(ISO_DATE, 'oecp.csv.invalid_date'),
+      enrol_start_date: optionalDate,
+      application_deadline: optionalDate,
       timezone: blankOr(
         /^[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+)*$/,
         'oecp.csv.invalid_timezone',
+        isTimeZone,
       ),
       campus: blankOr(/^[\s\S]{1,200}$/, 'oecp.content.invalid_value'),
       max_students: blankOr(/^[1-9]\d{0,8}$/, 'oecp.csv.invalid_number'),
       alliance_seats: blankOr(/^\d{1,9}$/, 'oecp.csv.invalid_number'),
       seats_available: blankOr(/^\d{1,9}$/, 'oecp.csv.invalid_number'),
-      application_url: blankOr(HTTPS_URL_PATTERN, 'oecp.csv.invalid_url'),
+      application_url: blankOr(HTTPS_URL_PATTERN, 'oecp.csv.invalid_url', (v) => v.length <= 2048),
     },
     { error: 'oecp.csv.unknown_column' },
   )
   .superRefine((row, ctx) => {
-    if (row.end_date < row.start_date) {
-      ctx.addIssue({ code: 'custom', path: ['end_date'], message: 'oecp.content.date_order' });
+    const issue = (path: string, message: ErrorCode) =>
+      ctx.addIssue({ code: 'custom', path: [path], message });
+    if (row.end_date < row.start_date) issue('end_date', 'oecp.content.date_order');
+    if (row.application_deadline && row.application_deadline > row.end_date) {
+      issue('application_deadline', 'oecp.content.date_order');
     }
     if (
-      row.alliance_seats &&
-      row.max_students &&
-      Number(row.alliance_seats) > Number(row.max_students)
+      row.enrol_start_date &&
+      row.application_deadline &&
+      row.enrol_start_date > row.application_deadline
     ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['alliance_seats'],
-        message: 'oecp.content.seats_exceed_capacity',
-      });
+      issue('enrol_start_date', 'oecp.content.date_order');
+    }
+    const max = row.max_students ? Number(row.max_students) : null;
+    if (row.alliance_seats && max !== null && Number(row.alliance_seats) > max) {
+      issue('alliance_seats', 'oecp.content.seats_exceed_capacity');
+    }
+    if (row.seats_available && max !== null && Number(row.seats_available) > max) {
+      issue('seats_available', 'oecp.content.seats_exceed_capacity');
     }
   });
 export type CsvOfferingRow = z.infer<typeof csvOfferingRow>;
@@ -145,3 +256,15 @@ export function splitMultiValue(value: string | undefined): string[] {
     .map((v) => v.trim())
     .filter(Boolean);
 }
+
+/**
+ * `POST /api/admin/v1/organizations/{orgId}/uploads` → 201 (processed inline) or
+ * 202 (queued). An inline run that fails validation answers 422 problem+json
+ * whose `errors` carry file/row/column, with these members as extensions.
+ */
+export const csvUploadResponse = z.object({
+  sync_run_id: uuid,
+  status: syncRunStatus,
+  processed_inline: z.boolean(),
+});
+export type CsvUploadResponse = z.infer<typeof csvUploadResponse>;

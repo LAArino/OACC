@@ -38,8 +38,9 @@ x-oecp-backend-env: &oecp-backend-env
   KEYCLOAK_ISSUER: https://${OECP_AUTH_HOST:?set OECP_AUTH_HOST in .env}/realms/oecp
   KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/oecp/protocol/openid-connect/certs
   OECP_MASTER_KEY_FILE: /run/secrets/oecp_master_key
-  # --- Proposed contract extensions (ignored until apps/api reads them) -------
+  # Public origin used in links the API generates (invitations, sitemap).
   OECP_PUBLIC_BASE_URL: https://${OECP_PORTAL_HOST:?set OECP_PORTAL_HOST in .env}
+  # CSV uploads (spec §6.3) are kept here for 90 days; backed by the `uploads` volume.
   OECP_UPLOADS_DIR: /data/uploads
   # Confidential client `oecp-backend` (manage-users, view-users), spec §3.
   KEYCLOAK_ADMIN_URL: http://keycloak:8080
@@ -423,6 +424,8 @@ services:
       NUXT_PUBLIC_OIDC_CLIENT_ID: oecp-admin
       # @nuxtjs/i18n: absolute hreflang/canonical links (warns on every SSR request if unset).
       NUXT_PUBLIC_I18N_BASE_URL: https://${OECP_PORTAL_HOST}
+      # Shown on the public portal (home intro, titles).
+      NUXT_PUBLIC_ALLIANCE_NAME: ${OECP_ALLIANCE_NAME:-the alliance}
       OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
       OTEL_SERVICE_NAME: oecp-web
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
@@ -432,7 +435,7 @@ services:
     networks:
       - edge
     healthcheck:
-      # The English home page renders server-side without calling the api.
+      # The English home page returns 200 even when the api is down (it degrades gracefully).
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/en').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))"]
       interval: 15s
       timeout: 5s

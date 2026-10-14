@@ -44,6 +44,11 @@ export const envSchema = z.object({
     .optional()
     .or(z.literal('').transform(() => undefined)),
   /**
+   * Directory of uploaded CSV files (spec §6.3, kept 90 days), shared by `api`
+   * (writes) and `worker` (reads, purges): `<dir>/<orgId>/<uploadId>/<file>.csv`.
+   */
+  OECP_UPLOADS_DIR: z.string().min(1).default('/data/uploads'),
+  /**
    * Development only: lets partner endpoints use plain http, any port and private,
    * loopback, CGNAT or ULA addresses (e.g. the OEAPI mock on the Compose network).
    * Link-local, multicast and unspecified addresses stay refused. Never in production.

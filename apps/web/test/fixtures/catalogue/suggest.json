@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "id": "6f1d2c3b-0000-4000-8000-000000000001",
+      "title": "Climate Change and Mediterranean Ecosystems",
+      "lang": "en",
+      "organization_slug": "urv"
+    },
+    {
+      "id": "6f1d2c3b-0000-4000-8000-000000000004",
+      "title": "Climate Law",
+      "lang": "en",
+      "organization_slug": "univie"
+    },
+    {
+      "id": "6f1d2c3b-0000-4000-8000-000000000005",
+      "title": "Climate Data Science",
+      "lang": "en",
+      "organization_slug": "vu-amsterdam"
+    }
+  ]
+}

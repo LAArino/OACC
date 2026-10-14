@@ -1,0 +1,116 @@
+{
+  "id": "6f1d2c3b-0000-4000-8000-000000000001",
+  "ext_id": "URV-20345",
+  "organization": {
+    "id": "0b9f6c1e-1d7a-4f39-9a51-6c1e0f0a0001",
+    "slug": "urv",
+    "name": {
+      "en": "Universitat Rovira i Virgili"
+    },
+    "country_code": "ES",
+    "logo_url": null,
+    "website_url": "https://www.urv.cat"
+  },
+  "teaching_unit": {
+    "id": "0b9f6c1e-1d7a-4f39-9a51-6c1e0f0a0101",
+    "slug": "urv-fcq",
+    "name": {
+      "en": "Faculty of Chemistry"
+    }
+  },
+  "ects": 6,
+  "level": "master",
+  "eqf_level": 7,
+  "teaching_hours": 48,
+  "info_url": "https://www.urv.cat/en/studies/climate",
+  "contact_email": "international@urv.cat",
+  "texts": {
+    "ca": {
+      "title": "Canvi climàtic i ecosistemes mediterranis",
+      "abstract": "Una introducció interdisciplinària als impactes del clima en els ecosistemes mediterranis.",
+      "description": "Sessions teòriques i treball de camp al Delta de l'Ebre.",
+      "learning_outcomes": null,
+      "prerequisites": null,
+      "assessment": "Avaluació continuada.",
+      "keywords": ["clima", "ecologia"],
+      "is_machine_translated": true
+    },
+    "en": {
+      "title": "Climate Change and Mediterranean Ecosystems",
+      "abstract": "An interdisciplinary introduction to climate impacts on Mediterranean ecosystems, with field data from the Ebro Delta.",
+      "description": "Lectures, seminars and two field days in the Ebro Delta.\n\nStudents work in international teams.",
+      "learning_outcomes": "Explain the main climate drivers of Mediterranean ecosystems.\nAnalyse long-term field data.",
+      "prerequisites": "Basic statistics. <script>alert(1)</script>",
+      "assessment": "Continuous assessment (60%) and a final project (40%).",
+      "keywords": ["climate", "ecology", "Mediterranean"],
+      "is_machine_translated": false
+    }
+  },
+  "isced_codes": [
+    {
+      "code": "0521",
+      "broad_code": "05",
+      "label": {
+        "en": "Natural sciences, mathematics and statistics"
+      },
+      "is_primary": true
+    },
+    {
+      "code": "0511",
+      "broad_code": "05",
+      "label": {
+        "en": "Natural sciences, mathematics and statistics"
+      },
+      "is_primary": false
+    }
+  ],
+  "offerings": [
+    {
+      "id": "a1b2c3d4-0000-4000-8000-000000000011",
+      "ext_offering_id": "URV-20345-2027-S1",
+      "academic_session": {
+        "id": "5e5e5e5e-0000-4000-8000-000000000001",
+        "name": {
+          "en": "Spring semester 2027",
+          "ca": "Semestre de primavera 2027"
+        },
+        "start_date": "2027-02-01",
+        "end_date": "2027-06-30"
+      },
+      "start_date": "2027-02-08",
+      "end_date": "2027-06-11",
+      "enrol_start_date": "2026-09-01",
+      "application_deadline": "2026-10-01",
+      "timezone": "Europe/Madrid",
+      "teaching_languages": ["en", "ca"],
+      "delivery_modes": ["online", "hybrid"],
+      "campus": "Campus Catalunya, Tarragona",
+      "max_students": 30,
+      "alliance_seats": 5,
+      "seats_available": 12,
+      "seats_updated_at": "2026-10-10T06:00:00Z",
+      "application_url": "https://apply.urv.cat/aurora/20345",
+      "status": "published"
+    },
+    {
+      "id": "a1b2c3d4-0000-4000-8000-000000000012",
+      "ext_offering_id": "URV-20345-2027-S2",
+      "academic_session": null,
+      "start_date": "2027-09-13",
+      "end_date": "2028-01-21",
+      "enrol_start_date": null,
+      "application_deadline": null,
+      "timezone": "Europe/Madrid",
+      "teaching_languages": ["en"],
+      "delivery_modes": ["online"],
+      "campus": null,
+      "max_students": null,
+      "alliance_seats": 8,
+      "seats_available": null,
+      "seats_updated_at": null,
+      "application_url": null,
+      "status": "published"
+    }
+  ],
+  "updated_at": "2026-10-12T09:30:00Z"
+}

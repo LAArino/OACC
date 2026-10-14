@@ -1,168 +1,53 @@
 // SPDX-License-Identifier: EUPL-1.2
 // Response contract of the anonymous catalogue API (`/api/public/v1`, spec §7).
-// Field names mirror the API exactly; keep this file in sync with apps/api.
+// The response types come from @oecp/schemas (`public-responses.ts`, the Zod
+// contracts the API is tested against); only UI-side shapes are declared here.
+import type {
+  CourseSearchFacets,
+  CourseSearchResponse as SchemaCourseSearchResponse,
+  PublicAcademicSession,
+  PublicCourseCard,
+  PublicCourseDetail,
+  PublicCourseText,
+  PublicDeliveryMode,
+  PublicIscedCode,
+  PublicIscedField,
+  PublicNextOffering,
+  PublicOffering,
+  PublicOrganizationRef,
+  ReferenceResponse,
+  SuggestResponse as SchemaSuggestResponse,
+} from '@oecp/schemas';
 
-/** Multilingual label `{bcp47: text}` (English always present) or an already resolved string. */
+/**
+ * Label as the UI accepts it: a multilingual object `{bcp47: text}` (what the
+ * API sends, English always present) or, defensively, an already resolved string.
+ */
 export type Label = string | Readonly<Record<string, string>>;
 
-export interface OrganizationRef {
-  id: string;
-  slug: string;
-  name: Readonly<Record<string, string>>;
-  /** ISO 3166-1 alpha-2. */
-  country_code: string | null;
-}
+export type OrganizationRef = PublicOrganizationRef;
+export type IscedField = PublicIscedField;
+export type NextOffering = PublicNextOffering;
+export type CourseCard = PublicCourseCard;
+export type SearchFacets = CourseSearchFacets;
+export type FacetName = keyof SearchFacets;
+export type CourseSearchResponse = SchemaCourseSearchResponse;
+export type CourseTexts = PublicCourseText;
+export type CourseIscedCode = PublicIscedCode;
+export type AcademicSessionRef = PublicAcademicSession;
+export type Offering = PublicOffering;
+export type CourseDetail = PublicCourseDetail;
+export type SuggestResponse = SchemaSuggestResponse;
+export type SuggestItem = SuggestResponse['items'][number];
+export type DeliveryMode = PublicDeliveryMode;
+export type ReferenceData = ReferenceResponse;
+export type ReferenceOrganization = ReferenceData['organizations'][number];
 
-export interface IscedField {
-  code: string;
-  label: Label;
-}
-
-export interface NextOffering {
-  id: string;
-  /** Calendar dates `YYYY-MM-DD`, local to the offering time zone. */
-  start_date: string;
-  end_date: string;
-  application_deadline: string | null;
-  enrol_start_date: string | null;
-  seats_available: number | null;
-  alliance_seats: number | null;
-  /** ISO 8601 date-time. */
-  seats_updated_at: string | null;
-}
-
-export interface CourseCard {
-  id: string;
-  ext_id: string;
-  organization: OrganizationRef;
-  /** Resolved in the requested UI language (English fallback). */
-  title: string;
-  abstract: string | null;
-  ects: number;
-  level: string | null;
-  isced_broad_fields: IscedField[];
-  delivery_modes: string[];
-  teaching_languages: string[];
-  next_offering: NextOffering | null;
-  offerings_count: number;
-}
-
+/** A facet value as filter options use it (`label` optional, e.g. from `/reference`). */
 export interface FacetValue {
   value: string;
   count: number;
   label?: Label;
-}
-
-export interface SearchFacets {
-  partner: FacetValue[];
-  mode: FacetValue[];
-  lang: FacetValue[];
-  isced: FacetValue[];
-  level: FacetValue[];
-}
-
-export type FacetName = keyof SearchFacets;
-
-/** `GET /api/public/v1/courses` */
-export interface CourseSearchResponse {
-  items: CourseCard[];
-  page: number;
-  page_size: number;
-  total: number;
-  facets: SearchFacets;
-}
-
-export interface CourseTexts {
-  title: string;
-  abstract: string | null;
-  description: string | null;
-  learning_outcomes: string | null;
-  prerequisites: string | null;
-  assessment: string | null;
-  keywords: string[];
-}
-
-export interface CourseIscedCode {
-  code: string;
-  broad_code: string;
-  label: Label;
-  is_primary: boolean;
-}
-
-export interface AcademicSessionRef {
-  name: Readonly<Record<string, string>>;
-  start_date: string;
-  end_date: string;
-}
-
-export interface Offering {
-  id: string;
-  ext_offering_id: string;
-  academic_session: AcademicSessionRef | null;
-  start_date: string;
-  end_date: string;
-  enrol_start_date: string | null;
-  application_deadline: string | null;
-  /** IANA time zone the dates refer to. */
-  timezone: string;
-  teaching_languages: string[];
-  delivery_modes: string[];
-  campus: string | null;
-  max_students: number | null;
-  alliance_seats: number | null;
-  seats_available: number | null;
-  seats_updated_at: string | null;
-  application_url: string | null;
-}
-
-/** `GET /api/public/v1/courses/{id}` */
-export interface CourseDetail {
-  id: string;
-  ext_id: string;
-  organization: OrganizationRef;
-  /** Keyed by primary language subtag. */
-  texts: Readonly<Record<string, CourseTexts>>;
-  ects: number;
-  level: string | null;
-  eqf_level: number | null;
-  teaching_hours: number | null;
-  info_url: string | null;
-  contact_email: string | null;
-  isced_codes: CourseIscedCode[];
-  offerings: Offering[];
-}
-
-/** `GET /api/public/v1/suggest` */
-export interface SuggestItem {
-  id: string;
-  title: Label;
-  organization_slug: string;
-}
-
-export interface SuggestResponse {
-  items: SuggestItem[];
-}
-
-export interface ReferenceOrganization {
-  id: string;
-  slug: string;
-  name: Label;
-  country_code: string | null;
-  is_partner: boolean;
-}
-
-export interface CodeLabel {
-  code: string;
-  label: Label;
-}
-
-/** `GET /api/public/v1/reference` */
-export interface ReferenceData {
-  organizations: ReferenceOrganization[];
-  delivery_modes: CodeLabel[];
-  isced_broad_fields: CodeLabel[];
-  teaching_languages: string[];
-  levels: string[];
 }
 
 export type SortOrder = 'relevance' | 'title' | 'start_date';
