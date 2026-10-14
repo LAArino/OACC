@@ -12,6 +12,13 @@ export class AdminApiError extends Error {
   readonly codes: readonly string[];
   /** True when title/detail come from a problem+json body (server text worth showing). */
   readonly fromServer: boolean;
+  /**
+   * The parsed problem+json body, extension members included (e.g. the
+   * `sync_run_id`, `error_count` and full `errors[]` of a failed CSV upload).
+   */
+  readonly problem: Readonly<ProblemDetails> | undefined;
+  /** `Retry-After` in seconds (429 responses), when the server sent one. */
+  readonly retryAfterSeconds: number | undefined;
 
   constructor(init: {
     status: number;
@@ -19,6 +26,8 @@ export class AdminApiError extends Error {
     detail?: string;
     codes?: readonly string[];
     fromServer?: boolean;
+    problem?: ProblemDetails;
+    retryAfterSeconds?: number;
   }) {
     super(init.detail ?? init.title);
     this.name = 'AdminApiError';
@@ -27,6 +36,8 @@ export class AdminApiError extends Error {
     this.detail = init.detail;
     this.codes = init.codes ?? [];
     this.fromServer = init.fromServer ?? false;
+    this.problem = init.problem;
+    this.retryAfterSeconds = init.retryAfterSeconds;
   }
 
   /** First stable code, the one the UI explains. */
@@ -50,22 +61,42 @@ function codesOf(errors: unknown): string[] {
  * Builds an AdminApiError from a failed response. `body` is the parsed JSON body
  * (problem+json or anything else); non-problem bodies keep only the status.
  */
-export function toAdminApiError(status: number | undefined, body: unknown): AdminApiError {
+export function toAdminApiError(
+  status: number | undefined,
+  body: unknown,
+  retryAfter?: string | null,
+): AdminApiError {
   const httpStatus = typeof status === 'number' ? status : 0;
+  const seconds = parseRetryAfter(retryAfter);
+  const retry = seconds === undefined ? {} : { retryAfterSeconds: seconds };
   if (isRecord(body) && typeof body.title === 'string') {
     const problem = body as Partial<ProblemDetails>;
+    const resolved = typeof problem.status === 'number' ? problem.status : httpStatus;
     return new AdminApiError({
-      status: typeof problem.status === 'number' ? problem.status : httpStatus,
+      status: resolved,
       title: body.title,
       ...(typeof problem.detail === 'string' ? { detail: problem.detail } : {}),
       codes: codesOf(problem.errors),
       fromServer: true,
+      problem: { ...(body as ProblemDetails), status: resolved },
+      ...retry,
     });
   }
   return new AdminApiError({
     status: httpStatus,
     title: httpStatus === 0 ? 'Network error' : `HTTP ${httpStatus}`,
+    ...retry,
   });
+}
+
+/** `Retry-After` as delay-seconds (an HTTP date is converted against now). */
+export function parseRetryAfter(value: string | null | undefined): number | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (/^\d{1,9}$/.test(trimmed)) return Number(trimmed);
+  const date = Date.parse(trimmed);
+  if (Number.isNaN(date)) return undefined;
+  return Math.max(0, Math.ceil((date - Date.now()) / 1000));
 }
 
 /** i18n keys (under `problem.`) for the codes the admin UI explains to people. */
@@ -81,6 +112,13 @@ const MESSAGE_KEYS: Readonly<Record<string, string>> = {
   'oecp.auth.idp_mismatch': 'problem.forbidden',
   'oecp.auth.forbidden_organization': 'problem.forbidden',
   'oecp.auth.forbidden_role': 'problem.forbidden',
+  'oecp.request.not_found': 'problem.notFound',
+  'oecp.sync.channel_disabled': 'problem.channelDisabled',
+  'oecp.csv.file_too_large': 'problem.fileTooLarge',
+  'oecp.csv.rate_limited': 'problem.uploadRateLimited',
+  'oecp.csv.no_files': 'problem.noFiles',
+  'oecp.csv.unexpected_file': 'problem.unexpectedFile',
+  'oecp.integration.not_configured': 'problem.integrationNotConfigured',
 };
 
 /** Translation key of the human message for an error (falls back on generic messages). */
@@ -92,4 +130,9 @@ export function problemMessageKey(error: Pick<AdminApiError, 'status' | 'codes'>
   if (error.status === 0) return 'problem.network';
   if (error.status === 401) return 'problem.signInAgain';
   return 'problem.generic';
+}
+
+/** Any thrown value as an AdminApiError (unexpected failures become a network-less generic one). */
+export function asAdminApiError(error: unknown): AdminApiError {
+  return error instanceof AdminApiError ? error : toAdminApiError(undefined, undefined);
 }

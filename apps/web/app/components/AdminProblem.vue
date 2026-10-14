@@ -5,6 +5,11 @@
 const props = defineProps<{ error: AdminApiError; heading?: string }>();
 const { t } = useI18n();
 const message = computed(() => t(problemMessageKey(props.error)));
+const retryMinutes = computed(() =>
+  props.error.retryAfterSeconds === undefined
+    ? undefined
+    : Math.max(1, Math.ceil(props.error.retryAfterSeconds / 60)),
+);
 const serverText = computed(() =>
   props.error.detail ? `${props.error.title}: ${props.error.detail}` : props.error.title,
 );
@@ -16,6 +21,9 @@ const serverText = computed(() =>
       <strong>{{ props.heading }}</strong>
     </p>
     <p>{{ message }}</p>
+    <p v-if="retryMinutes !== undefined">
+      {{ t('problem.retryAfter', { minutes: retryMinutes }) }}
+    </p>
     <p v-if="props.error.fromServer">
       {{ serverText }}
     </p>

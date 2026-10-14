@@ -167,6 +167,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `ext.oecp` (seats, cancelled status, time zone, all teaching languages);
     v5 `Problem` errors; responses contract-tested with Ajv against the vendored
     v5.0 OpenAPI document (`ajv`, `ajv-formats` as dev dependencies).
+- Admin dashboard modules for partner and alliance administrators (spec §8.1),
+  client-only under `/{locale}/admin`:
+  - Dashboard: module navigation by role for the token's `org_id`; alliance
+    administrators choose the organization (public `GET /api/public/v1/reference`)
+    and the choice travels as `?org=` (`useAdminOrg()`, `AdminOrgPicker`).
+  - CSV console `/admin/csv`: bearer-authenticated template and JSON Schema
+    downloads (Blob + object URL); keyboard-operable drop zone with a native file
+    input fallback (`AdminDropZone`); kind detection from the header columns or
+    file name with a per-file selector; 5 MB check; browser validation with the
+    shared `@oecp/schemas` validator in a Web Worker
+    (`app/workers/csv-validate.worker.ts`, main-thread fallback) against the
+    public ISCED broad fields and delivery modes; report with counts, a severity
+    filter and an injection-safe CSV download (`AdminIssuesTable`,
+    `csvIssuesReport`); upload enabled only without browser-side errors; results
+    for 201 (counters, warnings), 202 (run polled every 3 s until it ends), 422
+    (server error table with the run link) and 409/413/429 problems.
+  - Sync history `/admin/sync-runs` (latest 50 runs) and run page
+    `/admin/sync-runs/{id}` with summary (`AdminRunSummary`, `AdminStatusBadge`)
+    and server-paginated errors filtered by severity.
+  - Placeholders `/admin/integration` (current settings summary when configured)
+    and `/admin/organizations`.
+  - `useAdminApi()`: `FormData` bodies, `query`, Blob responses and `.raw()` with
+    the HTTP status; `AdminApiError` keeps the problem body (extension members)
+    and `Retry-After`; messages for `oecp.sync.channel_disabled`,
+    `oecp.csv.file_too_large`, `oecp.csv.rate_limited`, `oecp.csv.no_files`,
+    `oecp.csv.unexpected_file`, `oecp.request.not_found` and
+    `oecp.integration.not_configured`.
 
 ### Changed
 
