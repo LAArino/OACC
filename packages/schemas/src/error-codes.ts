@@ -33,6 +33,10 @@ export const ERROR_CODES = {
     severity: 'error',
     message: 'Organization outside your scope',
   },
+  'oecp.auth.forbidden_role': {
+    severity: 'error',
+    message: 'Your role does not permit this operation',
+  },
 
   'oecp.invitation.invalid': {
     severity: 'error',
@@ -43,6 +47,16 @@ export const ERROR_CODES = {
     severity: 'error',
     message: 'Signed-in identity does not match the invitation',
   },
+
+  'oecp.identity.unavailable': {
+    severity: 'error',
+    message: 'Identity service request failed',
+  },
+  'oecp.identity.conflict': {
+    severity: 'error',
+    message: 'Conflicting account in the identity service',
+  },
+  'oecp.mail.unavailable': { severity: 'error', message: 'E-mail could not be sent' },
 
   'oecp.content.english_missing': {
     severity: 'error',

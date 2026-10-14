@@ -28,11 +28,11 @@ Keycloak image by `deploy/compose/dockerfiles/keycloak.Dockerfile`.
 | Realm | `oecp`, no self-registration, no remember-me, brute-force protection, password policy ≥ 12 characters for local users, events kept 90 days | §2.1, §2.2, §10 |
 | Lifetimes | access token 5 min, SSO idle 30 min, SSO max 8 h, rotating single-use refresh tokens, no offline tokens | §2.2 |
 | Roles | realm roles `partner_admin`, `alliance_admin` (assigned by the API only) | §2, §4 |
-| User profile | `oecp_org_id`, `schacHomeOrganization`, `displayName`; every attribute admin-editable only | §2.1, §4 |
-| Client `oecp-admin` | public, Authorization Code + PKCE (S256), redirect `https://{portal}/en/admin/*`, minimum ACR `mfa` | §4 |
+| User profile | `oecp_org_id` (lowercase UUID), `schacHomeOrganization`, `displayName`; every attribute admin-editable only; undeclared attributes are dropped | §2.1, §4 |
+| Client `oecp-admin` | public, Authorization Code + PKCE (S256), redirect `https://{portal}/en/admin/*`, minimum ACR `mfa`, no direct access grants; role scope `partner_admin`, `alliance_admin` | §4 |
 | Client `oecp-api` | bearer-only, used only as audience | §4 |
-| Client `oecp-backend` | confidential, service account with `manage-users`, `view-users`, `manage-identity-providers`, `view-identity-providers` | §3, §4 |
-| Client scope `oecp` | `aud` ∋ `oecp-api`, `org_id`, flat `roles`, `idp`, `name` | §4 JWT contract |
+| Client `oecp-backend` | confidential, service account with `manage-users`, `view-users`, `manage-identity-providers`, `view-identity-providers`, the same four roles in its role scope (`clientScopeMappings`) | §3, §4 |
+| Client scope `oecp` | `aud` ∋ `oecp-api`, `org_id`, flat `roles`, `idp`, `name`; no role scope mappings | §4 JWT contract |
 | ACR | realm map `{"mfa": 2}` | §4 |
 | Flows | `oecp-browser-mfa`, `oecp-post-broker-mfa`, `oecp-first-broker-login` | §2.1, §2.2 |
 | IdPs | `example-partner` (disabled SAML template) with attribute importers | §4 |
@@ -42,11 +42,11 @@ Keycloak image by `deploy/compose/dockerfiles/keycloak.Dockerfile`.
 | Claim | Source in Keycloak |
 |---|---|
 | `iss` | `KC_HOSTNAME` → `https://{auth-host}/realms/oecp` |
-| `aud` | audience mapper in scope `oecp` (`oecp-api`) |
+| `aud` | audience mapper in scope `oecp` (`oecp-api`); a single audience is serialised as a string, not an array |
 | `azp` | `oecp-admin` (requesting client) |
-| `sub`, `auth_time` | built-in scope `basic` |
+| `sub`, `auth_time` | built-in scope `basic` (`auth_time` only for interactive logins: tokens from direct grants have none) |
 | `acr` | built-in scope `acr` + realm ACR-to-LoA map |
-| `roles` | realm-role mapper, limited to the role scope mappings of scope `oecp`; clients have `fullScopeAllowed: false`, so default roles never appear and an invited user without role gets `[]` |
+| `roles` | realm-role mapper in scope `oecp`, limited to the role scope of client `oecp-admin`; clients have `fullScopeAllowed: false`, so default roles never appear. For an invited user without role the claim is **absent** (Keycloak emits no empty array); the API reads it as `[]` |
 | `org_id` | user attribute `oecp_org_id` |
 | `idp` | user-session note `identity_provider` (broker alias). **Absent for local users**: the API maps a missing `idp` to `local` (spec §2.1) |
 | `email`, `name` | built-in scope `email`; full-name mapper in scope `oecp` |
@@ -75,6 +75,95 @@ accounts and no linking by e-mail. If a user with the same username or
 e-mail already exists, login fails and an `alliance_admin` resolves it
 (spec §2.1 step 3, [R01 §2]).
 
+## Pitfalls found on the first real deployment
+
+Each of these broke the first `docker compose up` silently (the import
+reported success) and is now fixed in `realm-oecp.yaml` or `compose.yaml`:
+
+1. **User profile skipped.** keycloak-config-cli imports `userProfile` only if
+   the realm attribute `userProfileEnabled` is `"true"`; otherwise it logs a
+   debug message and keeps Keycloak's default profile, in which every
+   undeclared attribute (`oecp_org_id` included) is silently dropped when the
+   API writes it, so `org_id` never reaches the token.
+2. **Role scope on a client scope.** Keycloak applies a client scope that has
+   role scope mappings only to users holding at least one of those roles. With
+   `partner_admin`/`alliance_admin` mapped on scope `oecp`, a role-less
+   invited user got a token without `aud`, `name` and `idp`, so
+   `/invitations/accept` could never succeed. The mapping is now on client
+   `oecp-admin`. **Existing realms:** keycloak-config-cli does not delete the
+   old mapping; remove it once in the admin console (Client scopes > `oecp` >
+   Scope > unassign both roles) or with
+   `DELETE /admin/realms/oecp/client-scopes/{id}/scope-mappings/realm`.
+3. **Service account without role scope.** The Admin API allows an operation
+   only if the service-account user has the realm-management role *and* the
+   client has it in scope. `oecp-backend` uses `fullScopeAllowed: false`, so
+   without `clientScopeMappings` every Admin API call returned 403.
+   `GET /roles/{name}/users` still returns 403 (it needs `view-realm`, which the
+   spec does not grant); use the users' role-mapping endpoints instead.
+4. **Import cache.** By default keycloak-config-cli skips the import when the
+   file checksum has not changed, so manual changes in the admin console
+   survived re-runs. `IMPORT_CACHE_ENABLED=false` makes every run enforce the
+   file.
+5. **STARTTLS.** With `starttls: true` Keycloak requires the relay to offer
+   STARTTLS; it is now `OECP_SMTP_STARTTLS` (default `true`, `false` for the
+   Mailpit sink of the `dev` profile).
+
+keycloak-config-cli logs these skips only at debug level: set
+`LOGGING_LEVEL_DE_ADORSYS=debug` on the `keycloak-config` service when
+changing the realm file, and check the result through the Admin REST API
+rather than trusting the exit code.
+
+### Version pairing
+
+`adorsys/keycloak-config-cli:6.5.1-26.5.5` is the newest release; it is
+built against the Keycloak 26.5 admin client and there is no 26.8 build. It
+was verified against Keycloak 26.8.1 (the server version it logs at start):
+every section of `realm-oecp.yaml` imports, re-runs are idempotent, and no
+warning is logged. Re-verify with the checks below whenever either image is
+bumped.
+
+## Verified token contents
+
+Observed on Keycloak 26.8.1 for a local user with `alliance_admin` and
+`oecp_org_id`, through a temporary confidential client with the same scopes
+and role scope as `oecp-admin` but direct access grants (deleted after the
+test; `oecp-admin` itself refuses direct grants):
+
+```json
+{
+  "iss": "https://auth.oecp.localhost/realms/oecp",
+  "aud": "oecp-api",
+  "azp": "<requesting client: oecp-admin in real logins>",
+  "sub": "<user UUID>", "sid": "…", "typ": "Bearer",
+  "acr": "1",
+  "roles": ["alliance_admin"],
+  "org_id": "74ad7aa3-1713-44b8-87ea-cbf404fe393c",
+  "email": "…", "email_verified": true, "name": "First Last",
+  "scope": "openid email"
+}
+```
+
+- `acr` is `"1"` for a password-only (direct grant) login; through
+  `oecp-browser-mfa` a local user reaches LoA 2 and gets `acr: "mfa"`.
+- `idp` is absent for local users (no broker session note); the API maps it
+  to `local`.
+- `auth_time` is absent from direct-grant tokens and present after a browser
+  login.
+- No `realm_access`/`resource_access`: the built-in `roles` and `profile`
+  scopes are not assigned.
+- The `oecp-backend` client-credentials token carries only `iss`, `sub`,
+  `azp`, `client_id`, `scope: ""` and no roles; the Admin API evaluates the
+  service account's roles and the client's role scope server-side.
+- Tokens obtained through the internal URL (`http://keycloak:8080`) carry the
+  same public `iss`, and execute-actions e-mail links point at the public auth
+  host (`KC_HOSTNAME` + `KC_HOSTNAME_BACKCHANNEL_DYNAMIC`).
+
+To repeat the check, obtain a `master` admin token from
+`https://{auth-host}/realms/master/protocol/openid-connect/token`
+(`client_id=admin-cli`, bootstrap admin), create a test user and a test
+confidential client through the Admin REST API, request a password-grant
+token, decode it, and delete both afterwards.
+
 ## How the realm is applied
 
 ```sh
@@ -83,10 +172,11 @@ docker compose up -d keycloak          # waits for postgres
 docker compose run --rm keycloak-config
 ```
 
-`keycloak-config` also runs on every `docker compose up`. It is idempotent and
-keeps remote state: objects it created and later removed from this file are
-deleted; users, role mappings and user attributes written by the API are not
-touched. Variables are substituted from the `keycloak-config` service
+`keycloak-config` also runs on every `docker compose up`. It is idempotent
+(the import cache is disabled, so every run applies the file) and keeps remote
+state: objects it created and later removed from this file are deleted (scope
+mappings excepted, see pitfall 2); users, role mappings and user attributes
+written by the API are not touched. Variables are substituted from the `keycloak-config` service
 environment (see the header of `realm-oecp.yaml`).
 
 Never edit the realm by hand in the admin console for anything declared
@@ -158,8 +248,14 @@ within minutes.
 
 ## Local development tips
 
-- Admin console: `https://auth.localhost/admin/` (allowlisted CIDRs only,
-  `KEYCLOAK_ADMIN_ALLOWLIST`), user `KEYCLOAK_ADMIN_USER`, password in
+- Admin console: `https://auth.oecp.localhost/admin/` (allowlisted CIDRs
+  only, `KEYCLOAK_ADMIN_ALLOWLIST`; with Docker Desktop for Mac requests from
+  the host arrive from `192.168.65.1`), user `KEYCLOAK_ADMIN_USER`, password in
   `deploy/compose/secrets/keycloak_admin_password`.
+- E-mails (execute-actions links for local users, invitations) are captured by
+  Mailpit with the compose profile `dev`: `http://127.0.0.1:8025/`.
+- The bootstrap admin of `master` has no e-mail address, so the admin
+  console's SMTP "Test connection" fails; trigger an execute-actions e-mail
+  for a test user instead.
 - A test SAML IdP for the Playwright invitation test (spec §10) can be added
   as another IdP entry pointing at a local SimpleSAMLphp or Keycloak instance.

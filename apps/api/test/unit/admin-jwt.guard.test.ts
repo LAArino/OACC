@@ -12,7 +12,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { AdminJwtGuard } from '../../src/admin/auth/admin-jwt.guard.js';
 import { AdminTokenVerifier } from '../../src/admin/auth/admin-token-verifier.js';
 import type { AdminPrincipal } from '../../src/admin/auth/claims.js';
-import { AllowRoleless } from '../../src/admin/auth/decorators.js';
+import { AllowRoleless, RequireRoles } from '../../src/admin/auth/decorators.js';
 import type { OrganizationDirectory } from '../../src/admin/auth/organization-directory.js';
 
 const ISSUER = 'https://auth.example.test/realms/oecp';
@@ -33,6 +33,8 @@ class Handlers {
   guarded(): void {}
   @AllowRoleless()
   acceptInvitation(): void {}
+  @RequireRoles(['alliance_admin'])
+  allianceOnly(): void {}
 }
 
 interface FakeHttp {
@@ -116,6 +118,28 @@ describe('AdminJwtGuard', () => {
   it('accepts idp "local" for an organization without an IdP alias', async () => {
     const http = httpContext(await sign({ ...valid, org_id: LOCAL_ORG_ID, idp: 'local' }));
     await expect(guard.canActivate(http.context)).resolves.toBe(true);
+  });
+
+  it('treats a missing idp claim (local Keycloak user) as "local"', async () => {
+    const http = httpContext(await sign({ ...valid, org_id: LOCAL_ORG_ID, idp: undefined }));
+    await expect(guard.canActivate(http.context)).resolves.toBe(true);
+    expect(http.request.admin?.idp).toBe('local');
+    const brokered = await sign({ ...valid, idp: undefined });
+    expect(codeOf(await rejection(guard.canActivate(httpContext(brokered).context)))).toBe(
+      'oecp.auth.idp_mismatch',
+    );
+  });
+
+  it('enforces @RequireRoles() with 403 forbidden_role', async () => {
+    const partner = httpContext(await sign(valid), 'allianceOnly');
+    const error = await rejection(guard.canActivate(partner.context));
+    expect(error).toBeInstanceOf(ForbiddenException);
+    expect(codeOf(error)).toBe('oecp.auth.forbidden_role');
+    const alliance = httpContext(
+      await sign({ ...valid, roles: ['alliance_admin'] }),
+      'allianceOnly',
+    );
+    await expect(guard.canActivate(alliance.context)).resolves.toBe(true);
   });
 
   it('rejects a missing bearer token with 401', async () => {

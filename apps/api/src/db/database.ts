@@ -4,7 +4,13 @@
  * tables not listed here are not queried yet). `date` columns are strings
  * (see db.module.ts), `numeric` columns come back from pg as strings.
  */
-import type { LifecycleStatus, LocalizedLabel, SourceChannel, SyncRunStatus } from '@oecp/schemas';
+import type {
+  AdminRole,
+  LifecycleStatus,
+  LocalizedLabel,
+  SourceChannel,
+  SyncRunStatus,
+} from '@oecp/schemas';
 import type { ColumnType, Generated } from 'kysely';
 
 type Timestamp = ColumnType<Date, Date | string | undefined, Date | string>;
@@ -180,6 +186,41 @@ export interface SyncErrorsTable {
   created_at: Generated<Timestamp>;
 }
 
+export interface AdminInvitationsTable {
+  id: Generated<string>;
+  /** Stored lower-case; compared case-insensitively with the `email` claim. */
+  email: string;
+  role: AdminRole;
+  organization_id: string;
+  /** SHA-256 of the 256-bit token; the token itself is never stored. */
+  token_sha256: Buffer;
+  /** JWT `sub` of the inviting administrator, or `system:<job>`. */
+  invited_by: string;
+  expires_at: Timestamp;
+  accepted_at: Timestamp | null;
+  accepted_sub: string | null;
+  revoked_at: Timestamp | null;
+  /** Timestamp already makes the column optional on insert (DEFAULT now()). */
+  created_at: Timestamp;
+}
+
+export interface AuditLogTable {
+  /** bigint identity; pg returns int8 as string. */
+  id: Generated<string>;
+  occurred_at: Timestamp;
+  /** JWT `sub` or `system:<job>`. */
+  actor_sub: string;
+  actor_org_id: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  changes: ColumnType<
+    Record<string, unknown> | null,
+    Record<string, unknown> | null | undefined,
+    Record<string, unknown> | null
+  >;
+}
+
 export interface Database {
   organizations: OrganizationsTable;
   delivery_modes: DeliveryModesTable;
@@ -192,4 +233,6 @@ export interface Database {
   course_offering_delivery_modes: CourseOfferingDeliveryModesTable;
   sync_runs: SyncRunsTable;
   sync_errors: SyncErrorsTable;
+  admin_invitations: AdminInvitationsTable;
+  audit_log: AuditLogTable;
 }

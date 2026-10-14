@@ -23,6 +23,13 @@ http:
           X-Powered-By: ""
           Server: ""
 
+    # API responses (/api, /oeapi) are JSON or problem+json and never render as
+    # documents: forbid everything, framing included. Chained after
+    # security-headers on the api routers.
+    security-headers-api:
+      headers:
+        contentSecurityPolicy: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+
     # Auth host (Keycloak). Keycloak sets its own CSP and X-Frame-Options per
     # realm (Realm settings > Security defenses), so only transport headers here.
     security-headers-auth:

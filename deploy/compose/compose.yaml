@@ -4,13 +4,17 @@
 # Open European Campus Portal (OECP): reference Docker Compose deployment (MVP).
 # Spec v4.0 §3 (architecture), §4 (identity), §10 (non-functional requirements).
 #
-# Quick start: see README.md in this directory.
+# Quick start: see README.md in this directory (verified commands).
 #   cp .env.example .env && (create secrets, see secrets/README.md)
-#   docker compose up -d
+#   docker compose up -d --build --wait
+#   docker compose wait keycloak-config          # realm import, exit code 0
 #   docker compose run --rm api pnpm db:migrate
 #
 # Optional observability stack (OpenTelemetry Collector, Prometheus, Loki, Grafana):
 #   docker compose --profile observability up -d
+#
+# Local development extras (Mailpit SMTP sink on http://127.0.0.1:8025):
+#   docker compose --profile dev up -d    (or COMPOSE_PROFILES=dev in .env)
 
 name: oecp
 
@@ -247,6 +251,11 @@ services:
     logging: *default-logging
 
   # One-shot: applies identity/keycloak/realm-oecp.yaml (realm as code) and exits.
+  # `docker compose up` starts it again every time (it is idempotent, ~10 s);
+  # re-apply by hand with `docker compose run --rm keycloak-config`.
+  # 6.5.1-26.5.5 is the newest release (built against the Keycloak 26.5 admin
+  # client; there is no 26.8 build). Verified against Keycloak 26.8.1: the whole
+  # realm imports and is idempotent. Re-verify when bumping either image.
   keycloak-config:
     image: adorsys/keycloak-config-cli:6.5.1-26.5.5
     restart: "no"
@@ -260,6 +269,10 @@ services:
       KEYCLOAK_AVAILABILITYCHECK_TIMEOUT: 180s
       IMPORT_FILES_LOCATIONS: /config/realm-oecp.yaml
       IMPORT_VARSUBSTITUTION_ENABLED: "true"
+      # Always apply the file. With the default cache, keycloak-config-cli skips
+      # the import when the file checksum is unchanged, so changes made in the
+      # admin console (or by a failed earlier run) would silently survive.
+      IMPORT_CACHE_ENABLED: "false"
       # Variables substituted into realm-oecp.yaml as $(env:NAME).
       OECP_PORTAL_URL: https://${OECP_PORTAL_HOST}
       OECP_AUTH_URL: https://${OECP_AUTH_HOST}
@@ -267,6 +280,7 @@ services:
       OECP_SMTP_HOST: ${OECP_SMTP_HOST:-}
       OECP_SMTP_PORT: ${OECP_SMTP_PORT:-25}
       OECP_SMTP_FROM: ${OECP_SMTP_FROM:-no-reply@example.org}
+      OECP_SMTP_STARTTLS: ${OECP_SMTP_STARTTLS:-true}
       # Placeholders of the disabled `example-partner` IdP (must be valid URLs).
       EXAMPLE_PARTNER_IDP_ENTITY_ID: ${EXAMPLE_PARTNER_IDP_ENTITY_ID:-https://idp.example-partner.invalid/idp/shibboleth}
       EXAMPLE_PARTNER_IDP_SSO_URL: ${EXAMPLE_PARTNER_IDP_SSO_URL:-https://idp.example-partner.invalid/idp/profile/SAML2/POST/SSO}
@@ -311,9 +325,11 @@ services:
       - edge
       - backend
     healthcheck:
-      # TCP probe until apps/api exposes a health endpoint; then switch to e.g.
-      # wget -qO- http://127.0.0.1:3000/api/health (Traefik skips unhealthy containers).
-      test: ["CMD", "node", "-e", "require('net').connect(3000,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      # Readiness (PostgreSQL and Valkey reachable). `/health` and `/ready` are
+      # served at the root of the api container, outside the /api and /oeapi
+      # prefixes routed by Traefik, so they are internal only (spec §3, §10).
+      # Traefik skips unhealthy containers.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/ready').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -327,7 +343,7 @@ services:
       traefik.http.routers.api.tls: "true"
       traefik.http.routers.api.priority: "50"
       traefik.http.routers.api.service: api
-      traefik.http.routers.api.middlewares: security-headers@file
+      traefik.http.routers.api.middlewares: security-headers@file,security-headers-api@file
       # Per-IP rate limits, spec §10: search 20 r/s, suggest and /oeapi/v5 10 r/s, admin 30 r/s.
       # Explicit priorities: Traefik otherwise ranks routers by rule length.
       traefik.http.routers.api-search.rule: Host(`${OECP_PORTAL_HOST}`) && Path(`/api/public/v1/courses`)
@@ -335,25 +351,25 @@ services:
       traefik.http.routers.api-search.tls: "true"
       traefik.http.routers.api-search.priority: "100"
       traefik.http.routers.api-search.service: api
-      traefik.http.routers.api-search.middlewares: ratelimit-search@file,security-headers@file
+      traefik.http.routers.api-search.middlewares: ratelimit-search@file,security-headers@file,security-headers-api@file
       traefik.http.routers.api-suggest.rule: Host(`${OECP_PORTAL_HOST}`) && Path(`/api/public/v1/suggest`)
       traefik.http.routers.api-suggest.entrypoints: websecure
       traefik.http.routers.api-suggest.tls: "true"
       traefik.http.routers.api-suggest.priority: "100"
       traefik.http.routers.api-suggest.service: api
-      traefik.http.routers.api-suggest.middlewares: ratelimit-suggest@file,security-headers@file
+      traefik.http.routers.api-suggest.middlewares: ratelimit-suggest@file,security-headers@file,security-headers-api@file
       traefik.http.routers.oeapi.rule: Host(`${OECP_PORTAL_HOST}`) && PathPrefix(`/oeapi/v5`)
       traefik.http.routers.oeapi.entrypoints: websecure
       traefik.http.routers.oeapi.tls: "true"
       traefik.http.routers.oeapi.priority: "100"
       traefik.http.routers.oeapi.service: api
-      traefik.http.routers.oeapi.middlewares: ratelimit-oeapi@file,security-headers@file
+      traefik.http.routers.oeapi.middlewares: ratelimit-oeapi@file,security-headers@file,security-headers-api@file
       traefik.http.routers.api-admin.rule: Host(`${OECP_PORTAL_HOST}`) && PathPrefix(`/api/admin`)
       traefik.http.routers.api-admin.entrypoints: websecure
       traefik.http.routers.api-admin.tls: "true"
       traefik.http.routers.api-admin.priority: "100"
       traefik.http.routers.api-admin.service: api
-      traefik.http.routers.api-admin.middlewares: ratelimit-admin@file,security-headers@file
+      traefik.http.routers.api-admin.middlewares: ratelimit-admin@file,security-headers@file,security-headers-api@file
     logging: *default-logging
 
   worker:
@@ -390,13 +406,16 @@ services:
     init: true
     environment:
       NODE_ENV: production
-      NUXT_PUBLIC_API_BASE: https://${OECP_PORTAL_HOST}/api
+      # Origin only: apps/web appends the full path (/api/public/v1/...).
+      NUXT_PUBLIC_API_BASE: https://${OECP_PORTAL_HOST}
       # --- Proposed (ignored unless declared in apps/web runtimeConfig) -------
       # Server-side rendering cannot reach the public host from inside the
-      # container network; SSR fetches should use the internal API address.
-      NUXT_API_INTERNAL_BASE: http://api:3000/api
+      # container network; SSR fetches should use the internal API origin.
+      NUXT_API_INTERNAL_BASE: http://api:3000
       NUXT_PUBLIC_OIDC_AUTHORITY: https://${OECP_AUTH_HOST}/realms/oecp
       NUXT_PUBLIC_OIDC_CLIENT_ID: oecp-admin
+      # @nuxtjs/i18n: absolute hreflang/canonical links (warns on every SSR request if unset).
+      NUXT_PUBLIC_I18N_BASE_URL: https://${OECP_PORTAL_HOST}
       OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
       OTEL_SERVICE_NAME: oecp-web
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
@@ -406,7 +425,8 @@ services:
     networks:
       - edge
     healthcheck:
-      test: ["CMD", "node", "-e", "require('net').connect(3000,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      # The English home page renders server-side without calling the api.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/en').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -420,6 +440,35 @@ services:
       traefik.http.routers.web.priority: "1"
       traefik.http.routers.web.service: web
       traefik.http.routers.web.middlewares: security-headers@file
+    logging: *default-logging
+
+  # -------------------------------------------------------------------------
+  # Local development only (profile `dev`): Mailpit (MIT) as SMTP sink. Set
+  # OECP_SMTP_HOST=mailpit, OECP_SMTP_PORT=1025, OECP_SMTP_STARTTLS=false in .env
+  # so Keycloak (execute-actions e-mails) and the api (invitations) deliver
+  # here; read the mail at http://127.0.0.1:${MAILPIT_PORT:-8025}/.
+  # -------------------------------------------------------------------------
+  mailpit:
+    image: axllent/mailpit:v1.31.5
+    profiles: ["dev"]
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: "500"
+      # Accept mail without SMTP AUTH and without TLS (Keycloak: auth=false).
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      # Web UI and REST API; SMTP (1025) stays on the Docker networks.
+      - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"
+    networks:
+      # backend: reachable from keycloak, api and worker by the name `mailpit`;
+      # edge: required for the published UI port (backend is internal).
+      - backend
+      - edge
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     logging: *default-logging
 
   # -------------------------------------------------------------------------

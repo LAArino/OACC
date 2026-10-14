@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-/** `$fetch` bound to NUXT_PUBLIC_API_BASE; works during SSR and in the browser. */
+/**
+ * `$fetch` bound to the API origin. In the browser it uses NUXT_PUBLIC_API_BASE;
+ * during server-side rendering it prefers the server-only NUXT_API_INTERNAL_BASE
+ * (container-to-container), falling back to the public origin when unset.
+ */
 export function useApi() {
-  const { apiBase } = useRuntimeConfig().public;
+  const config = useRuntimeConfig();
+  const internalBase = import.meta.server ? config.apiInternalBase : '';
+  const baseURL = internalBase || config.public.apiBase;
   return $fetch.create({
-    baseURL: apiBase,
+    baseURL,
     headers: { accept: 'application/json' },
     // Public endpoints are anonymous; never forward or store cookies.
     credentials: 'omit',

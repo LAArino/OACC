@@ -1,0 +1,183 @@
+{
+  "$comment": [
+    "SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño",
+    "SPDX-License-Identifier: EUPL-1.2",
+    "Aurora alliance organizations for `oecp seed-organizations` (upsert by slug).",
+    "erasmus_code and pic are left null on purpose: the alliance MUST verify them (and every",
+    "schac_home_organization, keycloak_idp_alias and website_url) against the partners' official",
+    "registrations before production. keycloak_idp_alias = slug for partners, whose SAML IdP must",
+    "exist in Keycloak under that alias; null for the alliance, which uses Keycloak local users."
+  ],
+  "organizations": [
+    {
+      "slug": "aurora",
+      "org_type": "alliance",
+      "is_partner": false,
+      "name": {
+        "en": "Aurora European Universities Alliance"
+      },
+      "schac_home_organization": "aurora-universities.eu",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": null,
+      "website_url": "https://aurora-universities.eu",
+      "default_timezone": "Europe/Brussels",
+      "ui_languages": ["en"],
+      "keycloak_idp_alias": null
+    },
+    {
+      "slug": "uibk",
+      "org_type": "institution",
+      "is_partner": true,
+      "name": {
+        "en": "University of Innsbruck",
+        "de": "Universität Innsbruck"
+      },
+      "schac_home_organization": "uibk.ac.at",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": "AT",
+      "website_url": "https://www.uibk.ac.at",
+      "default_timezone": "Europe/Vienna",
+      "ui_languages": ["en", "de"],
+      "keycloak_idp_alias": "uibk"
+    },
+    {
+      "slug": "uice",
+      "org_type": "institution",
+      "is_partner": true,
+      "name": {
+        "en": "University of Iceland",
+        "is": "Háskóli Íslands"
+      },
+      "schac_home_organization": "hi.is",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": "IS",
+      "website_url": "https://www.hi.is",
+      "default_timezone": "Atlantic/Reykjavik",
+      "ui_languages": ["en", "is"],
+      "keycloak_idp_alias": "uice"
+    },
+    {
+      "slug": "vua",
+      "org_type": "institution",
+      "is_partner": true,
+      "name": {
+        "en": "Vrije Universiteit Amsterdam",
+        "nl": "Vrije Universiteit Amsterdam"
+      },
+      "schac_home_organization": "vu.nl",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": "NL",
+      "website_url": "https://vu.nl",
+      "default_timezone": "Europe/Amsterdam",
+      "ui_languages": ["en", "nl"],
+      "keycloak_idp_alias": "vua"
+    },
+    {
+      "slug": "ude",
+      "org_type": "institution",
+      "is_partner": true,
+      "name": {
+        "en": "University of Duisburg-Essen",
+        "de": "Universität Duisburg-Essen"
+      },
+      "schac_home_organization": "uni-due.de",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": "DE",
+      "website_url": "https://www.uni-due.de",
+      "default_timezone": "Europe/Berlin",
+      "ui_languages": ["en", "de"],
+      "keycloak_idp_alias": "ude"
+    },
+    {
+      "slug": "urv",
+      "org_type": "institution",
+      "is_partner": true,
+      "name": {
+        "en": "Rovira i Virgili University",
+        "ca": "Universitat Rovira i Virgili",
+        "es": "Universidad Rovira i Virgili"
+      },
+      "schac_home_organization": "urv.cat",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": "ES",
+      "website_url": "https://www.urv.cat",
+      "default_timezone": "Europe/Madrid",
+      "ui_languages": ["en", "ca", "es"],
+      "keycloak_idp_alias": "urv"
+    },
+    {
+      "slug": "unina",
+      "org_type": "institution",
+      "is_partner": true,
+      "name": {
+        "en": "University of Naples Federico II",
+        "it": "Università degli Studi di Napoli Federico II"
+      },
+      "schac_home_organization": "unina.it",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": "IT",
+      "website_url": "https://www.unina.it",
+      "default_timezone": "Europe/Rome",
+      "ui_languages": ["en", "it"],
+      "keycloak_idp_alias": "unina"
+    },
+    {
+      "slug": "up",
+      "org_type": "institution",
+      "is_partner": true,
+      "name": {
+        "en": "Palacký University Olomouc",
+        "cs": "Univerzita Palackého v Olomouci"
+      },
+      "schac_home_organization": "upol.cz",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": "CZ",
+      "website_url": "https://www.upol.cz",
+      "default_timezone": "Europe/Prague",
+      "ui_languages": ["en", "cs"],
+      "keycloak_idp_alias": "up"
+    },
+    {
+      "slug": "cbs",
+      "org_type": "institution",
+      "is_partner": true,
+      "name": {
+        "en": "Copenhagen Business School",
+        "da": "Copenhagen Business School"
+      },
+      "schac_home_organization": "cbs.dk",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": "DK",
+      "website_url": "https://www.cbs.dk",
+      "default_timezone": "Europe/Copenhagen",
+      "ui_languages": ["en", "da"],
+      "keycloak_idp_alias": "cbs"
+    },
+    {
+      "slug": "upec",
+      "org_type": "institution",
+      "is_partner": true,
+      "name": {
+        "en": "Paris-East Créteil University",
+        "fr": "Université Paris-Est Créteil Val de Marne"
+      },
+      "schac_home_organization": "u-pec.fr",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": "FR",
+      "website_url": "https://www.u-pec.fr",
+      "default_timezone": "Europe/Paris",
+      "ui_languages": ["en", "fr"],
+      "keycloak_idp_alias": "upec"
+    }
+  ]
+}
