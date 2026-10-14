@@ -24,13 +24,14 @@ v4.1 describes OECP **as built on 2026-10-14** (`main`, 9 commits; release 0.1.0
 | `level` | `levels[]` authoritative; `level = levels[0]`, kept for the OEAPI read API |
 | Public API | `locale` = display language, `lang` = teaching-language filter; `upcoming`, `kind`, `level`, aliases, disjunctive facets, sitemap; suggestions ≤ 10 |
 | `/oeapi/v5` | Strict `consumer` [DL 19] |
-| CSV | Template 1.1 (1.0 accepted); one Zod validator in browser and server; inline ≤ 500 rows, else queued; all-or-nothing |
+| CSV | Template 1.1 (1.0 accepted), since [DL 21] 1.2 (1.0 and 1.1 accepted); one Zod validator in browser and server; inline ≤ 500 rows, else queued; all-or-nothing |
 | Overrides | Entries keep their `source` value (restored at once when cleared); form modes `write`/`overrides`; keys `texts.<lang>.<field>` |
 | Invitations | Defined failure statuses and codes, `relogin_required`, `GET /me` for role-less tokens |
 | Admin tokens | In memory; since 0.2.0 a page reload restores the session silently while the Keycloak SSO session lives, if the auth host is same-site with the portal (§4) |
 | Harvester | Always running in the worker; a partner is scheduled only when enabled, `oeapi`-authoritative and host-approved |
 | Admin UI | Built: CSV console, course wizard with overrides, sync monitor (0.1.0); invitations, integration settings, organizations with administrators, network status, federated sign-in (0.2.0) |
 | v0.2 (release 0.2.0) | Admin UI completion: pages `/admin/invitations`, `/admin/integration` (settings form, host approval, "Test connection", "Sync now"), `/admin/organizations` (list, new, detail with administrators and invitations), `/admin/network`; "Sign in through your university" (`kc_idp_hint`) on the sign-in prompt and the acceptance page (`#token=…&idp=…`); silent session restore on reload (portal `X-Frame-Options: SAMEORIGIN`). API: organizations CRUD and restore, administrators (list, revoke, resend set-up), invitation resend and organization-scoped invitations, `GET /network-status`, `idp_alias` in the public reference; `oecp-backend` gains `view-events` (§2, §4, §7.1, §8.2, §8.4) |
+| After 0.2.0 (unreleased) | Migration 0006: worker maintenance jobs (`history-partitions`, `retention`, `dormancy` in dry run), `maintenance_runs`, `admin_activity`, worker `/health` and `/ready`, maintenance API (§2.2, §5.4, §8.2, §10); daily `idp-metadata-refresh` from a pinned-signature aggregate (§4, ADR-0017); migration 0007 and CSV template 1.2: instructors and five optional handbook texts, publication rule `OECP_PUBLISH_RULE` [DL 21] (§5, §6, §7.2, §8, §9, ADR-0016) |
 
 ## 1. Purpose and scope
 
@@ -73,7 +74,7 @@ On success the API first sets the user attribute `oecp_org_id` and the realm rol
 
 **Federated sign-in** [Implemented, 0.2.0; brokered path verified end to end against the dev-profile test SAML IdP on 2026-10-14, see `tools/e2e-identity/brokered-accept.js`]. Partner IdPs are `hideOnLogin: true`, so the SPA sends `kc_idp_hint` from two places: the acceptance page, with the `idp` of the invitation link (step 4), and the "Sign in through your university" chooser of the admin sign-in prompt (`AdminFederatedSignIn`, on every admin page, hidden when it has no choice). The chooser lists the partner organizations whose `idp_alias` is set in `GET /api/public/v1/reference` (§7.1: published only for aliases of IdPs that are enabled in the realm; the response is cached up to 300 s) and preselects the last choice from `localStorage` (the alias only, a convenience).
 
-**Note for the owner:** the brokered path is verified against a simulated SAML IdP (subject-id principal, attribute import, first-broker-login without account linking, post-broker MFA, acceptance checks for e-mail, IdP and schacHomeOrganization). A real eduGAIN IdP (SIR registration, attribute release, pairwise-id/ePPN principal, SLO) is still to be exercised. Keycloak refuses expired IdP certificates, so the metadata-refresh job must never keep one.
+**Note for the owner:** the brokered path is verified against a simulated SAML IdP (subject-id principal, attribute import, first-broker-login without account linking, post-broker MFA, acceptance checks for e-mail, IdP and schacHomeOrganization). A real eduGAIN IdP (SIR registration, attribute release, pairwise-id/ePPN principal, SLO) is still to be exercised. Keycloak refuses expired IdP certificates, so the metadata-refresh job drops them (§4).
 
 **Invitation management** (UI: `/{locale}/admin/invitations` and the organization page; partner administrators see their organization's list, only alliance administrators revoke and resend): `GET /invitations` (alliance: all; partner: own organization; 500 most recent; computed status `pending|accepted|revoked|expired`); `GET /organizations/{orgId}/invitations` (same, one organization within the caller's scope); `DELETE /invitations/{id}` (alliance; 204; 409 if accepted or revoked); `POST /invitations/{id}/resend` (alliance; optional `{ttl_hours}`, default the original lifetime; 201 with the new invitation): in one transaction the old invitation is revoked (audit `invitation.revoke`, `reason: resend`; an already revoked one is left as is) and a new one with the same e-mail, role and organization is created and e-mailed (audit `invitation.resend`, `replaces`); a failed mail rolls both back; accepted → 409 `oecp.invitation.invalid`.
 
@@ -88,11 +89,12 @@ On success the API first sets the user attribute `oecp_org_id` and the realm rol
 | SPA tokens | In memory; OIDC state only in `sessionStorage`. After a reload the admin layout restores the session once through a hidden iframe (`prompt=none`) while the Keycloak SSO session lives, under the requirements of §4; otherwise the sign-in prompt appears. No renew timer: an access token that expires (300 s) while the page stays open leads to the sign-in prompt, which Keycloak completes without credentials while the SSO session lives | [Implemented, 0.2.0] (ADR-0013) |
 | Logout | RP-initiated; SAML SLO when the IdP declares it | [Implemented] |
 | Revocation | Organization page > Administrators > *Remove*, i.e. `DELETE /api/admin/v1/organizations/{orgId}/admins/{sub}` (alliance): removes the OECP realm roles and `oecp_org_id`, ends every session (`/logout`), audits `admin.revoke`; the Keycloak account is kept. Refused for the caller (409 `oecp.admin.cannot_remove_self`) and while the target is the only `alliance_admin` (409 `oecp.admin.last_alliance_admin`). An access token already issued stays valid until it expires (≤ 300 s) | [Implemented] |
-| Dormancy (180 days), recertification | — (`last_login_at` is shown on the Administrators panel, §8.4, but nothing acts on it) | [Deferred: backlog "Dormancy (180 days)…"] |
+| Dormancy (180 days) | Worker job `dormancy`, daily 05:00 UTC: every Keycloak user holding `partner_admin` or `alliance_admin` whose last activity is more than `OECP_DORMANCY_DAYS` (180) days ago loses the OECP realm roles and `oecp_org_id` and is logged out, as in a revocation; audit `admin.dormant_revoke` by `system:dormancy`. Last activity = the latest of the last admin API request (`admin_activity`, written by the admin guard at most once an hour per `sub`; no IP address or user agent), the last Keycloak `LOGIN` event (kept 90 days), the account creation and the start of activity tracking (the run of migration 0006), so accounts younger than 180 days and inactivity before the upgrade never count. Never the last `alliance_admin` (the most recently active dormant one is kept). `OECP_DORMANCY_DRY_RUN=true` (**default**) only reports the candidates (log, `maintenance_runs.details`, `GET /maintenance/runs`) | [Implemented, dry run by default]. **Note for the owner:** set `OECP_DORMANCY_DRY_RUN=false` once the alliance has reviewed a dry run; the first revocations can come 180 days after the upgrade at the earliest |
+| Recertification (annual) | — | [Deferred: backlog "Recertification of administrators"] |
 
 ## 3. Architecture
 
-A **modular monolith** [R03 §0]: one NestJS codebase and image (`oecp/api`), two processes: `api` (`dist/main.js`, HTTP) and `worker` (`dist/worker.js`, BullMQ, no HTTP). Modules: `catalogue`, `oeapi`, `admin`, `ingestion`, `identity`, `secrets`, `health`.
+A **modular monolith** [R03 §0]: one NestJS codebase and image (`oecp/api`), two processes: `api` (`dist/main.js`, HTTP) and `worker` (`dist/worker.js`, BullMQ; only an internal health server, §10). Modules: `catalogue`, `oeapi`, `admin`, `ingestion`, `identity`, `secrets`, `health`.
 
 ```
  Internet ──> Traefik v3.7 (TLS, routing, per-IP rate limits, security headers)
@@ -108,15 +110,28 @@ A **modular monolith** [R03 §0]: one NestJS codebase and image (`oecp/api`), tw
 
 Compose versions: Traefik 3.7.14, Nuxt 4.6.1, NestJS 12.1, PostgreSQL 16.15 (Keycloak uses database `keycloak` in the same cluster), Keycloak 26.8.1 with keycloak-config-cli 6.5.1, Valkey 8.1.10 with BullMQ 6.3, local volume `/data/uploads` (S3 in v1).
 
-**Queues.** `harvest-schedule`: one job scheduler per harvestable partner (`schedule_cron` in `schedule_timezone`), re-registered at worker start and every 15 minutes, so Valkey state is rebuildable. `harvest`: job id `harvest-{organization_id}` (BullMQ forbids `:`), one run per partner at a time, concurrency 2. `csv`: queued uploads (`csv-{syncRunId}`) and the daily retention job (04:30 UTC).
+**Queues.** `harvest-schedule`: one job scheduler per harvestable partner (`schedule_cron` in `schedule_timezone`), re-registered at worker start and every 15 minutes, so Valkey state is rebuildable. `harvest`: job id `harvest-{organization_id}` (BullMQ forbids `:`), one run per partner at a time, concurrency 2. `csv`: queued uploads (`csv-{syncRunId}`) and the daily upload retention job `csv-retention` (04:30 UTC). `maintenance`: `history-partitions` (00:10 UTC and at worker start), `retention` (04:45), `dormancy` (05:00) and every on-demand run of `POST /maintenance/jobs/{name}/run` (§10). `idp-metadata-refresh`: the daily IdP metadata refresh (04:15 UTC) and its start-up run (§4). All schedules are UTC job schedulers re-registered at every worker start.
 
-The public portal never loads OIDC code. **Health:** `GET /health` and `GET /ready` (PostgreSQL, Valkey) on the api container, not routed by Traefik [Implemented]; worker health [Deferred: backlog "Worker health endpoint"].
+The public portal never loads OIDC code. **Health:** `GET /health` and `GET /ready` (PostgreSQL, Valkey) on the api container, not routed by Traefik [Implemented]; the worker answers `GET /health` and `GET /ready` on its internal port `WORKER_HEALTH_PORT` (3001), used by the Compose healthcheck (§10) [Implemented].
 
 ## 4. Identity
 
 **Realm** `oecp`, Keycloak only [DL 1], as code (`identity/keycloak/realm-oecp.yaml`), applied by keycloak-config-cli on every `docker compose up` with the import cache disabled [Implemented]. Local-user password policy: 12–128 characters, not username or e-mail, history 5; brute-force protection; events kept 90 days; no self-registration.
 
-**Partner IdPs** [Implemented; dev profile ships an enabled test IdP `urv` behind `OECP_DEV_IDP_ENABLED`, production partners still to be configured]. One SAML IdP per partner, alias = organization `slug`; the realm ships the disabled template `example-partner`: importers for `mail`, `schacHomeOrganization`, `displayName`, `givenName`, `sn` (sync FORCE), principal attribute `subject-id` (per partner `pairwise-id`, or ePPN with written confirmation), signed and encrypted assertions, `hideOnLogin: true`, first-broker-login `oecp-first-broker-login` (create if unique, no linking by e-mail). Not built: the daily `idp-metadata-refresh` job [Deferred: not in backlog], the multi-ACS SP metadata generator for SIR/eduGAIN [DL 15] (design only), the `schac_home_organization` claim mapper [Deferred: backlog "Keycloak mapper…"; the API reads the user attribute instead].
+**Partner IdPs** [Implemented; dev profile ships an enabled test IdP `urv` behind `OECP_DEV_IDP_ENABLED`, production partners still to be configured]. One SAML IdP per partner, alias = organization `slug`; the realm ships the disabled template `example-partner`: importers for `mail`, `schacHomeOrganization`, `displayName`, `givenName`, `sn` (sync FORCE), principal attribute `subject-id` (per partner `pairwise-id`, or ePPN with written confirmation), signed and encrypted assertions, `hideOnLogin: true`, first-broker-login `oecp-first-broker-login` (create if unique, no linking by e-mail). Certificates and endpoints are kept current by the `idp-metadata-refresh` job (below). Not built: the multi-ACS SP metadata generator for SIR/eduGAIN [DL 15] (design only), the `schac_home_organization` claim mapper [Deferred: backlog "Keycloak mapper…"; the API reads the user attribute instead].
+
+**IdP metadata refresh** [Implemented; unit-tested with synthetic signed aggregates; no production partner IdP configured yet] (`apps/api/src/identity/metadata-refresh/`, ADR-0017). Keycloak cannot consume federation aggregates [R01 §1], so the worker job `idp-metadata-refresh` keeps every partner IdP in line with its entry in a signed federation aggregate. It runs daily at 04:15 UTC (queue `idp-metadata-refresh`) and, unless `OECP_IDP_METADATA_REFRESH_ON_START=false`, about 60 s after every worker start, reusing an aggregate cached less than 24 h ago. Without `OECP_IDP_METADATA_URL` it only logs that it is not configured; with it, `OECP_IDP_METADATA_SIGNING_CERT_FILE` is required (checked when api and worker start). One run:
+
+1. **Download** `OECP_IDP_METADATA_URL` (HTTPS only, also after redirects; 60 s timeout; at most `OECP_IDP_METADATA_MAX_BYTES`, default 50 MiB, set to 157286400 (150 MiB) in Compose because the eduGAIN aggregate is about 94 MB), streamed to a temporary file in `OECP_IDP_METADATA_CACHE_DIR` (`/data/idp-metadata`, Compose volume `idp-metadata`).
+2. **Verify** against the pinned certificate only (`OECP_IDP_METADATA_SIGNING_CERT_FILE`: exactly one PEM certificate with an RSA key; `KeyInfo` is ignored), with a strict profile: one enveloped `ds:Signature` as a direct child of the root, exclusive c14n, RSA-SHA256, one SHA-256 reference to the whole document; valid UTF-8, no DOCTYPE. A `validUntil` in the past is always refused; a missing one is refused while `OECP_IDP_METADATA_REQUIRE_VALID_UNTIL=true` (default). The verified file becomes the last good copy (`aggregate.xml`, `aggregate.json`).
+3. **Fallback.** When the download or the verification fails, the last good copy is re-verified and used, with a warning, for up to 7 days after its download; older or absent, every IdP of the run fails.
+4. **Per IdP.** For every non-deleted organization with a `keycloak_idp_alias`, the Keycloak IdP is read and skipped (reported) when missing, not SAML, disabled (unless `OECP_IDP_METADATA_INCLUDE_DISABLED=true`) or without `idpEntityId`. Its `EntityDescriptor` is found by a streaming parse; absent, duplicated or past its own `validUntil`, the IdP fails.
+5. **Managed keys only:** `signingCertificate` (signing certificates of the `IDPSSODescriptor`, comma-separated; expired ones dropped, a warning for those expiring within 30 days, not-yet-valid ones kept for a rollover; at least one currently valid certificate is needed), `singleSignOnServiceUrl` and `postBindingAuthnRequest` (the binding the IdP is configured with, POST by default; the other one, with a warning, when the metadata does not offer it), `singleLogoutServiceUrl` and `postBindingLogout` (the key is removed when the IdP declares no SLO). The NameID policy and `validateSignature` are only checked (warnings). Only keys that differ are written (certificates compared as a set), after re-reading the IdP; flows, principal attribute, `hideOnLogin` and every other key declared in `realm-oecp.yaml` stay as they are. Each updated IdP gets an audit row `idp.metadata_refresh` by `system:metadata-refresh` (entity = the organization; keys, old and new URLs, certificate SHA-256 fingerprints, aggregate SHA-256; never certificate bodies).
+6. A failing IdP keeps its configuration and never stops the others; any failure fails the job (error log; no alerting yet, §10).
+
+Signature verification holds the whole aggregate in memory (xml-crypto canonicalises the document): a synthetic 75 MB aggregate needed about 750 MB RSS, so with eduGAIN the worker needs **at least 2 GB** of memory (if needed `NODE_OPTIONS=--max-old-space-size=3072`); Compose sets no memory limit. By hand: `oecp idp-metadata-refresh` (Appendix C); on demand: `POST /api/admin/v1/maintenance/jobs/idp-metadata-refresh/run` (§8.2). Operator procedure: `identity/keycloak/README.md` "Metadata refresh".
+
+**Note for the owner:** keycloak-config-cli applies `realm-oecp.yaml` on every `docker compose up` and resets certificates and endpoints to the committed values until the next refresh (the start-up run, about a minute after the worker starts); keep the committed values reasonably current. Only on-demand runs go through the `maintenance` queue and appear in `maintenance_runs` (`GET /maintenance/runs`); the daily and start-up runs leave only worker logs and `idp.metadata_refresh` audit rows, and they do not take the maintenance advisory lock, so an on-demand run can overlap a scheduled one (both write the same values).
 
 **Clients.** `oecp-admin`: public, Authorization Code + PKCE S256, redirect `https://{portal}/en/admin/*`, minimum ACR `mfa`, scopes `basic, acr, email, web-origins, oecp`, role scope limited to the two OECP roles. `oecp-api`: audience only. `oecp-backend`: confidential service account (`manage-users`, `view-users`, `manage-identity-providers`, `view-identity-providers`, `view-events` for `last_login_at`, §8.4). ACR-to-LoA map `{"mfa": 2}`.
 
@@ -135,7 +150,7 @@ Missing bearer: 401 `oecp.auth.missing_token`; other verification failures: 401 
 
 ### 5.1 Effective schema
 
-The effective schema is the `-- Up Migration` sections of migrations 0001–0005 in order, copied verbatim by script: 0001 (extracted from v4.0 §5) followed by the deltas 0002–0005, applied by `node-pg-migrate --check-order`. Down sections are omitted.
+The effective schema is the `-- Up Migration` sections of migrations 0001–0007 in order, copied verbatim by script: 0001 (extracted from v4.0 §5) followed by the deltas 0002–0007, applied by `node-pg-migrate --check-order`. Down sections are omitted.
 
 **0001_init** (canonical schema):
 
@@ -665,9 +680,91 @@ CREATE TRIGGER attribute_definitions_set_updated_at BEFORE UPDATE ON attribute_d
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 ```
 
+**0006_maintenance** (maintenance bookkeeping, §10: `maintenance_runs`, one row per run of a worker maintenance job; `admin_activity`, last admin API use per JWT `sub` for the dormancy job, §2.2, no IP address or user agent; indexes for the batched retention deletes and for the foreign key `ext_metadata_history.sync_run_id`. Monthly history partitions are created by the `history-partitions` job, not by migrations, §5.4; the time this migration ran is the start of activity tracking):
+
+```sql
+CREATE TABLE maintenance_runs (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  job           text NOT NULL CHECK (job ~ '^[a-z][a-z0-9-]{1,62}$'),
+  trigger_kind  text NOT NULL CHECK (trigger_kind IN ('schedule', 'startup', 'manual')),
+  triggered_by  text,                               -- JWT sub for manual runs
+  status        text NOT NULL DEFAULT 'running'
+                  CHECK (status IN ('running', 'succeeded', 'failed', 'skipped')),
+  started_at    timestamptz NOT NULL DEFAULT now(),
+  finished_at   timestamptz,
+  counters      jsonb NOT NULL DEFAULT '{}' CHECK (jsonb_typeof(counters) = 'object'),
+  details       jsonb,
+  error         text,
+  CHECK ((status = 'running') = (finished_at IS NULL)),
+  CHECK (finished_at IS NULL OR finished_at >= started_at)
+);
+CREATE INDEX maintenance_runs_recent ON maintenance_runs (started_at DESC);
+CREATE INDEX maintenance_runs_job_recent ON maintenance_runs (job, started_at DESC);
+
+CREATE TABLE admin_activity (
+  sub              text PRIMARY KEY CHECK (length(sub) BETWEEN 1 AND 255),
+  organization_id  uuid REFERENCES organizations(id) ON DELETE SET NULL,
+  last_seen_at     timestamptz NOT NULL,
+  updated_at       timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX admin_activity_last_seen ON admin_activity (last_seen_at);
+
+CREATE INDEX sync_errors_created ON sync_errors (created_at);
+CREATE INDEX sync_runs_created ON sync_runs (created_at);
+CREATE INDEX audit_log_occurred ON audit_log (occurred_at);
+CREATE INDEX ext_history_sync_run ON ext_metadata_history (sync_run_id);
+```
+
+**0007_handbook_alignment** [DL 21] (Aurora IT Handbook §3.4: instructors, the five optional texts, search over methods, literature and remarks; independent of 0006; the down section restores the previous schema, column order included):
+
+```sql
+CREATE FUNCTION oecp_valid_instructors(a text[]) RETURNS boolean
+LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT AS $$
+  SELECT cardinality(a) <= 50 AND NOT EXISTS (
+    SELECT 1 FROM unnest(a) AS i(name)
+    WHERE i.name IS NULL OR length(i.name) NOT BETWEEN 1 AND 200)
+$$;
+
+ALTER TABLE courses
+  ADD COLUMN instructors text[] NOT NULL DEFAULT '{}'
+    CONSTRAINT courses_instructors_check CHECK (oecp_valid_instructors(instructors));
+
+ALTER TABLE course_texts
+  ADD COLUMN mode_of_repetition text,
+  ADD COLUMN methods text,
+  ADD COLUMN literature text,
+  ADD COLUMN privacy_notice text,
+  ADD COLUMN remarks text;
+
+CREATE FUNCTION oecp_course_search_vector(
+  lang text, title text, keywords text[], abstract text,
+  description text, learning_outcomes text, prerequisites text, assessment text,
+  methods text, literature text, remarks text)
+RETURNS tsvector LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE AS $$
+DECLARE cfg regconfig := oecp_ts_config(lang);
+BEGIN
+  RETURN setweight(to_tsvector(cfg, coalesce(title, '')), 'A')
+      || setweight(to_tsvector(cfg, coalesce(array_to_string(keywords, ' '), '') || ' '
+                                    || coalesce(abstract, '')), 'B')
+      || setweight(to_tsvector(cfg, concat_ws(' ', description, learning_outcomes,
+                                              prerequisites, assessment,
+                                              methods, literature, remarks)), 'C');
+END $$;
+
+ALTER TABLE course_texts DROP COLUMN search_vector;
+ALTER TABLE course_texts ADD COLUMN search_vector tsvector GENERATED ALWAYS AS
+  (oecp_course_search_vector(lang, title, keywords, abstract, description,
+                             learning_outcomes, prerequisites, assessment,
+                             methods, literature, remarks)) STORED;
+CREATE INDEX course_texts_fts ON course_texts USING gin (search_vector);
+
+DROP FUNCTION oecp_course_search_vector(text, text, text[], text, text, text, text, text);
+```
+
 ### 5.2 Rules the database does not enforce
 
 - **`level` and `levels`** [DL 18 d]: `levels` holds every study cycle, primary first; `CanonicalWriter` keeps `level = levels[1]` (SQL 1-based) on every write, without a trigger. **Note for the owner:** `level` survives only because the OEAPI v5 read API can express one level; a manual SQL update of `levels` alone leaves `level` stale.
+- **Instructors and handbook texts** [DL 21 a, b]: `instructors` holds the names (or role descriptions) of the teaching staff exactly as the university publishes them in its own catalogue, primary first; entries are trimmed and distinct (Zod `instructorList`; the DDL checks only 1–200 characters and ≤ 50 entries). None of `instructors`, `mode_of_repetition`, `methods`, `literature`, `privacy_notice`, `remarks` is required to store or to publish a course, except through the publication rule (§6.1). **GDPR** [DL 21 a]: names of teaching staff are personal data; OECP republishes only what the university already publishes for the same course and purpose (public-interest task of the alliance), keeps no other person data (no e-mail, phone or identifiers) and never looks persons up.
 - **Attributes** [DL 18 a]: the writer checks values against `attribute_definitions`: unknown key → `oecp.content.unknown_attribute`; wrong type → `oecp.content.invalid_attribute_value`; value outside the options → `oecp.content.unknown_attribute_option`. Types: `boolean`, `enum`, `multi_enum` (unique list in option order), `text` (≤ 500 characters); ≤ 200 options per definition.
 - **Aurora definitions** (`apps/api/db/seed/attribute-definitions.aurora.json`): `educational_hub` (multi_enum, 6 hubs), `sdg` (multi_enum, 17), `competence_framework` (enum `louis`/`none`), `micro_credential`, `free_course`, `enrolled_only`, `open_to_alliance` (boolean), `target_audience` (multi_enum `students`/`phd_candidates`/`staff`) [Partial: backlog "Confirm the Aurora attribute definitions"]. **Note for the owner:** the default seed `attribute-definitions.json` is the same Aurora list, so another alliance inherits it unless it passes `--file`.
 
@@ -683,15 +780,24 @@ Columns hold the **effective** value. `source` is the value the source last deli
 
 ### 5.4 History and search
 
-**History.** `ext_metadata_history` stores a payload (accepted or rejected) only when its RFC 8785 SHA-256 differs from the latest of the same `(organization_id, entity_type, ext_id)`; offerings use `<course code>#<offering code>`. [Partial]: only the partitions `_default` and `_2026_11` exist; the monthly partition job and 12-month purge [Deferred: not in backlog]. **Note for the owner:** from December 2026 every row lands in the default partition until that job exists.
+**History.** `ext_metadata_history` stores a payload (accepted or rejected) only when its RFC 8785 SHA-256 differs from the latest of the same `(organization_id, entity_type, ext_id)`; offerings use `<course code>#<offering code>`. Monthly partitions `ext_metadata_history_YYYY_MM` (UTC month bounds) are created by the worker job `history-partitions`, not by migrations (0001 created only `_default` and `_2026_11`) [Implemented]: at worker start and daily at 00:10 UTC it keeps the current month and the next three, moves rows that fell into the default partition into a partition of their month (created detached, filled in batches of 5,000 rows and attached in one transaction, so readers never miss a row) and detaches and drops partitions whose whole month is older than `OECP_RETENTION_HISTORY_MONTHS` (12; rows are kept 12 to 13 months). DDL waits at most 5 s for its locks; a failing month is reported in `maintenance_runs` and retried the next day. The default partition is never dropped.
 
-**Search** [Implemented]: weights A title; B keywords, abstract; C description, outcomes, prerequisites, assessment; `unaccent` throughout; `pg_trgm` on `oecp_search_fold(title)`. Catalan uses Snowball `catalan` (asserted by migration 0004 and the Compose init script); Czech and Icelandic use `oecp_simple`. The §10 performance target has not been measured.
+**Search** [Implemented]: weights A title; B keywords, abstract; C description, outcomes, prerequisites, assessment, methods, literature, remarks (migration 0007; mode of repetition and privacy notice are not indexed); `unaccent` throughout; `pg_trgm` on `oecp_search_fold(title)`. Catalan uses Snowball `catalan` (asserted by migration 0004 and the Compose init script); Czech and Icelandic use `oecp_simple`. The §10 performance target has not been measured.
 
 ## 6. Ingestion (anti-corruption layer)
 
 ### 6.1 Common pipeline [Implemented]
 
-Adapter → source validation → canonical DTO (`packages/schemas/src/canonical.ts`) → canonical Zod schema → SHA-256 of the RFC 8785 serialisation → `CanonicalWriter` (natural key, override merge, `levels`/`level`, attribute check, status audit) → `ext_metadata_history`, `sync_errors`. The hash covers every canonical member, `kind`, `levels`, `attributes` and `application_instructions` included, except an offering's `seats_updated_at`. An equal hash only refreshes `last_seen_at` and `absent_count` (and an overridden status), so every channel is idempotent. Each harvest, upload or form save is one `sync_runs` row (`schema_version` `oeapi-5.0`, `csv-1.1`, `form-1`).
+Adapter → source validation → canonical DTO (`packages/schemas/src/canonical.ts`) → canonical Zod schema → SHA-256 of the RFC 8785 serialisation → `CanonicalWriter` (natural key, override merge, `levels`/`level`, attribute check, status audit) → `ext_metadata_history`, `sync_errors`. The hash covers every canonical member, `kind`, `levels`, `attributes`, `application_instructions`, `instructors` and the handbook texts included, except an offering's `seats_updated_at` (adding `instructors` and the texts made the first run after 0007 report every course as updated once). An equal hash only refreshes `last_seen_at` and `absent_count` (and an overridden status), so every channel is idempotent. Each harvest, upload or form save is one `sync_runs` row (`schema_version` `oeapi-5.0`, `csv-1.2`, `form-1`).
+
+**Publication rule** [DL 21 c] [Implemented] (ADR-0016). The Aurora IT Handbook shows a course only when every obligatory field is present. `completeness(course, offerings)` (`packages/schemas/src/handbook.ts`, pure, also used by the admin UI) returns `{complete, missing[]}` over the effective values. Obligatory: course `texts.en.title`, `texts.en.description` (Content), `texts.en.learning_outcomes`, `texts.en.prerequisites` (Requirements), `texts.en.assessment`, `ects`, `levels` (≥ 1), `contact_email` (the course's, else the organization's), `instructors` (≥ 1); and at least one **published** offering with `start_date`, `end_date`, `enrol_start_date` (Application start), `application_deadline`, `teaching_languages` (≥ 1) and `delivery_modes` (≥ 1). `missing` names course fields as above, `offerings` when there is no published offering, else `offerings.<field>` of the most complete published offering. The writer applies the rule after a channel has written a course **and** its offerings (harvest: after each course's offerings; CSV: after the whole upload, for every course of `courses.csv` and every course reached through `offerings.csv`; form: after every course or offering save), to the status the channel asks for:
+
+| `OECP_PUBLISH_RULE` | Requested `published`, complete | Requested `published`, incomplete |
+|---|---|---|
+| `warn` (default; transition period) | published | published, warning `oecp.content.handbook_incomplete` |
+| `enforce` | published | stored as `draft`, same warning |
+
+The warning goes to the run's `sync_errors` (`entity_type` `course`, `ext_id`, the missing fields in `message`), and to the response of inline CSV uploads. Nothing is ever rejected: harvests and uploads never fail because of the rule. In `enforce` mode a course write never publishes by itself (new courses wait as `draft`, others keep their status until the check), so an incomplete course is never visible; an offering save or an `offerings.csv` row can unpublish a course (it loses its only published offering) but never publishes one: publishing again needs a course write (harvest of the course, its `courses.csv` row, or "Publish" in the form). Status changes made by the rule are audited `course.status` with `publish_rule` (and `missing`). Courses with a requested status other than `published` are not checked. The public catalogue is unchanged (published courses only).
 
 ### 6.2 Channel A: scheduled OEAPI harvester [Implemented, mock-verified]
 
@@ -731,15 +837,20 @@ Paging: `pageSize` = `page_size` (10–250, default 100), `pageNumber` 1, 2, …
 | `modeOfDelivery` | delivery modes | offering, else course; `online`, `distance-learning` → `online`; `on campus`, `situated` → `presential`; `hybrid`; none mappable → rejected |
 | `maxNumberStudents`, `enrolledNumberStudents`, `pendingNumberStudents` | `max_students`, `seats_available = max(0, max − enrolled − pending)`, `seats_updated_at` = fetch time | seats only with max > 0 and enrolled [DL 8] |
 | `ext.oecp.applicationInstructions` (optional extension) | `application_instructions` | `[{language, value}]` or `{lang: text}`; else ignored with a warning |
-| — | `timezone`, `contact_email` | organization defaults; no person data, `coordinators` never expanded |
+| course `coordinators` | `instructors` [DL 21 a] | only persons the endpoint already returns **expanded** with `displayName`, else `givenName` (+ `surnamePrefix`) + `surname` (`surName` accepted); ids are ignored: no `expand`, no extra request, no person lookup; nothing else of the `Person` is kept; distinct, ≤ 200 characters (cut with `oecp.oeapi.value_truncated`), ≤ 50; not an array → warning `oecp.oeapi.invalid_payload`, course kept |
+| `ext.oecp.instructors` (optional extension, as the OECP read API emits it) | `instructors` | used when no coordinator has a name; `[string]`, else ignored with a warning |
+| `ext.oecp.texts.{modeOfRepetition, methods, literature, privacyNotice, remarks}` (optional extension) | `mode_of_repetition`, `methods`, `literature`, `privacy_notice`, `remarks` | `[{language, value}]` or `{lang: text}` per member, for languages with a title; ≤ 20,000 characters; else ignored with a warning |
+| — | `timezone`, `contact_email` | organization defaults |
 | — | `status` | course `published` with an English title, else `draft` + warning `oecp.content.english_missing`; offering `published` |
 | — | `kind`, `attributes`, `teaching_hours`, `campus`, `alliance_seats`, teaching unit | `course`, `{}`, null |
 
 **Languages.** ISO 639-2 B and T codes normalise to ISO 639-1 where one exists (`ger`/`deu` → `de`, `ice`/`isl` → `is`, `dut`/`nld` → `nl`, `cze`/`ces` → `cs`); others stay three-letter; `mul`, `und`, `zxx`, `mis` are dropped with a warning; text tags reduce to the primary subtag.
 
-**Note for the owner:** an offering with no usable teaching language on offering or course (`mul`, `und`, missing, invalid) is **rejected** (`oecp.oeapi.missing_teaching_language`), not published with a fallback (backlog "Decide: offering with no usable teaching language").
+An offering with no usable teaching language on offering or course (`mul`, `und`, `zxx`, `mis`, missing, invalid) is **rejected** (`oecp.oeapi.missing_teaching_language`), not published with a fallback, and stays visible in the partner's sync monitor [DL 20].
 
 **Note for the owner:** the harvester always sends `kind: "course"` and `attributes: {}`; OEAPI partners cannot deliver alliance attributes or BIP/lecture-series kinds. Administrators add them as overrides, which survive every harvest.
+
+**Note for the owner:** the harvester never asks for `expand=coordinators` (decision 21 a: no extra requests, no person lookups), and most endpoints list coordinators as ids or not at all, so harvested courses will usually have no instructors and fail the publication rule (§6.1) until the partner returns named coordinators or `ext.oecp.instructors`, or an administrator sets an `instructors` override. Review the `handbook_incomplete` counts in the sync monitor before setting `OECP_PUBLISH_RULE=enforce`.
 
 **6.2.5 Withdrawal by absence.** A run is complete when every listing page answered 2xx, nothing fatal happened and at least one course came back; only complete runs count absence. If ≥ 30% of the partner's published courses are missing, nothing is counted (`oecp.oeapi.mass_absence`; no notification is sent [Deferred: not in backlog]). Otherwise absent `draft`/`published` courses and offerings (offerings with `start_date ≥ since`) get `absent_count + 1` and, at `withdraw_after_absences` (default 3), become `withdrawn` unless a `status` override exists (audit actor `system:harvester`, reason `absence`). A seen entity resets `absent_count`; a published source republishes an entity withdrawn by absence (audit `*.republish`, reason `seen_again`). A failed, empty or incomplete run never withdraws [DL 3].
 
@@ -751,22 +862,22 @@ HTTP: 30 s per request; up to 5 retries on 429, 5xx, timeouts and network errors
 
 ### 6.3 Channel B: CSV upload [Implemented]
 
-**Format, template 1.1** (`packages/schemas/src/csv.ts`). `courses.csv` and/or `offerings.csv` (courses first); strict UTF-8, BOM stripped; RFC 4180; comma, or semicolon when the header has no comma; exact header names in any order; real calendar dates `YYYY-MM-DD`; decimal point; multi-values separated by `|`; language columns suffixed `_<lang>`. The header is row 1. An empty cell clears the field; a column absent from the header leaves it untouched; a language whose cells are all empty is deleted (warning; never `en`). Omission never withdraws: set `status`.
+**Format, template 1.2** (`packages/schemas/src/csv.ts`; 1.0 and 1.1 files stay valid). `courses.csv` and/or `offerings.csv` (courses first); strict UTF-8, BOM stripped; RFC 4180; comma, or semicolon when the header has no comma; exact header names in any order; real calendar dates `YYYY-MM-DD`; decimal point; multi-values separated by `|`; language columns suffixed `_<lang>`. The header is row 1. An empty cell clears the field; a column absent from the header leaves it untouched; a language whose cells are all empty is deleted (warning; never `en`). Omission never withdraws: set `status`.
 
 | File | Required columns | Optional columns |
 |---|---|---|
-| `courses.csv` | `template_version` (`1.0`/`1.1`), `course_code` (`^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$`), `status`, `ects` (≤ 3 digits, ≤ 2 decimals, 0 < x ≤ 120), `isced_codes` (`\|`-separated, first primary, no duplicates), `title_en` (≤ 500) | `kind`¹, `levels`¹ (`\|`-separated, primary first), `level` (not together with `levels`: `oecp.csv.conflicting_columns`), `eqf_level` (1–8), `teaching_hours`, `teaching_unit_code`, `info_url` (https), `contact_email`; per language `title_`, `abstract_`, `description_`, `learning_outcomes_`, `prerequisites_`, `assessment_`, `keywords_` (`\|`-separated); `attr_<key>`¹ per attribute definition |
+| `courses.csv` | `template_version` (`1.0`/`1.1`/`1.2`), `course_code` (`^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$`), `status`, `ects` (≤ 3 digits, ≤ 2 decimals, 0 < x ≤ 120), `isced_codes` (`\|`-separated, first primary, no duplicates), `title_en` (≤ 500) | `kind`¹, `levels`¹ (`\|`-separated, primary first), `level` (not together with `levels`: `oecp.csv.conflicting_columns`), `eqf_level` (1–8), `teaching_hours`, `teaching_unit_code`, `info_url` (https), `contact_email`, `instructors`² (`\|`-separated names or role descriptions, 1–200 characters each, ≤ 50, repeats dropped; empty clears); per language `title_`, `abstract_`, `description_`, `learning_outcomes_`, `prerequisites_`, `assessment_`, `keywords_` (`\|`-separated), and² `mode_of_repetition_`, `methods_`, `literature_`, `privacy_notice_`, `remarks_`; `attr_<key>`¹ per attribute definition |
 | `offerings.csv` | `template_version`, `course_code` (in the catalogue or in the same upload), `offering_code`, `status`, `start_date`, `end_date`, `teaching_languages` (BCP 47, `\|`), `delivery_modes` (active codes, `\|`) | `academic_session_code`, `enrol_start_date`, `application_deadline`, `timezone` (IANA; default the organization's), `campus` (≤ 200), `max_students`, `alliance_seats`, `seats_available` (sets `seats_updated_at` to upload time), `application_url` (https); `application_instructions_<lang>`¹ |
 
-¹ Template 1.1 only: a row declaring `1.0` in a file with any 1.1 column fails (`oecp.csv.invalid_template_version`); 1.0 files stay valid. A non-English language needs `title_<lang>`. `attr_<key>` cells: booleans `true/false/yes/no/1/0`, `enum` one option, `multi_enum` `\|`-separated options, `text` ≤ 500; empty removes the attribute. An unknown `academic_session_code` creates a minimal session (type `period`, name = code, dates spanning its offerings).
+¹ From template 1.1; ² from template 1.2 [DL 21]. A row whose `template_version` is older than a column of the header fails (`oecp.csv.invalid_template_version`): `1.0` with any 1.1 or 1.2 column, `1.1` with any 1.2 column; 1.0 and 1.1 files stay valid. `instructors` errors: `oecp.content.invalid_value`. A non-English language needs `title_<lang>`. `attr_<key>` cells: booleans `true/false/yes/no/1/0`, `enum` one option, `multi_enum` `\|`-separated options, `text` ≤ 500; empty removes the attribute. An unknown `academic_session_code` creates a minimal session (type `period`, name = code, dates spanning its offerings).
 
-**Templates** (any administrator): `GET /api/admin/v1/csv-template/courses.csv` (one `attr_<key>` column per definition), `…/offerings.csv`, `…/schema.json` (JSON Schema 2020-12 generated from the Zod row schemas; accepts 1.0) [Partial: no `$ref` to the canonical schema, backlog "CSV JSON Schema should $ref…"].
+**Templates** (any administrator): `GET /api/admin/v1/csv-template/courses.csv` (one `attr_<key>` column per definition), `…/offerings.csv`, `…/schema.json` (`oecp-csv-1.2.schema.json`, JSON Schema 2020-12 generated from the Zod row schemas; accepts 1.0 and 1.1; the 1.0 and 1.1 documents in `packages/schemas/json/csv/` are frozen) [Partial: no `$ref` to the canonical schema, backlog "CSV JSON Schema should $ref…"].
 
 **Upload contract.** `POST /api/admin/v1/organizations/{orgId}/uploads`, `multipart/form-data`, file fields `courses` and/or `offerings`, one each, no other parts, ≤ 5 MiB per file. Limits: 5,000 rows per file, 300 columns, 20,000 characters per cell, 10 uploads per hour per organization. Files go to `{OECP_UPLOADS_DIR}/{orgId}/{uploadId}/`; a `sync_runs` row (`csv`/`upload`) and an `upload.create` audit row (names, sizes, SHA-256) are written first.
 
 | Outcome | HTTP | Body |
 |---|---|---|
-| ≤ 500 data rows, processed in the request, succeeded | 201 | `{sync_run_id, status, processed_inline: true, run, warnings[]}` |
+| ≤ 500 data rows, processed in the request, succeeded | 201 | `{sync_run_id, status, processed_inline: true, run, warnings[]}` (`warnings` include `oecp.content.handbook_incomplete`, §6.1: `file` `courses` with the row of the course, or `offerings` for courses reached only through `offerings.csv`; `message` starts with the course code) |
 | > 500 rows, queued for the worker | 202 | `{sync_run_id, status: "queued", processed_inline: false}` |
 | Inline run failed (nothing written) | 422 | problem+json, `errors[]` (≤ 1,000) plus `sync_run_id`, `run_status`, `processed_inline`, `error_count`, `warning_count` |
 | No file / unexpected part | 400 | `oecp.csv.no_files` / `oecp.csv.unexpected_file` |
@@ -785,7 +896,7 @@ Every response carries `Location: /api/admin/v1/sync-runs/{id}`.
 
 ### 6.4 Channel C: web form [Implemented]
 
-The course wizard posts canonical JSON (≤ 1 MB) to the admin courses API (§8.2). Each save is one transaction: a `sync_runs` row (`form`, `form-1`), the write and an audit row; a refused save writes nothing. Zod validation in browser and server, then database references (ISCED broad field, teaching unit, active modes, attributes) as 422 with JSON Pointers. Form languages: a fixed list of 29 EU/EEA primary subtags.
+The course wizard posts canonical JSON (≤ 1 MB) to the admin courses API (§8.2). Each save is one transaction: a `sync_runs` row (`form`, `form-1`), the write and an audit row; a refused save writes nothing. Zod validation in browser and server, then database references (ISCED broad field, teaching unit, active modes, attributes) as 422 with JSON Pointers. The publication rule (§6.1) runs after the save in the same transaction; its warning is stored with the form run and the audit row of the save carries `publish_rule {mode, status, missing}`. Form languages: a fixed list of 29 EU/EEA primary subtags.
 
 ### 6.5 Rules between channels [DL 12]
 
@@ -830,7 +941,7 @@ RFC 9457 `application/problem+json` for `/api/public/v1` and `/api/admin/v1`: `t
 
 **Visibility and ranking.** Published, non-deleted courses; with `upcoming` a published offering must end today or later (UTC date). Text matching ORs one branch per text-search configuration so the GIN index applies; one word also matches as a prefix and, from 3 characters, by trigram similarity. Rank = `ts_rank_cd` + 0.3 × title trigram similarity.
 
-**Shapes.** Search `{items, page, page_size, total, facets}`; cards carry resolved title and abstract (≤ 300 characters) with their languages, `levels`, tag attributes, current modes and languages and `next_offering`. The course page has every text language, attribute and published offering (past included), cancelled offerings not yet started, and the contact (course, else organization). Absent values are `null`.
+**Shapes.** Search `{items, page, page_size, total, facets}`; cards carry resolved title and abstract (≤ 300 characters) with their languages, `levels`, tag attributes, current modes and languages and `next_offering`. The course page has every text language (each with the optional handbook texts `mode_of_repetition`, `methods`, `literature`, `privacy_notice`, `remarks` [DL 21 b]), `instructors` (`string[]`, may be empty) [DL 21 a], every attribute and published offering (past included), cancelled offerings not yet started, and the contact (course, else organization). Search cards are unchanged. Absent values are `null`.
 
 **Caching** [Implemented]: `public, max-age=60` (search, suggest), `public, max-age=300` (course, reference, sitemap), only on success; weak `ETag`/304. No `Set-Cookie`.
 
@@ -844,7 +955,9 @@ RFC 9457 `application/problem+json` for `/api/public/v1` and `/api/admin/v1`: `t
 
 **UI language** [Partial]: English only [DL 5]; `@nuxtjs/i18n` prefix strategy, `/` redirects by `Accept-Language` without cookie, `hreflang` from `NUXT_PUBLIC_I18N_BASE_URL`; partner UI languages in v1.
 
-**JSON-LD** [Implemented]: `schema.org/Course` with `name`, `description`, `courseCode`, `url`, `sameAs`, `inLanguage`, `provider` (`CollegeOrUniversity`), `numberOfCredits` (ECTS), `educationalLevel`, `about`, `teaches`, `coursePrerequisites`, `keywords`, `hasCourseInstance[]` for non-cancelled offerings (`courseMode` from `delivery_modes.schema_org`, dates, languages, campus, application URL).
+**JSON-LD** [Implemented]: `schema.org/Course` with `name`, `description`, `courseCode`, `url`, `sameAs`, `inLanguage`, `provider` (`CollegeOrUniversity`), `numberOfCredits` (ECTS), `educationalLevel`, `about`, `teaches`, `coursePrerequisites`, `keywords`, `hasCourseInstance[]` for non-cancelled offerings (`courseMode` from `delivery_modes.schema_org`, dates, languages, campus, application URL, `instructor` as `Person` names from `instructors`).
+
+**Handbook fields** [DL 21] [Implemented]: "Instructors" fact when the list is not empty; the optional texts Methods, Mode of repetition, Literature and Remarks after Assessment, and the Privacy notice last in small print, as plain text in the selected text language.
 
 **Robots and sitemap** [Implemented]: `/robots.txt` disallows `/admin`, `/*/admin`, `/api/admin` and names the absolute sitemap; `/sitemap.xml` lists published courses as `{OECP_PUBLIC_BASE_URL}/en/courses/{id}` with `lastmod` (≤ 50,000 URLs, built on request).
 
@@ -858,8 +971,8 @@ The dashboard shows the account and the modules of the selected organization: th
 
 | Module | As built | Status |
 |---|---|---|
-| Courses | Filtered list (state in the URL); course page with wizard, status actions, delete, offerings, history | [Implemented] |
-| Course wizard | basics → texts (English to publish) → attributes → review; offerings on their own pages; in `overrides` mode each field has an override toggle showing the source value, unticking reverts | [Implemented] |
+| Courses | Filtered list (state in the URL) with a Completeness column; course page with wizard, status actions, delete, offerings, history | [Implemented] |
+| Course wizard | basics (with instructors, one per line) → texts (English to publish; "More texts": the five handbook texts) → attributes → review (Completeness card listing the missing handbook fields); offerings on their own pages; in `overrides` mode each field has an override toggle showing the source value, unticking reverts | [Implemented]; handbook fields [DL 21] |
 | CSV console | Templates, drag-and-drop, Web Worker validation, error table and report, server result | [Implemented] |
 | Sync monitor | Latest 50 runs of every channel; run page with errors by severity | [Implemented]; pending withdrawals and payload viewer [Deferred: not in backlog] |
 | Integration settings (`/admin/integration`) | Full settings form (channel, access mode and endpoint, write-only credential: keep, replace or delete, with a "stored" indicator; schedule presets or cron with time zone; limits; enabled), inline validation with an error summary; host approval card (approve button for `alliance_admin`, a request to ask one for `partner_admin`); "Test connection" and "Sync now" on the saved settings with result cards (202, 409, 429); last run and sync history links | [Implemented, 0.2.0] |
@@ -882,24 +995,25 @@ Bearer-only (§4). P = `partner_admin` (own scope), A = `alliance_admin`. Repeat
 | `GET /organizations/{orgId}/admins` · `DELETE …/admins/{sub}` (204) · `POST …/admins/{sub}/resend-setup` | P, A · A · A | §8.4; revocation §2.2 |
 | `GET /organizations/{orgId}/invitations` · `POST /organizations/{orgId}/invitations` (201) · `POST /invitations/{id}/resend` (201) | P, A · A · A | §2.1; the organization-scoped `POST` takes `{email, role, ttl_hours?}` and behaves as `POST /invitations` |
 | `GET /network-status` | A | §8.4 |
+| `GET /maintenance/runs?limit&job` · `POST /maintenance/jobs/{name}/run` (202) | A · A | §10 Maintenance jobs: runs newest first, `limit` 1–200 (default 50); run on demand `history-partitions`, `retention`, `dormancy`, `csv-retention` or `idp-metadata-refresh` → `{job, status: "queued" \| "already_queued"}` (one manual run per job waiting or running), unknown name 404 `oecp.request.not_found`; audited `maintenance.run_requested` |
 | `GET`, `PUT /organizations/{orgId}/integration` | P, A | 404 `oecp.integration.not_configured` before the first `PUT` |
 | `POST …/integration/approve-host` | A | approves the host of the current `base_url` (direct only) |
 | `POST …/integration/test-connection` | P, A | `GET /` and `GET /courses?pageSize=1`; remote failures are 200 `{ok: false, error}`; blockers 409 |
 | `POST …/integration/sync-now` | P, A | 202 `{sync_run_id, status: "queued"}`; 409 channel disabled, blocker or already running; 429 `oecp.sync.rate_limited` + `Retry-After` (15 min after the last manual run) |
-| `GET /organizations/{orgId}/sync-runs?limit` · `GET /sync-runs/{id}?page&page_size&severity` | P, A | limit ≤ 100; errors ≤ 500 per page |
+| `GET /organizations/{orgId}/sync-runs?limit` · `GET /sync-runs/{id}?page&page_size&severity` | P, A | limit ≤ 100; errors ≤ 500 per page; the detail adds `handbook_incomplete` (courses of the run with `oecp.content.handbook_incomplete`, §6.1) |
 | `POST /organizations/{orgId}/uploads` · `GET /csv-template/…` | P, A | §6.3 |
 | `GET /organizations/{orgId}/reference` | P, A | time zone, levels, kinds, modes, ISCED, form languages, attribute definitions, sessions, teaching units, `authoritative_channel`, `form_mode` |
-| `GET`, `POST /organizations/{orgId}/courses` | P, A | list: `q`, `status`, `kind`, `source_channel`, `page`, `page_size` ≤ 100; create 201 + `Location` |
+| `GET`, `POST /organizations/{orgId}/courses` | P, A | list: `q`, `status`, `kind`, `source_channel`, `page`, `page_size` ≤ 100; items carry `complete` (publication rule, §6.1); create 201 + `Location` |
 | `GET`, `PUT`, `DELETE /courses/{id}` · `PATCH …/overrides` · `POST …/status` · `GET …/history?limit` | P, A | history ≤ 200 entries: ingest rows (no payload) and audit rows with a one-line summary |
 | `POST /courses/{id}/offerings` · `GET`, `PUT`, `DELETE /offerings/{id}` · `PATCH …/overrides` · `POST …/status` | P, A | as for courses |
 
 **Integration settings** (`PUT`, full document, defaults in brackets): `authoritative_channel` [`form`], `access_mode` [null; required for `oeapi`], `oeapi_version` [`"5"`, the only value], `consumer_profile` [`eduxchange`], `base_url`, `auth_scheme` [`none`], `api_key_header_name`, `secret` (write-only: omitted keeps, `null` deletes, a string replaces; stored as `db:<uuid>`), `surfeduhub_endpoint_id`, `schedule_cron` [`0 3 * * *`], `schedule_timezone` [`Europe/Brussels`], `page_size` [100], `max_requests_per_second` [2], `withdraw_after_absences` [3], `enabled` [false; only with `oeapi`]. Responses never return the credential (`secret_configured`, `host_approved`, `last_run`). Every change is audited with from/to values.
 
-**Course and offering writes.** Create defaults to `draft` (`published` needs `texts.en`); `withdrawn`/`cancelled` only through `…/status`. `PUT` is a full replace: omitted languages are deleted except English; codes are immutable (409 `oecp.content.ext_id_immutable`). Re-creating a soft-deleted code revives it without old overrides; an existing code gives 409 `oecp.content.duplicate_ext_id`. Delete is soft and refused for harvested records, courses with published offerings and published offerings (409). Offerings default `timezone` to the organization's; `seats_available` stamps `seats_updated_at`. Responses carry effective values plus `overrides`, `override_meta` (`{by, at}`) and `source_values`.
+**Course and offering writes.** Create defaults to `draft` (`published` needs `texts.en`); `withdrawn`/`cancelled` only through `…/status`. `PUT` is a full replace: omitted languages are deleted except English; codes are immutable (409 `oecp.content.ext_id_immutable`). Re-creating a soft-deleted code revives it without old overrides; an existing code gives 409 `oecp.content.duplicate_ext_id`. Delete is soft and refused for harvested records, courses with published offerings and published offerings (409). Offerings default `timezone` to the organization's; `seats_available` stamps `seats_updated_at`. Responses carry effective values plus `overrides`, `override_meta` (`{by, at}`) and `source_values`. Course bodies take `instructors` (`string[]`, default `[]`, 1–200 characters each, ≤ 50, no duplicates: `oecp.content.invalid_value`) and, per language, `mode_of_repetition`, `methods`, `literature`, `privacy_notice`, `remarks` (≤ 20,000, trimmed, empty → null); `AdminCourse` adds `instructors` and `completeness` `{complete, missing[]}` (§6.1, on the effective values, whatever the status).
 
 ### 8.3 Overrides API
 
-`PATCH …/overrides` `{set: {key: value}, clear: [key]}`: at least one change, ≤ 100 keys each, no key in both. Course keys: `status`, `kind`, `levels`, `ects`, `teaching_hours`, `info_url`, `contact_email`, `attributes`, `isced_codes`, `texts.<lang>.<field>` (`title`, `abstract`, `description`, `learning_outcomes`, `prerequisites`, `assessment`, `keywords`; a new language needs its title). Offering keys: `status`, the four dates, `timezone`, `teaching_languages`, `delivery_modes`, `campus`, `max_students`, `alliance_seats`, `seats_available`, `application_url`, `application_instructions`. Values have the shape of the create body; the effective record is validated before storing. In `overrides` mode `POST …/status` stores a `status` override.
+`PATCH …/overrides` `{set: {key: value}, clear: [key]}`: at least one change, ≤ 100 keys each, no key in both. Course keys: `status`, `kind`, `levels`, `ects`, `teaching_hours`, `info_url`, `contact_email`, `attributes`, `isced_codes`, `instructors`, `texts.<lang>.<field>` (`title`, `abstract`, `description`, `learning_outcomes`, `prerequisites`, `assessment`, `mode_of_repetition`, `methods`, `literature`, `privacy_notice`, `remarks`, `keywords`; a new language needs its title). Offering keys: `status`, the four dates, `timezone`, `teaching_languages`, `delivery_modes`, `campus`, `max_students`, `alliance_seats`, `seats_available`, `application_url`, `application_instructions`. Values have the shape of the create body; the effective record is validated before storing. In `overrides` mode `POST …/status` stores a `status` override.
 
 ### 8.4 Organizations, administrators and network status [Implemented]
 
@@ -924,7 +1038,7 @@ Anonymous, read-only: `GET /oeapi/v5/`, `/organizations[/{id}[/courses]]` (the a
 - **`consumer`** [DL 19]: absent or `oecp` returns the catalogue; any other value (e.g. `eduxchange`) returns an empty page. Courses and offerings list `consumers: [{consumerKey: "oecp", alliances: [{name: <alliance slug>}]}]`. Reversible in one condition of `OeapiService.foreignConsumer()`. **Note for the owner:** v4.0 §9 presented this API as harvestable "by eduXchange included"; with [DL 19] eduXchange, which always sends `consumer=eduxchange`, receives nothing, by design.
 - **Paging and filters.** `pageSize` 1–250 (default 10), `pageNumber`. Courses: `teachingLanguage` (ISO 639-2), `level`, `modeOfDelivery`, `q`, `sort`, `expand=organization`. Offerings: v5 `since` (default today), `until`, `sort`, `expand=academicSession,course`. Organizations and sessions: type, `q`/`parent`, `sort`, `expand`.
 - **Mapping out.** Alliance → `root`, institution → `institute`, campus → `branch`. Modes: `presential` → `on campus`; `online`, `coil` → `online`; others → `hybrid`. `teachingLanguage`: ISO 639-2/T of a representative offering's first language. `level`: `short_cycle` → `associate degree`, `other`/none → `undefined`. `fieldsOfStudy`: primary ISCED code, four digits.
-- **`ext.oecp`.** Course: `kind`, `level`, `levels`, `eqfLevel`, `teachingHours`, `iscedCodes`, `abstract`, `keywords`, `teachingUnit`, `contactEmail`, `attributes`, `updatedAt`. Offering: `status`, `timezone`, `teachingLanguages`, `deliveryModes`, `campus`, `allianceSeats`, `seatsAvailable`, `seatsUpdatedAt`, `applicationInstructions`. Organization: `slug`, `orgType`, `isPartner`. Session: `organizationId`. Service document: `alliance`, `portal`, `publicApi` (`contactEmail` = alliance contact, else `SMTP_FROM`).
+- **`ext.oecp`.** Course: `kind`, `level`, `levels`, `eqfLevel`, `teachingHours`, `iscedCodes`, `abstract`, `keywords`, `teachingUnit`, `contactEmail`, `instructors` (`string[]`) and `texts` (`modeOfRepetition`, `methods`, `literature`, `privacyNotice`, `remarks`, each `[{language, value}]`, members and `texts` present only when some language has them) [DL 21], `attributes`, `updatedAt`. v5 `coordinators` is not emitted: it holds `Person` objects or their ids, and OECP stores names only. Offering: `status`, `timezone`, `teachingLanguages`, `deliveryModes`, `campus`, `allianceSeats`, `seatsAvailable`, `seatsUpdatedAt`, `applicationInstructions`. Organization: `slug`, `orgType`, `isPartner`. Session: `organizationId`. Service document: `alliance`, `portal`, `publicApi` (`contactEmail` = alliance contact, else `SMTP_FROM`).
 - **Caching and errors.** `Cache-Control: public, max-age=300`, weak `ETag`; errors as v5 `Problem`. `/oeapi/v6` [Deferred to v1].
 
 ## 10. Non-functional requirements
@@ -941,7 +1055,9 @@ Anonymous, read-only: `GET /oeapi/v5/`, `/organizations[/{id}[/courses]]` (the a
 | Secrets | AES-256-GCM `secrets` table; Docker secrets for every password | [Implemented]; rotation tooling, OpenBao [v1] |
 | Supply chain | CI: lint, format, type check, tests, `reuse lint`, DCO, `docker compose config`, Trivy; Dependabot | [Partial]: SBOM, Semgrep, cosign [Deferred: not in backlog] |
 | Accessibility | WCAG 2.1 AA target; contrast unit test; `lang` on fallback texts | [Partial]: audit and statement [Deferred: backlog "Docs: GDPR set…"] |
-| Retention | uploads 90 days, Keycloak events 90 days | other periods of v4.0 §10 [Deferred: not in backlog] |
+| Retention | Uploads 90 days (`csv-retention`, 04:30 UTC); raw payloads 12 months (history partitions, §5.4); worker job `retention`, daily 04:45 UTC, batched deletes of 5,000 rows: `sync_errors` 12 months, `sync_runs` 24 months (not while queued or running, while the upload file is kept, or while history rows reference them), `audit_log` 36 months, `admin_invitations` 12 months after acceptance, revocation or expiry, `maintenance_runs` 12 months, `admin_activity` 12 months idle (months configurable: `OECP_RETENTION_HISTORY_MONTHS`, `_SYNC_ERRORS_MONTHS`, `_SYNC_RUNS_MONTHS`, `_AUDIT_MONTHS`); Keycloak events 90 days (realm) | [Implemented]; application and access logs (90 / 30 days: log driver and Loki settings) [Deferred: backlog "Application and access log retention"]; Keycloak accounts 12 months after role removal [Deferred: backlog "Keycloak account deletion…"] |
+| Maintenance jobs | Queue `maintenance` in the worker: `history-partitions` (00:10 UTC and at worker start), `retention` (04:45), `dormancy` (05:00); `csv-retention` (04:30) runs on queue `csv` and `idp-metadata-refresh` (04:15, §4) on its own queue. Every run of these jobs, the daily `csv-retention` included, holds a PostgreSQL advisory lock (one per job name across workers; a second run is recorded `skipped`) and is recorded in `maintenance_runs` (job, trigger `schedule`/`startup`/`manual`, triggering `sub`, status `running`/`succeeded`/`failed`/`skipped`, counters, details, error; runs left `running` 6 h are failed by `retention`). On demand (`alliance_admin`): `POST /api/admin/v1/maintenance/jobs/{name}/run` for `history-partitions`, `retention`, `dormancy`, `csv-retention`, `idp-metadata-refresh`, always executed on the `maintenance` queue; read with `GET /api/admin/v1/maintenance/runs` (§8.2). The daily and start-up runs of `idp-metadata-refresh` are not recorded in `maintenance_runs` (§4) | [Implemented]; maintenance runs page in the admin UI [Deferred: backlog "Maintenance runs UI page"] |
+| Worker health | Internal HTTP server of the worker on `WORKER_HEALTH_PORT` (3001; not published, no Traefik route): `GET /health` (liveness) 200 `{status: "ok", jobs: [{queue, id, job, pattern, every_ms, tz, next}]}`, the repeatable jobs registered in Valkey (the last list read when Valkey does not answer within 2 s); `GET /ready` 200 `{status: "ready", checks: {database, valkey}}` or 503 `{status: "unavailable", checks}` (each check `up`/`down`, 2 s timeout); `HEAD` allowed, other paths 404, other methods 405, `Cache-Control: no-store`. Compose healthcheck: `/ready` every 15 s (start period 30 s) | [Implemented] |
 | Testing | Vitest unit tests; API integration tests on a throwaway PostgreSQL | [Partial]: no Playwright, axe or k6 |
 
 **Note for the owner:** CI runs the migrations on its PostgreSQL service but does not set `DATABASE_URL_TEST`, so every API integration suite is **skipped in CI**; they run only on developer machines.
@@ -965,7 +1081,7 @@ tools/oeapi-mock  tools/e2e-identity  docs/adr  docs/research  docs/review
 
 | Phase | Scope | Status on 2026-10-14 |
 |---|---|---|
-| **MVP** | as v4.0 §12 | Built: portal, read API, three channels, sync monitor, local-account identity with MFA, Compose (0.1.0); integration, invitations, organizations, administrators and network screens, revocation, federated sign-in UI, session restore on reload (0.2.0). Open before go-live: real partner harvest, SAML login verified end to end, backups, observability SDK, CSP, accessibility audit, GDPR documents, maintenance jobs (§5.4) |
+| **MVP** | as v4.0 §12 | Built: portal, read API, three channels, sync monitor, local-account identity with MFA, Compose (0.1.0); integration, invitations, organizations, administrators and network screens, revocation, federated sign-in UI, session restore on reload (0.2.0). Open before go-live: real partner harvest, SAML login verified end to end, backups, observability SDK, CSP, accessibility audit, GDPR documents. Built after 0.2.0: maintenance jobs and worker health (§10), dormancy in dry run (§2.2), IdP metadata refresh (§4), IT Handbook alignment [DL 21] |
 | **v1**, **v2** | as v4.0 §12 | Not started |
 
 ## 13. Glossary
@@ -982,7 +1098,7 @@ tools/oeapi-mock  tools/e2e-identity  docs/adr  docs/research  docs/review
 
 ## Appendix A. Error codes
 
-Generated from `packages/schemas/errors.json` (identical to `ERROR_CODES` in `error-codes.ts`): 131 codes, grouped by prefix; the text is the default English message. *(W)* marks a warning by default, all others are errors; a channel may downgrade an error to a warning (the harvester reports `oecp.content.english_missing` as a warning and stores the course as `draft`).
+Generated from `packages/schemas/errors.json` (identical to `ERROR_CODES` in `error-codes.ts`): 132 codes, grouped by prefix; the text is the default English message. *(W)* marks a warning by default, all others are errors; a channel may downgrade an error to a warning (the harvester reports `oecp.content.english_missing` as a warning and stores the course as `draft`).
 
 **Request and internal**
 
@@ -1144,6 +1260,7 @@ Generated from `packages/schemas/errors.json` (identical to `ERROR_CODES` in `er
 - `oecp.content.slug_immutable`: The slug of an existing organization cannot be changed
 - `oecp.content.invalid_parent`: The parent organization does not exist, is deleted or would create a cycle
 - `oecp.content.organization_in_use`: The organization still has courses, sub-units, administrators, pending invitations or an enabled harvest
+- `oecp.content.handbook_incomplete` *(W)*: Course is missing fields the Aurora IT Handbook requires to publish (§6.1; the missing fields follow in the message)
 
 
 ## Appendix B. Environment variables
@@ -1156,11 +1273,14 @@ Generated from `packages/schemas/errors.json` (identical to `ERROR_CODES` in `er
 - `SURFEDUHUB_GATEWAY_URL` = `https://gateway.surfeduhub.nl`; `SURFEDUHUB_SECRET_REF` = unset (disables `surfeduhub` mode).
 - `OECP_UPLOADS_DIR` = `/data/uploads` (shared by api and worker).
 - `OECP_ALLOW_INSECURE_PARTNER_HTTP` = `false`; **development only**.
+- `OECP_PUBLISH_RULE` = `warn` (`warn` \| `enforce`; IT Handbook publication rule, §6.1 [DL 21 c]); read by api (form, inline uploads) and worker (harvests, queued uploads): set both alike.
+- Maintenance (§2.2, §5.4, §10): `OECP_RETENTION_HISTORY_MONTHS` = `12`, `OECP_RETENTION_SYNC_ERRORS_MONTHS` = `12`, `OECP_RETENTION_SYNC_RUNS_MONTHS` = `24`, `OECP_RETENTION_AUDIT_MONTHS` = `36`, `OECP_DORMANCY_DAYS` = `180` (≥ 30), `OECP_DORMANCY_DRY_RUN` = `true`; worker only: `WORKER_HEALTH_PORT` = `3001`.
+- IdP metadata refresh (§4; read by the worker and the CLI): `OECP_IDP_METADATA_URL` = empty (job not configured; else an `https:` URL, e.g. `https://mds.edugain.org/edugain-v2.xml`); `OECP_IDP_METADATA_SIGNING_CERT_FILE` = unset (**required** with the URL: PEM file with exactly one certificate, the pinned aggregate signer); `OECP_IDP_METADATA_REQUIRE_VALID_UNTIL` = `true`; `OECP_IDP_METADATA_CACHE_DIR` = `/data/idp-metadata` (persistent, writable by the worker); `OECP_IDP_METADATA_MAX_BYTES` = `52428800` (50 MiB, ≥ 1024; Compose default `157286400` for eduGAIN); `OECP_IDP_METADATA_INCLUDE_DISABLED` = `false`; `OECP_IDP_METADATA_REFRESH_ON_START` = `true`.
 - `DATABASE_PASSWORD_FILE` (not in `env.ts`): read by the image entrypoint and injected into `DATABASE_URL`.
 
 **web** (Nuxt runtime config): `NUXT_PUBLIC_API_BASE` (origin of `/api` and `/oeapi`), `NUXT_API_INTERNAL_BASE` (SSR origin, `http://api:3000` in Compose), `NUXT_PUBLIC_OIDC_AUTHORITY`, `NUXT_PUBLIC_OIDC_CLIENT_ID` (`oecp-admin`), `NUXT_PUBLIC_I18N_BASE_URL`, `NUXT_PUBLIC_ALLIANCE_NAME`; redirect paths `/en/admin/callback`, `/en`, `/en/admin` are build-time defaults matching the realm.
 
-**Compose `.env`** (`deploy/compose/.env.example`): `OECP_PORTAL_HOST` and `OECP_AUTH_HOST` (required), ports and log levels, `ACME_EMAIL`, `OECP_IMAGE_TAG`, `KEYCLOAK_ADMIN_USER`, `KEYCLOAK_ADMIN_ALLOWLIST` (CIDRs of the Keycloak console), `OECP_REALM_DISPLAY_NAME`, `OECP_SMTP_HOST`/`PORT`/`FROM`/`STARTTLS` (api and realm), `OECP_ALLIANCE_NAME`, `OECP_ALLOW_INSECURE_PARTNER_HTTP`, `OTEL_SDK_DISABLED`, `OEAPI_MOCK_*` (Appendix D), `EXAMPLE_PARTNER_IDP_*`, `COMPOSE_PROFILES`. Docker secrets (`deploy/compose/secrets/`): `postgres_superuser_password`, `oecp_db_password`, `keycloak_db_password`, `keycloak_admin_password`, `oecp_backend_client_secret`, `oecp_master_key`, `grafana_admin_password`.
+**Compose `.env`** (`deploy/compose/.env.example`): `OECP_PORTAL_HOST` and `OECP_AUTH_HOST` (required), ports and log levels, `ACME_EMAIL`, `OECP_IMAGE_TAG`, `KEYCLOAK_ADMIN_USER`, `KEYCLOAK_ADMIN_ALLOWLIST` (CIDRs of the Keycloak console), `OECP_REALM_DISPLAY_NAME`, `OECP_SMTP_HOST`/`PORT`/`FROM`/`STARTTLS` (api and realm), `OECP_ALLIANCE_NAME`, `OECP_ALLOW_INSECURE_PARTNER_HTTP`, `OECP_PUBLISH_RULE`, `OECP_DORMANCY_DRY_RUN`, `OECP_DORMANCY_DAYS`, `OECP_IDP_METADATA_URL`, `OECP_IDP_METADATA_SIGNING_CERT_FILE`, `OECP_IDP_METADATA_MAX_BYTES` (passed to api and worker; Compose fixes `OECP_IDP_METADATA_CACHE_DIR=/data/idp-metadata` on volume `idp-metadata`, and the signing certificate must be mounted into the worker by the operator; `OECP_RETENTION_*`, `OECP_IDP_METADATA_REQUIRE_VALID_UNTIL`, `_INCLUDE_DISABLED`, `_REFRESH_ON_START` and `WORKER_HEALTH_PORT` are not passed by Compose and keep their defaults), `OTEL_SDK_DISABLED`, `OEAPI_MOCK_*` (Appendix D), `EXAMPLE_PARTNER_IDP_*`, `COMPOSE_PROFILES`. Docker secrets (`deploy/compose/secrets/`): `postgres_superuser_password`, `oecp_db_password`, `keycloak_db_password`, `keycloak_admin_password`, `oecp_backend_client_secret`, `oecp_master_key`, `grafana_admin_password`.
 
 **Development-only flags:** `OECP_ALLOW_INSECURE_PARTNER_HTTP=true`; profile `dev` (Mailpit, OEAPI mock); Traefik `--api.insecure` dashboard on 127.0.0.1 and the self-signed default certificate; `KC_BOOTSTRAP_ADMIN_*` temporary master admin. The Compose README's production checklist lists what to change.
 
@@ -1174,6 +1294,7 @@ Generated from `packages/schemas/errors.json` (identical to `ERROR_CODES` in `er
 | `seed-attribute-definitions [--file <path>] [--dry-run]` | Upsert attribute definitions by key (default `attribute-definitions.json`); definitions missing from the file are kept |
 | `bootstrap-alliance-admin --email <e> --org <slug> [--ttl-hours 1–168, default 24]` | First `alliance_admin` invitation; prints the link; refused while an `alliance_admin` exists or one is invited |
 | `store-secret --purpose <label>` | Encrypts stdin into `secrets` and prints `db:<uuid>` (e.g. `SURFEDUHUB_SECRET_REF`; Basic as `username:password`) |
+| `idp-metadata-refresh [--dry-run] [--alias <alias>] [--file <path>] [--no-verify]` | One run of the IdP metadata refresh (§4) with the `OECP_IDP_METADATA_*` settings; prints the aggregate (source, signature verified or not, entities, size, `validUntil`), one row per IdP (`updated`, `unchanged`, `skipped`, `failed`, changed keys, entity ID, reasons, warnings) and a summary. `--dry-run` writes nothing (no Keycloak update, no audit row); `--alias` limits the run to one IdP alias (an alias no organization has fails); `--file` reads a local aggregate or single `EntityDescriptor` instead of the URL (no download, no cache); `--no-verify` skips the signature check and the `validUntil` requirement, only with `--file` (else exit 64), for unsigned development metadata. Exit `1` when any IdP failed or no usable aggregate was found; nothing to do without URL and `--file` (exit 0) |
 
 Exit codes: `0` success; `1` runtime failure (database, Keycloak, invalid seed file); `2` refused by a precondition; `64` invalid command line (`EX_USAGE`, also with no arguments). Database schema: `pnpm db:migrate` (`node-pg-migrate up --check-order`), `db:migrate:down`, `db:migrate:create`.
 

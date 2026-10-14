@@ -165,15 +165,24 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       run: {
         channel: 'csv',
         trigger_kind: 'upload',
-        schema_version: 'csv-1.1',
+        schema_version: 'csv-1.2',
         triggered_by: ALLIANCE_SUB,
         n_created: 16,
         n_updated: 0,
         n_unchanged: 0,
         is_complete: true,
       },
-      warnings: [],
     });
+    // Decision 21c (OECP_PUBLISH_RULE=warn): the listing lacks outcomes, assessment and a
+    // contact, so every course is published with oecp.content.handbook_incomplete.
+    const warnings = response.body.warnings as { code: string; row: number; message: string }[];
+    expect(warnings.map((w) => [w.code, w.row])).toEqual(
+      [2, 3, 4, 5, 6, 7, 8, 9].map((row) => ['oecp.content.handbook_incomplete', row]),
+    );
+    expect(warnings[3]?.message).toBe(
+      'AVC-SPARK-SOCIAL: Course is missing fields the Aurora IT Handbook requires to publish: ' +
+        'texts.en.learning_outcomes, texts.en.assessment, contact_email',
+    );
     const runId: string = response.body.sync_run_id;
     expect(response.headers['location']).toBe(`/api/admin/v1/sync-runs/${runId}`);
 
@@ -198,6 +207,7 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       source_channel: 'csv',
       source_ref: null,
       status: 'published',
+      instructors: ['Course team, University of Iceland'],
       kind: 'bip',
       level: 'master',
       levels: ['master', 'bachelor'],
@@ -222,6 +232,11 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       lang: 'en',
       title: 'BIP: Spark Social',
       keywords: ['social innovation', 'entrepreneurship', 'BIP'],
+      methods: 'Online sessions combined with a short physical mobility.',
+      remarks: 'Hosted by the University of Iceland.',
+      mode_of_repetition: null,
+      literature: null,
+      privacy_notice: null,
     });
     const isced = await tdb.db
       .selectFrom('course_isced_codes')
@@ -298,9 +313,22 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
     expect(history.filter((h) => h.entity_type === 'course')).toHaveLength(8);
     expect(history.filter((h) => h.entity_type === 'course_offering')).toHaveLength(8);
     expect(history.filter((h) => h.entity_type === 'academic_session')).toHaveLength(2);
-    expect(history.every((h) => h.channel === 'csv' && h.schema_version === 'csv-1.1')).toBe(true);
+    expect(history.every((h) => h.channel === 'csv' && h.schema_version === 'csv-1.2')).toBe(true);
     expect(history.find((h) => h.entity_type === 'course')?.raw_payload).toMatchObject({
-      template_version: '1.1',
+      template_version: '1.2',
+    });
+    const recorded = await tdb.db
+      .selectFrom('sync_errors')
+      .select(['code', 'severity', 'entity_type', 'ext_id'])
+      .where('sync_run_id', '=', runId)
+      .orderBy('id')
+      .execute();
+    expect(recorded).toHaveLength(8);
+    expect(recorded[0]).toEqual({
+      code: 'oecp.content.handbook_incomplete',
+      severity: 'warning',
+      entity_type: 'course',
+      ext_id: 'AVC-BIP-AI-ETHICS',
     });
 
     const audit = await tdb.db
@@ -361,14 +389,15 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       .executeTakeFirstOrThrow();
     expect(kept.level).toBe('master');
     expect(kept.abstract).toMatch(/^Graduate course/);
-    // A 1.0 row leaves kind, levels and attributes as they were.
+    // A 1.0 row leaves kind, levels, attributes and instructors as they were.
     const attributes = await tdb.db
       .selectFrom('courses')
-      .select(['kind', 'levels', 'attributes'])
+      .select(['kind', 'levels', 'attributes', 'instructors'])
       .where('ext_id', '=', 'AVC-SUST-EDU')
       .executeTakeFirstOrThrow();
     expect(attributes).toMatchObject({
       kind: 'course',
+      instructors: ['Course team, host university'],
       levels: ['master'],
       attributes: { competence_framework: 'louis', micro_credential: true },
     });
@@ -607,7 +636,9 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
     expect(courses.headers['content-disposition']).toBe('attachment; filename="courses.csv"');
     expect(courses.text.startsWith('\uFEFFtemplate_version,course_code,status,')).toBe(true);
     const header = courses.text.slice(1).split('\r\n')[0]!.split(',');
-    expect(header).toEqual(expect.arrayContaining(['kind', 'levels']));
+    expect(header).toEqual(
+      expect.arrayContaining(['kind', 'levels', 'instructors', 'methods_en', 'remarks_en']),
+    );
     expect(header.filter((c) => c.startsWith('attr_'))).toEqual([
       'attr_educational_hub',
       'attr_sdg',
@@ -618,7 +649,7 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       'attr_open_to_alliance',
       'attr_target_audience',
     ]);
-    expect(courses.text.split('\r\n')[1]!.startsWith('1.1,')).toBe(true);
+    expect(courses.text.split('\r\n')[1]!.startsWith('1.2,')).toBe(true);
     const offerings = await http()
       .get('/api/admin/v1/csv-template/offerings.csv')
       .set('Authorization', auth.partner)
@@ -629,9 +660,9 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       .set('Authorization', auth.partner)
       .expect(200);
     expect(schema.headers['content-type']).toMatch(/^application\/schema\+json/);
-    expect(schema.headers['content-disposition']).toContain('oecp-csv-1.1.schema.json');
+    expect(schema.headers['content-disposition']).toContain('oecp-csv-1.2.schema.json');
     expect(JSON.parse(schema.text)).toMatchObject({
-      $id: 'urn:oecp:schema:csv:1.1',
+      $id: 'urn:oecp:schema:csv:1.2',
       $defs: { courseRow: expect.any(Object), offeringRow: expect.any(Object) },
     });
     await http().get('/api/admin/v1/csv-template/courses.csv').expect(401);

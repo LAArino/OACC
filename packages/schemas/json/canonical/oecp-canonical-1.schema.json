@@ -439,6 +439,16 @@
             "pattern": "^\\d{2,6}$"
           }
         },
+        "instructors": {
+          "default": [],
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
         "texts": {
           "type": "object",
           "propertyNames": {
@@ -478,6 +488,36 @@
                 ]
               },
               "assessment": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mode_of_repetition": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "methods": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "literature": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "privacy_notice": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "remarks": {
                 "type": [
                   "string",
                   "null"
@@ -572,6 +612,36 @@
           ]
         },
         "assessment": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode_of_repetition": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "methods": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "literature": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "privacy_notice": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remarks": {
           "type": [
             "string",
             "null"

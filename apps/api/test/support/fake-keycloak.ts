@@ -3,7 +3,8 @@
  * In-memory Keycloak Admin REST API (the subset KeycloakAdminService uses), as a
  * `fetch` double. Behaves like Keycloak 26 where it matters: `q=<attr>:<value>`
  * is an exact, case-insensitive attribute match; `GET /roles/{name}/users` is
- * refused without view-realm (403); events need view-events (403 by default).
+ * refused without view-realm (403 unless `roleMembersReadable`); events need
+ * view-events (403 by default).
  */
 import { KeycloakAdminService } from '../../src/identity/keycloak-admin.service.js';
 
@@ -43,6 +44,8 @@ export class FakeKeycloak {
   readonly actionEmails: { id: string; actions: string[] }[] = [];
   /** Grant `view-events` to the service account. */
   eventsReadable = false;
+  /** Grant `view-realm` (`GET /roles/{name}/users`) to the service account. */
+  roleMembersReadable = false;
   /** Answer every Admin API call with this status (Keycloak down). */
   failWith: number | undefined;
   private seq = 0;
@@ -112,7 +115,15 @@ export class FakeKeycloak {
       );
     }
     if (parts[0] === 'roles' && parts[2] === 'users') {
-      return json({ error: 'HTTP 403 Forbidden' }, 403);
+      if (!this.roleMembersReadable) return json({ error: 'HTTP 403 Forbidden' }, 403);
+      const first = Number(query.get('first') ?? 0);
+      const max = Number(query.get('max') ?? 100);
+      return json(
+        [...this.users.values()]
+          .filter((u) => u.roles.has(parts[1] ?? ''))
+          .slice(first, first + max)
+          .map(representation),
+      );
     }
     if (parts[0] !== 'users' || !parts[1]) return empty(404);
     const user = this.users.get(parts[1]);

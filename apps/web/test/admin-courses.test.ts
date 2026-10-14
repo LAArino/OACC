@@ -15,6 +15,7 @@ import {
   COURSE_ID,
   course,
   courseList,
+  handbookCourse,
   history,
   listItem,
   OFFERING_ID,
@@ -131,6 +132,15 @@ async function click(w: Wrapper, text: string) {
   await button(w, text).trigger('click');
   await flushPromises();
 }
+
+/** The optional IT Handbook texts of a language left empty [DL 21]. */
+const NO_HANDBOOK_TEXTS = {
+  methods: null,
+  mode_of_repetition: null,
+  literature: null,
+  remarks: null,
+  privacy_notice: null,
+};
 
 const listQuery = () => callsTo(LIST).at(-1)!.query;
 const rowCells = (w: Wrapper, selector = '.admin-table') =>
@@ -291,6 +301,7 @@ async function fillBasics(w: Wrapper) {
   await byId(w, 'course-teaching_unit_ext_id').setValue('ETSE');
   await setField(w, 'course-info_url', 'https://www.example.org/new-200');
   await setField(w, 'course-contact_email', 'new@example.org');
+  await setField(w, 'course-instructors', 'Dr. Ada Lovelace\n\n Prof. Alan Turing ');
 }
 
 describe('new course wizard', () => {
@@ -389,6 +400,20 @@ describe('new course wizard', () => {
     await setField(w, 'course-texts-en-title', ' Data science for all ');
     await setField(w, 'course-texts-en-description', 'A course about data.');
     await setField(w, 'course-texts-en-keywords', 'data, science\nstatistics,, data');
+    // The optional IT Handbook texts sit in a collapsed "More texts" group.
+    const more = w.find('#course-texts-panel details.admin-more-texts');
+    expect(more.find('summary').text()).toBe('More texts (optional)');
+    expect((more.element as HTMLDetailsElement).open).toBe(false);
+    expect(more.findAll('label').map((l) => l.text().replace(/\s+/g, ' ').trim())).toEqual([
+      'Methods (English)',
+      'Mode of repetition (English)',
+      'Literature (English)',
+      'Remarks (English)',
+      'Privacy notice (English)',
+    ]);
+    await setField(w, 'course-texts-en-methods', 'Lectures and labs.');
+    await setField(w, 'course-texts-en-mode_of_repetition', 'Every spring semester.');
+    await setField(w, 'course-texts-en-privacy_notice', 'Data is used for admission only.');
     // Catalan texts in a second tab.
     await byId(w, 'course-texts-add').setValue('ca');
     await click(w, 'Add');
@@ -428,6 +453,7 @@ describe('new course wizard', () => {
       'ECTS credits': '7.5',
       'ISCED-F fields of study': '0541, 0613 (primary)',
       'Teaching unit': 'School of Engineering',
+      Instructors: 'Dr. Ada Lovelace; Prof. Alan Turing',
       'Title (English)': 'Data science for all',
       'Title (Catalan)': 'Ciència de dades per a tothom',
       Attributes:
@@ -449,6 +475,7 @@ describe('new course wizard', () => {
       info_url: 'https://www.example.org/new-200',
       contact_email: 'new@example.org',
       teaching_unit_ext_id: 'ETSE',
+      instructors: ['Dr. Ada Lovelace', 'Prof. Alan Turing'],
       isced_codes: [
         { code: '0541', is_primary: false },
         { code: '0613', is_primary: true },
@@ -463,6 +490,11 @@ describe('new course wizard', () => {
           prerequisites: null,
           assessment: null,
           keywords: ['data', 'science', 'statistics'],
+          methods: 'Lectures and labs.',
+          mode_of_repetition: 'Every spring semester.',
+          literature: null,
+          remarks: null,
+          privacy_notice: 'Data is used for admission only.',
         },
         ca: {
           title: 'Ciència de dades per a tothom',
@@ -472,6 +504,7 @@ describe('new course wizard', () => {
           prerequisites: null,
           assessment: null,
           keywords: [],
+          ...NO_HANDBOOK_TEXTS,
         },
       },
       status: 'published',
@@ -570,6 +603,7 @@ const fixtureInput = {
   info_url: 'https://www.example.org/test-101',
   contact_email: 'courses@example.org',
   teaching_unit_ext_id: 'ETSE',
+  instructors: [],
   isced_codes: [{ code: '0541', is_primary: true }],
   attributes: { hub: 'digital' },
   texts: {
@@ -581,6 +615,7 @@ const fixtureInput = {
       prerequisites: null,
       assessment: null,
       keywords: ['statistics', 'data'],
+      ...NO_HANDBOOK_TEXTS,
     },
   },
   status: 'draft',
@@ -1073,5 +1108,172 @@ describe('offerings', () => {
       `/en/admin/courses/${COURSE_ID}/offerings/${OFFERING_ID}`,
     );
     expect(w.find('[role="alert"]').text()).toContain('does not exist');
+  });
+});
+
+describe('IT Handbook alignment [DL 21]', () => {
+  it('shows a completeness column in the list once the API sends `complete`', async () => {
+    serve({
+      [LIST]: ok(
+        courseList([
+          listItem(1, { complete: true }),
+          listItem(2, { complete: false }),
+          listItem(3),
+        ]),
+      ),
+    });
+    const w = await mountPage(CoursesPage, '/en/admin/courses');
+    expect(
+      w
+        .findAll('thead th')
+        .map((th) => th.text())
+        .at(-1),
+    ).toBe('Completeness');
+    const cells = w.findAll('tbody tr').map((r) => r.findAll('td').at(-1)!);
+    expect(cells[0]!.find('[aria-hidden="true"]').text()).toBe('✓');
+    expect(cells[0]!.find('.visually-hidden').text()).toBe('Complete');
+    expect(cells[1]!.find('.admin-badge').text()).toBe('Incomplete');
+    expect(cells[1]!.find('.admin-badge').classes()).toContain('admin-badge--warn');
+    expect(cells[2]!.text()).toBe('Not available');
+    expect(await axeViolations(w.html())).toEqual([]);
+  });
+
+  it('edits instructors and the optional texts and sends them with PUT', async () => {
+    const saved = handbookCourse();
+    serve({ [COURSE]: ok(handbookCourse()), [PUT]: ok(saved) });
+    const w = await mountPage(CoursePage, `/en/admin/courses/${COURSE_ID}`);
+    const instructors = byId(w, 'course-instructors');
+    expect(instructors.element.tagName).toBe('TEXTAREA');
+    expect((instructors.element as HTMLTextAreaElement).value).toBe(
+      'Dr. Ada Lovelace\nProf. Alan Turing',
+    );
+    expect(w.find('label[for="course-instructors"]').text()).toContain('Instructors');
+    expect(byId(w, 'course-instructors-hint').text()).toBe(
+      'One name per line, at most 50 names of up to 200 characters each. The names are shown on the public course page.',
+    );
+    await setField(w, 'course-instructors', 'Dr. Ada Lovelace\nDr. Grace Hopper');
+
+    await stepButtons(w)[1]!.trigger('click');
+    await flushPromises();
+    // Filled optional texts open the "More texts" group.
+    const more = w.find('details.admin-more-texts');
+    expect((more.element as HTMLDetailsElement).open).toBe(true);
+    expect((byId(w, 'course-texts-en-methods').element as HTMLTextAreaElement).value).toBe(
+      'Lectures and computer labs.',
+    );
+    expect(byId(w, 'course-texts-en-methods').attributes('lang')).toBe('en');
+    await setField(w, 'course-texts-en-literature', 'Wasserman, All of Statistics.');
+    await setField(w, 'course-texts-en-privacy_notice', '');
+    expect(await axeViolations(w.html())).toEqual([]);
+    await click(w, 'Save');
+
+    const [request] = callsTo(PUT);
+    expect(request!.body).toMatchObject({
+      instructors: ['Dr. Ada Lovelace', 'Dr. Grace Hopper'],
+      texts: {
+        en: {
+          title: 'Applied statistics',
+          methods: 'Lectures and computer labs.',
+          mode_of_repetition: 'Every autumn semester.',
+          literature: 'Wasserman, All of Statistics.',
+          remarks: null,
+          privacy_notice: null,
+        },
+      },
+    });
+  });
+
+  it('validates the instructors on the Basics step', async () => {
+    serve({ [COURSE]: ok(handbookCourse()) });
+    const w = await mountPage(CoursePage, `/en/admin/courses/${COURSE_ID}`);
+    await setField(
+      w,
+      'course-instructors',
+      Array.from({ length: 51 }, (_, i) => `Instructor ${i + 1}`).join('\n'),
+    );
+    await click(w, 'Save');
+    expect(callsTo(PUT)).toHaveLength(0);
+    expect(summaryItems(w)).toEqual([
+      ['Instructors: Enter at most 50 instructors.', '#course-instructors'],
+    ]);
+    expect(byId(w, 'course-instructors').attributes('aria-invalid')).toBe('true');
+    await setField(w, 'course-instructors', 'x'.repeat(201));
+    await click(w, 'Save');
+    expect(summaryItems(w)).toEqual([
+      ['Instructors: Each instructor name can have at most 200 characters.', '#course-instructors'],
+    ]);
+  });
+
+  it('shows the completeness of the saved course on the Review step', async () => {
+    serve({ [COURSE]: ok(handbookCourse()) });
+    const w = await mountPage(CoursePage, `/en/admin/courses/${COURSE_ID}`);
+    await stepButtons(w)[3]!.trigger('click');
+    await flushPromises();
+    const card = w.find('.admin-completeness');
+    expect(card.attributes('aria-labelledby')).toBe('course-completeness-heading');
+    expect(card.find('h3').text()).toBe('Completeness');
+    expect(card.find('.admin-badge').text()).toBe('4 fields missing');
+    expect(card.findAll('li').map((li) => li.text())).toEqual([
+      'Learning outcomes (English)',
+      'Requirements: prerequisites (English)',
+      'Assessment (English)',
+      'A published offering',
+    ]);
+    expect(card.text()).toContain('incomplete courses are kept as drafts');
+    expect(await axeViolations(w.html())).toEqual([]);
+
+    serve({
+      [COURSE]: ok(handbookCourse({ completeness: { complete: true, missing: [] } })),
+    });
+    const complete = await mountPage(CoursePage, `/en/admin/courses/${COURSE_ID}`);
+    await stepButtons(complete)[3]!.trigger('click');
+    await flushPromises();
+    expect(complete.find('.admin-completeness .admin-badge').text()).toBe('Complete');
+    expect(complete.find('.admin-completeness ul').exists()).toBe(false);
+  });
+
+  it('shows no completeness card for a course from an older API', async () => {
+    const w = await mountPage(CoursePage, `/en/admin/courses/${COURSE_ID}`);
+    await stepButtons(w)[3]!.trigger('click');
+    await flushPromises();
+    expect(w.find('#course-step-heading').text()).toBe('Step 4 of 4: Review and status');
+    expect(w.find('.admin-completeness').exists()).toBe(false);
+  });
+
+  it('overrides instructors and an optional text of a harvested course with PATCH', async () => {
+    const source = handbookCourse({ source_channel: 'oeapi', status: 'published' });
+    serve({
+      [REFERENCE]: ok(reference({ form_mode: 'overrides', authoritative_channel: 'oeapi' })),
+      [COURSE]: ok(source),
+      [PATCH]: ok(source),
+    });
+    const w = await mountPage(CoursePage, `/en/admin/courses/${COURSE_ID}`);
+    expect(byId(w, 'course-instructors').attributes('disabled')).toBeDefined();
+    expect(byId(w, 'course-instructors-source').text()).toBe(
+      "Source value (partner's OEAPI): Dr. Ada Lovelace; Prof. Alan Turing",
+    );
+    await byId(w, 'course-instructors-override').setValue(true);
+    await setField(w, 'course-instructors', 'Dr. Grace Hopper');
+
+    await stepButtons(w)[1]!.trigger('click');
+    await flushPromises();
+    await byId(w, 'course-texts-en-remarks-override').setValue(true);
+    await setField(w, 'course-texts-en-remarks', 'Taught jointly with TU Delft.');
+
+    await stepButtons(w)[3]!.trigger('click');
+    await flushPromises();
+    expect(w.findAll('.admin-pending li').map((li) => li.text())).toEqual([
+      'Override Instructors: Dr. Grace Hopper',
+      'Override Remarks (English): Taught jointly with TU Delft.',
+    ]);
+    expect(w.find('.admin-completeness').exists()).toBe(true);
+    await click(w, 'Save overrides');
+    expect(callsTo(PATCH)[0]!.body).toEqual({
+      set: {
+        instructors: ['Dr. Grace Hopper'],
+        'texts.en.remarks': 'Taught jointly with TU Delft.',
+      },
+      clear: [],
+    });
   });
 });

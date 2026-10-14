@@ -168,11 +168,13 @@ export class OeapiRepository {
     if (ids.length === 0) return [];
     const [courses, texts, isced, offerings] = await Promise.all([
       sql<CourseRow>`SELECT c.id, c.organization_id, c.teaching_unit_id, c.ext_id, c.kind, c.ects,
-          c.level, c.levels, c.attributes, c.eqf_level, c.teaching_hours, c.info_url, c.contact_email, c.updated_at
+          c.level, c.levels, c.attributes, c.eqf_level, c.teaching_hours, c.info_url, c.contact_email,
+          c.instructors, c.updated_at
         FROM courses c JOIN organizations org ON org.id = c.organization_id
         WHERE c.id = ANY(${ids}::uuid[]) AND ${PUBLISHED_COURSE}`.execute(this.db),
       sql<CourseTextRow>`SELECT t.course_id, t.lang, t.title, t.abstract, t.description,
-          t.learning_outcomes, t.prerequisites, t.assessment, t.keywords
+          t.learning_outcomes, t.prerequisites, t.assessment, t.mode_of_repetition, t.methods,
+          t.literature, t.privacy_notice, t.remarks, t.keywords
         FROM course_texts t WHERE t.course_id = ANY(${ids}::uuid[])
         ORDER BY t.course_id, (t.lang = 'en') DESC, t.lang`.execute(this.db),
       sql<CourseIscedRow>`SELECT i.course_id, i.isced_code, i.is_primary FROM course_isced_codes i

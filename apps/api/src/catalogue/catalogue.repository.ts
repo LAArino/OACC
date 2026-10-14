@@ -92,6 +92,7 @@ export interface DetailCourseRow {
   teaching_hours: string | null;
   info_url: string | null;
   contact_email: string | null;
+  instructors: string[];
   updated_at: Date;
   org_id: string;
   org_slug: string;
@@ -113,6 +114,11 @@ export interface DetailTextRow {
   learning_outcomes: string | null;
   prerequisites: string | null;
   assessment: string | null;
+  mode_of_repetition: string | null;
+  methods: string | null;
+  literature: string | null;
+  privacy_notice: string | null;
+  remarks: string | null;
   keywords: string[];
   is_machine_translated: boolean;
   updated_at: Date;
@@ -268,8 +274,8 @@ export class CatalogueRepository {
 
   async courseDetail(id: string, today: string): Promise<CourseDetailRows | null> {
     const { rows } = await sql<DetailCourseRow>`SELECT c.id, c.ext_id, c.kind, c.ects, c.level,
-        c.levels, c.attributes, c.eqf_level, c.teaching_hours, c.info_url, c.contact_email, c.updated_at,
-        org.id AS org_id, org.slug AS org_slug, org.name AS org_name,
+        c.levels, c.attributes, c.eqf_level, c.teaching_hours, c.info_url, c.contact_email,
+        c.instructors, c.updated_at, org.id AS org_id, org.slug AS org_slug, org.name AS org_name,
         org.country_code AS org_country_code, org.logo_url AS org_logo_url,
         org.website_url AS org_website_url, org.contact_email AS org_contact_email,
         tu.id AS unit_id, tu.slug AS unit_slug, tu.name AS unit_name
@@ -281,7 +287,8 @@ export class CatalogueRepository {
     if (!course) return null;
     const [texts, isced, offerings, definitions] = await Promise.all([
       sql<DetailTextRow>`SELECT t.lang, t.title, t.abstract, t.description, t.learning_outcomes,
-          t.prerequisites, t.assessment, t.keywords, t.is_machine_translated, t.updated_at
+          t.prerequisites, t.assessment, t.mode_of_repetition, t.methods, t.literature,
+          t.privacy_notice, t.remarks, t.keywords, t.is_machine_translated, t.updated_at
         FROM course_texts t WHERE t.course_id = ${id}::uuid
         ORDER BY (t.lang = 'en') DESC, t.lang`.execute(this.db),
       this.isced([id]),

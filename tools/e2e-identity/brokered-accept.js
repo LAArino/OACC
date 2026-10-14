@@ -33,7 +33,7 @@ const SECRET_FILE = path.join(L.SECRETS, 'dev_partner_admin_totp');
   console.log(`   link: ${L.redactLink(inv.link)}`);
   L.check('invitation link carries &idp=urv', /#token=[^&]+&idp=urv$/.test(inv.link));
 
-  const { browser, ctx, page } = await L.newBrowserContext();
+  const { browser, page } = await L.newBrowserContext();
   const api = L.watchAdminApi(page);
   const authUrls = [];
   page.on('request', (r) => { if (r.isNavigationRequest() && r.frame() === page.mainFrame() && r.url().startsWith(`${L.AUTH}/realms/oecp/protocol/openid-connect/auth`)) authUrls.push(r.url()); });

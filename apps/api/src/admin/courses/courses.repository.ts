@@ -23,6 +23,7 @@ import { loadAttributeDefinitions } from '../../attributes/attribute-definitions
 import type { Database, OverrideMap } from '../../db/database.js';
 import { type Db, KYSELY } from '../../db/db.module.js';
 import { HARVESTER_ACTOR } from '../../ingestion/canonical-writer.service.js';
+import { loadCompleteness } from '../../ingestion/handbook-completeness.js';
 
 /** A database handle or a transaction (both are `Kysely<Database>`). */
 export type Reader = Kysely<Database>;
@@ -82,8 +83,13 @@ export function auditSummary(action: string, changes: Record<string, unknown>): 
       const fields = list(changes['fields']);
       return fields ? `${subject} updated: ${fields}` : `${subject} saved without changes`;
     }
-    case 'status':
+    case 'status': {
+      const missing = list(changes['missing']);
+      if (changes['publish_rule'] && missing) {
+        return `Status ${transition}: IT Handbook fields missing (${missing})`;
+      }
       return transition ? `Status ${transition}` : `${subject} status set`;
+    }
     case 'overrides': {
       const set = list(changes['set']);
       const clear = list(changes['clear']);
@@ -268,6 +274,10 @@ export class CoursesRepository {
         .offset((query.page - 1) * query.page_size)
         .execute(),
     ]);
+    const completeness = await loadCompleteness(
+      this.db,
+      rows.map((r) => r.id),
+    );
     return {
       items: rows.map((r) => ({
         id: r.id,
@@ -282,6 +292,7 @@ export class CoursesRepository {
         updated_at: iso(r.updated_at),
         offerings_count: Number(r.offerings_count),
         has_overrides: r.has_overrides,
+        complete: completeness.get(r.id)?.complete ?? false,
         next_start_date: r.next_start_date,
       })),
       page: query.page,
@@ -339,6 +350,11 @@ export class CoursesRepository {
           'learning_outcomes',
           'prerequisites',
           'assessment',
+          'mode_of_repetition',
+          'methods',
+          'literature',
+          'privacy_notice',
+          'remarks',
           'keywords',
           'is_machine_translated',
           'overrides',
@@ -355,6 +371,10 @@ export class CoursesRepository {
         .execute(),
       this.offerings(db, { courseId: id }),
     ]);
+    const completeness = (await loadCompleteness(db, [id])).get(id) ?? {
+      complete: false,
+      missing: [],
+    };
     const course = overridesToApi(row.overrides);
     const textMap: AdminCourse['texts'] = {};
     for (const { lang, overrides, ...text } of texts) {
@@ -382,8 +402,10 @@ export class CoursesRepository {
       teaching_unit_id: row.teaching_unit_id,
       teaching_unit_ext_id: row.teaching_unit_ext_id ?? null,
       isced_codes: isced.map((c) => ({ code: c.isced_code, is_primary: c.is_primary })),
+      instructors: row.instructors,
       attributes: row.attributes,
       texts: textMap,
+      completeness,
       overrides: course.overrides,
       override_meta: course.override_meta,
       source_values: course.source_values,
@@ -578,12 +600,18 @@ export class CoursesRepository {
         };
       }),
     ];
-    // A form save writes its own audit row; the writer's row of the same run repeats it.
+    // A form save writes its own audit row; the writer's row of the same run repeats it,
+    // except a change made by the IT Handbook publication rule (decision 21c).
     const formRuns = new Set(
       entries.filter((e) => e.kind === 'audit' && e.channel === 'form').map((e) => e.sync_run_id),
     );
+    const byRule = (e: AdminHistoryEntry) =>
+      e.details['publish_rule'] !== undefined && e.details['missing'] !== undefined;
     return entries
-      .filter((e) => !(e.kind === 'audit' && e.channel === null && formRuns.has(e.sync_run_id)))
+      .filter(
+        (e) =>
+          !(e.kind === 'audit' && e.channel === null && formRuns.has(e.sync_run_id) && !byRule(e)),
+      )
       .sort((a, b) => b.at.localeCompare(a.at))
       .slice(0, limit);
   }

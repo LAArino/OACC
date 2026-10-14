@@ -20,4 +20,15 @@ $metadata['https://idp.urv.test/saml2/idp'] = [
     'attributes.NameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:uri',
     'signature.algorithm' => 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256',
     'NameIDFormat' => 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient',
+    // Offer HTTP-POST before HTTP-Redirect for sign-in and logout, as the realm
+    // entry for `urv` is configured; the idp-metadata-refresh job would otherwise
+    // switch the binding to Redirect.
+    'SingleSignOnServiceBinding' => [
+        'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
+        'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
+    ],
+    'SingleLogoutServiceBinding' => [
+        'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
+        'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
+    ],
 ];

@@ -336,6 +336,11 @@ describe.runIf(describeWithDatabase === 'run')('public catalogue API (PostgreSQL
         ['Catalan stemming without accents', 'mediterrania', [COURSE.B]],
         ['Catalan with accents', 'ciutats portuàries', [COURSE.B]],
         ['keywords', 'entanglement', [COURSE.A]],
+        ['handbook methods (weight C)', 'photonic', [COURSE.A]],
+        ['handbook literature', 'textbook', [COURSE.A]],
+        ['handbook remarks', 'cryostat', [COURSE.A]],
+        ['privacy notice is not indexed', 'zebrafish', []],
+        ['mode of repetition is not indexed', 'winter', []],
         ['typo via trigram similarity', 'quantm', [COURSE.A]],
         ['nothing', 'zzzxxy', []],
       ])('%s: %s', async (_name, q, expected) => {
@@ -392,9 +397,18 @@ describe.runIf(describeWithDatabase === 'run')('public catalogue API (PostgreSQL
         teaching_hours: 45,
         info_url: 'https://uibk.example/courses/703001',
         contact_email: 'aurora@uibk.example', // organization fallback
+        instructors: ['Course team, University of Innsbruck'],
         teaching_unit: null,
         organization: { id: ORG.uibk, slug: 'uibk', logo_url: null, website_url: null },
       });
+      expect(body.texts['en']).toMatchObject({
+        mode_of_repetition: 'Every winter semester.',
+        methods: 'Exercises on a photonic simulator.',
+        literature: 'Selected chapters of a standard textbook.',
+        privacy_notice: 'Recordings follow the zebrafish policy.',
+        remarks: 'Includes a cryostat laboratory visit.',
+      });
+      expect(body.texts['de']).toMatchObject({ methods: null, remarks: null });
       expect(body.isced_codes).toEqual([
         {
           code: '0533',

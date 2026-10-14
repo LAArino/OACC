@@ -291,6 +291,7 @@ describe('toCourseDetail', () => {
       teaching_hours: '22.5',
       info_url: null,
       contact_email: null,
+      instructors: ['Course team, University of Innsbruck'],
       updated_at: new Date('2026-01-01T00:00:00Z'),
       org_id: ORG,
       org_slug: 'uibk',
@@ -312,6 +313,11 @@ describe('toCourseDetail', () => {
         learning_outcomes: null,
         prerequisites: null,
         assessment: null,
+        mode_of_repetition: 'Every winter semester.',
+        methods: 'Seminars and project work.',
+        literature: null,
+        privacy_notice: null,
+        remarks: null,
         keywords: [],
         is_machine_translated: false,
         updated_at: new Date('2026-03-01T00:00:00Z'),
@@ -352,7 +358,15 @@ describe('toCourseDetail', () => {
       level: null, // unknown values never leak
       teaching_hours: 22.5,
       contact_email: 'info@uibk.example',
+      instructors: ['Course team, University of Innsbruck'],
       updated_at: '2026-03-01T00:00:00.000Z',
+    });
+    expect(body.texts['en']).toMatchObject({
+      mode_of_repetition: 'Every winter semester.',
+      methods: 'Seminars and project work.',
+      literature: null,
+      privacy_notice: null,
+      remarks: null,
     });
     expect(body.offerings[0]).toMatchObject({
       status: 'cancelled',

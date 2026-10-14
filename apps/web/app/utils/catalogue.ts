@@ -371,6 +371,20 @@ export function courseLevels(course: {
 }
 
 /**
+ * Instructor names of a course [DL 21]: trimmed, blanks dropped; empty when the
+ * API does not send `instructors` (older API) or sends something else.
+ */
+export function courseInstructors(
+  course: { instructors?: readonly unknown[] | null } | null | undefined,
+): string[] {
+  const list = Array.isArray(course?.instructors) ? course.instructors : [];
+  return list
+    .filter((name): name is string => typeof name === 'string')
+    .map((name) => name.trim())
+    .filter(Boolean);
+}
+
+/**
  * Text of a `{lang: text}` record in `lang`, else English, else any language
  * (empty texts are skipped). `lang` of the result says which one it is.
  */

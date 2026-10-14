@@ -9,6 +9,7 @@ import { HARVEST_QUEUE, HARVEST_SCHEDULE_QUEUE } from './harvest.constants.js';
 import { HarvestQueue } from './harvest.queue.js';
 import { OeapiClientFactory } from './oeapi/oeapi-client.factory.js';
 import { OeapiV5Adapter } from './oeapi/oeapi-v5.adapter.js';
+import { publishRuleProvider } from './publish-rule.provider.js';
 import { SyncRunsRepository } from './sync-runs.repository.js';
 import { valkeyConnection } from './valkey-connection.js';
 
@@ -31,6 +32,7 @@ import { valkeyConnection } from './valkey-connection.js';
     HarvestQueue,
     OeapiClientFactory,
     OeapiV5Adapter,
+    publishRuleProvider,
     CanonicalWriter,
     SyncRunsRepository,
   ],
@@ -40,6 +42,7 @@ import { valkeyConnection } from './valkey-connection.js';
     HarvestQueue,
     OeapiClientFactory,
     OeapiV5Adapter,
+    publishRuleProvider,
     CanonicalWriter,
     SyncRunsRepository,
   ],

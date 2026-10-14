@@ -100,6 +100,7 @@ export async function insertCatalogueFixture(db: Kysely<Database>): Promise<void
       eqf_level: 7,
       teaching_hours: 45,
       info_url: 'https://uibk.example/courses/703001',
+      instructors: ['Course team, University of Innsbruck'],
     });
     await course({
       id: COURSE.B,
@@ -155,6 +156,11 @@ export async function insertCatalogueFixture(db: Kysely<Database>): Promise<void
           learning_outcomes: 'Explain superposition.\n\nImplement Grover search.',
           prerequisites: 'Linear algebra.',
           assessment: 'Written exam.',
+          mode_of_repetition: 'Every winter semester.',
+          methods: 'Exercises on a photonic simulator.',
+          literature: 'Selected chapters of a standard textbook.',
+          privacy_notice: 'Recordings follow the zebrafish policy.',
+          remarks: 'Includes a cryostat laboratory visit.',
           keywords: ['qubits', 'entanglement'],
         },
         {

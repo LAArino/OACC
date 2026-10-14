@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: EUPL-1.2
 /**
- * CSV template 1.1 row schemas (spec §6.3; 1.0 files stay valid). They validate raw cells as parsed
+ * CSV template 1.2 row schemas (spec §6.3; 1.0 and 1.1 files stay valid). They validate raw cells as parsed
  * by an RFC 4180 reader: every value is a string, an empty optional cell clears
  * the field, and a column absent from the header leaves the field untouched.
  * Issue messages are stable error codes from `errors.json`.
@@ -13,8 +13,12 @@
  *
  * Template 1.1 (decision 18) adds optional columns: `kind`, `levels` (preferred
  * over `level`) and `attr_<key>` per alliance attribute in `courses.csv`;
- * `application_instructions_<lang>` in `offerings.csv`. Rows using them declare
- * `template_version` 1.1; a 1.0 row simply has none of them.
+ * `application_instructions_<lang>` in `offerings.csv`. Template 1.2 (decision
+ * 21, Aurora IT Handbook) adds to `courses.csv` the optional `instructors`
+ * (`|`-separated) and the per-language texts `mode_of_repetition_<lang>`,
+ * `methods_<lang>`, `literature_<lang>`, `privacy_notice_<lang>` and
+ * `remarks_<lang>`. A row declares the version whose columns it uses: a column
+ * newer than the row's `template_version` fails the row.
  */
 import { z } from 'zod';
 import { syncRunStatus } from './enums.js';
@@ -28,12 +32,14 @@ import {
   languageTag,
   uuid,
 } from './primitives.js';
+import { INSTRUCTOR_MAX_LENGTH, INSTRUCTORS_MAX } from './canonical.js';
 
 /** Current template version (generated templates); every version of {@link CSV_TEMPLATE_VERSIONS} is accepted. */
-export const CSV_TEMPLATE_VERSION = '1.1';
-export const CSV_TEMPLATE_VERSIONS = ['1.0', '1.1'] as const;
+export const CSV_TEMPLATE_VERSION = '1.2';
+export const CSV_TEMPLATE_VERSIONS = ['1.0', '1.1', '1.2'] as const;
+export type CsvTemplateVersion = (typeof CSV_TEMPLATE_VERSIONS)[number];
 /** `sync_runs.schema_version` and `ext_metadata_history.schema_version` of Channel B. */
-export const CSV_SCHEMA_VERSION = 'csv-1.1';
+export const CSV_SCHEMA_VERSION = 'csv-1.2';
 export const CSV_MAX_CELL_LENGTH = 20_000;
 export const CSV_MULTI_VALUE_SEPARATOR = '|';
 /** Spec §6.3 limits: 5 MB (MiB) and 5,000 rows per file, 300 columns, 10 uploads per hour. */
@@ -57,6 +63,11 @@ export const CSV_COURSE_TEXT_FIELDS = [
   'learning_outcomes',
   'prerequisites',
   'assessment',
+  'mode_of_repetition',
+  'methods',
+  'literature',
+  'privacy_notice',
+  'remarks',
   'keywords',
 ] as const;
 export type CsvCourseTextField = (typeof CSV_COURSE_TEXT_FIELDS)[number];
@@ -75,13 +86,38 @@ export const CSV_TEMPLATE_1_1_COLUMNS: Readonly<Record<CsvFileKind, readonly str
   courses: ['kind', 'levels'],
   offerings: [],
 };
+/** Fixed columns introduced by template 1.2. */
+export const CSV_TEMPLATE_1_2_COLUMNS: Readonly<Record<CsvFileKind, readonly string[]>> = {
+  courses: ['instructors'],
+  offerings: [],
+};
+/** Per-language text fields of `courses.csv` introduced by template 1.2 (`<field>_<lang>`). */
+export const CSV_TEMPLATE_1_2_TEXT_FIELDS = [
+  'mode_of_repetition',
+  'methods',
+  'literature',
+  'privacy_notice',
+  'remarks',
+] as const satisfies readonly CsvCourseTextField[];
+const TEMPLATE_1_2_LANGUAGE_COLUMN = new RegExp(
+  `^(${CSV_TEMPLATE_1_2_TEXT_FIELDS.join('|')})_(${LANG})$`,
+);
 
-/** Whether a column exists only in template 1.1. */
+/** The template version that introduced a column (`1.0` for columns of every version). */
+export function csvColumnVersion(kind: CsvFileKind, column: string): CsvTemplateVersion {
+  if (CSV_TEMPLATE_1_2_COLUMNS[kind].includes(column)) return '1.2';
+  if (kind === 'courses' && TEMPLATE_1_2_LANGUAGE_COLUMN.test(column)) return '1.2';
+  if (CSV_TEMPLATE_1_1_COLUMNS[kind].includes(column)) return '1.1';
+  const v11 =
+    kind === 'courses'
+      ? CSV_COURSE_ATTRIBUTE_COLUMN.test(column)
+      : CSV_OFFERING_LANGUAGE_COLUMN.test(column);
+  return v11 ? '1.1' : '1.0';
+}
+
+/** Whether a column exists only from template 1.1 on (1.1 or 1.2). */
 export function isTemplate11Column(kind: CsvFileKind, column: string): boolean {
-  if (CSV_TEMPLATE_1_1_COLUMNS[kind].includes(column)) return true;
-  return kind === 'courses'
-    ? CSV_COURSE_ATTRIBUTE_COLUMN.test(column)
-    : CSV_OFFERING_LANGUAGE_COLUMN.test(column);
+  return csvColumnVersion(kind, column) !== '1.0';
 }
 
 export const CSV_COURSE_REQUIRED_COLUMNS = [
@@ -96,6 +132,7 @@ export const CSV_COURSE_OPTIONAL_COLUMNS = [
   'kind',
   'levels',
   'level',
+  'instructors',
   'eqf_level',
   'teaching_hours',
   'teaching_unit_code',
@@ -162,7 +199,7 @@ const areLanguageTags = (v: string) =>
   splitMultiValue(v).every((tag) => languageTag.safeParse(tag).success);
 
 const status = cell(/^(draft|published|withdrawn|cancelled)$/, 'oecp.csv.invalid_status');
-const templateVersion = cell(/^1\.[01]$/, 'oecp.csv.invalid_template_version');
+const templateVersion = cell(/^1\.[012]$/, 'oecp.csv.invalid_template_version');
 const LEVEL = '(short_cycle|bachelor|master|doctoral|other)';
 const code = required(CODE_PATTERN, 'oecp.csv.invalid_code');
 
@@ -181,16 +218,39 @@ const courseColumns = {
   teaching_unit_code: blankOr(CODE_PATTERN, 'oecp.csv.invalid_code'),
   info_url: blankOr(HTTPS_URL_PATTERN, 'oecp.csv.invalid_url', (v) => v.length <= 2048),
   contact_email: blankOr(EMAIL_PATTERN, 'oecp.csv.invalid_email', (v) => v.length <= 320),
+  instructors: blankOr(/^[^|]+(\|[^|]+)*$/, 'oecp.content.invalid_value', validInstructors),
 };
 
-/** Template 1.0 rows must not use 1.1 columns (non-empty or not: the header decides). */
+/**
+ * `instructors` cell (template 1.2): `|`-separated names or role descriptions,
+ * each 1–200 characters after trimming, at most 50 distinct entries (repeated
+ * entries count once).
+ */
+function validInstructors(value: string): boolean {
+  const list = [...new Set(splitMultiValue(value))];
+  return (
+    list.length > 0 &&
+    list.length <= INSTRUCTORS_MAX &&
+    list.every((name) => name.length <= INSTRUCTOR_MAX_LENGTH)
+  );
+}
+
+const VERSION_ORDER: Readonly<Record<string, number>> = { '1.0': 0, '1.1': 1, '1.2': 2 };
+
+/**
+ * A row must not use columns newer than its `template_version` (non-empty or
+ * not: the header decides), e.g. `kind` in a 1.0 row or `instructors` in a 1.1 row.
+ */
 function checkTemplateVersion(
   kind: CsvFileKind,
   row: Record<string, unknown>,
   ctx: z.RefinementCtx,
 ): void {
-  if (row['template_version'] !== '1.0') return;
-  const newer = Object.keys(row).filter((key) => isTemplate11Column(kind, key));
+  const declared = VERSION_ORDER[String(row['template_version'])];
+  if (declared === undefined || declared === VERSION_ORDER['1.2']) return;
+  const newer = Object.keys(row).filter(
+    (key) => (VERSION_ORDER[csvColumnVersion(kind, key)] ?? 0) > declared,
+  );
   if (newer.length > 0) {
     ctx.addIssue({
       code: 'custom',

@@ -371,6 +371,7 @@ describe.runIf(describeWithDatabase === 'run')('Integration admin API (PostgreSQ
       .set('Authorization', auth.partner)
       .expect(200);
     expect(detail.body.errors).toMatchObject({ page: 2, page_size: 2, total: 3 });
+    expect(detail.body.handbook_incomplete).toBe(0);
     expect(detail.body.errors.items).toEqual([
       expect.objectContaining({ ext_id: 'X2', json_pointer: '/link', severity: 'warning' }),
     ]);

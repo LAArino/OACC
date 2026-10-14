@@ -85,6 +85,21 @@ export const academicSession = z
   });
 export type AcademicSession = z.infer<typeof academicSession>;
 
+/**
+ * The five optional multilingual texts of the Aurora IT Handbook §3.4 (decision
+ * 21b), columns of `course_texts` (migration 0007): mode of repetition (e.g.
+ * "every winter semester"), teaching methods, literature, privacy notice and
+ * free remarks. None of them is required to publish.
+ */
+export const HANDBOOK_TEXT_FIELDS = [
+  'mode_of_repetition',
+  'methods',
+  'literature',
+  'privacy_notice',
+  'remarks',
+] as const;
+export type HandbookTextField = (typeof HANDBOOK_TEXT_FIELDS)[number];
+
 export const courseText = z.object({
   title: z.string().min(1).max(500),
   abstract: z.string().nullable().optional(),
@@ -92,10 +107,36 @@ export const courseText = z.object({
   learning_outcomes: z.string().nullable().optional(),
   prerequisites: z.string().nullable().optional(),
   assessment: z.string().nullable().optional(),
+  mode_of_repetition: z.string().nullable().optional(),
+  methods: z.string().nullable().optional(),
+  literature: z.string().nullable().optional(),
+  privacy_notice: z.string().nullable().optional(),
+  remarks: z.string().nullable().optional(),
   keywords: z.array(z.string().min(1)).default([]),
   is_machine_translated: z.boolean().default(false),
 });
 export type CourseText = z.infer<typeof courseText>;
+
+/** `courses.instructors` limits (DDL `oecp_valid_instructors`, migration 0007). */
+export const INSTRUCTORS_MAX = 50;
+export const INSTRUCTOR_MAX_LENGTH = 200;
+
+/**
+ * One entry of `courses.instructors` (decision 21a): the name of a member of the
+ * teaching staff, or a role description ("Course team, University of Iceland"),
+ * as the university publishes it in its own catalogue. Trimmed, 1–200 characters.
+ */
+export const instructorName = z
+  .string()
+  .trim()
+  .min(1, { error: 'oecp.content.invalid_value' })
+  .max(INSTRUCTOR_MAX_LENGTH, { error: 'oecp.content.invalid_value' });
+
+/** `courses.instructors`: at most 50 distinct entries, primary (e.g. the coordinator) first. */
+export const instructorList = z
+  .array(instructorName)
+  .max(INSTRUCTORS_MAX, { error: 'oecp.content.invalid_value' })
+  .refine((list) => new Set(list).size === list.length, { error: 'oecp.content.invalid_value' });
 
 /**
  * `level` (primary, the one OEAPI can express) and `levels` (all study cycles)
@@ -133,6 +174,8 @@ export const course = z
     contact_email: email.nullable().optional(),
     /** First code is the primary one. */
     isced_codes: z.array(iscedCode).default([]),
+    /** Teaching staff as published by the university (decision 21a); may be empty. */
+    instructors: instructorList.default([]),
     /** Keyed by primary language subtag. */
     texts: z.record(primaryLanguage, courseText),
     /** Alliance attributes; checked against `attribute_definitions` by the writer. */

@@ -94,6 +94,9 @@ Implemented in `apps/api/src/ingestion/oeapi/oeapi-v5.adapter.ts`. "Required" me
 | `fieldsOfStudy` | no | ISCED codes | split on spaces, `,`, `;`, `\|`; 2–6 digits with a known broad field; first valid is primary |
 | `level` | no | `levels`, `level`, `eqf_level` | table below |
 | `link` | no | `info_url` | https only, ≤ 2,048 |
+| `coordinators[]` | no | `instructors` | only persons already **expanded** in the course item, with `displayName`, else `givenName` (+ `surnamePrefix`) + `surname` (`surName` accepted); bare `personId`s are ignored; trimmed, repeats dropped, ≤ 200 characters each and ≤ 50 entries (cut with `oecp.oeapi.value_truncated`); not an array: warning `oecp.oeapi.invalid_payload`, course kept |
+| `ext.oecp.instructors` | no | `instructors` | OECP extension, `[string]`; used only when no coordinator has a name; same limits |
+| `ext.oecp.texts.{modeOfRepetition, methods, literature, privacyNotice, remarks}` | no | `mode_of_repetition`, `methods`, `literature`, `privacy_notice`, `remarks` | OECP extension; each member `[{language, value}]` or `{"en": "…"}`; only in languages that have a `name`; ≤ 20,000 per language |
 | `teachingLanguage`, `modeOfDelivery[]` | no | — | fallback for offerings without their own |
 | — | | `status` | `published` with an English `name`, else `draft` |
 | — | | `contact_email` | the organization's contact address |
@@ -135,10 +138,36 @@ Implemented in `apps/api/src/ingestion/oeapi/oeapi-v5.adapter.ts`. "Required" me
 
 ### What is not read
 
-- **Person data:** `coordinators` is never expanded or stored; OECP stores no person data.
-- **Alliance data:** OEAPI v5 has no course kind or alliance attributes. Every harvested course gets `kind` `course` and no attributes, even if you send `ext.oecp.kind` or `ext.oecp.attributes`; administrators add them as overrides, which survive harvests. The only extension read is the offering's `ext.oecp.applicationInstructions`.
+- **Person data:** OECP never asks for `expand=coordinators`, never calls `/persons` and never looks anyone up. From `coordinators` it keeps only the **names** of persons your endpoint already returns expanded in the course item (decision 21a): no e-mail, phone, affiliation or identifier. Those names are republished on the public course page as the course's instructors, so return only names your university already publishes for the course; role descriptions ("Course team, Faculty of Law") work too, through `ext.oecp.instructors`.
+- **Alliance data:** OEAPI v5 has no course kind or alliance attributes. Every harvested course gets `kind` `course` and no attributes, even if you send `ext.oecp.kind` or `ext.oecp.attributes`; administrators add them as overrides, which survive harvests. The extensions read are the course's `ext.oecp.instructors` and `ext.oecp.texts` and the offering's `ext.oecp.applicationInstructions`; they have the shape the OECP read API (`/oeapi/v5`) emits under `ext.oecp`, so an OECP catalogue can be harvested without loss of these fields.
 - `consumers` (including eduXchange `enrollmentUrl`, `theme`, `selection`), offering `name`, `description`, `offeringType`, `resultExpected`, `minNumberStudents`, course `abbreviation`, `duration`, `qualificationRequirements`, `validFrom`, `validTo`, `otherCodes`, `addresses`.
 - Not set by the harvester: teaching hours, campus, alliance seats, teaching unit.
+
+## Handbook completeness
+
+The Aurora IT Handbook shows a course only when every obligatory field is present (decision 21c; spec §6.1). After a course's offerings have been harvested, OECP checks each course it stores as `published` (the courses with an English `name`) on the effective values, overrides included:
+
+| Obligatory | Comes from |
+|---|---|
+| English title, description, learning outcomes, prerequisites, assessment | `name`, `description`, `learningOutcomes`, `admissionRequirements`, `assessment` in `en` |
+| ECTS, study cycle | `studyLoad`, `level` |
+| Contact | the organization's contact address (not harvested) |
+| At least one instructor | named `coordinators` or `ext.oecp.instructors` (above) |
+| A published offering with start and end dates, application start and deadline, a teaching language and a delivery mode | `startDate`, `endDate`, `enrollStartDate`, `enrollEndDate`, `teachingLanguage`, `modeOfDelivery` |
+
+A course that misses any of them gets the warning `oecp.content.handbook_incomplete` (for example `MATH-101: Course is missing fields the Aurora IT Handbook requires to publish: instructors, offerings.enrol_start_date`). The deployment's `OECP_PUBLISH_RULE` decides the effect: `warn` (default, transition period) publishes it anyway; `enforce` stores it as `draft` until a later harvest finds it complete. The rule never rejects a course and never changes the run status. The run detail (`GET /sync-runs/{id}`) adds `handbook_incomplete`, the courses of the run with the warning; the course list of the admin console has a *Completeness* column.
+
+Because OECP never expands `coordinators`, most endpoints will give no instructors and every course will carry this warning. Either return `coordinators` expanded with names in the course listing, or add `ext.oecp.instructors` (a list of names or role descriptions), or ask your administrator to set an `instructors` override in the web form. The optional handbook texts (mode of repetition, methods, literature, privacy notice, remarks) have no OEAPI v5 member; send them as `ext.oecp.texts` if you want them shown:
+
+```json
+"ext": { "oecp": {
+  "instructors": ["Anna Jónsdóttir", "Course team, Faculty of Education"],
+  "texts": {
+    "modeOfRepetition": [{"language": "en", "value": "Every winter semester."}],
+    "methods": [{"language": "en", "value": "Lectures and group projects."}],
+    "remarks": {"en": "Taught online."}
+  } } }
+```
 
 ## Warning and rejection codes
 
@@ -176,12 +205,13 @@ From `packages/schemas/errors.json`; "W" is a warning, "E" an error. **Run** = t
 | `oecp.oeapi.invalid_language` | W | — | language not 2–3 letters | Use ISO 639 / BCP 47 |
 | `oecp.oeapi.insecure_link` | W | — | `link` not an https URL; dropped | Use https links |
 | `oecp.oeapi.text_without_title` | W | — | a text in a language without a `name` in it; ignored | Add the `name` in that language |
-| `oecp.oeapi.value_truncated` | W | — | title > 500 or instructions > 20,000 characters | Shorten |
+| `oecp.oeapi.value_truncated` | W | — | title > 500, instructions or handbook texts > 20,000 characters, an instructor name > 200 characters or more than 50 instructors | Shorten |
 | `oecp.oeapi.invalid_student_counts` | W | — | `maxNumberStudents` 0; seats ignored | Omit it when there is no limit |
-| `oecp.oeapi.invalid_extension` | W | — | `ext.oecp.applicationInstructions` of another shape | Use `[{language, value}]` |
+| `oecp.oeapi.invalid_extension` | W | — | `ext.oecp.applicationInstructions`, `ext.oecp.texts` (or one of its members) or `ext.oecp.instructors` of another shape; ignored | Use `[{language, value}]` (texts, instructions) or `[string]` (instructors) |
 | `oecp.content.english_missing` | W³ | — | no English `name`; course stored as `draft` | Add `en` to `name` |
 | `oecp.content.unknown_isced_field` | W³ | — | ISCED code with an unknown broad field; ignored | Use ISCED-F 2013 |
 | `oecp.content.unknown_session` | W³ | — | session invalid or unknown; offering stored without it | Support `expand=academicSession` |
+| `oecp.content.handbook_incomplete` | W | — | a course stored as `published` misses fields the Aurora IT Handbook requires; the message lists them. In `enforce` mode the course is stored as `draft` | See [Handbook completeness](#handbook-completeness) |
 | `oecp.content.date_order` | E | entity | end before start, deadline after end, enrolment start after deadline | Fix the dates |
 | `oecp.content.invalid_value` | E | entity | code longer than 200, or another canonical rule | Per message and pointer |
 | `oecp.internal` | E | run | unexpected server error | Report with the run id |

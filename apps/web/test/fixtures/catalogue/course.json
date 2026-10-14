@@ -26,6 +26,7 @@
   "teaching_hours": 48,
   "info_url": "https://www.urv.cat/en/studies/climate",
   "contact_email": "international@urv.cat",
+  "instructors": ["Dr. Marta Puig", "Dr. Joan Ferrer"],
   "texts": {
     "ca": {
       "title": "Canvi climàtic i ecosistemes mediterranis",
@@ -34,6 +35,11 @@
       "learning_outcomes": null,
       "prerequisites": null,
       "assessment": "Avaluació continuada.",
+      "mode_of_repetition": null,
+      "methods": null,
+      "literature": null,
+      "privacy_notice": null,
+      "remarks": null,
       "keywords": ["clima", "ecologia"],
       "is_machine_translated": true
     },
@@ -44,6 +50,11 @@
       "learning_outcomes": "Explain the main climate drivers of Mediterranean ecosystems.\nAnalyse long-term field data.",
       "prerequisites": "Basic statistics. <script>alert(1)</script>",
       "assessment": "Continuous assessment (60%) and a final project (40%).",
+      "mode_of_repetition": "Every spring semester.",
+      "methods": "Lectures, seminars and field work.\nTeam projects in international groups.",
+      "literature": "IPCC (2023). Climate Change 2023: Synthesis Report.",
+      "privacy_notice": "Applicant data is processed by URV for admission only. <b>Not HTML</b>",
+      "remarks": null,
       "keywords": ["climate", "ecology", "Mediterranean"],
       "is_machine_translated": false
     }

@@ -6,7 +6,9 @@
 // browser before moving on; server validation errors (`json_pointer`) are mapped
 // back to their fields. In overrides mode (organization harvested through OEAPI)
 // every field shows its source value and an "Override" toggle, and Save sends only
-// the toggled fields as `PATCH …/overrides` `set`/`clear`.
+// the toggled fields as `PATCH …/overrides` `set`/`clear`. Instructors and the
+// optional IT Handbook texts ("More texts") follow DL 21; the Review step shows
+// the course's completeness against the publication rule as last saved.
 import type { AdminAttributeValue, AdminCourse, AdminCourseReference } from '~/types/admin';
 
 const props = defineProps<{
@@ -40,6 +42,8 @@ const saving = ref(false);
 const result = ref<string | null>(null);
 const resultKey = ref(0);
 const stepHeading = ref<HTMLElement | null>(null);
+/** Languages whose "More texts" group is open. */
+const moreOpen = ref<Set<string>>(new Set());
 
 function load() {
   const course = props.course;
@@ -50,6 +54,13 @@ function load() {
   on.value = Object.fromEntries(keys.map((k) => [k, true]));
   reachable.value = creating.value ? Math.max(0, Math.min(reachable.value, step.value)) : 3;
   if (!form.value.texts[activeLang.value]) activeLang.value = 'en';
+  moreOpen.value = new Set(
+    Object.keys(form.value.texts).filter((lang) =>
+      COURSE_MORE_TEXT_FIELDS.some(
+        (f) => (form.value.texts[lang]?.[f] ?? '').trim() !== '' || on.value[`texts.${lang}.${f}`],
+      ),
+    ),
+  );
 }
 load();
 watch(
@@ -148,6 +159,13 @@ const invalidLanguages = computed(() => [
 function showIssues(list: FormIssue[]) {
   issues.value = list;
   summaryKey.value++;
+  // Open "More texts" where one of its fields has an issue.
+  const more = new Set<string>(COURSE_MORE_TEXT_FIELDS);
+  const langs = list
+    .map((i) => i.field.split('/'))
+    .filter((p) => p[1] === 'texts' && more.has(p[3] ?? ''))
+    .map((p) => p[2] ?? '');
+  if (langs.length) moreOpen.value = new Set([...moreOpen.value, ...langs]);
 }
 
 async function focusField(id: string) {
@@ -177,6 +195,7 @@ function knownFields(): Set<string> {
     '/teaching_unit_ext_id',
     '/info_url',
     '/contact_email',
+    '/instructors',
     '/isced_codes',
     '/attributes',
     '/status',
@@ -295,7 +314,26 @@ function removeLanguage(tag: string) {
   form.value.texts = texts;
 }
 
-const textFields = COURSE_TEXT_FIELDS;
+const mainTextFields = COURSE_MAIN_TEXT_FIELDS;
+const moreTextFields = COURSE_MORE_TEXT_FIELDS;
+const TEXT_HINTS: Partial<Record<CourseTextField, string>> = {
+  keywords: 'admin.courses.hints.keywords',
+  mode_of_repetition: 'admin.courses.hints.mode_of_repetition',
+  privacy_notice: 'admin.courses.hints.privacy_notice',
+};
+const textHint = (field: CourseTextField) => {
+  const key = TEXT_HINTS[field];
+  return key ? t(key) : undefined;
+};
+
+function onMoreToggle(lang: string, event: Event) {
+  const open = (event.target as HTMLDetailsElement).open;
+  if (open === moreOpen.value.has(lang)) return;
+  const next = new Set(moreOpen.value);
+  if (open) next.add(lang);
+  else next.delete(lang);
+  moreOpen.value = next;
+}
 
 function setText(lang: string, field: CourseTextField, value: string) {
   const text = (form.value.texts[lang] ??= emptyCourseText());
@@ -425,6 +463,24 @@ const reviewTitles = computed(() =>
   })),
 );
 const statusOptions = ['draft', 'published'] as const;
+
+/** Completeness of the saved course (null for a new course or an older API). */
+const completeness = computed(() => {
+  const value = props.course?.completeness;
+  if (!value || typeof value !== 'object') return null;
+  const missing = Array.isArray(value.missing)
+    ? value.missing.filter((k): k is string => typeof k === 'string' && k !== '')
+    : [];
+  const complete = typeof value.complete === 'boolean' ? value.complete : !missing.length;
+  return { complete, missing };
+});
+const missingLabel = (key: string) =>
+  completenessFieldLabel(
+    key,
+    t,
+    te,
+    (tag) => languageOptions.value.find((l) => l.tag === tag)?.label ?? tag,
+  );
 </script>
 
 <template>
@@ -695,6 +751,34 @@ const statusOptions = ['draft', 'published'] as const;
 
         <AdminOverrideField
           v-slot="{ disabled, describedBy }"
+          :model-value="isOn('instructors')"
+          :enabled="overridesMode"
+          :field-id="fid('/instructors')"
+          :label="t('admin.courses.fields.instructors')"
+          :source="sourceText('instructors')"
+          :stored="stored.has('instructors')"
+          @update:model-value="setOverride('instructors', $event)"
+        >
+          <AdminInputField
+            :id="fid('/instructors')"
+            v-model="form.instructors"
+            as="textarea"
+            :rows="3"
+            :label="t('admin.courses.fields.instructors')"
+            :hint="
+              t('admin.courses.hints.instructors', {
+                max: INSTRUCTORS_MAX,
+                length: INSTRUCTOR_NAME_MAX,
+              })
+            "
+            :error="err('/instructors')"
+            :disabled="disabled"
+            :described-by="describedBy"
+          />
+        </AdminOverrideField>
+
+        <AdminOverrideField
+          v-slot="{ disabled, describedBy }"
           :model-value="isOn('contact_email')"
           :enabled="overridesMode"
           :field-id="fid('/contact_email')"
@@ -739,7 +823,7 @@ const statusOptions = ['draft', 'published'] as const;
           @remove="removeLanguage"
         >
           <template #default="{ lang }">
-            <template v-for="field in textFields" :key="`${lang}-${field}`">
+            <template v-for="field in mainTextFields" :key="`${lang}-${field}`">
               <AdminOverrideField
                 v-slot="{ disabled, describedBy }"
                 :model-value="isOn(`texts.${lang}.${field}`)"
@@ -756,7 +840,7 @@ const statusOptions = ['draft', 'published'] as const;
                   :as="field === 'title' ? 'input' : 'textarea'"
                   :rows="field === 'keywords' ? 2 : 5"
                   :label="fieldLabel(`/texts/${lang}/${field}`)"
-                  :hint="field === 'keywords' ? t('admin.courses.hints.keywords') : undefined"
+                  :hint="textHint(field)"
                   :error="err(`/texts/${lang}/${field}`)"
                   :required="field === 'title' && lang === 'en'"
                   :maxlength="field === 'title' ? 500 : undefined"
@@ -767,6 +851,40 @@ const statusOptions = ['draft', 'published'] as const;
                 />
               </AdminOverrideField>
             </template>
+            <details
+              class="admin-details admin-more-texts"
+              :open="moreOpen.has(lang)"
+              @toggle="onMoreToggle(lang, $event)"
+            >
+              <summary>{{ t('admin.courses.moreTexts') }}</summary>
+              <p class="admin-hint">{{ t('admin.courses.hints.moreTexts') }}</p>
+              <template v-for="field in moreTextFields" :key="`${lang}-${field}`">
+                <AdminOverrideField
+                  v-slot="{ disabled, describedBy }"
+                  :model-value="isOn(`texts.${lang}.${field}`)"
+                  :enabled="overridesMode"
+                  :field-id="fid(`/texts/${lang}/${field}`)"
+                  :label="fieldLabel(`/texts/${lang}/${field}`)"
+                  :source="sourceText(`texts.${lang}.${field}`)"
+                  :stored="stored.has(`texts.${lang}.${field}`)"
+                  @update:model-value="setOverride(`texts.${lang}.${field}`, $event)"
+                >
+                  <AdminInputField
+                    :id="fid(`/texts/${lang}/${field}`)"
+                    :model-value="form.texts[lang]?.[field] ?? ''"
+                    as="textarea"
+                    :rows="field === 'mode_of_repetition' ? 2 : 4"
+                    :label="fieldLabel(`/texts/${lang}/${field}`)"
+                    :hint="textHint(field)"
+                    :error="err(`/texts/${lang}/${field}`)"
+                    :disabled="disabled"
+                    :described-by="describedBy"
+                    :lang="lang"
+                    @update:model-value="setText(lang, field, $event)"
+                  />
+                </AdminOverrideField>
+              </template>
+            </details>
           </template>
         </AdminLanguageTabs>
       </section>
@@ -885,6 +1003,36 @@ const statusOptions = ['draft', 'published'] as const;
         <h2 id="course-step-heading" ref="stepHeading" tabindex="-1">
           {{ t('admin.wizard.stepHeading', { n: 4, total: 4, name: stepNames[3] }) }}
         </h2>
+        <section
+          v-if="completeness"
+          class="admin-card admin-completeness"
+          aria-labelledby="course-completeness-heading"
+        >
+          <h3 id="course-completeness-heading">{{ t('admin.completeness.heading') }}</h3>
+          <p v-if="completeness.complete">
+            <AdminBadge tone="ok" :label="t('admin.completeness.complete')" />
+            {{ t('admin.completeness.completeText') }}
+          </p>
+          <template v-else>
+            <p>
+              <AdminBadge
+                tone="warn"
+                :label="
+                  t(
+                    'admin.completeness.missingCount',
+                    { n: completeness.missing.length },
+                    completeness.missing.length,
+                  )
+                "
+              />
+              {{ t('admin.completeness.incompleteText') }}
+            </p>
+            <ul v-if="completeness.missing.length" class="admin-completeness__missing">
+              <li v-for="key in completeness.missing" :key="key">{{ missingLabel(key) }}</li>
+            </ul>
+          </template>
+          <p class="admin-hint">{{ t('admin.completeness.hint') }}</p>
+        </section>
         <template v-if="overridesMode">
           <h3>{{ t('admin.courses.pendingHeading') }}</h3>
           <p v-if="!Object.keys(pendingPatch.set).length && !pendingPatch.clear.length">
@@ -947,6 +1095,12 @@ const statusOptions = ['draft', 'published'] as const;
             <dt>{{ t('admin.courses.fields.info_url') }}</dt>
             <dd>
               {{ courseValueText('info_url', reviewInput.info_url, props.reference, t, locale) }}
+            </dd>
+            <dt>{{ t('admin.courses.fields.instructors') }}</dt>
+            <dd>
+              {{
+                courseValueText('instructors', reviewInput.instructors, props.reference, t, locale)
+              }}
             </dd>
             <dt>{{ t('admin.courses.fields.contact_email') }}</dt>
             <dd>

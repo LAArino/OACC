@@ -69,7 +69,7 @@ function totpState(account) {
 async function freshTotp(account, secret) {
   const file = totpState(account);
   let last = -1;
-  try { last = Number(fs.readFileSync(file, 'utf8')); } catch {}
+  try { last = Number(fs.readFileSync(file, 'utf8')); } catch { /* first run: no file yet */ }
   let counter = Math.floor(Date.now() / 30000);
   // Also avoid the last 3 s of a period (the code could expire in flight).
   if (counter <= last || 30000 - (Date.now() % 30000) < 3000) {
@@ -217,7 +217,7 @@ async function adminApi(token, method, apiPath, body) {
     });
     const raw = await res.text();
     let json = null;
-    try { json = raw ? JSON.parse(raw) : null; } catch {}
+    try { json = raw ? JSON.parse(raw) : null; } catch { /* not JSON: keep raw */ }
     return { status: res.status(), body: json ?? raw };
   } finally {
     await rq.dispose();

@@ -3,6 +3,7 @@
 // Courses of the organization (spec §8.1 "Course wizard"):
 // `GET /api/admin/v1/organizations/{orgId}/courses` with search, status, kind
 // and source filters and pagination, all kept in the URL. A row opens the course.
+// The Completeness column [DL 21] appears once the API sends `complete`.
 import type { AdminCourseList, AdminCourseListItem, AdminCourseReference } from '~/types/admin';
 
 definePageMeta({ layout: 'admin' });
@@ -156,6 +157,10 @@ const pages = computed(() =>
   data.value ? Math.max(1, Math.ceil(data.value.total / data.value.page_size)) : 1,
 );
 const overridesMode = computed(() => reference.value?.form_mode === 'overrides');
+/** An older API sends no `complete`: the column is left out. */
+const showCompleteness = computed(
+  () => data.value?.items.some((c) => typeof c.complete === 'boolean') ?? false,
+);
 
 const statusOptions = computed(() =>
   STATUSES.map((s) => ({ value: s, label: t(`admin.lifecycle.${s}`) })),
@@ -314,6 +319,9 @@ function onRowClick(course: AdminCourseListItem, event: MouseEvent) {
                         <th scope="col" class="num">{{ t('admin.courses.offeringsCount') }}</th>
                         <th scope="col">{{ t('admin.courses.updated') }}</th>
                         <th scope="col">{{ t('admin.courses.overridesColumn') }}</th>
+                        <th v-if="showCompleteness" scope="col">
+                          {{ t('admin.completeness.column') }}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -341,6 +349,22 @@ function onRowClick(course: AdminCourseListItem, event: MouseEvent) {
                             {{ t('admin.override.badge') }}
                           </span>
                           <span v-else class="visually-hidden">{{ t('admin.no') }}</span>
+                        </td>
+                        <td v-if="showCompleteness">
+                          <template v-if="course.complete === true">
+                            <span aria-hidden="true">✓</span>
+                            <span class="visually-hidden">{{
+                              t('admin.completeness.complete')
+                            }}</span>
+                          </template>
+                          <AdminBadge
+                            v-else-if="course.complete === false"
+                            tone="warn"
+                            :label="t('admin.completeness.incomplete')"
+                          />
+                          <span v-else class="visually-hidden">{{
+                            t('admin.completeness.unknown')
+                          }}</span>
                         </td>
                       </tr>
                     </tbody>

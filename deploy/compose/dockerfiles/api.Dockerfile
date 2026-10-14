@@ -68,8 +68,8 @@ COPY --from=build /repo/apps/api/dist /repo/apps/api/dist
 COPY --from=build /repo/packages /repo/packages
 COPY deploy/compose/dockerfiles/oecp-entrypoint.sh /usr/local/bin/oecp-entrypoint
 RUN chmod 0555 /usr/local/bin/oecp-entrypoint \
- && mkdir -p /data/uploads \
- && chown node:node /data/uploads
+ && mkdir -p /data/uploads /data/idp-metadata \
+ && chown node:node /data/uploads /data/idp-metadata
 USER 1000:1000
 WORKDIR /repo/apps/api
 EXPOSE 3000

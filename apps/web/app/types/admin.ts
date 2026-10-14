@@ -4,7 +4,13 @@
 // course wizard contracts of `@oecp/schemas` under the admin pages' names.
 import type {
   AccessMode,
+  AdminCourse as SchemaAdminCourse,
   AdminCourseHistory,
+  AdminCourseList as SchemaAdminCourseList,
+  AdminCourseListItem as SchemaAdminCourseListItem,
+  AdminCourseText as SchemaAdminCourseText,
+  CourseInput as SchemaCourseInput,
+  CourseTextInput as SchemaCourseTextInput,
   AdminHistoryEntry,
   AdminReference,
   AdminRole,
@@ -37,16 +43,50 @@ export interface CsvUploadProblem extends ProblemDetails {
 // ---------------------------------------------------------------------------
 // Course wizard (spec §6.4, §8.1): the admin course and offering API contracts
 // of `@oecp/schemas` (admin-courses.ts), under the names the admin pages use.
-export type {
-  AdminCourse,
-  AdminCourseList,
-  AdminCourseListItem,
-  AdminCourseText,
-  AdminOffering,
-  CourseInput,
-  OfferingInput,
-  OverridesPatch,
-} from '@oecp/schemas';
+export type { AdminOffering, OfferingInput, OverridesPatch } from '@oecp/schemas';
+
+// Aurora IT Handbook alignment [DL 21]: instructors, five optional texts and the
+// completeness of the course against the publication rule. These members are
+// additive and optional here, so the panel keeps working against an API that
+// does not send them yet; the base types omit them before redeclaring, so the
+// result is the same whether or not the installed @oecp/schemas declares them.
+
+/** Optional course texts of the IT Handbook. */
+export type AdminHandbookTextField =
+  'mode_of_repetition' | 'methods' | 'literature' | 'privacy_notice' | 'remarks';
+type HandbookTexts = { [K in AdminHandbookTextField]?: string | null };
+
+/** Fields obligatory for publication that a course lacks (`missing`: field keys). */
+export interface AdminCourseCompleteness {
+  complete: boolean;
+  /** e.g. `description`, `instructors`, `offerings.application_deadline`. */
+  missing: string[];
+}
+
+export type AdminCourseText = Omit<SchemaAdminCourseText, AdminHandbookTextField> & HandbookTexts;
+
+export type AdminCourse = Omit<SchemaAdminCourse, 'texts' | 'instructors' | 'completeness'> & {
+  texts: Record<string, AdminCourseText>;
+  instructors?: string[];
+  completeness?: AdminCourseCompleteness;
+};
+
+export type AdminCourseListItem = Omit<SchemaAdminCourseListItem, 'complete'> & {
+  /** Every field obligatory for publication is present. */
+  complete?: boolean;
+};
+
+export type AdminCourseList = Omit<SchemaAdminCourseList, 'items'> & {
+  items: AdminCourseListItem[];
+};
+
+export type CourseTextInput = Omit<SchemaCourseTextInput, AdminHandbookTextField> & HandbookTexts;
+
+export type CourseInput = Omit<SchemaCourseInput, 'texts' | 'instructors'> & {
+  /** At most 50 names of at most 200 characters. */
+  instructors?: string[];
+  texts?: Record<string, CourseTextInput>;
+};
 
 /** `GET /api/admin/v1/organizations/{orgId}/reference`. */
 export type AdminCourseReference = AdminReference;

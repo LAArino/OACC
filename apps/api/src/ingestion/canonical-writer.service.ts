@@ -1,24 +1,28 @@
 // SPDX-License-Identifier: EUPL-1.2
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   type AcademicSession,
   type AttributeDefinition,
   buildAttributesSchema,
   type Course,
   type CourseAttributes,
+  type CourseCompleteness,
   type CourseKind,
   type CourseLevel,
   type CourseOffering,
   type CourseText,
+  handbookIncompleteMessage,
   issuesToProblemErrors,
   type LifecycleStatus,
   type ProblemError,
+  type PublishRuleMode,
   resolveLevels,
 } from '@oecp/schemas';
 import { sql, type Transaction } from 'kysely';
 import { loadAttributeDefinitions } from '../attributes/attribute-definitions.js';
 import type { Database, HistoryEntityType } from '../db/database.js';
 import { type Db, KYSELY } from '../db/db.module.js';
+import { loadCompleteness } from './handbook-completeness.js';
 import { jcsSha256 } from './jcs.js';
 import {
   clearOverrides,
@@ -43,6 +47,9 @@ export const MASS_ABSENCE_RATIO = 0.3;
 /** `audit_log.actor_sub` of harvester-driven status changes (spec §6.2.5). */
 export const HARVESTER_ACTOR = 'system:harvester';
 
+/** Injection token of the deployment's `OECP_PUBLISH_RULE` (decision 21c); `warn` when absent. */
+export const PUBLISH_RULE = Symbol('PUBLISH_RULE');
+
 /** Course columns an override may replace (keys never; spec §5 "Overrides"). */
 const COURSE_OVERRIDABLE = [
   'status',
@@ -56,6 +63,7 @@ const COURSE_OVERRIDABLE = [
   'info_url',
   'contact_email',
   'isced_codes',
+  'instructors',
 ] as const;
 
 const TEXT_OVERRIDABLE = [
@@ -65,6 +73,11 @@ const TEXT_OVERRIDABLE = [
   'learning_outcomes',
   'prerequisites',
   'assessment',
+  'mode_of_repetition',
+  'methods',
+  'literature',
+  'privacy_notice',
+  'remarks',
   'keywords',
   'is_machine_translated',
 ] as const;
@@ -166,6 +179,7 @@ export interface CourseEffective {
   info_url: string | null;
   contact_email: string | null;
   isced_codes: string[];
+  instructors: string[];
 }
 
 export interface TextEffective {
@@ -175,6 +189,11 @@ export interface TextEffective {
   learning_outcomes: string | null;
   prerequisites: string | null;
   assessment: string | null;
+  mode_of_repetition: string | null;
+  methods: string | null;
+  literature: string | null;
+  privacy_notice: string | null;
+  remarks: string | null;
   keywords: string[];
   is_machine_translated: boolean;
 }
@@ -213,6 +232,19 @@ export interface OverrideOutcome {
   entityId: string;
   /** Keys whose override or effective value changed (`texts.<lang>.<field>` for texts). */
   changed: string[];
+  /** Effective status the overrides ask for (courses; before the publication rule). */
+  requestedStatus?: LifecycleStatus;
+}
+
+/** Result of {@link CanonicalWriter.applyPublishRule}. */
+export interface PublishRuleOutcome {
+  courseId: string;
+  extId: string;
+  completeness: CourseCompleteness;
+  /** Status after the rule. */
+  status: LifecycleStatus;
+  /** The `oecp.content.handbook_incomplete` warning recorded in `sync_errors`, if any. */
+  warning: ProblemError | null;
 }
 
 /** Final check of the effective record before anything is written; throws to refuse. */
@@ -245,8 +277,15 @@ export class CanonicalWriter {
   private bound: Trx | null = null;
   /** Definitions read once per bound transaction (an upload sees one consistent set). */
   private definitions: AttributeDefinition[] | null = null;
+  /** `OECP_PUBLISH_RULE` (decision 21c). */
+  readonly publishRule: PublishRuleMode;
 
-  constructor(@Inject(KYSELY) private readonly db: Db) {}
+  constructor(
+    @Inject(KYSELY) private readonly db: Db,
+    @Optional() @Inject(PUBLISH_RULE) publishRule?: PublishRuleMode,
+  ) {
+    this.publishRule = publishRule ?? 'warn';
+  }
 
   /**
    * Runs `fn` with a writer whose writes all share one transaction (all-or-nothing,
@@ -256,7 +295,7 @@ export class CanonicalWriter {
   async transaction<T>(fn: (writer: CanonicalWriter, trx: Trx) => Promise<T>): Promise<T> {
     if (this.bound) return fn(this, this.bound);
     return this.db.transaction().execute(async (trx) => {
-      const writer = new CanonicalWriter(trx);
+      const writer = new CanonicalWriter(trx, this.publishRule);
       writer.bound = trx;
       return fn(writer, trx);
     });
@@ -363,26 +402,28 @@ export class CanonicalWriter {
         info_url: course.info_url ?? null,
         contact_email: course.contact_email ?? null,
         isced_codes: course.isced_codes as unknown,
+        instructors: course.instructors as unknown,
       };
       const effective = applyOverrides(source, existing?.overrides, COURSE_OVERRIDABLE);
       const levels = effectiveLevels(effective, existing?.overrides);
+      const status = this.heldStatus(existing?.status, effective.status);
 
       let outcome: UpsertResult['outcome'];
       let entityId: string;
       if (existing && eqBytes(existing.content_hash, contentHash)) {
         entityId = existing.id;
-        const statusChanged = existing.status !== effective.status;
+        const statusChanged = existing.status !== status;
         await trx
           .updateTable('courses')
           .set({
             last_seen_at: ctx.now,
             absent_count: 0,
-            ...(statusChanged ? { status: effective.status } : {}),
+            ...(statusChanged ? { status } : {}),
           })
           .where('id', '=', entityId)
           .execute();
         if (statusChanged) {
-          await this.auditStatus(trx, ctx, 'course', entityId, existing, effective.status);
+          await this.auditStatus(trx, ctx, 'course', entityId, existing, status);
         }
         outcome = statusChanged ? 'updated' : 'unchanged';
       } else {
@@ -401,7 +442,7 @@ export class CanonicalWriter {
           source_ref: course.source_ref ?? null,
           source_channel: ctx.channel,
           ...teachingUnit,
-          status: effective.status,
+          status,
           kind: effective.kind,
           ects: effective.ects,
           level: levels.level,
@@ -411,6 +452,7 @@ export class CanonicalWriter {
           teaching_hours: effective.teaching_hours,
           info_url: effective.info_url,
           contact_email: effective.contact_email,
+          instructors: (effective.instructors ?? []) as string[],
           content_hash: contentHash,
           absent_count: 0,
           last_seen_at: ctx.now,
@@ -427,8 +469,8 @@ export class CanonicalWriter {
         if (existing) {
           entityId = existing.id;
           await trx.updateTable('courses').set(columns).where('id', '=', entityId).execute();
-          if (existing.status !== effective.status) {
-            await this.auditStatus(trx, ctx, 'course', entityId, existing, effective.status);
+          if (existing.status !== status) {
+            await this.auditStatus(trx, ctx, 'course', entityId, existing, status);
           }
           outcome = 'updated';
         } else {
@@ -447,7 +489,7 @@ export class CanonicalWriter {
 
       await this.history(trx, ctx, 'course', entityId, course.ext_id, raw, 'accepted');
       await this.insertIssues(trx, ctx, 'course', course.ext_id, warnings);
-      return { outcome, entityId, contentHash };
+      return { outcome, entityId, contentHash, requestedStatus: effective.status };
     });
   }
 
@@ -663,6 +705,7 @@ export class CanonicalWriter {
         info_url: row.info_url,
         contact_email: row.contact_email,
         isced_codes: isced.map((r) => r.isced_code),
+        instructors: row.instructors,
       };
       const at = ctx.now.toISOString();
       const cleared = clearOverrides(row.overrides, change.clear);
@@ -688,6 +731,11 @@ export class CanonicalWriter {
           'learning_outcomes',
           'prerequisites',
           'assessment',
+          'mode_of_repetition',
+          'methods',
+          'literature',
+          'privacy_notice',
+          'remarks',
           'keywords',
           'is_machine_translated',
           'overrides',
@@ -761,13 +809,14 @@ export class CanonicalWriter {
       );
       changed.unshift(...fields);
       await check?.({ course: next, texts });
+      const status = this.heldStatus(current.status, next.status);
 
       if (fields.length > 0) {
         await trx
           .updateTable('courses')
           .set({
             overrides,
-            status: next.status,
+            status,
             kind: next.kind,
             ects: next.ects,
             level: next.level,
@@ -777,6 +826,7 @@ export class CanonicalWriter {
             teaching_hours: next.teaching_hours,
             info_url: next.info_url,
             contact_email: next.contact_email,
+            instructors: next.instructors,
             ...(cleared.unknownSource.length > 0 ? { content_hash: null } : {}),
           })
           .where('id', '=', courseId)
@@ -784,8 +834,8 @@ export class CanonicalWriter {
         if (!same(current.isced_codes, next.isced_codes)) {
           await this.writeIsced(trx, courseId, next.isced_codes);
         }
-        if (current.status !== next.status) {
-          await this.auditStatus(trx, ctx, 'course', courseId, row, next.status);
+        if (current.status !== status) {
+          await this.auditStatus(trx, ctx, 'course', courseId, row, status);
         }
       }
       for (const write of textWrites) {
@@ -810,6 +860,7 @@ export class CanonicalWriter {
         outcome: changed.length > 0 ? 'updated' : 'unchanged',
         entityId: courseId,
         changed,
+        requestedStatus: next.status,
       };
     });
   }
@@ -1109,6 +1160,108 @@ export class CanonicalWriter {
   }
 
   /**
+   * The IT Handbook publication rule (decision 21c, spec §6.1), applied after a
+   * channel has written a course and its offerings. `requested` is the status the
+   * channel asks for ({@link UpsertResult.requestedStatus}); without it, the
+   * stored status (so a later offering save can unpublish, never publish).
+   *
+   * When the requested status is `published` the stored, effective values are
+   * checked: an incomplete course gets the warning
+   * `oecp.content.handbook_incomplete` (missing fields in the message) in the
+   * run's `sync_errors`; in `warn` mode it is published, in `enforce` mode it is
+   * stored as `draft`. A complete course is published (in `enforce` mode the
+   * writer holds publication until this check). Status changes are audited with
+   * `publish_rule`. Never throws for an incomplete course.
+   */
+  async applyPublishRule(
+    ctx: WriteContext,
+    course: { id: string } | { extId: string },
+    requested?: LifecycleStatus,
+  ): Promise<PublishRuleOutcome | null> {
+    return this.run(async (trx) => {
+      let query = trx
+        .selectFrom('courses')
+        .select(['id', 'ext_id', 'status'])
+        .where('organization_id', '=', ctx.organizationId)
+        .where('deleted_at', 'is', null);
+      query =
+        'id' in course
+          ? query.where('id', '=', course.id)
+          : query.where('ext_id', '=', course.extId);
+      const row = await query.forUpdate().executeTakeFirst();
+      if (!row) return null;
+      const result = (await loadCompleteness(trx, [row.id])).get(row.id) ?? {
+        complete: false,
+        missing: [],
+      };
+      const target = requested ?? row.status;
+      if (target !== 'published') {
+        return {
+          courseId: row.id,
+          extId: row.ext_id,
+          completeness: result,
+          status: row.status,
+          warning: null,
+        };
+      }
+      let warning: ProblemError | null = null;
+      let next: LifecycleStatus = 'published';
+      if (!result.complete) {
+        warning = {
+          code: 'oecp.content.handbook_incomplete',
+          severity: 'warning',
+          message: handbookIncompleteMessage(result.missing),
+          ext_id: row.ext_id,
+        };
+        if (this.publishRule === 'enforce') next = 'draft';
+      }
+      if (row.status !== next) {
+        await trx.updateTable('courses').set({ status: next }).where('id', '=', row.id).execute();
+        await trx
+          .insertInto('audit_log')
+          .values({
+            actor_sub: ctx.actor,
+            actor_org_id: null,
+            action: 'course.status',
+            entity_type: 'course',
+            entity_id: row.id,
+            changes: {
+              status: { from: row.status, to: next },
+              publish_rule: this.publishRule,
+              ...(result.complete ? {} : { missing: result.missing }),
+              sync_run_id: ctx.syncRunId,
+            },
+          })
+          .execute();
+      }
+      if (warning) await this.insertIssues(trx, ctx, 'course', row.ext_id, [warning]);
+      return {
+        courseId: row.id,
+        extId: row.ext_id,
+        completeness: result,
+        status: next,
+        warning,
+      };
+    });
+  }
+
+  /**
+   * Status to store for a course write: in `enforce` mode a course that is not
+   * yet published is not published by the write itself but by
+   * {@link applyPublishRule} once its offerings are in place (new courses wait as
+   * `draft`, others keep their status).
+   */
+  private heldStatus(
+    current: LifecycleStatus | undefined,
+    requested: LifecycleStatus,
+  ): LifecycleStatus {
+    if (this.publishRule !== 'enforce' || requested !== 'published' || current === 'published') {
+      return requested;
+    }
+    return current ?? 'draft';
+  }
+
+  /**
    * Checks the source attributes against the alliance's definitions (decision 18);
    * nothing to check (and no query) when the course has none.
    */
@@ -1144,6 +1297,11 @@ export class CanonicalWriter {
         learning_outcomes: text.learning_outcomes ?? null,
         prerequisites: text.prerequisites ?? null,
         assessment: text.assessment ?? null,
+        mode_of_repetition: text.mode_of_repetition ?? null,
+        methods: text.methods ?? null,
+        literature: text.literature ?? null,
+        privacy_notice: text.privacy_notice ?? null,
+        remarks: text.remarks ?? null,
         keywords: text.keywords as unknown,
         is_machine_translated: text.is_machine_translated as unknown,
       };

@@ -5,6 +5,7 @@
  *   node dist/cli.js seed-attribute-definitions [--file <path>] [--dry-run]
  *   node dist/cli.js bootstrap-alliance-admin --email <e> --org <slug> [--ttl-hours 24]
  *   printf %s "$SECRET" | node dist/cli.js store-secret --purpose surfeduhub
+ *   node dist/cli.js idp-metadata-refresh [--dry-run] [--alias <a>] [--file <xml> [--no-verify]]
  */
 import 'reflect-metadata';
 import { ConsoleLogger, type INestApplicationContext, type LogLevel } from '@nestjs/common';
@@ -12,6 +13,7 @@ import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { BootstrapAllianceAdminCommand } from './cli/bootstrap-alliance-admin.js';
 import { CliModule } from './cli/cli.module.js';
+import { IdpMetadataRefreshCommand } from './cli/idp-metadata-refresh.js';
 import {
   type CliHandlers,
   type CliOutput,
@@ -71,6 +73,8 @@ const handlers: CliHandlers = {
     const secret = await readStdin(process.stdin);
     return withContext((app) => app.get(StoreSecretCommand).run(options, secret, output));
   },
+  idpMetadataRefresh: (options) =>
+    withContext((app) => app.get(IdpMetadataRefreshCommand).run(options, output)),
 };
 
 process.exit(await runProgram(process.argv.slice(2), handlers, output));

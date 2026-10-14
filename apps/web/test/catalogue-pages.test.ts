@@ -321,9 +321,14 @@ describe('course page', () => {
       'Teaching languages': 'English, Catalan',
       'Delivery mode': 'Online, Hybrid',
       'Course code': 'URV-20345',
+      Instructors: 'Dr. Marta PuigDr. Joan Ferrer',
       Contact: 'international@urv.cat',
       'Last updated': 'Oct 12, 2026',
     });
+    expect(w.findAll('.course__instructors li').map((li) => li.text())).toEqual([
+      'Dr. Marta Puig',
+      'Dr. Joan Ferrer',
+    ]);
     const info = w.find('.course__info a');
     expect(info.attributes()).toMatchObject({
       href: 'https://www.urv.cat/en/studies/climate',
@@ -356,6 +361,12 @@ describe('course page', () => {
     });
     expect(ld.hasCourseInstance).toHaveLength(2);
     expect(ld.hasCourseInstance[0].courseMode).toEqual(['Online', 'Blended']);
+    // Instructors (names the page already shows) as schema.org Person on each instance.
+    expect(ld.hasCourseInstance[0].instructor).toEqual([
+      { '@type': 'Person', name: 'Dr. Marta Puig' },
+      { '@type': 'Person', name: 'Dr. Joan Ferrer' },
+    ]);
+    expect(ld.instructor).toBeUndefined();
   });
 
   it('shows English texts by default with a language switcher', async () => {
@@ -378,8 +389,22 @@ describe('course page', () => {
       'Learning outcomes',
       'Prerequisites',
       'Assessment',
+      'Methods',
+      'Mode of repetition',
+      'Literature',
       'Keywords',
+      'Privacy notice',
     ]);
+    // Line breaks kept (pre-line), plain text only; the privacy notice comes last, muted.
+    const methods = panel.findAll('.course__text-section')[5]!;
+    expect(methods.find('p').classes()).toContain('text-block');
+    expect(methods.find('p').text()).toBe(
+      'Lectures, seminars and field work.\nTeam projects in international groups.',
+    );
+    const privacy = panel.findAll('.course__text-section').at(-1)!;
+    expect(privacy.classes()).toContain('course__privacy');
+    expect(privacy.text()).toContain('<b>Not HTML</b>');
+    expect(privacy.find('b').exists()).toBe(false);
     // Partner text is rendered as text, never as HTML.
     expect(panel.text()).toContain('Basic statistics. <script>alert(1)</script>');
     expect(panel.find('script').exists()).toBe(false);
@@ -398,6 +423,9 @@ describe('course page', () => {
     expect(panel.text()).toContain('This text was machine-translated.');
     expect(panel.text()).toContain('Canvi climàtic i ecosistemes mediterranis');
     expect(panel.text()).not.toContain('Learning outcomes');
+    // The Catalan texts have none of the optional IT Handbook texts.
+    expect(panel.text()).not.toContain('Methods');
+    expect(panel.find('.course__privacy').exists()).toBe(false);
     // The page title stays in the UI language.
     expect(w.find('h1').text()).toBe('Climate Change and Mediterranean Ecosystems');
   });
@@ -454,9 +482,22 @@ describe('course page', () => {
   });
 
   it('renders a course from an older API (no kind, levels, attributes or instructions)', async () => {
-    const { kind: _k, levels: _l, attributes: _a, ...old } = fixtures.course;
+    const { kind: _k, levels: _l, attributes: _a, instructors: _n, ...old } = fixtures.course;
     const oldCourse = {
       ...old,
+      texts: {
+        ...old.texts,
+        en: {
+          title: old.texts.en.title,
+          abstract: old.texts.en.abstract,
+          description: old.texts.en.description,
+          learning_outcomes: old.texts.en.learning_outcomes,
+          prerequisites: old.texts.en.prerequisites,
+          assessment: old.texts.en.assessment,
+          keywords: old.texts.en.keywords,
+          is_machine_translated: false,
+        },
+      },
       offerings: old.offerings.map(({ application_instructions: _i, ...o }) => o),
     };
     api.handler = fixtureHandler({
@@ -470,6 +511,17 @@ describe('course page', () => {
     expect(w.find('#attributes-heading').exists()).toBe(false);
     expect(w.find('.offering__instructions').exists()).toBe(false);
     expect(w.find('.course__offering-list a.button').exists()).toBe(true);
+    // No instructors and none of the optional texts of DL 21.
+    expect(dts).not.toContain('Instructors');
+    expect(w.find('.course__instructors').exists()).toBe(false);
+    expect(w.findAll('#course-text-panel h3').map((h) => h.text())).toEqual([
+      'Summary',
+      'Description',
+      'Learning outcomes',
+      'Prerequisites',
+      'Assessment',
+      'Keywords',
+    ]);
     expect(await axeViolations(w.html())).toEqual([]);
   });
 

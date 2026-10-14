@@ -7,7 +7,8 @@
 // levels, alliance attributes, application instructions, kind and attribute
 // facets). While the installed schemas do not declare them yet, those members
 // are removed before validating, so the rest of the contract is still checked;
-// once the schemas declare them, the full fixtures are validated.
+// once the schemas declare them, the full fixtures are validated. The same holds
+// for the members of DL 21 (course `instructors` and the five optional texts).
 import { describe, expect, it } from 'vitest';
 import course from './fixtures/catalogue/course.json';
 import reference from './fixtures/catalogue/reference.json';
@@ -29,6 +30,25 @@ type Json = Record<string, unknown>;
 const omit = (value: Json, keys: readonly string[]): Json =>
   Object.fromEntries(Object.entries(value).filter(([k]) => !keys.includes(k)));
 const COURSE_DL18 = ['kind', 'levels', 'attributes'] as const;
+const TEXTS_DL21 = [
+  'mode_of_repetition',
+  'methods',
+  'literature',
+  'privacy_notice',
+  'remarks',
+] as const;
+
+/** The course fixture without the DL 21 members while the schema does not declare them. */
+function courseForDl21(): Json {
+  const c = structuredClone(course) as unknown as Json & { texts: Record<string, Json> };
+  if (declares('publicCourseDetail', 'instructors')) return c;
+  return {
+    ...omit(c, ['instructors']),
+    texts: Object.fromEntries(
+      Object.entries(c.texts).map(([lang, text]) => [lang, omit(text, TEXTS_DL21)]),
+    ),
+  };
+}
 
 /** The fixtures as an API without the DL 18 members would send them. */
 const legacy = {
@@ -45,7 +65,7 @@ const legacy = {
     };
   },
   publicCourseDetail: () => {
-    const c = omit(structuredClone(course) as unknown as Json, COURSE_DL18) as Json & {
+    const c = omit(courseForDl21(), COURSE_DL18) as Json & {
       offerings: Json[];
     };
     return { ...c, offerings: c.offerings.map((o) => omit(o, ['application_instructions'])) };
@@ -62,7 +82,8 @@ const MARKERS: Record<keyof typeof legacy, [schemaName: string, key: string]> = 
 };
 function fixtureFor(name: keyof typeof legacy, full: unknown): unknown {
   const [schemaName, key] = MARKERS[name];
-  return declares(schemaName, key) ? full : legacy[name]();
+  if (!declares(schemaName, key)) return legacy[name]();
+  return name === 'publicCourseDetail' ? courseForDl21() : full;
 }
 
 describe.skipIf(!has('courseSearchResponse'))('fixtures match the published contract', () => {

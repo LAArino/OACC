@@ -19,9 +19,11 @@ import type {
   AdminAttributeValue,
   AdminCourse,
   AdminCourseReference,
+  AdminHandbookTextField,
   AdminLabel,
   AdminOffering,
   CourseInput,
+  CourseTextInput,
   OfferingInput,
 } from '~/types/admin';
 
@@ -168,6 +170,22 @@ function parseInteger(value: string): number | null {
 const numberText = (value: number | null | undefined) =>
   value === null || value === undefined ? '' : String(value);
 
+/** Limits of `instructors` [DL 21] (mirroring the API contract). */
+export const INSTRUCTORS_MAX = 50;
+export const INSTRUCTOR_NAME_MAX = 200;
+
+/** Instructors typed one per line → list without blanks and duplicates. */
+export function parseInstructors(value: string): string[] {
+  return [
+    ...new Set(
+      value
+        .split('\n')
+        .map((name) => name.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
 /** Keywords typed comma- or newline-separated → list without blanks and duplicates. */
 export function parseKeywords(value: string): string[] {
   return [
@@ -219,7 +237,8 @@ export function timeZoneOptions(preferred: readonly string[]): string[] {
 // ---------------------------------------------------------------------------
 // Courses
 
-export const COURSE_TEXT_FIELDS = [
+/** Texts every course has had since v0.1, shown first on the Texts step. */
+export const COURSE_MAIN_TEXT_FIELDS = [
   'title',
   'abstract',
   'description',
@@ -228,6 +247,15 @@ export const COURSE_TEXT_FIELDS = [
   'assessment',
   'keywords',
 ] as const;
+/** Optional texts of the Aurora IT Handbook [DL 21] ("More texts"), in course page order. */
+export const COURSE_MORE_TEXT_FIELDS = [
+  'methods',
+  'mode_of_repetition',
+  'literature',
+  'remarks',
+  'privacy_notice',
+] as const satisfies readonly AdminHandbookTextField[];
+export const COURSE_TEXT_FIELDS = [...COURSE_MAIN_TEXT_FIELDS, ...COURSE_MORE_TEXT_FIELDS] as const;
 export type CourseTextField = (typeof COURSE_TEXT_FIELDS)[number];
 
 export type CourseTextForm = Record<CourseTextField, string>;
@@ -241,6 +269,8 @@ export interface CourseForm {
   teaching_unit_ext_id: string;
   info_url: string;
   contact_email: string;
+  /** One name per line. */
+  instructors: string;
   isced: { code: string }[];
   /** Index into `isced` of the primary code. */
   isced_primary: number;
@@ -270,6 +300,11 @@ export function emptyCourseText(): CourseTextForm {
     prerequisites: '',
     assessment: '',
     keywords: '',
+    methods: '',
+    mode_of_repetition: '',
+    literature: '',
+    remarks: '',
+    privacy_notice: '',
   };
 }
 
@@ -283,6 +318,7 @@ export function emptyCourseForm(): CourseForm {
     teaching_unit_ext_id: '',
     info_url: '',
     contact_email: '',
+    instructors: '',
     isced: [{ code: '' }],
     isced_primary: 0,
     texts: { en: emptyCourseText() },
@@ -293,11 +329,12 @@ export function emptyCourseForm(): CourseForm {
 
 /**
  * Course fields the form overrides on harvested records: the schema's override
- * fields except `status`, which the status actions change.
+ * fields except `status`, which the status actions change, plus `instructors`
+ * [DL 21] (added here as long as the installed schemas do not list it).
  */
-export const COURSE_FORM_OVERRIDE_FIELDS: readonly string[] = COURSE_OVERRIDE_FIELDS.filter(
-  (f) => f !== 'status',
-);
+export const COURSE_FORM_OVERRIDE_FIELDS: readonly string[] = [
+  ...new Set([...COURSE_OVERRIDE_FIELDS.filter((f: string) => f !== 'status'), 'instructors']),
+];
 
 /** Override key of a form pointer: `/texts/en/title` → `texts.en.title`, `/isced_codes/1/code` → `isced_codes`. */
 export function courseOverrideKeyOf(pointer: string): string | null {
@@ -391,6 +428,11 @@ export function applyCourseValue(form: CourseForm, key: string, value: unknown):
     case 'contact_email':
       form[key] = typeof value === 'string' ? value : '';
       break;
+    case 'instructors':
+      form.instructors = Array.isArray(value)
+        ? value.filter((v): v is string => typeof v === 'string').join('\n')
+        : '';
+      break;
     case 'isced_codes': {
       const list = Array.isArray(value)
         ? (value as unknown[]).map((v) =>
@@ -482,6 +524,8 @@ export function courseFormValue(form: CourseForm, key: string): unknown {
     case 'info_url':
     case 'contact_email':
       return orNull(form[key]);
+    case 'instructors':
+      return parseInstructors(form.instructors);
     case 'isced_codes':
       return iscedValue(form);
     case 'attributes':
@@ -503,7 +547,7 @@ function usedLanguages(form: CourseForm): string[] {
 export function courseInputFromForm(form: CourseForm): CourseFormBody {
   const texts: CourseFormBody['texts'] = {};
   for (const lang of usedLanguages(form)) {
-    texts[lang] = {
+    const text: CourseTextInput = {
       title: textValue(form, lang, 'title') as string,
       abstract: textValue(form, lang, 'abstract') as string | null,
       description: textValue(form, lang, 'description') as string | null,
@@ -512,6 +556,10 @@ export function courseInputFromForm(form: CourseForm): CourseFormBody {
       assessment: textValue(form, lang, 'assessment') as string | null,
       keywords: textValue(form, lang, 'keywords') as string[],
     };
+    for (const field of COURSE_MORE_TEXT_FIELDS) {
+      text[field] = textValue(form, lang, field) as string | null;
+    }
+    texts[lang] = text;
   }
   return {
     ext_id: form.ext_id.trim(),
@@ -523,6 +571,7 @@ export function courseInputFromForm(form: CourseForm): CourseFormBody {
     info_url: orNull(form.info_url),
     contact_email: orNull(form.contact_email),
     teaching_unit_ext_id: orNull(form.teaching_unit_ext_id),
+    instructors: parseInstructors(form.instructors),
     isced_codes: iscedValue(form),
     attributes: attributesValue(form),
     texts,
@@ -610,6 +659,12 @@ export function validateCourseForm(
   if (form.contact_email.trim() && !EMAIL_PATTERN.test(form.contact_email.trim())) {
     issues.push({ field: '/contact_email', code: 'email' });
   }
+  const instructors = parseInstructors(form.instructors);
+  if (instructors.length > INSTRUCTORS_MAX) {
+    issues.push({ field: '/instructors', code: 'tooManyInstructors' });
+  } else if (instructors.some((name) => name.length > INSTRUCTOR_NAME_MAX)) {
+    issues.push({ field: '/instructors', code: 'instructorTooLong' });
+  }
   const broad = new Set((context.reference?.isced_broad_fields ?? []).map((f) => f.code));
   const seen = new Set<string>();
   form.isced.forEach((row, i) => {
@@ -682,9 +737,34 @@ export function courseValueText(
     }
     case 'attributes':
       return attributesText(value as Record<string, AdminAttributeValue>, reference, t, locale);
+    case 'instructors':
+      return Array.isArray(value) ? value.join('; ') : String(value);
   }
   if (Array.isArray(value)) return value.join(', ');
   return String(value);
+}
+
+/**
+ * Human label of a `completeness.missing` key [DL 21], e.g. `texts.en.description`
+ * or `offerings.application_deadline` (→ `admin.completeness.fields.offerings_application_deadline`).
+ * A text of another language reads "field (language)"; unknown keys are shown as sent.
+ */
+export function completenessFieldLabel(
+  key: string,
+  t: (key: string, params?: Record<string, unknown>) => string,
+  te: (key: string) => boolean,
+  languageLabel: (tag: string) => string = (tag) => tag,
+): string {
+  const i18nKey = `admin.completeness.fields.${key.replace(/[^A-Za-z0-9_]/g, '_')}`;
+  if (te(i18nKey)) return t(i18nKey);
+  const text = /^texts\.([a-z]{2,3})\.([a-z_]+)$/.exec(key);
+  if (text) {
+    return t('admin.completeness.inLanguage', {
+      field: completenessFieldLabel(text[2] ?? '', t, te),
+      lang: languageLabel(text[1] ?? ''),
+    });
+  }
+  return key;
 }
 
 /** `Label: value; …` of attribute values, in definition order. */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 // schema.org/Course structured data for the course page (spec §7 "JSON-LD").
 import type { CourseDetail, CourseTexts } from '../types/catalogue';
-import { courseLevels, labelText, safeHttpUrl } from './catalogue';
+import { courseInstructors, courseLevels, labelText, safeHttpUrl } from './catalogue';
 import { pickLocalized } from './localized';
 
 /**
@@ -42,6 +42,9 @@ export function courseJsonLd(
   const text: CourseTexts | undefined = pickLocalized(course.texts, options.locale)?.value;
   const languages = [...new Set(course.offerings.flatMap((o) => o.teaching_languages))];
   const levels = courseLevels(course);
+  // schema.org puts `instructor` on CourseInstance; the names are the ones the
+  // course page already shows, so every instance carries them.
+  const instructors = courseInstructors(course).map((name) => ({ '@type': 'Person', name }));
   const provider = compact({
     '@type': 'CollegeOrUniversity',
     name: labelText(course.organization.name, options.locale),
@@ -82,6 +85,7 @@ export function courseJsonLd(
           endDate: o.end_date,
           inLanguage: o.teaching_languages,
           location: o.campus ? { '@type': 'Place', name: o.campus } : undefined,
+          instructor: instructors,
           url: safeHttpUrl(o.application_url),
         }),
       ),

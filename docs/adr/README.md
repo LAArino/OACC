@@ -27,6 +27,8 @@ consequences. OECP writes ADRs in the [MADR](https://adr.github.io/madr/)
 | [0013](0013-admin-tokens-in-memory-only.md) | Admin session tokens kept in memory only | Accepted | 2026-10-14 |
 | [0014](0014-strict-consumer-semantics-on-oeapi-read-api.md) | Strict `consumer` semantics on the OEAPI read API | Accepted | 2026-10-14 |
 | [0015](0015-withdrawal-by-absence-with-mass-absence-guard.md) | Withdrawal by absence after N complete harvests, with a mass-absence guard | Accepted | 2026-10-14 |
+| [0016](0016-handbook-publish-rule-with-warn-and-enforce.md) | Handbook publish rule with `warn` and `enforce` modes | Accepted | 2026-10-14 |
+| [0017](0017-idp-metadata-refresh-from-pinned-signature-aggregate.md) | IdP metadata refresh from a pinned-signature aggregate | Accepted | 2026-10-14 |
 
 ## When to write an ADR
 

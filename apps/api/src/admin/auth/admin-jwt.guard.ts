@@ -5,11 +5,13 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ERROR_CODES } from '@oecp/schemas';
 import type { ProblemBody } from '../../common/problem-details.filter.js';
+import { AdminActivityRecorder } from './admin-activity.recorder.js';
 import { AdminAuthError } from './admin-auth.error.js';
 import { AdminTokenVerifier } from './admin-token-verifier.js';
 import { type AdminPrincipal, LOCAL_IDP, REQUIRED_ACR } from './claims.js';
@@ -30,6 +32,8 @@ interface GuardedResponse {
  * `aud ∋ oecp-api`, `azp = oecp-admin`, `acr = mfa`, non-empty OECP roles, and an
  * existing organization whose IdP alias (or `local`) equals the `idp` claim
  * (a missing `idp` claim means `local`). `@RequireRoles()` narrows the roles.
+ * Every authenticated request refreshes the administrator's `admin_activity`
+ * row (throttled to once an hour), the input of the dormancy job (spec §2.2).
  */
 @Injectable()
 export class AdminJwtGuard implements CanActivate {
@@ -37,13 +41,17 @@ export class AdminJwtGuard implements CanActivate {
     private readonly verifier: AdminTokenVerifier,
     @Inject(ORGANIZATION_DIRECTORY) private readonly organizations: OrganizationDirectory,
     private readonly reflector: Reflector,
+    @Optional() private readonly activity?: AdminActivityRecorder,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const http = context.switchToHttp();
     const request = http.getRequest<GuardedRequest>();
     try {
-      request.admin = await this.authenticate(request, context);
+      const admin = await this.authenticate(request, context);
+      request.admin = admin;
+      // Not awaited: the request never waits for (or fails on) the bookkeeping.
+      void this.activity?.record(admin.sub, admin.roles.length ? (admin.orgId ?? null) : null);
       return true;
     } catch (error) {
       if (!(error instanceof AdminAuthError)) throw error;

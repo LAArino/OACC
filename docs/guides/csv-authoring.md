@@ -18,19 +18,26 @@ Uploads are refused (409 `oecp.sync.channel_disabled`) for organizations whose a
 | Header | Row 1, exact column names (case-sensitive), any order, each once. Data starts at row 2; reports use these row numbers. |
 | Cells | Leading and trailing spaces are trimmed; blank rows are skipped. |
 | Empty cell vs absent column | An **empty cell clears** the field; a column **absent from the header leaves the field untouched** on existing records. Exceptions: `kind` empty → `course`; `timezone` empty → the organization's default. |
-| Multi-value cells | Separated by `\|`, spaces around it ignored: `isced_codes`, `levels`, `keywords_<lang>`, `teaching_languages`, `delivery_modes`, `multi_enum` attributes. |
+| Multi-value cells | Separated by `\|`, spaces around it ignored: `isced_codes`, `levels`, `keywords_<lang>`, `instructors`, `teaching_languages`, `delivery_modes`, `multi_enum` attributes. |
 | Language columns | Course texts are suffixed with a primary language subtag: `title_de`, `abstract_de`… Any language other than English needs its `title_<lang>` column. |
 | Dates | `YYYY-MM-DD`, real calendar dates, local to the offering's time zone. |
 
 ### `template_version`
 
-Every row declares `1.0` or `1.1`. Generated templates are **1.1**. Template 1.1 added `kind`, `levels` and `attr_<key>` to `courses.csv` and `application_instructions_<lang>` to `offerings.csv`. A 1.0 file (none of these columns) stays valid with rows declaring `1.0` or `1.1`; a row declaring `1.0` in a file whose header has any 1.1 column fails with `oecp.csv.invalid_template_version`, as does an empty or other value. `level` (single value) is kept for 1.0 files; use `levels` in 1.1, never both.
+Every row declares `1.0`, `1.1` or `1.2`. Generated templates are **1.2**. Each version only adds optional columns:
+
+| Version | Adds |
+|---|---|
+| 1.1 | `kind`, `levels` and `attr_<key>` in `courses.csv`; `application_instructions_<lang>` in `offerings.csv` |
+| 1.2 | `instructors` and, per language, `mode_of_repetition_<lang>`, `methods_<lang>`, `literature_<lang>`, `privacy_notice_<lang>`, `remarks_<lang>` in `courses.csv` (Aurora IT Handbook, decision 21); `offerings.csv` is unchanged |
+
+A row must declare at least the version of every column in the header (filled or not): a row declaring `1.0` in a file with any 1.1 or 1.2 column, or `1.1` in a file with any 1.2 column, fails with `oecp.csv.invalid_template_version`, as does an empty or other value. Older files stay valid as they are, and rows may declare a newer version than their columns need. `level` (single value) is kept for 1.0 files; use `levels` from 1.1 on, never both. The JSON Schema of the console is `oecp-csv-1.2.schema.json`; those of 1.0 and 1.1 are frozen.
 
 ## `courses.csv` columns
 
 | Column | Req. | Format | Example | Notes |
 |---|---|---|---|---|
-| `template_version` | yes | `1.0` or `1.1` | `1.1` | per row |
+| `template_version` | yes | `1.0`, `1.1` or `1.2` | `1.2` | per row |
 | `course_code` | yes | `^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$` | `AVC-GIS-SOCIETY` | natural key; once per file; never changes |
 | `status` | yes | `draft`, `published`, `withdrawn`, `cancelled` | `published` | see [Status](#status-and-omission) |
 | `ects` | yes | ≤ 3 digits, ≤ 2 decimals, 0 < x ≤ 120 | `7.5` | |
@@ -44,18 +51,24 @@ Every row declares `1.0` or `1.1`. Generated templates are **1.1**. Template 1.1
 | `teaching_unit_code` | no | code of a sub-unit of your organization | `FAC-ECON` | the sub-unit must exist with that code |
 | `info_url` | no | `https://…`, ≤ 2,048 | | |
 | `contact_email` | no | e-mail, ≤ 320 | `courses@example.org` | else the organization's contact |
+| `instructors` | 1.2 | names or role descriptions, `\|`-separated, each 1–200 characters, at most 50 | `Anna Jónsdóttir\|Course team, University of Iceland` | primary first; repeats dropped; an empty cell clears the list; shown on the public course page ([below](#instructors-and-personal-data)) |
 | `title_<lang>` | with any `_<lang>` column | 1–500 characters | `Verteilte Systeme` | |
 | `abstract_<lang>`, `description_<lang>`, `learning_outcomes_<lang>`, `prerequisites_<lang>`, `assessment_<lang>` | no | text ≤ 20,000 | | the abstract is shown on cards (first 300 characters) |
 | `keywords_<lang>` | no | `\|`-separated | `GIS\|geography` | |
+| `mode_of_repetition_<lang>`, `methods_<lang>`, `literature_<lang>`, `privacy_notice_<lang>`, `remarks_<lang>` | 1.2 | text ≤ 20,000 | `Every winter semester.` | optional handbook texts, shown on the course page only when filled; the privacy notice last, in small print; methods, literature and remarks are searchable |
 | `attr_<key>` | 1.1 | per attribute definition | `sdg04\|sdg13` | [below](#alliance-attributes-attr_key) |
 
 **Languages in a row.** A language whose cells are all empty on a row is **deleted** from that course (warning `oecp.csv.language_deleted`; English never). Text in a language whose `title_<lang>` cell is empty is an error (`oecp.csv.text_without_title`). Languages without columns in the header are untouched.
+
+### Instructors and personal data
+
+`instructors` holds the names (or role descriptions, such as "Course team, University of Iceland") of the teaching staff **exactly as your university already publishes them** for this course in its own catalogue. They are personal data: OECP republishes them for the same purpose, keeps nothing else about the person (no e-mail address, phone or identifier) and never looks anyone up. Do not add names your university does not publish; a role description is enough. The column is optional, but the handbook's publication rule counts at least one instructor as obligatory ([below](#publication-rule-handbook-completeness)).
 
 ## `offerings.csv` columns
 
 | Column | Req. | Format | Example | Notes |
 |---|---|---|---|---|
-| `template_version` | yes | `1.0` or `1.1` | `1.1` | |
+| `template_version` | yes | `1.0`, `1.1` or `1.2` | `1.1` | 1.2 adds no offering column |
 | `course_code` | yes | code | `AVC-SPARK-SOCIAL` | in your catalogue (not deleted) or in `courses.csv` of the same upload |
 | `offering_code` | yes | code | `2026-27-S2` | key together with `course_code`; once per file |
 | `status` | yes | as for courses | `published` | `cancelled` keeps a labelled entry until the start date |
@@ -91,6 +104,19 @@ Aurora's definitions (`apps/api/db/seed/attribute-definitions.aurora.json`, stil
 
 `status` is set per row and may be any of the four values; publishing a course needs the English title, which `courses.csv` always has. **Omission never withdraws:** a course or offering missing from a file is left as it is. To take something down, upload its row with `status` `withdrawn` (or `cancelled` for an offering). Course and offering statuses are independent: withdrawing a course hides its offerings with it but does not change their status. CSV rows never delete records; deleting is done in the web form, and a code deleted there is not brought back by a CSV row (re-create it in the web form). Overrides left from a period when the organization was harvested are not removed by CSV and keep masking the uploaded value (spec §6.5).
 
+### Publication rule (handbook completeness)
+
+The Aurora IT Handbook shows a course only when every obligatory field is filled: English title, description (Content), learning outcomes, prerequisites (Requirements) and assessment; ECTS; at least one level; a contact (the course's `contact_email` or the organization's); at least one instructor; and at least one **published** offering with start and end dates, `enrol_start_date` (Application start), `application_deadline`, a teaching language and a delivery mode. After a successful upload the server checks every course of `courses.csv` and every course reached through `offerings.csv` whose status is `published`, on the stored values (so columns you leave out still count with their current values). The browser check cannot see this rule.
+
+What happens depends on the deployment's `OECP_PUBLISH_RULE`:
+
+| Mode | Incomplete course with `status` `published` |
+|---|---|
+| `warn` (default, transition period) | Published as before, with the warning `oecp.content.handbook_incomplete` |
+| `enforce` | Stored as `draft`, with the same warning |
+
+The warning never fails the upload. Its message starts with the course code and lists the missing fields, for example `AVC-SPARK-SOCIAL: Course is missing fields the Aurora IT Handbook requires to publish: texts.en.learning_outcomes, texts.en.assessment, contact_email`; it is reported on the course's row of `courses.csv` (or under `offerings` for a course reached only through `offerings.csv`). In `enforce` mode an `offerings.csv` row can unpublish a course (when it loses its only published offering) but never publishes one: upload the course's `courses.csv` row again once it is complete. The course list of the web form shows the same check as a *Completeness* column.
+
 ## Limits and processing
 
 | Limit | Value | Code |
@@ -111,7 +137,7 @@ Multipart fields `courses` and `offerings`, one file each, nothing else. Uploads
 
 | Outcome | HTTP | Body |
 |---|---|---|
-| Inline, succeeded | 201 | `{sync_run_id, status: "succeeded", processed_inline: true, run, warnings[]}` |
+| Inline, succeeded | 201 | `{sync_run_id, status: "succeeded", processed_inline: true, run, warnings[]}`; `warnings` include `oecp.content.handbook_incomplete` ([publication rule](#publication-rule-handbook-completeness)) |
 | Queued | 202 | `{sync_run_id, status: "queued", processed_inline: false}`: poll `GET /sync-runs/{id}` until `succeeded` or `failed` |
 | Inline, failed | 422 | problem+json with `errors[]` (errors then warnings, ≤ 1,000), `sync_run_id`, `run_status`, `error_count`, `warning_count` |
 | No file / other part | 400 | `oecp.csv.no_files` / `oecp.csv.unexpected_file` |
@@ -138,7 +164,7 @@ All `oecp.csv.*` and `oecp.content.*` codes of `errors.json`. "W" = warning; all
 | `oecp.csv.unknown_column` | column not in the template: typo, wrong case, unnamed column, invalid `attr_` key | rename or remove |
 | `oecp.csv.duplicate_column` | column twice in the header | remove one |
 | `oecp.csv.missing_value` | required cell empty | fill it |
-| `oecp.csv.invalid_template_version` | not `1.0`/`1.1`, or `1.0` with 1.1 columns | write `1.1` |
+| `oecp.csv.invalid_template_version` | not `1.0`/`1.1`/`1.2`, or a version older than a column of the header (`1.0` with 1.1 or 1.2 columns, `1.1` with 1.2 columns) | write `1.2` |
 | `oecp.csv.conflicting_columns` | both `level` and `levels` | keep `levels` |
 | `oecp.csv.invalid_code` | `course_code`, `offering_code`, `teaching_unit_code` or `academic_session_code` breaks the code pattern | letters, digits, `. _ / -`, ≤ 200, starting with a letter or digit |
 | `oecp.csv.invalid_status` | not one of the four statuses | lower case value |
@@ -170,7 +196,7 @@ All `oecp.csv.*` and `oecp.content.*` codes of `errors.json`. "W" = warning; all
 | `oecp.csv.unexpected_file` | other multipart field or a second file in a field | only the two fields |
 | `oecp.csv.write_failed` | the database refused the write; nothing saved | report the run id |
 | `oecp.content.english_missing` | `title_en` longer than 500 characters | shorten |
-| `oecp.content.invalid_value` | `title_<lang>` > 500, `campus` > 200, or another canonical rule (message tells) | correct the value |
+| `oecp.content.invalid_value` | `title_<lang>` > 500, `campus` > 200, `instructors` (an entry over 200 characters, more than 50 entries, or an empty entry between separators), or another canonical rule (message tells) | correct the value |
 | `oecp.content.date_order` | end before start, deadline after end, enrolment start after deadline | fix the dates |
 | `oecp.content.seats_exceed_capacity` | `alliance_seats` or `seats_available` > `max_students` | lower them |
 | `oecp.content.seats_without_timestamp` | not raised by CSV (the upload time is stamped) | |
@@ -183,6 +209,7 @@ All `oecp.csv.*` and `oecp.content.*` codes of `errors.json`. "W" = warning; all
 | `oecp.content.unknown_attribute` | `attr_<key>` column without a definition | remove the column |
 | `oecp.content.invalid_attribute_value` | boolean not `true/false/yes/no/1/0`, two values in an `enum`, text > 500 | per definition |
 | `oecp.content.unknown_attribute_option` | value not among the definition's options | use an option value (lower case) |
+| `oecp.content.handbook_incomplete` (W) | a `published` course misses fields the Aurora IT Handbook requires; in `enforce` mode it is stored as `draft` | fill the listed fields ([publication rule](#publication-rule-handbook-completeness)) |
 | `oecp.content.invalid_code` · `unsupported_language` · `duplicate_ext_id` · `ext_id_immutable` · `override_not_allowed` · `has_published_offerings` · `published_not_deletable` · `harvested_not_deletable` | web form and admin API only, see [Web form](web-form.md#errors) | |
 
 ## CSV injection
@@ -191,13 +218,13 @@ OECP stores cell values **verbatim**: a title starting with `=` is a title. Ever
 
 ## Worked example
 
-Three courses and their offerings from the Aurora Virtual Campus fixture (`apps/api/test/fixtures/csv/aurora-virtual-campus.*.csv`), trimmed. The files pass the shared validator against the Aurora definitions with no error or warning. `courses.csv`:
+Three courses and their offerings from the Aurora Virtual Campus fixture (`apps/api/test/fixtures/csv/aurora-virtual-campus.*.csv`), trimmed. `courses.csv` uses template 1.2 (`instructors`, `methods_en`, `remarks_en`); `offerings.csv` still declares 1.1, which is fine because 1.2 adds no offering column. The files pass the shared validator against the Aurora definitions with no error or warning. `courses.csv`:
 
 ```csv
-template_version,course_code,status,ects,isced_codes,title_en,kind,levels,eqf_level,info_url,abstract_en,prerequisites_en,keywords_en,attr_educational_hub,attr_sdg,attr_competence_framework,attr_micro_credential,attr_free_course,attr_enrolled_only,attr_open_to_alliance,attr_target_audience
-1.1,AVC-BIP-AI-ETHICS,published,3,0619|0223,BIP: AI & Ethics,bip,bachelor|master,,https://aurora-universities.eu/study/virtual-campus/,"Blended Intensive Programme on the ethics of artificial intelligence, combining online sessions with a short physical mobility.",Nomination by the home university's Aurora office.,artificial intelligence|ethics|BIP,digital_society_global_citizenship,sdg04|sdg09|sdg16,,false,true,true,true,students
-1.1,AVC-SPARK-SOCIAL,published,6,0413|0319,BIP: Spark Social,bip,master|bachelor,7,https://aurora-universities.eu/study/virtual-campus/,Blended Intensive Programme on social innovation and entrepreneurship hosted by the University of Iceland.,Graduate students or third-year undergraduates (more than 120 ECTS).,social innovation|entrepreneurship|BIP,social_entrepreneurship_innovation,sdg08|sdg09,,false,true,true,true,students
-1.1,AVC-SUST-EDU,published,5,0111|0521,Sustainability Education and Learning,course,master,7,https://aurora-universities.eu/study/virtual-campus/,Graduate course of the University of Iceland on education and learning for sustainability.,Graduate students; nomination by the home university's Aurora office.,sustainability|education,sustainability_climate_change,sdg04|sdg13,louis,true,true,true,true,students|phd_candidates
+template_version,course_code,status,ects,isced_codes,title_en,kind,levels,eqf_level,info_url,abstract_en,prerequisites_en,keywords_en,instructors,methods_en,remarks_en,attr_educational_hub,attr_sdg,attr_competence_framework,attr_micro_credential,attr_free_course,attr_enrolled_only,attr_open_to_alliance,attr_target_audience
+1.2,AVC-BIP-AI-ETHICS,published,3,0619|0223,BIP: AI & Ethics,bip,bachelor|master,,https://aurora-universities.eu/study/virtual-campus/,"Blended Intensive Programme on the ethical questions raised by artificial intelligence, combining online sessions with a short physical mobility.",Nomination by the home university's Aurora office.,artificial intelligence|ethics|BIP,"BIP teaching team, Aurora partner universities",Online sessions combined with a short physical mobility.,,digital_society_global_citizenship,sdg04|sdg09|sdg16,,false,true,true,true,students
+1.2,AVC-SPARK-SOCIAL,published,6,0413|0319,BIP: Spark Social,bip,master|bachelor,7,https://aurora-universities.eu/study/virtual-campus/,Blended Intensive Programme on social innovation and entrepreneurship hosted by the University of Iceland.,Graduate students or third-year undergraduates (more than 120 ECTS); nomination by the home university's Aurora office.,social innovation|entrepreneurship|BIP,"Course team, University of Iceland",Online sessions combined with a short physical mobility.,Hosted by the University of Iceland.,social_entrepreneurship_innovation,sdg08|sdg09,,false,true,true,true,students
+1.2,AVC-SUST-EDU,published,5,0111|0521,Sustainability Education and Learning,course,master,7,https://aurora-universities.eu/study/virtual-campus/,Graduate course of the University of Iceland on education and learning for sustainability.,Graduate students; nomination by the home university's Aurora office.,sustainability|education,"Course team, host university",,,sustainability_climate_change,sdg04|sdg13,louis,true,true,true,true,students|phd_candidates
 ```
 
 `offerings.csv`:
@@ -209,7 +236,9 @@ template_version,course_code,offering_code,status,start_date,end_date,teaching_l
 1.1,AVC-SUST-EDU,2026-27-S2,published,2027-01-12,2027-04-30,en,online,AUR-2026-27-S2,2026-10-15,2026-12-01,Atlantic/Reykjavik,"Apply through the Aurora office of your home university, which nominates candidates by the application deadline."
 ```
 
-What happens: 6 data rows, so the upload runs inline and answers 201 with `n_created` 6 on the first upload (sessions `AUR-2026-27-S1` and `-S2` are created if unknown and not counted), `n_unchanged` 6 on a repeat. `AVC-SPARK-SOCIAL` gets primary level `master` and EQF 7; the empty `attr_competence_framework` cells leave the first two courses without that attribute; the first offering takes the organization's time zone. The columns this example leaves out (`description_en`, `campus`, seats…) are untouched on existing records.
+What happens: 6 data rows, so the upload runs inline and answers 201 with `n_created` 6 on the first upload (sessions `AUR-2026-27-S1` and `-S2` are created if unknown and not counted), `n_unchanged` 6 on a repeat. `AVC-SPARK-SOCIAL` gets primary level `master` and EQF 7; the empty `attr_competence_framework` cells leave the first two courses without that attribute; the empty `methods_en` and `remarks_en` cells of `AVC-SUST-EDU` leave those texts unset; the first offering takes the organization's time zone. The columns this example leaves out (`description_en`, `campus`, seats…) are untouched on existing records.
+
+The server then applies the [publication rule](#publication-rule-handbook-completeness): the example has no description, learning outcomes or assessment, so `warnings` holds one `oecp.content.handbook_incomplete` per course (rows 2–4 of `courses.csv`), for example `AVC-SPARK-SOCIAL: Course is missing fields the Aurora IT Handbook requires to publish: texts.en.description, texts.en.learning_outcomes, texts.en.assessment`, plus `contact_email` when neither the course nor the organization has a contact address. With `OECP_PUBLISH_RULE=warn` the three courses are published anyway; with `enforce` they are stored as drafts.
 
 Now break three cells: `sdg18` in row 3, `0111|0111` in row 4 and `2027-02-30` as the second offering's start date. Nothing is written and the answer is 422:
 

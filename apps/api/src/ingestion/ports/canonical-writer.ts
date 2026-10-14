@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: EUPL-1.2
-import type { SourceChannel } from '@oecp/schemas';
+import type { LifecycleStatus, SourceChannel } from '@oecp/schemas';
 
 /** Shared by every channel; one per `sync_runs` row. */
 export interface WriteContext {
   syncRunId: string;
   organizationId: string;
   channel: SourceChannel;
-  /** `oeapi-5.0`, `csv-1.0` or `form-1` (sync_runs.schema_version). */
+  /** `oeapi-5.0`, `csv-1.2` or `form-1` (sync_runs.schema_version). */
   schemaVersion: string;
   /** JWT `sub`, or `system:<job>` such as `system:harvester`. */
   actor: string;
@@ -19,6 +19,12 @@ export interface UpsertResult {
   entityId: string;
   /** SHA-256 of the RFC 8785 serialisation, computed before overrides. */
   contentHash: Buffer;
+  /**
+   * Courses: the effective status the channel asks for (source merged with
+   * overrides). With `OECP_PUBLISH_RULE=enforce` a course is published only by
+   * `applyPublishRule`, which takes this value.
+   */
+  requestedStatus?: LifecycleStatus;
 }
 
 /** Natural keys seen in a complete harvest; drives absence counting (spec §6.2.5). */

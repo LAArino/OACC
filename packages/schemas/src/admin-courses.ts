@@ -21,8 +21,10 @@
  */
 import { z } from 'zod';
 import { attributeDefinition, courseAttributes } from './attributes.js';
+import { instructorList } from './canonical.js';
 import type { CsvReferenceData } from './csv-validate.js';
 import { courseKind, courseLevel, lifecycleStatus, sessionType, sourceChannel } from './enums.js';
+import { courseCompleteness } from './handbook.js';
 import {
   CODE_PATTERN,
   deliveryModeCode,
@@ -156,6 +158,12 @@ export const courseTextInput = z.strictObject({
   learning_outcomes: optionalText(20_000),
   prerequisites: optionalText(20_000),
   assessment: optionalText(20_000),
+  /** Optional texts of the IT Handbook (decision 21b). */
+  mode_of_repetition: optionalText(20_000),
+  methods: optionalText(20_000),
+  literature: optionalText(20_000),
+  privacy_notice: optionalText(20_000),
+  remarks: optionalText(20_000),
   keywords: z.array(z.string().trim().min(1).max(100)).max(50).default([]),
 });
 export type CourseTextInput = z.input<typeof courseTextInput>;
@@ -240,6 +248,11 @@ export const courseInput = z
     /** `ext_id` of one of the organization's teaching units (`reference.teaching_units`). */
     teaching_unit_ext_id: formCode.nullable().optional(),
     isced_codes: iscedCodesInput,
+    /**
+     * Teaching staff (decision 21a): names or role descriptions as the university
+     * publishes them, 1–200 characters each, at most 50, no duplicates.
+     */
+    instructors: instructorList.default([]),
     attributes: courseAttributes.default({}),
     /** Keyed by {@link formLanguage}. */
     texts: languageRecord(courseTextInput).default({}),
@@ -343,6 +356,7 @@ export const COURSE_OVERRIDE_FIELDS = [
   'contact_email',
   'attributes',
   'isced_codes',
+  'instructors',
 ] as const;
 export type CourseOverrideField = (typeof COURSE_OVERRIDE_FIELDS)[number];
 
@@ -354,6 +368,11 @@ export const TEXT_OVERRIDE_FIELDS = [
   'learning_outcomes',
   'prerequisites',
   'assessment',
+  'mode_of_repetition',
+  'methods',
+  'literature',
+  'privacy_notice',
+  'remarks',
   'keywords',
 ] as const;
 export type TextOverrideField = (typeof TEXT_OVERRIDE_FIELDS)[number];
@@ -409,6 +428,7 @@ const COURSE_OVERRIDE_VALUES: Record<CourseOverrideField, z.ZodType> = {
   contact_email: email.nullable(),
   attributes: courseAttributes,
   isced_codes: iscedCodesInput,
+  instructors: instructorList,
 };
 
 const TEXT_OVERRIDE_VALUES: Record<TextOverrideField, z.ZodType> = {
@@ -418,6 +438,11 @@ const TEXT_OVERRIDE_VALUES: Record<TextOverrideField, z.ZodType> = {
   learning_outcomes: optionalText(20_000),
   prerequisites: optionalText(20_000),
   assessment: optionalText(20_000),
+  mode_of_repetition: optionalText(20_000),
+  methods: optionalText(20_000),
+  literature: optionalText(20_000),
+  privacy_notice: optionalText(20_000),
+  remarks: optionalText(20_000),
   keywords: z.array(z.string().trim().min(1).max(100)).max(50),
 };
 
@@ -544,6 +569,11 @@ export const adminCourseText = z.strictObject({
   learning_outcomes: z.string().nullable(),
   prerequisites: z.string().nullable(),
   assessment: z.string().nullable(),
+  mode_of_repetition: z.string().nullable(),
+  methods: z.string().nullable(),
+  literature: z.string().nullable(),
+  privacy_notice: z.string().nullable(),
+  remarks: z.string().nullable(),
   keywords: z.array(z.string()),
   is_machine_translated: z.boolean(),
 });
@@ -613,9 +643,17 @@ export const adminCourse = z.strictObject({
   teaching_unit_ext_id: z.string().nullable(),
   /** Primary first. */
   isced_codes: z.array(z.strictObject({ code: z.string(), is_primary: z.boolean() })),
+  /** Teaching staff (decision 21a); may be empty. */
+  instructors: z.array(z.string()),
   attributes: courseAttributes,
   /** Keyed by primary language subtag. */
   texts: z.record(z.string(), adminCourseText),
+  /**
+   * The IT Handbook publication rule on the effective values (decision 21c,
+   * {@link completeness}): published offerings count; the organization's contact
+   * satisfies a missing course contact.
+   */
+  completeness: courseCompleteness,
   /**
    * Override values (shape of the `courseInput` member; `isced_codes` as
    * `[{code, is_primary}]`), keyed by {@link COURSE_OVERRIDE_FIELDS} and
@@ -685,6 +723,8 @@ export const adminCourseListItem = z.strictObject({
   offerings_count: z.int().min(0),
   /** The course, one of its texts or one of its offerings carries an override. */
   has_overrides: z.boolean(),
+  /** `completeness.complete` of the course (IT Handbook publication rule, decision 21c). */
+  complete: z.boolean(),
   /** Earliest start date today or later of a draft or published offering. */
   next_start_date: isoDate.nullable(),
 });

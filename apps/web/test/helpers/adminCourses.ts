@@ -191,6 +191,37 @@ export function course(overrides: Partial<AdminCourse> = {}): AdminCourse {
   };
 }
 
+/**
+ * A course as an API implementing DL 21 sends it: instructors, the optional
+ * IT Handbook texts and the completeness against the publication rule.
+ */
+export function handbookCourse(overrides: Partial<AdminCourse> = {}): AdminCourse {
+  const base = course();
+  return course({
+    instructors: ['Dr. Ada Lovelace', 'Prof. Alan Turing'],
+    texts: {
+      en: {
+        ...base.texts.en!,
+        methods: 'Lectures and computer labs.',
+        mode_of_repetition: 'Every autumn semester.',
+        literature: null,
+        remarks: null,
+        privacy_notice: 'Applicant data is processed for admission only.',
+      },
+    },
+    completeness: {
+      complete: false,
+      missing: [
+        'texts.en.learning_outcomes',
+        'texts.en.prerequisites',
+        'texts.en.assessment',
+        'offerings',
+      ],
+    },
+    ...overrides,
+  });
+}
+
 export function listItem(
   i: number,
   overrides: Partial<AdminCourseListItem> = {},
