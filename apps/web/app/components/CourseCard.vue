@@ -1,6 +1,7 @@
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 <script setup lang="ts">
-// One search result (spec §7): title, partner, key facts, next offering, seats.
+// One search result (spec §7): title, kind badge, partner, key facts, next
+// offering, seats and the alliance attribute tags [DL 18].
 import type { CourseCard } from '../types/catalogue';
 import type { MaybeReference } from '../composables/useCatalogueLabels';
 
@@ -9,7 +10,12 @@ const props = defineProps<{
   reference?: MaybeReference;
   /** Heading level of the title (cards sit under the results heading). */
   headingLevel?: 2 | 3 | 4;
+  /** Emphasise the application deadline (results sorted by deadline). */
+  highlightDeadline?: boolean;
 }>();
+
+/** Tags shown before "+N" (the course page lists every attribute). */
+const TAG_LIMIT = 4;
 const { t, locale } = useI18n();
 const localePath = useLocalePath();
 const labels = useCatalogueLabels(() => props.reference);
@@ -36,6 +42,16 @@ const deadlineText = computed(() => {
   return date && deadlinePassed.value ? `${date} (${t('offering.deadlinePassed')})` : date;
 });
 const otherOfferings = computed(() => Math.max(0, props.course.offerings_count - 1));
+const kindBadge = computed(() => {
+  const kind = props.course.kind;
+  return kind && kind !== 'course' ? labels.kindBadge(kind) : undefined;
+});
+const levels = computed(() => courseLevels(props.course).map((l) => labels.levelLabel(l)));
+const tags = computed(() =>
+  attributeTags(props.course.attributes, props.reference?.attribute_definitions, locale.value),
+);
+const shownTags = computed(() => tags.value.slice(0, TAG_LIMIT));
+const hiddenTags = computed(() => Math.max(0, tags.value.length - TAG_LIMIT));
 </script>
 
 <template>
@@ -48,6 +64,7 @@ const otherOfferings = computed(() => Math.max(0, props.course.offerings_count -
         {{ course.title }}
       </NuxtLink>
     </component>
+    <p v-if="kindBadge" class="course-card__kind">{{ kindBadge }}</p>
     <p class="course-card__partner">
       {{ partner }}<template v-if="country"> · {{ country }}</template>
     </p>
@@ -57,9 +74,9 @@ const otherOfferings = computed(() => Math.max(0, props.course.offerings_count -
     <dl class="facts course-card__facts">
       <dt>{{ t('facts.ects') }}</dt>
       <dd>{{ course.ects }}</dd>
-      <template v-if="course.level">
-        <dt>{{ t('facts.level') }}</dt>
-        <dd>{{ labels.levelLabel(course.level) }}</dd>
+      <template v-if="levels.length">
+        <dt>{{ t('facts.levels', levels.length) }}</dt>
+        <dd>{{ levels.join(', ') }}</dd>
       </template>
       <template v-if="modes.length">
         <dt>{{ t('facts.modes') }}</dt>
@@ -75,8 +92,12 @@ const otherOfferings = computed(() => Math.max(0, props.course.offerings_count -
           {{ t('dates.range', { start: fmt(next.start_date), end: fmt(next.end_date) }) }}
         </dd>
         <template v-if="next.application_deadline">
-          <dt>{{ t('facts.applicationDeadline') }}</dt>
-          <dd :class="{ 'is-passed': deadlinePassed }">{{ deadlineText }}</dd>
+          <dt :class="{ 'is-highlighted': highlightDeadline }">
+            {{ t('facts.applicationDeadline') }}
+          </dt>
+          <dd :class="{ 'is-passed': deadlinePassed, 'is-highlighted': highlightDeadline }">
+            {{ deadlineText }}
+          </dd>
         </template>
       </template>
     </dl>
@@ -87,6 +108,15 @@ const otherOfferings = computed(() => Math.max(0, props.course.offerings_count -
     <p v-if="otherOfferings > 0" class="course-card__muted">
       {{ t('courses.moreOfferings', { n: otherOfferings }, otherOfferings) }}
     </p>
+    <ul v-if="shownTags.length" class="tag-list course-card__tags" :aria-label="t('courses.tags')">
+      <li v-for="tag in shownTags" :key="tag">{{ tag }}</li>
+      <li v-if="hiddenTags > 0" class="course-card__more">
+        <span aria-hidden="true">+{{ hiddenTags }}</span>
+        <span class="visually-hidden">{{
+          t('courses.moreTags', { n: hiddenTags }, hiddenTags)
+        }}</span>
+      </li>
+    </ul>
   </article>
 </template>
 
@@ -119,6 +149,33 @@ const otherOfferings = computed(() => Math.max(0, props.course.offerings_count -
 }
 .is-passed {
   color: var(--c-danger);
+}
+.course-card__kind {
+  display: inline-block;
+  margin: 0 0 0.4rem;
+  padding: 0.05rem 0.6rem;
+  border: 1px solid var(--c-chip-text);
+  border-radius: var(--radius);
+  background: var(--c-chip);
+  color: var(--c-chip-text);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.course-card__tags {
+  margin-top: 0.6rem;
+}
+.course-card__more {
+  font-weight: 700;
+}
+dt.is-highlighted,
+dd.is-highlighted {
+  font-weight: 700;
+}
+dd.is-highlighted {
+  justify-self: start;
+  padding: 0 0.4rem;
+  border-left: 3px solid var(--c-notice-border);
+  background: var(--c-notice-bg);
 }
 .seats {
   margin: 0.25rem 0 0;

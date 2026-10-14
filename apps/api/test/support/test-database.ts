@@ -31,7 +31,30 @@ export interface TestDatabase {
   drop(): Promise<void>;
 }
 
-export async function createTestDatabase(): Promise<TestDatabase> {
+/** Runs `count` migrations of db/migrations up or down on `databaseUrl`. */
+export async function migrate(
+  databaseUrl: string,
+  direction: 'up' | 'down',
+  count = Number.POSITIVE_INFINITY,
+): Promise<void> {
+  await runner({
+    databaseUrl,
+    dir: MIGRATIONS_DIR,
+    direction,
+    migrationsTable: 'pgmigrations',
+    checkOrder: true,
+    count,
+    log: () => undefined,
+  });
+}
+
+/**
+ * A fresh database, migrated (all migrations by default, or the first
+ * `options.migrations`) and seeded with the organizations of {@link ORG}.
+ */
+export async function createTestDatabase(
+  options: { migrations?: number } = {},
+): Promise<TestDatabase> {
   if (!TEST_DATABASE_URL) throw new Error('DATABASE_URL_TEST is not set');
   const name = `oecp_it_${randomBytes(6).toString('hex')}`;
   const admin = new pg.Client({ connectionString: TEST_DATABASE_URL });
@@ -41,15 +64,7 @@ export async function createTestDatabase(): Promise<TestDatabase> {
 
   const url = new URL(TEST_DATABASE_URL);
   url.pathname = `/${name}`;
-  await runner({
-    databaseUrl: url.href,
-    dir: MIGRATIONS_DIR,
-    direction: 'up',
-    migrationsTable: 'pgmigrations',
-    checkOrder: true,
-    count: Number.POSITIVE_INFINITY,
-    log: () => undefined,
-  });
+  await migrate(url.href, 'up', options.migrations ?? Number.POSITIVE_INFINITY);
   const pool = new pg.Pool({ connectionString: url.href, max: 5 });
   installDomainArrayParsers(pool);
   const db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });

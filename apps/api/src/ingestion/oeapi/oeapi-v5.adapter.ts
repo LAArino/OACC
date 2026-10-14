@@ -24,6 +24,7 @@ import {
   type OeapiV5Organization,
   oeapiV5Organization,
   type ProblemError,
+  resolveLevels,
   type SessionType,
 } from '@oecp/schemas';
 import type { z } from 'zod';
@@ -337,12 +338,17 @@ export class OeapiV5Adapter {
     if (!english) issues.warn('oecp.content.english_missing', '/name');
 
     const contact = ctx.organization.contactEmail;
+    const levels = resolveLevels(src.level === undefined ? null : (level?.level ?? 'other'), null);
     const candidate: Course = {
       ext_id: extId,
       source_ref: src.courseId,
       status: english ? 'published' : 'draft',
+      // OEAPI v5 has no course kind; partners never send alliance attributes
+      // (manual overrides of both survive every harvest).
+      kind: 'course',
       ects,
-      level: src.level === undefined ? null : (level?.level ?? 'other'),
+      level: levels.level,
+      levels: levels.levels,
       eqf_level: level?.eqf ?? null,
       teaching_hours: null,
       teaching_unit_ext_id: null,
@@ -350,6 +356,7 @@ export class OeapiV5Adapter {
       contact_email: contact && EMAIL_PATTERN.test(contact) ? contact : null,
       isced_codes: isced,
       texts,
+      attributes: {},
     };
     const checked = courseSchema.safeParse(candidate);
     if (!checked.success) {
@@ -454,6 +461,7 @@ export class OeapiV5Adapter {
     if (link.insecure) issues.warn('oecp.oeapi.insecure_link', '/link', src.link);
 
     const session = this.session(src, issues);
+    const instructions = applicationInstructions(raw, issues);
     if (issues.errors.length > 0 || !language) return reject();
 
     const candidate: CourseOffering = {
@@ -475,6 +483,7 @@ export class OeapiV5Adapter {
       seats_available: seatsAvailable,
       seats_updated_at: seatsAvailable === null ? null : ctx.fetchedAt.toISOString(),
       application_url: link.url,
+      application_instructions: instructions,
     };
     const checked = courseOfferingSchema.safeParse(candidate);
     if (!checked.success) {
@@ -572,6 +581,56 @@ export class OeapiV5Adapter {
     }
     return { extId: checked.data.ext_id, value: checked.data };
   }
+}
+
+const MAX_INSTRUCTIONS = 20_000;
+const INSTRUCTIONS_POINTER = '/ext/oecp/applicationInstructions';
+
+/**
+ * Optional `ext.oecp.applicationInstructions` of an offering (an OECP extension a
+ * partner may send, as the OECP read API does): LanguageTypedString[], or an object
+ * keyed by language. Anything else is ignored with a warning; absent → `{}`.
+ */
+function applicationInstructions(raw: unknown, issues: Issues): Record<string, string> {
+  const ext = isRecord(raw) && isRecord(raw['ext']) ? raw['ext'] : null;
+  const oecp = ext && isRecord(ext['oecp']) ? ext['oecp'] : null;
+  const value = oecp ? oecp['applicationInstructions'] : undefined;
+  if (value === undefined || value === null) return {};
+  let list: OeapiV5LanguageTypedString[];
+  if (Array.isArray(value)) {
+    if (
+      !value.every(
+        (v) => isRecord(v) && typeof v['language'] === 'string' && typeof v['value'] === 'string',
+      )
+    ) {
+      issues.warn(
+        'oecp.oeapi.invalid_extension',
+        INSTRUCTIONS_POINTER,
+        'expected [{language, value}]',
+      );
+      return {};
+    }
+    list = value as OeapiV5LanguageTypedString[];
+  } else if (isRecord(value) && Object.values(value).every((v) => typeof v === 'string')) {
+    list = Object.entries(value).map(([language, text]) => ({ language, value: text as string }));
+  } else {
+    issues.warn(
+      'oecp.oeapi.invalid_extension',
+      INSTRUCTIONS_POINTER,
+      'expected [{language, value}]',
+    );
+    return {};
+  }
+  const out: Record<string, string> = {};
+  for (const [lang, text] of [...byLanguage(list, INSTRUCTIONS_POINTER, issues)].sort(([a], [b]) =>
+    a.localeCompare(b),
+  )) {
+    if (text.length > MAX_INSTRUCTIONS) {
+      issues.warn('oecp.oeapi.value_truncated', INSTRUCTIONS_POINTER, `${lang} text`);
+    }
+    out[lang] = text.slice(0, MAX_INSTRUCTIONS);
+  }
+  return out;
 }
 
 /** Canonical offering field → member of the harvested offering. */

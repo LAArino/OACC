@@ -84,7 +84,34 @@ describe.runIf(describeWithDatabase === 'run')('public catalogue API (PostgreSQL
           'Qubits, quantum gates and algorithms for students of physics and computer science.',
         abstract_lang: 'en',
         ects: 6,
+        kind: 'course',
         level: 'master',
+        levels: ['master'],
+        attributes: [
+          {
+            key: 'educational_hub',
+            label: { en: 'Educational hub' },
+            values: [
+              {
+                value: 'digital_society_global_citizenship',
+                label: { en: 'Digital Society & Global Citizenship' },
+              },
+            ],
+          },
+          {
+            key: 'sdg',
+            label: { en: 'Sustainable Development Goals' },
+            values: [
+              { value: 'sdg04', label: { en: 'SDG 4: Quality education' } },
+              { value: 'sdg09', label: { en: 'SDG 9: Industry, innovation and infrastructure' } },
+            ],
+          },
+          {
+            key: 'free_course',
+            label: { en: 'Free course' },
+            values: [{ value: 'true', label: { en: 'Yes' } }],
+          },
+        ],
         isced_broad_fields: [
           { code: '05', label: { en: 'Natural sciences, mathematics and statistics' } },
           { code: '06', label: { en: 'Information and Communication Technologies (ICTs)' } },
@@ -101,6 +128,7 @@ describe.runIf(describeWithDatabase === 'run')('public catalogue API (PostgreSQL
           seats_available: null,
           alliance_seats: null,
           seats_updated_at: null,
+          application_instructions: null,
         },
         offerings_count: 2,
       });
@@ -133,9 +161,37 @@ describe.runIf(describeWithDatabase === 'run')('public catalogue API (PostgreSQL
           { value: '06', count: 1 },
         ],
         level: [
+          { value: 'master', count: 2 },
           { value: 'bachelor', count: 1 },
-          { value: 'master', count: 1 },
         ],
+        kind: [
+          { value: 'bip', count: 1 },
+          { value: 'course', count: 1 },
+        ],
+        attributes: {
+          educational_hub: [
+            {
+              value: 'digital_society_global_citizenship',
+              count: 1,
+              label: { en: 'Digital Society & Global Citizenship' },
+            },
+          ],
+          sdg: [
+            { value: 'sdg04', count: 2, label: { en: 'SDG 4: Quality education' } },
+            {
+              value: 'sdg09',
+              count: 1,
+              label: { en: 'SDG 9: Industry, innovation and infrastructure' },
+            },
+          ],
+          micro_credential: [],
+          free_course: [
+            { value: 'false', count: 1, label: { en: 'No' } },
+            { value: 'true', count: 1, label: { en: 'Yes' } },
+          ],
+          open_to_alliance: [{ value: 'true', count: 1, label: { en: 'Yes' } }],
+          target_audience: [],
+        },
       });
       const filtered = await search('?partner=uibk&mode=online');
       expect(ids(filtered)).toEqual([COURSE.A]);
@@ -173,7 +229,23 @@ describe.runIf(describeWithDatabase === 'run')('public catalogue API (PostgreSQL
       ['?lang=en', [COURSE.A]],
       ['?isced=06', [COURSE.A]],
       ['?isced=02&upcoming=false', [COURSE.B, COURSE.C]],
-      ['?level=master', [COURSE.A]],
+      ['?level=master', [COURSE.B, COURSE.A]],
+      ['?level=bachelor&upcoming=false', [COURSE.B, COURSE.C]],
+      ['?kind=bip', [COURSE.B]],
+      ['?kind=lecture_series&kind=course&upcoming=false', [COURSE.A, COURSE.F, COURSE.C]],
+      ['?attr_free_course=true', [COURSE.A]],
+      ['?attr_free_course=true&upcoming=false', [COURSE.A, COURSE.C]],
+      ['?attr_free_course=false', [COURSE.B]],
+      ['?attr_free_course=yes', []],
+      ['?attr_sdg=sdg04', [COURSE.B, COURSE.A]],
+      ['?attr_sdg=sdg09', [COURSE.A]],
+      ['?attr_sdg=sdg09&attr_sdg=sdg13', [COURSE.A]],
+      ['?attr_sdg=sdg04&attr_open_to_alliance=true', [COURSE.B]],
+      ['?attr_competence_framework=louis', [COURSE.A]],
+      ['?attr_not_defined=x', [COURSE.B, COURSE.A]],
+      ['?sort=deadline', [COURSE.B, COURSE.A]],
+      ['?sort=deadline&upcoming=false', [COURSE.B, COURSE.A, COURSE.F, COURSE.C]],
+      ['?sort=deadline&mode=online', [COURSE.A]],
       ['?ectsMin=5.5', [COURSE.A]],
       ['?ects_min=5&ects_max=5', [COURSE.B]],
       ['?ectsMax=3&upcoming=false', [COURSE.C]],
@@ -182,6 +254,39 @@ describe.runIf(describeWithDatabase === 'run')('public catalogue API (PostgreSQL
       ['?sort=title&upcoming=false', [COURSE.F, COURSE.C, COURSE.A, COURSE.B]],
     ])('filters %s', async (query, expected) => {
       expect(ids(await search(query))).toEqual(expected);
+    });
+
+    it('keeps attribute facets disjunctive', async () => {
+      const body = await search('?attr_free_course=true&upcoming=false');
+      expect(body.facets.attributes['free_course']).toEqual([
+        { value: 'true', count: 2, label: { en: 'Yes' } },
+        { value: 'false', count: 1, label: { en: 'No' } },
+      ]);
+      expect(body.facets.attributes['sdg']).toEqual([
+        { value: 'sdg04', count: 1, label: { en: 'SDG 4: Quality education' } },
+        {
+          value: 'sdg09',
+          count: 1,
+          label: { en: 'SDG 9: Industry, innovation and infrastructure' },
+        },
+      ]);
+      expect(body.facets.kind).toEqual([
+        { value: 'course', count: 1 },
+        { value: 'lecture_series', count: 1 },
+      ]);
+    });
+
+    it('resolves the next offering’s application instructions for the locale', async () => {
+      const en = await search('?partner=urv');
+      expect(en.items[0]!.next_offering!.application_instructions).toBe(
+        'Apply through the Aurora office of your home university.',
+      );
+      const ca = await search('?partner=urv&locale=ca');
+      expect(ca.items[0]!.next_offering!.application_instructions).toMatch(/^Sol·liciteu-ho/);
+      const de = await search('?partner=urv&locale=de');
+      expect(de.items[0]!.next_offering!.application_instructions).toMatch(/^Apply through/);
+      // Booleans that are false are not shown as tags.
+      expect(en.items[0]!.attributes.map((a) => a.key)).toEqual(['sdg', 'open_to_alliance']);
     });
 
     it('takes the next offering among those matching the offering filters', async () => {
@@ -260,6 +365,8 @@ describe.runIf(describeWithDatabase === 'run')('public catalogue API (PostgreSQL
       expect(res.body).toMatchObject({ status: 400, type: '/problems/validation-failed' });
       await http().get('/api/public/v1/courses?level=phd').expect(400);
       await http().get('/api/public/v1/courses?upcoming=yes').expect(400);
+      await http().get('/api/public/v1/courses?kind=seminar').expect(400);
+      await http().get('/api/public/v1/courses?sort=popularity').expect(400);
     });
   });
 
@@ -326,7 +433,15 @@ describe.runIf(describeWithDatabase === 'run')('public catalogue API (PostgreSQL
         seats_available: 12,
         seats_updated_at: '2026-10-13T08:00:00.000Z',
         application_url: 'https://uibk.example/apply/703001-2027S',
+        application_instructions: {},
       });
+      expect(body).toMatchObject({ kind: 'course', levels: ['master'] });
+      expect(body.attributes.map((a) => [a.key, a.values.map((v) => v.value)])).toEqual([
+        ['educational_hub', ['digital_society_global_citizenship']],
+        ['sdg', ['sdg04', 'sdg09']],
+        ['competence_framework', ['louis']],
+        ['free_course', ['true']],
+      ]);
     });
 
     it('lists cancelled offerings until they start, and the teaching unit', async () => {
@@ -338,6 +453,16 @@ describe.runIf(describeWithDatabase === 'run')('public catalogue API (PostgreSQL
         [OFFERING.B2, 'cancelled'],
       ]);
       expect(b.offerings[0]!.delivery_modes).toEqual(['presential', 'hybrid']);
+      expect(b.offerings[0]!.application_instructions).toEqual({
+        en: 'Apply through the Aurora office of your home university.',
+        ca: 'Sol·liciteu-ho a l’oficina Aurora de la vostra universitat.',
+      });
+      expect(b).toMatchObject({ kind: 'bip', level: 'bachelor', levels: ['bachelor', 'master'] });
+      expect(b.attributes.map((a) => [a.key, a.values.map((v) => v.value)])).toEqual([
+        ['sdg', ['sdg04']],
+        ['free_course', ['false']],
+        ['open_to_alliance', ['true']],
+      ]);
       expect(b.contact_email).toBe('history@urv.example');
       const c = publicCourseDetail.parse(
         (await http().get(`/api/public/v1/courses/${COURSE.C}`).expect(200)).body,
@@ -455,6 +580,31 @@ describe.runIf(describeWithDatabase === 'run')('public catalogue API (PostgreSQL
     expect(body.isced_broad_fields).toHaveLength(12);
     expect(body.teaching_languages).toEqual(['ca', 'de', 'en', 'es']);
     expect(body.levels).toEqual(['short_cycle', 'bachelor', 'master', 'doctoral', 'other']);
+    expect(body.kinds).toEqual([
+      { code: 'course', label: { en: 'Course' } },
+      { code: 'bip', label: { en: 'Blended Intensive Programme (BIP)' } },
+      { code: 'lecture_series', label: { en: 'Lecture series' } },
+      { code: 'other', label: { en: 'Other' } },
+    ]);
+    expect(body.attribute_definitions.map((d) => d.key)).toEqual([
+      'educational_hub',
+      'sdg',
+      'competence_framework',
+      'micro_credential',
+      'free_course',
+      'enrolled_only',
+      'open_to_alliance',
+      'target_audience',
+    ]);
+    expect(body.attribute_definitions[1]).toMatchObject({
+      key: 'sdg',
+      value_type: 'multi_enum',
+      label: { en: 'Sustainable Development Goals' },
+      filterable: true,
+      show_as_tag: true,
+    });
+    expect(body.attribute_definitions[1]!.options).toHaveLength(17);
+    expect(body.attribute_definitions[4]).toMatchObject({ value_type: 'boolean', options: [] });
   });
 
   it('GET /sitemap.xml lists published course pages', async () => {

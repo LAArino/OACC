@@ -95,6 +95,8 @@ describe('normalisation', () => {
       lang: [],
       isced: [],
       level: [],
+      kind: [],
+      attributes: {},
     });
     expect(result.items[0]).toMatchObject({
       isced_broad_fields: [],
@@ -102,7 +104,10 @@ describe('normalisation', () => {
       teaching_languages: [],
       next_offering: null,
       offerings_count: 0,
+      levels: [],
+      attributes: [],
     });
+    expect(result.items[0]!.kind).toBeUndefined();
     expect(normalizeSearchResponse('nonsense').items).toEqual([]);
   });
 
@@ -113,14 +118,84 @@ describe('normalisation', () => {
     } as unknown as CourseDetail);
     expect(course.texts).toEqual({});
     expect(course.isced_codes).toEqual([]);
-    expect(course.offerings[0]).toMatchObject({ teaching_languages: [], delivery_modes: [] });
+    expect(course.offerings[0]).toMatchObject({
+      teaching_languages: [],
+      delivery_modes: [],
+      application_instructions: {},
+    });
+    expect(course).toMatchObject({ levels: [], attributes: [] });
+    expect(course.kind).toBeUndefined();
     expect(normalizeReference(undefined)).toEqual({
       organizations: [],
       delivery_modes: [],
       isced_broad_fields: [],
       teaching_languages: [],
       levels: [],
+      kinds: [],
+      attribute_definitions: [],
     });
+  });
+
+  it('keeps well-formed kinds, attributes, facets and instructions [DL 18]', () => {
+    const result = normalizeSearchResponse({
+      items: [
+        {
+          id: '1',
+          kind: 'bip',
+          levels: ['bachelor', 7, ''],
+          attributes: [
+            { key: 'sdg', label: { en: 'SDG' }, values: [{ value: 'sdg_13', label: {} }, 'x'] },
+            { key: 'empty', label: { en: 'Empty' }, values: [] },
+            { label: 'no key', values: [] },
+          ],
+          next_offering: { id: 'o', application_instructions: { en: 'not a string' } },
+        },
+      ],
+      facets: {
+        kind: [{ value: 'bip', count: 1 }],
+        attributes: { sdg: [{ value: 'sdg_13', count: 1 }, 3] },
+      },
+    });
+    const card = result.items[0]!;
+    expect(card.kind).toBe('bip');
+    expect(card.levels).toEqual(['bachelor']);
+    expect(card.attributes).toEqual([
+      { key: 'sdg', label: { en: 'SDG' }, values: [{ value: 'sdg_13', label: {} }] },
+    ]);
+    expect(card.next_offering?.application_instructions).toBeNull();
+    expect(result.facets.kind).toEqual([{ value: 'bip', count: 1 }]);
+    expect(result.facets.attributes).toEqual({ sdg: [{ value: 'sdg_13', count: 1 }] });
+
+    const reference = normalizeReference({
+      kinds: [{ code: 'bip', label: { en: 'BIP' } }, { label: 'no code' }],
+      attribute_definitions: [
+        { key: 'b', value_type: 'boolean', label: { en: 'B' }, sort_order: 20, filterable: true },
+        {
+          key: 'a',
+          value_type: 'enum',
+          label: { en: 'A' },
+          options: [{ value: 'x' }, 1],
+          sort_order: 10,
+        },
+        { key: 'c', value_type: 'date', label: { en: 'C' } },
+      ],
+    });
+    expect(reference.kinds).toEqual([{ code: 'bip', label: { en: 'BIP' } }]);
+    expect(reference.attribute_definitions).toEqual([
+      expect.objectContaining({
+        key: 'a',
+        options: [{ value: 'x' }],
+        filterable: false,
+        show_as_tag: false,
+      }),
+      expect.objectContaining({ key: 'b', options: null, filterable: true, sort_order: 20 }),
+    ]);
+
+    const course = normalizeCourse({
+      id: '1',
+      offerings: [{ id: 'o', application_instructions: { en: 'Apply here', ca: 3 } }],
+    } as unknown as CourseDetail);
+    expect(course.offerings[0]!.application_instructions).toEqual({ en: 'Apply here' });
   });
 });
 

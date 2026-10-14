@@ -15,11 +15,16 @@ const router = useRouter();
 const api = useCatalogueApi();
 
 const listPath = computed(() => localePath('/courses'));
-const state = computed(() => parseSearchState(route.query));
-const apiKey = computed(() => queryString(toApiQuery(state.value)));
 
 const { data: reference } = await useCatalogueReference();
 const labels = useCatalogueLabels(() => reference.value);
+
+// Attribute filters the alliance schema does not offer are dropped before they
+// reach the API (the URL is user input).
+const state = computed(() =>
+  restrictAttributes(parseSearchState(route.query), reference.value?.attribute_definitions),
+);
+const apiKey = computed(() => queryString(toApiQuery(state.value)));
 
 const { data, error, status } = await useAsyncData(
   'catalogue-search',
@@ -46,7 +51,7 @@ const lastShown = computed(() =>
 );
 const loading = computed(() => status.value === 'pending');
 
-const SORTS: readonly SortOrder[] = ['relevance', 'title', 'start_date'];
+const SORTS: readonly SortOrder[] = ['relevance', 'title', 'start_date', 'deadline'];
 
 const title = computed(() => {
   const base = state.value.q ? t('courses.titleFor', { q: state.value.q }) : t('courses.title');
@@ -216,7 +221,12 @@ const retry = () => refreshNuxtData('catalogue-search');
 
         <ul v-else-if="data" class="catalogue__list" :class="{ 'is-loading': loading }">
           <li v-for="course in data.items" :key="course.id">
-            <CourseCard :course="course" :reference="reference" :heading-level="3" />
+            <CourseCard
+              :course="course"
+              :reference="reference"
+              :heading-level="3"
+              :highlight-deadline="state.sort === 'deadline'"
+            />
           </li>
         </ul>
 

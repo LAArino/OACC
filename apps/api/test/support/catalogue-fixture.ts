@@ -11,9 +11,15 @@
  * | F Applied Statistics | urv | published | en | F1 draft offering only |
  * | D Quantum Draft | urv | draft | en | D1 published offering of a draft course |
  * | E Deleted Quantum Course | uibk | published, deleted | en | E1 |
+ *
+ * Decision 18: Aurora's attribute definitions are seeded. A is a `course`
+ * (master; hub, SDGs 4 and 9, free, LOUIS), B a `bip` (bachelor and master; SDG 4,
+ * not free, open to the alliance; B1 has application instructions in en and ca),
+ * C a `lecture_series` (bachelor; free).
  */
 import type { Kysely } from 'kysely';
 import type { Database } from '../../src/db/database.js';
+import { seedAttributeDefinitions } from './attribute-definitions.js';
 import { ORG } from './test-database.js';
 
 export const FIXTURE_NOW = new Date('2026-10-14T10:00:00Z');
@@ -41,6 +47,7 @@ export const LONG_ABSTRACT =
   'societies around it, from Barcelona and Marseille to Alexandria and Istanbul.';
 
 export async function insertCatalogueFixture(db: Kysely<Database>): Promise<void> {
+  await seedAttributeDefinitions(db);
   await db.transaction().execute(async (trx) => {
     await trx
       .insertInto('academic_sessions')
@@ -81,7 +88,15 @@ export async function insertCatalogueFixture(db: Kysely<Database>): Promise<void
       ext_id: '703001',
       status: 'published',
       ects: 6,
+      kind: 'course',
       level: 'master',
+      levels: ['master'],
+      attributes: {
+        educational_hub: ['digital_society_global_citizenship'],
+        sdg: ['sdg04', 'sdg09'],
+        free_course: true,
+        competence_framework: 'louis',
+      },
       eqf_level: 7,
       teaching_hours: 45,
       info_url: 'https://uibk.example/courses/703001',
@@ -92,7 +107,10 @@ export async function insertCatalogueFixture(db: Kysely<Database>): Promise<void
       ext_id: 'HIST-210',
       status: 'published',
       ects: 5,
+      kind: 'bip',
       level: 'bachelor',
+      levels: ['bachelor', 'master'],
+      attributes: { sdg: ['sdg04'], free_course: false, open_to_alliance: true },
       contact_email: 'history@urv.example',
     });
     await course({
@@ -102,7 +120,10 @@ export async function insertCatalogueFixture(db: Kysely<Database>): Promise<void
       ext_id: '610300',
       status: 'published',
       ects: 3,
+      kind: 'lecture_series',
       level: 'bachelor',
+      levels: ['bachelor'],
+      attributes: { free_course: true },
     });
     await course({ id: COURSE.D, organization_id: ORG.urv, ext_id: 'DRAFT-1', ects: 4 });
     await course({
@@ -248,6 +269,10 @@ export async function insertCatalogueFixture(db: Kysely<Database>): Promise<void
           application_deadline: '2026-10-20',
           timezone: 'Europe/Madrid',
           teaching_languages: ['ca', 'es'],
+          application_instructions: {
+            en: 'Apply through the Aurora office of your home university.',
+            ca: 'Sol·liciteu-ho a l’oficina Aurora de la vostra universitat.',
+          },
         },
         ['presential', 'hybrid'],
       ),

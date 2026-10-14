@@ -1,0 +1,291 @@
+{
+  "$comment": [
+    "SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño",
+    "SPDX-License-Identifier: EUPL-1.2",
+    "Aurora alliance attribute definitions for `oecp seed-attribute-definitions` (upsert by key; decision 18).",
+    "To be confirmed by the Aurora Foundation: the list mirrors the fields of the current Virtual Campus",
+    "pages (docs/research/aurora-virtual-campus-draft.md) and must be agreed before the 13 current entries are migrated.",
+    "educational_hub options: the six hubs listed on https://aurora-universities.eu/teach/hubs/ (checked 2026-10-14;",
+    "the research note mentioned four). sdg options: the 17 UN Sustainable Development Goals, official short titles.",
+    "Option values are stable identifiers (CSV cells, attr_<key> filters); labels may change freely."
+  ],
+  "attribute_definitions": [
+    {
+      "key": "educational_hub",
+      "value_type": "multi_enum",
+      "label": {
+        "en": "Educational hub"
+      },
+      "description": {
+        "en": "Aurora educational hub(s) the course belongs to."
+      },
+      "options": [
+        {
+          "value": "sustainability_climate_change",
+          "label": {
+            "en": "Sustainability & Climate Change"
+          }
+        },
+        {
+          "value": "digital_society_global_citizenship",
+          "label": {
+            "en": "Digital Society & Global Citizenship"
+          }
+        },
+        {
+          "value": "health_wellbeing",
+          "label": {
+            "en": "Health & Well-being"
+          }
+        },
+        {
+          "value": "culture_identities_diversities",
+          "label": {
+            "en": "Culture: Identities and Diversities"
+          }
+        },
+        {
+          "value": "social_entrepreneurship_innovation",
+          "label": {
+            "en": "Social Entrepreneurship & Innovation"
+          }
+        },
+        {
+          "value": "peace_education",
+          "label": {
+            "en": "Peace Education"
+          }
+        }
+      ],
+      "filterable": true,
+      "show_as_tag": true,
+      "sort_order": 10
+    },
+    {
+      "key": "sdg",
+      "value_type": "multi_enum",
+      "label": {
+        "en": "Sustainable Development Goals"
+      },
+      "description": {
+        "en": "UN Sustainable Development Goals the course addresses."
+      },
+      "options": [
+        {
+          "value": "sdg01",
+          "label": {
+            "en": "SDG 1: No poverty"
+          }
+        },
+        {
+          "value": "sdg02",
+          "label": {
+            "en": "SDG 2: Zero hunger"
+          }
+        },
+        {
+          "value": "sdg03",
+          "label": {
+            "en": "SDG 3: Good health and well-being"
+          }
+        },
+        {
+          "value": "sdg04",
+          "label": {
+            "en": "SDG 4: Quality education"
+          }
+        },
+        {
+          "value": "sdg05",
+          "label": {
+            "en": "SDG 5: Gender equality"
+          }
+        },
+        {
+          "value": "sdg06",
+          "label": {
+            "en": "SDG 6: Clean water and sanitation"
+          }
+        },
+        {
+          "value": "sdg07",
+          "label": {
+            "en": "SDG 7: Affordable and clean energy"
+          }
+        },
+        {
+          "value": "sdg08",
+          "label": {
+            "en": "SDG 8: Decent work and economic growth"
+          }
+        },
+        {
+          "value": "sdg09",
+          "label": {
+            "en": "SDG 9: Industry, innovation and infrastructure"
+          }
+        },
+        {
+          "value": "sdg10",
+          "label": {
+            "en": "SDG 10: Reduced inequalities"
+          }
+        },
+        {
+          "value": "sdg11",
+          "label": {
+            "en": "SDG 11: Sustainable cities and communities"
+          }
+        },
+        {
+          "value": "sdg12",
+          "label": {
+            "en": "SDG 12: Responsible consumption and production"
+          }
+        },
+        {
+          "value": "sdg13",
+          "label": {
+            "en": "SDG 13: Climate action"
+          }
+        },
+        {
+          "value": "sdg14",
+          "label": {
+            "en": "SDG 14: Life below water"
+          }
+        },
+        {
+          "value": "sdg15",
+          "label": {
+            "en": "SDG 15: Life on land"
+          }
+        },
+        {
+          "value": "sdg16",
+          "label": {
+            "en": "SDG 16: Peace, justice and strong institutions"
+          }
+        },
+        {
+          "value": "sdg17",
+          "label": {
+            "en": "SDG 17: Partnerships for the goals"
+          }
+        }
+      ],
+      "filterable": true,
+      "show_as_tag": true,
+      "sort_order": 20
+    },
+    {
+      "key": "competence_framework",
+      "value_type": "enum",
+      "label": {
+        "en": "Aurora competence framework"
+      },
+      "description": {
+        "en": "Competence framework the learning outcomes refer to."
+      },
+      "options": [
+        {
+          "value": "louis",
+          "label": {
+            "en": "LOUIS"
+          }
+        },
+        {
+          "value": "none",
+          "label": {
+            "en": "None"
+          }
+        }
+      ],
+      "filterable": false,
+      "show_as_tag": false,
+      "sort_order": 30
+    },
+    {
+      "key": "micro_credential",
+      "value_type": "boolean",
+      "label": {
+        "en": "Micro-credential"
+      },
+      "description": {
+        "en": "Completing the course awards a micro-credential."
+      },
+      "filterable": true,
+      "show_as_tag": true,
+      "sort_order": 40
+    },
+    {
+      "key": "free_course",
+      "value_type": "boolean",
+      "label": {
+        "en": "Free course"
+      },
+      "description": {
+        "en": "No tuition or participation fee."
+      },
+      "filterable": true,
+      "show_as_tag": true,
+      "sort_order": 50
+    },
+    {
+      "key": "enrolled_only",
+      "value_type": "boolean",
+      "label": {
+        "en": "Only for enrolled students"
+      },
+      "description": {
+        "en": "Open only to students enrolled at an Aurora university."
+      },
+      "filterable": false,
+      "show_as_tag": true,
+      "sort_order": 60
+    },
+    {
+      "key": "open_to_alliance",
+      "value_type": "boolean",
+      "label": {
+        "en": "Open to all Aurora universities"
+      },
+      "description": {
+        "en": "Students of every Aurora university may register."
+      },
+      "filterable": true,
+      "show_as_tag": true,
+      "sort_order": 70
+    },
+    {
+      "key": "target_audience",
+      "value_type": "multi_enum",
+      "label": {
+        "en": "Target audience"
+      },
+      "options": [
+        {
+          "value": "students",
+          "label": {
+            "en": "Students"
+          }
+        },
+        {
+          "value": "phd_candidates",
+          "label": {
+            "en": "PhD candidates"
+          }
+        },
+        {
+          "value": "staff",
+          "label": {
+            "en": "Staff"
+          }
+        }
+      ],
+      "filterable": true,
+      "show_as_tag": false,
+      "sort_order": 80
+    }
+  ]
+}

@@ -3,8 +3,17 @@
 // Filter panel of the catalogue. Every control is a real form control owned by
 // the catalogue GET form (`form` attribute), so filtering works without
 // JavaScript; when enhanced, checkbox and toggle changes apply at once and the
-// "Apply" button remains for the ECTS range.
-import type { FacetValue, Label, ListFilter, SearchFacets, SearchState } from '../types/catalogue';
+// "Apply" button remains for the ECTS range. Alliance attributes [DL 18] that
+// are `filterable` add one group per enum (`attr_<key>=<value>`) and a
+// "Course features" group of single checkboxes for booleans (`attr_<key>=true`).
+import type {
+  AttributeDefinition,
+  FacetValue,
+  Label,
+  ListFilter,
+  SearchFacets,
+  SearchState,
+} from '../types/catalogue';
 import type { MaybeReference } from '../composables/useCatalogueLabels';
 
 const props = defineProps<{
@@ -15,11 +24,12 @@ const props = defineProps<{
   formId: string;
 }>();
 const emit = defineEmits<{ apply: [] }>();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const labels = useCatalogueLabels(() => props.reference);
 
 const GROUPS: readonly { key: ListFilter; legend: string }[] = [
   { key: 'partner', legend: 'filters.partner' },
+  { key: 'kind', legend: 'filters.kind' },
   { key: 'mode', legend: 'filters.mode' },
   { key: 'lang', legend: 'filters.lang' },
   { key: 'isced', legend: 'filters.isced' },
@@ -32,8 +42,6 @@ function facetFor(key: ListFilter): FacetValue[] | undefined {
   if (fromFacets?.length || props.facets) return fromFacets;
   const ref = props.reference;
   if (!ref) return undefined;
-  const noCount = (value: string, label?: Label) =>
-    ({ value, label, count: undefined }) as unknown as FacetValue;
   switch (key) {
     case 'partner':
       return ref.organizations.filter((o) => o.is_partner).map((o) => noCount(o.slug, o.name));
@@ -45,7 +53,14 @@ function facetFor(key: ListFilter): FacetValue[] | undefined {
       return ref.isced_broad_fields.map((f) => noCount(f.code, f.label));
     case 'level':
       return ref.levels.map((l) => noCount(l));
+    case 'kind':
+      return ref.kinds?.map((k) => noCount(k.code, k.label));
   }
+}
+
+/** A facet value without a count (options listed from `/reference`). */
+function noCount(value: string, label?: Label): FacetValue {
+  return { value, label, count: undefined } as unknown as FacetValue;
 }
 
 function labelFor(key: ListFilter, value: string, label: Label | undefined): string {
@@ -60,17 +75,71 @@ function labelFor(key: ListFilter, value: string, label: Label | undefined): str
       return labels.iscedLabel(value, label);
     case 'level':
       return labels.levelLabel(value, label);
+    case 'kind':
+      return labels.kindLabel(value, label);
   }
 }
 
-const groups = computed(() =>
-  GROUPS.map((g) => ({
-    ...g,
+interface GroupOption {
+  name: string;
+  value: string;
+  label: string;
+  count: number | null;
+  checked: boolean;
+}
+interface Group {
+  id: string;
+  legend: string;
+  hint?: string;
+  options: GroupOption[];
+}
+
+/** Attribute facet: counts from the response, else the definition's values (no counts). */
+function attributeFacet(def: AttributeDefinition): FacetValue[] {
+  const facets = props.facets?.attributes;
+  if (facets) return facets[def.key] ?? [];
+  if (def.value_type === 'boolean') return [noCount('true')];
+  return (def.options ?? []).map((o) => noCount(o.value, o.label));
+}
+
+const filterableDefinitions = computed(() =>
+  (props.reference?.attribute_definitions ?? [])
+    .filter((d) => d.filterable && d.value_type !== 'text')
+    .sort((a, b) => a.sort_order - b.sort_order),
+);
+
+function attributeOptions(def: AttributeDefinition, facet: FacetValue[]): GroupOption[] {
+  const selected = props.state.attrs[def.key] ?? [];
+  return facetOptions(facet, selected, (value, label) =>
+    labels.attributeValueLabel(def.key, value, label),
+  ).map((o) => ({ ...o, name: `${ATTR_PREFIX}${def.key}` }));
+}
+
+const groups = computed<Group[]>(() => {
+  const list: Group[] = GROUPS.map((g) => ({
+    id: g.key,
+    legend: t(g.legend),
     options: facetOptions(facetFor(g.key), props.state[g.key], (value, label) =>
       labelFor(g.key, value, label),
-    ),
-  })).filter((g) => g.options.length > 0),
-);
+    ).map((o) => ({ ...o, name: g.key })),
+  }));
+  const features: GroupOption[] = [];
+  for (const def of filterableDefinitions.value) {
+    if (def.value_type === 'boolean') {
+      const facet = attributeFacet(def).filter((f) => f.value === 'true');
+      features.push(...attributeOptions(def, facet).filter((o) => o.value === 'true'));
+    } else {
+      list.push({
+        id: `${ATTR_PREFIX}${def.key}`,
+        legend: labels.attributeLabel(def.key),
+        hint: labelText(def.description, locale.value),
+        options: attributeOptions(def, attributeFacet(def)),
+      });
+    }
+  }
+  list.push({ id: 'features', legend: t('filters.features'), options: features });
+  return list.filter((g) => g.options.length > 0);
+});
 
 const activeCount = computed(() => activeFilterCount(props.state));
 
@@ -118,19 +187,31 @@ const optionId = (key: string, value: string) =>
         {{ open ? t('filters.hide') : t('filters.show') }}
       </summary>
       <div class="filters__body" @change="onChange">
-        <fieldset v-for="group in groups" :key="group.key" class="filters__group">
-          <legend>{{ t(group.legend) }}</legend>
+        <fieldset
+          v-for="group in groups"
+          :key="group.id"
+          class="filters__group"
+          :aria-describedby="group.hint ? `filter-${group.id}-hint` : undefined"
+        >
+          <legend>{{ group.legend }}</legend>
+          <p
+            v-if="group.hint"
+            :id="`filter-${group.id}-hint`"
+            class="filters__hint filters__hint--group"
+          >
+            {{ group.hint }}
+          </p>
           <ul>
-            <li v-for="option in group.options" :key="option.value">
+            <li v-for="option in group.options" :key="`${option.name}:${option.value}`">
               <input
-                :id="optionId(group.key, option.value)"
+                :id="optionId(option.name, option.value)"
                 type="checkbox"
-                :name="group.key"
+                :name="option.name"
                 :value="option.value"
                 :checked="option.checked"
                 :form="props.formId"
               />
-              <label :for="optionId(group.key, option.value)">
+              <label :for="optionId(option.name, option.value)">
                 {{ option.label }}
                 <template v-if="option.count !== null">
                   <span class="filters__n" aria-hidden="true">({{ option.count }})</span>
@@ -239,6 +320,10 @@ const optionId = (key: string, value: string) =>
   float: left;
   width: 100%;
   margin-bottom: 0.4rem;
+}
+.filters__hint--group {
+  clear: both;
+  margin: 0 0 0.4rem;
 }
 .filters__group ul {
   clear: both;

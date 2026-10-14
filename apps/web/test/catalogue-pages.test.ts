@@ -196,8 +196,91 @@ describe('catalogue page', () => {
     expect(searchCalls().at(-1)!.options?.query).toEqual({});
   });
 
+  it('sends kind and attribute filters from the URL, dropping the ones not offered [DL 18]', async () => {
+    await mountSuspended(CataloguePage, {
+      route:
+        '/en/courses?kind=bip&attr_sdg=sdg_13&attr_sdg=sdg_99&attr_free_course=true' +
+        '&attr_faculty=Chemistry&attr_nope=1&sort=deadline',
+    });
+    expect(searchCalls().at(-1)!.options?.query).toEqual({
+      kind: ['bip'],
+      attr_free_course: ['true'],
+      attr_sdg: ['sdg_13'],
+      sort: 'deadline',
+    });
+  });
+
+  it('renders attribute filters, chips and the deadline sort from the URL', async () => {
+    const w = await mountSuspended(CataloguePage, {
+      route: '/en/courses?kind=bip&attr_sdg=sdg_13&attr_free_course=true&sort=deadline',
+    });
+    expect((w.find('#filter-kind-bip').element as HTMLInputElement).checked).toBe(true);
+    expect((w.find('#filter-attr_sdg-sdg_13').element as HTMLInputElement).checked).toBe(true);
+    expect((w.find('#filter-attr_free_course-true').element as HTMLInputElement).checked).toBe(
+      true,
+    );
+    expect(w.find('#filter-attr_sdg-sdg_13').attributes('form')).toBe('catalogue-form');
+    expect(w.findAll('a.chip').map((c) => c.find('span').text())).toEqual([
+      'Type of course: Blended intensive programme (BIP)',
+      'Sustainable Development Goals: SDG 13: Climate action',
+      'Free course',
+    ]);
+    // The server-rendered markup selects the option (happy-dom's `select.value`
+    // does not follow `selected` set on a later option).
+    expect(w.findAll('select#sort option[selected]').map((o) => o.attributes('value'))).toEqual([
+      'deadline',
+    ]);
+    const sort = w.find('select#sort').element as HTMLSelectElement;
+    expect([...sort.options].map((o) => o.text)).toEqual([
+      'Best match',
+      'Title (A–Z)',
+      'Next start date',
+      'Application deadline',
+    ]);
+    // Cards with a deadline emphasise it.
+    expect(w.findAll('.catalogue__list dd.is-highlighted').map((d) => d.text())).toEqual([
+      'Dec 15, 2026',
+      'Oct 1, 2026 (deadline passed)',
+    ]);
+    expect(w.find('.course-card__kind').text()).toBe('BIP');
+  });
+
+  it('renders an older API without kinds, levels or attributes', async () => {
+    const { kinds: _k, attribute_definitions: _d, ...oldReference } = fixtures.reference;
+    const oldSearch = {
+      ...fixtures.search,
+      items: fixtures.search.items.map((item) => {
+        const { kind: _kind, levels: _levels, attributes: _attributes, ...card } = item;
+        return card;
+      }),
+      facets: { ...fixtures.search.facets, kind: undefined, attributes: undefined },
+    };
+    api.handler = fixtureHandler({
+      '/api/public/v1/reference': async () => oldReference,
+      '/api/public/v1/courses': async () => oldSearch,
+    }) as Handler;
+    const w = await mountSuspended(CataloguePage, {
+      route: '/en/courses?attr_sdg=sdg_13&kind=bip',
+    });
+    // No attribute schema: attribute filters are not sent.
+    expect(searchCalls().at(-1)!.options?.query).toEqual({ kind: ['bip'] });
+    expect(w.findAll('.catalogue__list > li')).toHaveLength(3);
+    expect(w.find('.course-card__kind').exists()).toBe(false);
+    expect(w.find('.course-card__tags').exists()).toBe(false);
+    expect(w.find('input[name^="attr_"]').exists()).toBe(false);
+    expect(w.text()).toContain('LevelMaster');
+    expect(await axeViolations(w.html())).toEqual([]);
+  });
+
   it('has no axe violations', async () => {
     const w = await mountSuspended(CataloguePage, { route });
+    expect(await axeViolations(w.html())).toEqual([]);
+  });
+
+  it('has no axe violations with attribute filters and the deadline sort', async () => {
+    const w = await mountSuspended(CataloguePage, {
+      route: '/en/courses?kind=bip&attr_sdg=sdg_13&attr_free_course=true&sort=deadline',
+    });
     expect(await axeViolations(w.html())).toEqual([]);
   });
 });
@@ -221,7 +304,8 @@ describe('course page', () => {
 
     const facts = Object.fromEntries(
       w
-        .findAll('.course__facts dt')
+        .findAll('.course__facts dl')[0]!
+        .findAll('dt')
         .map((dt) => [
           dt.text(),
           (dt.element.nextElementSibling as HTMLElement).textContent?.trim(),
@@ -230,7 +314,8 @@ describe('course page', () => {
     expect(facts).toEqual({
       'Teaching unit': 'Faculty of Chemistry',
       'ECTS credits': '6',
-      Level: 'Master, EQF level 7',
+      Type: 'Blended intensive programme (BIP)',
+      Levels: 'Bachelor, Master (EQF level 7)',
       'Teaching hours': '48',
       'Field of study': 'Natural sciences, mathematics and statistics',
       'Teaching languages': 'English, Catalan',
@@ -267,6 +352,7 @@ describe('course page', () => {
       name: 'Climate Change and Mediterranean Ecosystems',
       url: canonical,
       provider: { '@type': 'CollegeOrUniversity' },
+      educationalLevel: ['bachelor', 'master'],
     });
     expect(ld.hasCourseInstance).toHaveLength(2);
     expect(ld.hasCourseInstance[0].courseMode).toEqual(['Online', 'Blended']);
@@ -329,6 +415,62 @@ describe('course page', () => {
     );
     expect(offerings[0]!.text()).toContain('Application deadline passed');
     expect(offerings[1]!.find('a[href="mailto:international@urv.cat"]').exists()).toBe(true);
+  });
+
+  it('lists every attribute of the course with labels [DL 18]', async () => {
+    const w = await mountSuspended(CoursePage, { route: path });
+    expect(w.find('#attributes-heading').text()).toBe('Course attributes');
+    const list = w.findAll('.course__facts dl')[1]!;
+    const pairs = list
+      .findAll('dt')
+      .map((dt) => [dt.text(), (dt.element.nextElementSibling as HTMLElement).textContent?.trim()]);
+    expect(pairs).toEqual([
+      ['Educational hub', 'Sustainability'],
+      ['Sustainable Development Goals', 'SDG 13: Climate action, SDG 14: Life below water'],
+      ['Target audience', 'Students, Doctoral candidates'],
+      ['Aurora competence framework', 'LOUIS'],
+      ['Micro-credential', 'Yes'],
+      ['Free course', 'Yes'],
+      ['Only for enrolled students', 'No'],
+      ['Faculty', 'Faculty of Chemistry; Faculty of Tourism and Geography'],
+    ]);
+  });
+
+  it('shows how to apply in the course text language', async () => {
+    const w = await mountSuspended(CoursePage, { route: path });
+    const first = w.findAll('.course__offering-list > li')[0]!;
+    expect(first.find('.offering__instructions h4').text()).toBe('How to apply');
+    expect(first.find('.offering__instructions p').text()).toBe(
+      fixtures.course.offerings[0]!.application_instructions.en,
+    );
+    expect(
+      w.findAll('.course__offering-list > li')[1]!.find('.offering__instructions').exists(),
+    ).toBe(false);
+    clearNuxtData();
+    const ca = await mountSuspended(CoursePage, { route: `${path}?text_lang=ca` });
+    const p = ca.find('.offering__instructions p');
+    expect(p.attributes('lang')).toBe('ca');
+    expect(p.text()).toBe(fixtures.course.offerings[0]!.application_instructions.ca);
+  });
+
+  it('renders a course from an older API (no kind, levels, attributes or instructions)', async () => {
+    const { kind: _k, levels: _l, attributes: _a, ...old } = fixtures.course;
+    const oldCourse = {
+      ...old,
+      offerings: old.offerings.map(({ application_instructions: _i, ...o }) => o),
+    };
+    api.handler = fixtureHandler({
+      [`/api/public/v1/courses/${COURSE_ID}`]: async () => oldCourse,
+    }) as Handler;
+    const w = await mountSuspended(CoursePage, { route: path });
+    const dts = w.findAll('.course__facts dt').map((dt) => dt.text());
+    expect(dts).toContain('Level');
+    expect(dts).not.toContain('Type');
+    expect(w.findAll('.course__facts dl')).toHaveLength(1);
+    expect(w.find('#attributes-heading').exists()).toBe(false);
+    expect(w.find('.offering__instructions').exists()).toBe(false);
+    expect(w.find('.course__offering-list a.button').exists()).toBe(true);
+    expect(await axeViolations(w.html())).toEqual([]);
   });
 
   it('answers 404 for an unknown course and 503 when the API is down', async () => {

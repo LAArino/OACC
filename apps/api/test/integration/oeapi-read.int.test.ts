@@ -212,7 +212,9 @@ describe.runIf(describeWithDatabase === 'run')('OEAPI v5 read API (PostgreSQL)',
         organization: ORG.uibk,
         ext: {
           oecp: {
+            kind: 'course',
             level: 'master',
+            levels: ['master'],
             eqfLevel: 7,
             teachingHours: 45,
             iscedCodes: ['0533', '0613'],
@@ -226,6 +228,12 @@ describe.runIf(describeWithDatabase === 'run')('OEAPI v5 read API (PostgreSQL)',
             keywords: [{ language: 'en', value: ['qubits', 'entanglement'] }],
             teachingUnit: null,
             contactEmail: null,
+            attributes: {
+              competence_framework: 'louis',
+              educational_hub: ['digital_society_global_citizenship'],
+              free_course: true,
+              sdg: ['sdg04', 'sdg09'],
+            },
             updatedAt: expect.any(String),
           },
         },
@@ -355,6 +363,23 @@ describe.runIf(describeWithDatabase === 'run')('OEAPI v5 read API (PostgreSQL)',
       const plain = await http().get(`/oeapi/v5/offerings/${OFFERING.A1}`).expect(200);
       expect(plain.body).toMatchObject({ academicSession: SESSION.summer, course: COURSE.A });
       expect(schemaErrors('CourseOffering', plain.body)).toEqual([]);
+    });
+
+    it('carries application instructions and course attributes in ext.oecp', async () => {
+      const res = await http().get(`/oeapi/v5/offerings/${OFFERING.B1}?expand=course`).expect(200);
+      expect(res.body.ext.oecp.applicationInstructions).toEqual([
+        { language: 'en', value: 'Apply through the Aurora office of your home university.' },
+        { language: 'ca', value: 'Sol·liciteu-ho a l’oficina Aurora de la vostra universitat.' },
+      ]);
+      expect(res.body.course.ext.oecp).toMatchObject({
+        kind: 'bip',
+        level: 'bachelor',
+        levels: ['bachelor', 'master'],
+        attributes: { sdg: ['sdg04'], free_course: false, open_to_alliance: true },
+      });
+      expect(schemaErrors('CourseOffering', res.body)).toEqual([]);
+      const a1 = await http().get(`/oeapi/v5/offerings/${OFFERING.A1}`).expect(200);
+      expect(a1.body.ext.oecp).not.toHaveProperty('applicationInstructions');
     });
 
     it.each([

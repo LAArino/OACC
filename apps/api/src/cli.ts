@@ -2,6 +2,7 @@
 /**
  * `oecp` operations CLI, run inside the api container:
  *   node dist/cli.js seed-organizations [--file <path>] [--dry-run]
+ *   node dist/cli.js seed-attribute-definitions [--file <path>] [--dry-run]
  *   node dist/cli.js bootstrap-alliance-admin --email <e> --org <slug> [--ttl-hours 24]
  *   printf %s "$SECRET" | node dist/cli.js store-secret --purpose surfeduhub
  */
@@ -18,6 +19,7 @@ import {
   type ExitCode,
   runProgram,
 } from './cli/program.js';
+import { SeedAttributeDefinitionsCommand } from './cli/seed-attribute-definitions.js';
 import { SeedOrganizationsCommand } from './cli/seed-organizations.js';
 import { readStdin, StoreSecretCommand } from './cli/store-secret.js';
 
@@ -61,6 +63,8 @@ async function withContext(
 const handlers: CliHandlers = {
   seedOrganizations: (options) =>
     withContext((app) => app.get(SeedOrganizationsCommand).run(options, output)),
+  seedAttributeDefinitions: (options) =>
+    withContext((app) => app.get(SeedAttributeDefinitionsCommand).run(options, output)),
   bootstrapAllianceAdmin: (options) =>
     withContext((app) => app.get(BootstrapAllianceAdminCommand).run(options, output)),
   storeSecret: async (options) => {

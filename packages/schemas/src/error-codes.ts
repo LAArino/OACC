@@ -75,13 +75,30 @@ export const ERROR_CODES = {
   'oecp.content.unknown_teaching_unit': { severity: 'error', message: 'Unknown teaching unit' },
   'oecp.content.unknown_session': { severity: 'error', message: 'Unknown academic session' },
   'oecp.content.unknown_course': { severity: 'error', message: 'Unknown course code' },
+  'oecp.content.unknown_attribute': {
+    severity: 'error',
+    message: 'Unknown attribute (not defined by the alliance)',
+  },
+  'oecp.content.invalid_attribute_value': {
+    severity: 'error',
+    message: 'Attribute value does not match its definition',
+  },
+  'oecp.content.unknown_attribute_option': {
+    severity: 'error',
+    message: 'Attribute value is not one of the defined options',
+  },
 
   'oecp.csv.missing_column': { severity: 'error', message: 'Required column is missing' },
   'oecp.csv.unknown_column': { severity: 'error', message: 'Unknown column' },
   'oecp.csv.missing_value': { severity: 'error', message: 'Required value is empty' },
   'oecp.csv.invalid_template_version': {
     severity: 'error',
-    message: 'Expected template_version 1.0',
+    message:
+      'Expected template_version 1.0 or 1.1 (1.1 for kind, levels, attr_* and application_instructions_* columns)',
+  },
+  'oecp.csv.conflicting_columns': {
+    severity: 'error',
+    message: 'Use either level or levels, not both',
   },
   'oecp.csv.invalid_code': { severity: 'error', message: 'Invalid course or offering code' },
   'oecp.csv.invalid_status': {
@@ -96,6 +113,10 @@ export const ERROR_CODES = {
   'oecp.csv.invalid_isced': { severity: 'error', message: 'Invalid ISCED-F code' },
   'oecp.csv.invalid_delivery_mode': { severity: 'error', message: 'Invalid delivery mode code' },
   'oecp.csv.invalid_level': { severity: 'error', message: 'Invalid level' },
+  'oecp.csv.invalid_kind': {
+    severity: 'error',
+    message: 'Expected course, bip, lecture_series or other',
+  },
   'oecp.csv.invalid_timezone': { severity: 'error', message: 'Invalid IANA time zone' },
   'oecp.csv.cell_too_long': { severity: 'error', message: 'Cell exceeds 20,000 characters' },
   'oecp.csv.duplicate_row': { severity: 'error', message: 'Duplicate natural key in file' },
@@ -229,6 +250,10 @@ export const ERROR_CODES = {
   'oecp.oeapi.invalid_student_counts': {
     severity: 'warning',
     message: 'Student numbers ignored (maxNumberStudents must be greater than 0)',
+  },
+  'oecp.oeapi.invalid_extension': {
+    severity: 'warning',
+    message: 'An ext.oecp member has an invalid shape and was ignored',
   },
   'oecp.oeapi.write_failed': {
     severity: 'error',

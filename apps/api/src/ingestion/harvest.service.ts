@@ -2,7 +2,12 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ERROR_CODES, type ErrorCode, type ProblemError } from '@oecp/schemas';
 import { type Db, KYSELY } from '../db/db.module.js';
-import { CanonicalWriter, HARVESTER_ACTOR, offeringHistoryId } from './canonical-writer.service.js';
+import {
+  CanonicalContentRejected,
+  CanonicalWriter,
+  HARVESTER_ACTOR,
+  offeringHistoryId,
+} from './canonical-writer.service.js';
 import type { HarvestJobData } from './harvest.constants.js';
 import {
   type MappedCourse,
@@ -609,6 +614,11 @@ export class HarvestService {
     error: unknown,
     ref: { course?: { extId: string }; offering?: { courseExtId: string; extOfferingId: string } },
   ): Promise<void> {
+    if (error instanceof CanonicalContentRejected) {
+      // Content the alliance's definitions refuse (attributes): a rejection, not a failure.
+      await this.safeReject(ctx, { entityType, extId, ...ref }, raw, error.errors);
+      return;
+    }
     const detail = error instanceof Error ? error.message : String(error);
     this.logger.warn(`Harvest ${ctx.syncRunId}: ${entityType} ${extId} not written: ${detail}`);
     await this.safeReject(ctx, { entityType, extId, ...ref }, raw, [

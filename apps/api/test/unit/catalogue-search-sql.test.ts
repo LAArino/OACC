@@ -1,12 +1,48 @@
 // SPDX-License-Identifier: EUPL-1.2
-import { courseSearchQuery, normalizeCourseSearch } from '@oecp/schemas';
+import { type AttributeDefinition, courseSearchQuery, normalizeCourseSearch } from '@oecp/schemas';
 import { describe, expect, it } from 'vitest';
 import { CourseSearchSql, parseTextQuery, TS_CONFIGS } from '../../src/catalogue/search-sql.js';
 import { createFakeDb } from '../support/fake-kysely.js';
 
 const { db } = createFakeDb();
+const DEFINITIONS: AttributeDefinition[] = [
+  {
+    key: 'free_course',
+    value_type: 'boolean',
+    label: { en: 'Free course' },
+    description: null,
+    options: null,
+    filterable: true,
+    show_as_tag: true,
+    sort_order: 0,
+  },
+  {
+    key: 'sdg',
+    value_type: 'multi_enum',
+    label: { en: 'SDG' },
+    description: null,
+    options: [{ value: 'sdg04', label: { en: 'SDG 4' } }],
+    filterable: true,
+    show_as_tag: true,
+    sort_order: 1,
+  },
+  {
+    key: 'competence_framework',
+    value_type: 'enum',
+    label: { en: 'Framework' },
+    description: null,
+    options: [{ value: 'louis', label: { en: 'LOUIS' } }],
+    filterable: false,
+    show_as_tag: false,
+    sort_order: 2,
+  },
+];
 const plan = (query: Record<string, unknown>) =>
-  new CourseSearchSql(normalizeCourseSearch(courseSearchQuery.parse(query)), '2026-10-14');
+  new CourseSearchSql(
+    normalizeCourseSearch(courseSearchQuery.parse(query)),
+    '2026-10-14',
+    DEFINITIONS,
+  );
 const compile = (b: { compile(db: never): { sql: string; parameters: readonly unknown[] } }) =>
   b.compile(db as never);
 const squash = (s: string) => s.replace(/\s+/g, ' ');
@@ -78,7 +114,7 @@ describe('CourseSearchSql', () => {
     const s = squash(sql);
     expect(s).toContain('org.slug = ANY($1::text[])');
     expect(s).toContain('i.broad_code = ANY($2::text[])');
-    expect(s).toContain('c.level = ANY($3::text[])');
+    expect(s).toContain('c.levels && $3::text[]');
     expect(s).toContain('c.ects >= $4 AND c.ects <= $5');
     expect(s).toContain('m.mode_code = ANY($7::text[])');
     expect(s).toContain("split_part(tl.tag, '-', 1) = ANY($8::text[])");
@@ -92,6 +128,69 @@ describe('CourseSearchSql', () => {
       ['online'],
       ['en'],
     ]);
+  });
+
+  it('filters by kind and by attributes with jsonb containment, ignoring unknown keys', () => {
+    const { sql, parameters } = compile(
+      plan({
+        kind: ['bip', 'lecture_series'],
+        attr_free_course: ['true', 'maybe'],
+        attr_sdg: 'sdg04',
+        attr_competence_framework: 'louis',
+        attr_not_defined: 'x',
+        upcoming: 'false',
+      }).countQuery(),
+    );
+    const s = squash(sql);
+    expect(s).toContain('c.kind = ANY($1::text[])');
+    expect(s).toContain('(c.attributes @> $2::jsonb OR false)');
+    expect(s).toContain('(c.attributes @> $3::jsonb)');
+    expect(s).toContain('(c.attributes @> $4::jsonb)');
+    expect(parameters).toEqual([
+      ['bip', 'lecture_series'],
+      '{"free_course":true}',
+      '{"sdg":["sdg04"]}',
+      '{"competence_framework":"louis"}',
+    ]);
+    expect(s).not.toContain('not_defined');
+  });
+
+  it('has one facet per filterable definition, each omitting its own filter', () => {
+    const p = plan({ attr_sdg: 'sdg04', attr_free_course: 'true', level: 'master' });
+    expect(p.facetKeys()).toEqual([
+      'partner',
+      'mode',
+      'lang',
+      'isced',
+      'level',
+      'kind',
+      'attr:free_course',
+      'attr:sdg',
+    ]);
+    const sdg = squash(compile(p.facetQuery('attr:sdg')).sql);
+    expect(sdg).toContain('jsonb_array_elements_text');
+    expect(sdg).not.toContain('{"sdg"');
+    const sdgParams = compile(p.facetQuery('attr:sdg')).parameters;
+    expect(sdgParams).toContain('{"free_course":true}');
+    expect(sdgParams).not.toContain('{"sdg":["sdg04"]}');
+    const free = compile(p.facetQuery('attr:free_course'));
+    expect(squash(free.sql)).toContain('jsonb_typeof(c.attributes -> $');
+    expect(free.parameters).not.toContain('{"free_course":true}');
+    const level = squash(compile(p.facetQuery('level')).sql);
+    expect(level).toContain('unnest(c.levels)');
+    expect(level).not.toContain('c.levels &&');
+    expect(squash(compile(p.facetQuery('kind')).sql)).toContain('GROUP BY c.kind');
+  });
+
+  it('sorts by the next upcoming application deadline, courses without one last', () => {
+    const { sql, parameters } = compile(plan({ sort: 'deadline' }).pageQuery());
+    const s = squash(sql);
+    expect(s).toContain('min(o.application_deadline)');
+    expect(s).toContain('AND o.application_deadline >= $');
+    expect(s).toContain(
+      'ORDER BY next_deadline ASC NULLS LAST, next_start ASC NULLS LAST, title_key ASC, c.id',
+    );
+    expect(parameters.filter((p) => p === '2026-10-14').length).toBeGreaterThanOrEqual(3);
   });
 
   it('omits the facet own filter (disjunctive facets)', () => {

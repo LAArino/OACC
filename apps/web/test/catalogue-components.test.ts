@@ -150,6 +150,36 @@ describe('FilterChips', () => {
     expect(w.emitted('navigate')).toHaveLength(1);
   });
 
+  it('labels kind and attribute filters and removes them one by one [DL 18]', async () => {
+    const s = parseSearchState({
+      kind: 'bip',
+      attr_free_course: 'true',
+      attr_sdg: ['sdg_13', 'sdg_15'],
+      attr_unknown_key: 'x',
+      sort: 'deadline',
+    });
+    const w = await mountSuspended(FilterChips, {
+      props: { state: s, reference, listPath: '/en/courses' },
+    });
+    const chips = w.findAll('a.chip');
+    expect(chips.map((c) => c.find('span').text())).toEqual([
+      'Type of course: Blended intensive programme (BIP)',
+      'Sustainable Development Goals: SDG 13: Climate action',
+      'Sustainable Development Goals: SDG 15: Life on land',
+      'Free course',
+      'unknown key: x',
+    ]);
+    const href = (i: number) => new URL(chips[i]!.attributes('href')!, 'http://x').searchParams;
+    expect(href(0).has('kind')).toBe(false);
+    expect(href(1).getAll('attr_sdg')).toEqual(['sdg_15']);
+    expect(href(1).get('attr_free_course')).toBe('true');
+    expect(href(1).get('kind')).toBe('bip');
+    expect(href(1).get('sort')).toBe('deadline');
+    expect(href(3).has('attr_free_course')).toBe(false);
+    expect(href(3).getAll('attr_sdg')).toEqual(['sdg_13', 'sdg_15']);
+    expect(w.find('a.filter-chips__clear').attributes('href')).toBe('/en/courses?sort=deadline');
+  });
+
   it('renders nothing without filters', async () => {
     const w = await mountSuspended(FilterChips, {
       props: { state: emptySearchState(), reference, listPath: '/en/courses' },
@@ -453,6 +483,51 @@ describe('OfferingDetails', () => {
     expect(noEmail.text()).toContain('To apply, contact Universitat Rovira i Virgili.');
   });
 
+  it('shows how to apply above the application link, as plain text [DL 18]', async () => {
+    const w = await mountOffering(offering(0));
+    const section = w.find('.offering__instructions');
+    expect(section.find('h4').text()).toBe('How to apply');
+    expect(section.attributes('aria-labelledby')).toBe(section.find('h4').attributes('id'));
+    const text = section.find('p.text-block');
+    expect(text.text()).toBe(fixtures.course.offerings[0]!.application_instructions.en);
+    expect(text.attributes('lang')).toBeUndefined();
+    // Instructions come before the apply action.
+    const html = w.html();
+    expect(html.indexOf('offering__instructions')).toBeLessThan(html.indexOf('offering__apply'));
+  });
+
+  it('follows the course text language, falling back to English', async () => {
+    const mountIn = (textLang: string) =>
+      mountSuspended(OfferingDetails, {
+        props: { offering: offering(0), partner: 'URV', reference, textLang },
+      });
+    const ca = await mountIn('ca');
+    expect(ca.find('.offering__instructions p').attributes('lang')).toBe('ca');
+    expect(ca.find('.offering__instructions p').text()).toContain("Contacta amb l'oficina Aurora");
+    const de = await mountIn('de');
+    expect(de.find('.offering__instructions p').attributes('lang')).toBeUndefined();
+    expect(de.find('.offering__instructions p').text()).toContain('Contact the Aurora office');
+  });
+
+  it('never renders instructions as HTML', async () => {
+    const w = await mountOffering({
+      ...offering(0),
+      application_instructions: { en: 'Write to <b>us</b>.\n<script>alert(1)</script>' },
+    });
+    const p = w.find('.offering__instructions p');
+    expect(p.text()).toContain('Write to <b>us</b>.');
+    expect(p.find('b').exists()).toBe(false);
+    expect(p.find('script').exists()).toBe(false);
+  });
+
+  it('shows no instructions when there are none (or with an older API)', async () => {
+    expect((await mountOffering(offering(1))).find('.offering__instructions').exists()).toBe(false);
+    const { application_instructions: _omitted, ...old } = offering(0);
+    const w = await mountOffering(old as Offering);
+    expect(w.find('.offering__instructions').exists()).toBe(false);
+    expect(w.find('a.button').exists()).toBe(true);
+  });
+
   it('never links unsafe application URLs', async () => {
     const w = await mountOffering({ ...offering(0), application_url: 'javascript:alert(1)' });
     expect(w.find('a.button').exists()).toBe(false);
@@ -463,6 +538,7 @@ describe('OfferingDetails', () => {
     expect(w.find('.offering__badge').text()).toBe('Cancelled');
     expect(w.find('a.button').exists()).toBe(false);
     expect(w.text()).not.toContain('Seats available');
+    expect(w.find('.offering__instructions').exists()).toBe(false);
   });
 
   it('has no axe violations', async () => {
@@ -481,13 +557,79 @@ describe('CourseCard', () => {
     const text = w.text();
     expect(text).toContain('Universitat Rovira i Virgili · Spain');
     expect(text).toContain('ECTS credits6');
-    expect(text).toContain('LevelMaster');
+    expect(text).toContain('LevelsBachelor, Master');
     expect(text).toContain('Delivery modeOnline, Hybrid');
     expect(text).toContain('Teaching languagesEnglish, Catalan');
     expect(text).toContain('Next offeringFeb 8, 2027 – Jun 11, 2027');
     expect(text).toContain('Application deadlineDec 15, 2026');
     expect(text).toContain('Seats available: 12 (as of Oct 10, 2026) · Alliance seats: 5');
     expect(text).toContain('1 more offering');
+  });
+
+  it('shows a kind badge, and attribute tags capped at four with "+N" [DL 18]', async () => {
+    const w = await mountSuspended(CourseCard, { props: { course: card(0), reference } });
+    const badge = w.find('.course-card__kind');
+    expect(badge.text()).toBe('BIP');
+    // The badge follows the title in reading order.
+    expect(w.html().indexOf('course-card__kind')).toBeGreaterThan(w.html().indexOf('<h3'));
+    const tags = w.find('ul.course-card__tags');
+    expect(tags.attributes('aria-label')).toBe('Course attributes');
+    expect(tags.findAll('li').map((li) => li.text())).toEqual([
+      'Sustainability',
+      'SDG 13: Climate action',
+      'SDG 14: Life below water',
+      'Micro-credential',
+      '+11 more attribute',
+    ]);
+    expect(tags.find('.course-card__more [aria-hidden="true"]').text()).toBe('+1');
+    expect(tags.find('.course-card__more .visually-hidden').text()).toBe('1 more attribute');
+  });
+
+  it('shows no badge for plain courses, and only tag attributes', async () => {
+    const w = await mountSuspended(CourseCard, { props: { course: card(1), reference } });
+    expect(w.find('.course-card__kind').exists()).toBe(false);
+    expect(w.findAll('.course-card__tags li').map((li) => li.text())).toEqual(['Free course']);
+    expect(w.text()).toContain('LevelBachelor');
+    const lecture = await mountSuspended(CourseCard, { props: { course: card(2), reference } });
+    expect(lecture.find('.course-card__kind').text()).toBe('Lecture series');
+    expect(lecture.find('.course-card__tags').exists()).toBe(false);
+  });
+
+  it('renders an older API card (no kind, levels or attributes)', async () => {
+    const { kind: _k, levels: _l, attributes: _a, ...old } = card(0);
+    const w = await mountSuspended(CourseCard, {
+      props: { course: old as CourseCardData, reference },
+    });
+    expect(w.find('.course-card__kind').exists()).toBe(false);
+    expect(w.find('.course-card__tags').exists()).toBe(false);
+    expect(w.text()).toContain('LevelMaster');
+    expect(w.text()).toContain('Application deadlineDec 15, 2026');
+    // Without the attribute schema in the reference data there are no tags either.
+    const { attribute_definitions: _d, ...oldReference } = reference;
+    const noSchema = await mountSuspended(CourseCard, {
+      props: { course: card(0), reference: oldReference as ReferenceData },
+    });
+    expect(noSchema.find('.course-card__tags').exists()).toBe(false);
+    expect(noSchema.find('.course-card__kind').text()).toBe('BIP');
+  });
+
+  it('highlights the deadline when results are sorted by it', async () => {
+    const plain = await mountSuspended(CourseCard, { props: { course: card(0), reference } });
+    expect(plain.find('.is-highlighted').exists()).toBe(false);
+    const w = await mountSuspended(CourseCard, {
+      props: { course: card(0), reference, highlightDeadline: true },
+    });
+    expect(w.findAll('.is-highlighted').map((e) => e.text())).toEqual([
+      'Application deadline',
+      'Dec 15, 2026',
+    ]);
+  });
+
+  it('has no axe violations', async () => {
+    const w = await mountSuspended(CourseCard, {
+      props: { course: card(0), reference, highlightDeadline: true },
+    });
+    expect(await axeViolations(w.html())).toEqual([]);
   });
 
   it('marks a passed deadline and alliance seats', async () => {
@@ -546,10 +688,15 @@ describe('CatalogueFilters', () => {
     );
     expect(w.findAll('fieldset legend').map((l) => l.text())).toEqual([
       'University',
+      'Type of course',
       'Delivery mode',
       'Teaching language',
       'Field of study',
       'Level',
+      'Educational hub',
+      'Sustainable Development Goals',
+      'Target audience',
+      'Course features',
       'ECTS credits',
     ]);
     expect((w.find('input[name="ects_max"]').element as HTMLInputElement).value).toBe('6');
@@ -557,6 +704,99 @@ describe('CatalogueFilters', () => {
     expect(past.attributes('value')).toBe('false');
     expect((past.element as HTMLInputElement).checked).toBe(true);
     expect(w.find('h2').text()).toBe('Filters 4 active');
+  });
+
+  it('offers kinds and filterable attributes with counts, checked from the URL [DL 18]', async () => {
+    const state = parseSearchState({
+      kind: 'bip',
+      attr_sdg: ['sdg_14', 'sdg_15'],
+      attr_free_course: 'true',
+    });
+    const w = await mountSuspended(CatalogueFilters, {
+      props: { state, facets, reference, formId: 'catalogue-form' },
+    });
+    const kinds = w.findAll('input[name="kind"]');
+    expect(kinds.map((k) => k.attributes('value'))).toEqual(['bip', 'course', 'lecture_series']);
+    expect(w.find('label[for="filter-kind-bip"]').text()).toBe(
+      'Blended intensive programme (BIP) (1), 1 course',
+    );
+    expect((kinds[0]!.element as HTMLInputElement).checked).toBe(true);
+
+    const sdg = w.findAll('input[name="attr_sdg"]');
+    // Facet values, plus a selected value without results (count 0).
+    expect(sdg.map((i) => i.attributes('value'))).toEqual(['sdg_13', 'sdg_14', 'sdg_15']);
+    expect(sdg.map((i) => (i.element as HTMLInputElement).checked)).toEqual([false, true, true]);
+    expect(w.find('label[for="filter-attr_sdg-sdg_15"]').text()).toBe(
+      'SDG 15: Life on land (0), no courses',
+    );
+    expect(w.find('label[for="filter-attr_target_audience-phd"]').text()).toBe(
+      'Doctoral candidates (1), 1 course',
+    );
+    // Not filterable: no group.
+    expect(w.find('input[name="attr_competence_framework"]').exists()).toBe(false);
+    expect(w.find('input[name="attr_faculty"]').exists()).toBe(false);
+
+    const hub = w.find('input[name="attr_educational_hub"]').element.closest('fieldset')!;
+    expect(hub.getAttribute('aria-describedby')).toBe('filter-attr_educational_hub-hint');
+    expect(w.find('#filter-attr_educational_hub-hint').text()).toBe(
+      'Aurora hub the course belongs to.',
+    );
+
+    const features = w
+      .findAll('fieldset')
+      .find((f) => f.find('legend').text() === 'Course features')!;
+    const booleans = features.findAll('input');
+    expect(booleans.map((b) => [b.attributes('name'), b.attributes('value')])).toEqual([
+      ['attr_micro_credential', 'true'],
+      ['attr_free_course', 'true'],
+      ['attr_only_enrolled', 'true'],
+    ]);
+    expect(booleans.map((b) => (b.element as HTMLInputElement).checked)).toEqual([
+      false,
+      true,
+      false,
+    ]);
+    expect(features.find('label[for="filter-attr_free_course-true"]').text()).toBe(
+      'Free course (2), 2 courses',
+    );
+    for (const input of w.findAll('input')) {
+      expect(input.attributes('form')).toBe('catalogue-form');
+    }
+    expect(w.find('h2').text()).toBe('Filters 4 active');
+  });
+
+  it('lists attribute options from the schema when there are no facets', async () => {
+    const w = await mountSuspended(CatalogueFilters, {
+      props: { state: emptySearchState(), facets: null, reference, formId: 'f' },
+    });
+    expect(
+      w.findAll('input[name="attr_educational_hub"]').map((i) => i.attributes('value')),
+    ).toEqual(['sustainability', 'digital_society', 'social_inclusion']);
+    expect(w.find('label[for="filter-attr_micro_credential-true"]').text()).toBe(
+      'Micro-credential',
+    );
+    expect(w.findAll('input[name="kind"]')).toHaveLength(4);
+  });
+
+  it('shows no kind or attribute groups with an older API', async () => {
+    const { kind: _k, attributes: _a, ...oldFacets } = facets;
+    const { kinds: _kinds, attribute_definitions: _d, ...oldReference } = reference;
+    const w = await mountSuspended(CatalogueFilters, {
+      props: {
+        state: emptySearchState(),
+        facets: oldFacets as SearchFacets,
+        reference: oldReference as ReferenceData,
+        formId: 'f',
+      },
+    });
+    expect(w.findAll('fieldset legend').map((l) => l.text())).toEqual([
+      'University',
+      'Delivery mode',
+      'Teaching language',
+      'Field of study',
+      'Level',
+      'ECTS credits',
+    ]);
   });
 
   it('applies checkbox changes at once but not typing in the ECTS range', async () => {
@@ -584,7 +824,12 @@ describe('CatalogueFilters', () => {
 
   it('has no axe violations', async () => {
     const w = await mountSuspended(CatalogueFilters, {
-      props: { state: parseSearchState({ lang: 'en' }), facets, reference, formId: 'f' },
+      props: {
+        state: parseSearchState({ lang: 'en', attr_sdg: 'sdg_13', attr_free_course: 'true' }),
+        facets,
+        reference,
+        formId: 'f',
+      },
     });
     expect(await axeViolations(`<form id="f"></form>${w.html()}`)).toEqual([]);
   });

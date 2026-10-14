@@ -2,9 +2,13 @@
 import type { Course, CourseOffering } from '@oecp/schemas';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { CanonicalWriter } from '../../src/ingestion/canonical-writer.service.js';
+import {
+  CanonicalContentRejected,
+  CanonicalWriter,
+} from '../../src/ingestion/canonical-writer.service.js';
 import { jcsSha256 } from '../../src/ingestion/jcs.js';
 import { offeringKey, type WriteContext } from '../../src/ingestion/ports/canonical-writer.js';
+import { seedAttributeDefinitions } from '../support/attribute-definitions.js';
 import {
   createTestDatabase,
   describeWithDatabase,
@@ -18,8 +22,11 @@ const course = (patch: Partial<Course> = {}): Course => ({
   ext_id: 'C1',
   source_ref: 'c-1',
   status: 'published',
+  kind: 'course',
   ects: 7.5,
   level: 'master',
+  levels: ['master'],
+  attributes: {},
   eqf_level: 7,
   teaching_hours: null,
   teaching_unit_ext_id: null,
@@ -70,6 +77,7 @@ const offering = (patch: Partial<CourseOffering> = {}): CourseOffering => ({
   seats_available: 5,
   seats_updated_at: T0.toISOString(),
   application_url: null,
+  application_instructions: {},
   ...patch,
 });
 
@@ -555,5 +563,160 @@ describe.runIf(describeWithDatabase === 'run')('CanonicalWriter (PostgreSQL)', (
       .where('ext_id', '=', 'C3')
       .executeTakeFirstOrThrow();
     expect(Number(count)).toBe(1);
+  });
+
+  describe('alliance attributes, kind, levels, application instructions (decision 18)', () => {
+    beforeAll(async () => {
+      await seedAttributeDefinitions(tdb.db);
+    });
+
+    const at = (extId: string, patch: Partial<Course> = {}) =>
+      course({ ext_id: extId, source_ref: null, ...patch });
+
+    it('persists kind, levels (primary first) and attributes; the hash covers them', async () => {
+      const first = at('AT1', {
+        kind: 'bip',
+        level: null,
+        levels: ['bachelor', 'master'],
+        attributes: { sdg: ['sdg04'], free_course: true },
+      });
+      expect((await writer.upsertCourse(ctx, first, { v: 1 })).outcome).toBe('created');
+      expect(await courseRow('AT1')).toMatchObject({
+        kind: 'bip',
+        level: 'bachelor',
+        levels: ['bachelor', 'master'],
+        attributes: { sdg: ['sdg04'], free_course: true },
+      });
+      const again = await writer.upsertCourse(ctx, first, { v: 1 });
+      expect(again.outcome).toBe('unchanged');
+      const changed = { ...first, attributes: { sdg: ['sdg04', 'sdg13'], free_course: true } };
+      const result = await writer.upsertCourse(ctx, changed, { v: 2 });
+      expect(result.outcome).toBe('updated');
+      const row = await courseRow('AT1');
+      expect(row.attributes).toEqual({ sdg: ['sdg04', 'sdg13'], free_course: true });
+      expect(row.content_hash?.equals(jcsSha256(changed))).toBe(true);
+    });
+
+    it('derives levels from a lone level', async () => {
+      await writer.upsertCourse(ctx, at('AT2', { level: 'doctoral', levels: [] }), {});
+      expect(await courseRow('AT2')).toMatchObject({
+        kind: 'course',
+        level: 'doctoral',
+        levels: ['doctoral'],
+        attributes: {},
+      });
+    });
+
+    it.each([
+      [{ hub: ['x'] }, 'oecp.content.unknown_attribute', '/attributes/hub'],
+      [{ sdg: ['sdg04', 'sdg18'] }, 'oecp.content.unknown_attribute_option', '/attributes/sdg/1'],
+      [{ free_course: 'yes' }, 'oecp.content.invalid_attribute_value', '/attributes/free_course'],
+    ])('rejects attributes %j before writing anything', async (attributes, code, pointer) => {
+      const error = await writer
+        .upsertCourse(ctx, at('AT-BAD', { attributes: attributes as never }), {})
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(CanonicalContentRejected);
+      expect((error as CanonicalContentRejected).errors).toEqual([
+        expect.objectContaining({ code, pointer, severity: 'error', ext_id: 'AT-BAD' }),
+      ]);
+      const rows = await tdb.db
+        .selectFrom('courses')
+        .select('id')
+        .where('ext_id', '=', 'AT-BAD')
+        .execute();
+      expect(rows).toEqual([]);
+    });
+
+    it('keeps a bound transaction usable after a rejection (CSV uploads)', async () => {
+      await writer.transaction(async (w) => {
+        await w.upsertCourse(ctx, at('AT3'), {});
+        await expect(
+          w.upsertCourse(ctx, at('AT4', { attributes: { nope: true } }), {}),
+        ).rejects.toBeInstanceOf(CanonicalContentRejected);
+        await w.upsertCourse(ctx, at('AT5', { attributes: { micro_credential: true } }), {});
+      });
+      expect((await courseRow('AT3')).ext_id).toBe('AT3');
+      expect((await courseRow('AT5')).attributes).toEqual({ micro_credential: true });
+    });
+
+    it('keeps manual overrides of kind, levels and attributes over harvested values', async () => {
+      const row = await courseRow('AT2');
+      const by = { by: 'admin-sub', at: '2026-10-14T10:00:00Z' };
+      await tdb.db
+        .updateTable('courses')
+        .set({
+          overrides: {
+            kind: { value: 'lecture_series', ...by },
+            levels: { value: ['master', 'doctoral'], ...by },
+            attributes: { value: { free_course: true }, ...by },
+          },
+        })
+        .where('id', '=', row.id)
+        .execute();
+      // The harvester sends no attributes and its own level.
+      await writer.upsertCourse(ctx, at('AT2', { ects: 9, level: 'doctoral', attributes: {} }), {});
+      expect(await courseRow('AT2')).toMatchObject({
+        ects: '9.00',
+        kind: 'lecture_series',
+        level: 'master',
+        levels: ['master', 'doctoral'],
+        attributes: { free_course: true },
+      });
+      // An override of the primary level alone moves it to the front of the source levels.
+      await tdb.db
+        .updateTable('courses')
+        .set({ overrides: { level: { value: 'bachelor', ...by } } })
+        .where('id', '=', row.id)
+        .execute();
+      await writer.upsertCourse(
+        ctx,
+        at('AT2', { ects: 10, level: 'master', levels: ['master', 'doctoral'] }),
+        {},
+      );
+      expect(await courseRow('AT2')).toMatchObject({
+        kind: 'course',
+        level: 'bachelor',
+        levels: ['bachelor', 'master', 'doctoral'],
+        attributes: {},
+      });
+    });
+
+    it('stores application instructions of offerings; an override wins', async () => {
+      await writer.upsertCourse(ctx, at('AT6'), {});
+      const o = (patch: Partial<CourseOffering> = {}) =>
+        offering({
+          course_ext_id: 'AT6',
+          ext_offering_id: 'AT6-1',
+          academic_session_ext_id: null,
+          application_instructions: { en: 'Ask the Aurora office.', de: 'Fragen Sie.' },
+          ...patch,
+        });
+      await writer.upsertOffering(ctx, o(), {});
+      const read = () =>
+        tdb.db
+          .selectFrom('course_offerings')
+          .select(['id', 'application_instructions'])
+          .where('ext_offering_id', '=', 'AT6-1')
+          .executeTakeFirstOrThrow();
+      expect((await read()).application_instructions).toEqual({
+        en: 'Ask the Aurora office.',
+        de: 'Fragen Sie.',
+      });
+      await tdb.db
+        .updateTable('course_offerings')
+        .set({
+          overrides: {
+            application_instructions: {
+              value: { en: 'Edited.' },
+              by: 'admin-sub',
+              at: '2026-10-14T10:00:00Z',
+            },
+          },
+        })
+        .where('id', '=', (await read()).id)
+        .execute();
+      await writer.upsertOffering(ctx, o({ application_instructions: {} }), {});
+      expect((await read()).application_instructions).toEqual({ en: 'Edited.' });
+    });
   });
 });

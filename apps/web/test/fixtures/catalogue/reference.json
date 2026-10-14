@@ -111,5 +111,203 @@
     }
   ],
   "teaching_languages": ["ca", "de", "en", "es", "nl"],
-  "levels": ["bachelor", "master", "doctoral"]
+  "levels": ["bachelor", "master", "doctoral"],
+  "kinds": [
+    {
+      "code": "course",
+      "label": {
+        "en": "Course"
+      }
+    },
+    {
+      "code": "bip",
+      "label": {
+        "en": "Blended Intensive Programme"
+      }
+    },
+    {
+      "code": "lecture_series",
+      "label": {
+        "en": "Lecture series"
+      }
+    },
+    {
+      "code": "other",
+      "label": {
+        "en": "Other"
+      }
+    }
+  ],
+  "attribute_definitions": [
+    {
+      "key": "educational_hub",
+      "value_type": "enum",
+      "label": {
+        "en": "Educational hub"
+      },
+      "description": {
+        "en": "Aurora hub the course belongs to."
+      },
+      "options": [
+        {
+          "value": "sustainability",
+          "label": {
+            "en": "Sustainability"
+          }
+        },
+        {
+          "value": "digital_society",
+          "label": {
+            "en": "Digital society"
+          }
+        },
+        {
+          "value": "social_inclusion",
+          "label": {
+            "en": "Social inclusion"
+          }
+        }
+      ],
+      "filterable": true,
+      "show_as_tag": true,
+      "sort_order": 10
+    },
+    {
+      "key": "sdg",
+      "value_type": "multi_enum",
+      "label": {
+        "en": "Sustainable Development Goals"
+      },
+      "description": null,
+      "options": [
+        {
+          "value": "sdg_04",
+          "label": {
+            "en": "SDG 4: Quality education"
+          }
+        },
+        {
+          "value": "sdg_13",
+          "label": {
+            "en": "SDG 13: Climate action"
+          }
+        },
+        {
+          "value": "sdg_14",
+          "label": {
+            "en": "SDG 14: Life below water"
+          }
+        },
+        {
+          "value": "sdg_15",
+          "label": {
+            "en": "SDG 15: Life on land"
+          }
+        }
+      ],
+      "filterable": true,
+      "show_as_tag": true,
+      "sort_order": 20
+    },
+    {
+      "key": "target_audience",
+      "value_type": "multi_enum",
+      "label": {
+        "en": "Target audience"
+      },
+      "description": null,
+      "options": [
+        {
+          "value": "students",
+          "label": {
+            "en": "Students"
+          }
+        },
+        {
+          "value": "phd",
+          "label": {
+            "en": "Doctoral candidates"
+          }
+        },
+        {
+          "value": "staff",
+          "label": {
+            "en": "Staff"
+          }
+        }
+      ],
+      "filterable": true,
+      "show_as_tag": false,
+      "sort_order": 30
+    },
+    {
+      "key": "competence_framework",
+      "value_type": "enum",
+      "label": {
+        "en": "Aurora competence framework"
+      },
+      "description": null,
+      "options": [
+        {
+          "value": "louis",
+          "label": {
+            "en": "LOUIS"
+          }
+        }
+      ],
+      "filterable": false,
+      "show_as_tag": false,
+      "sort_order": 40
+    },
+    {
+      "key": "micro_credential",
+      "value_type": "boolean",
+      "label": {
+        "en": "Micro-credential"
+      },
+      "description": {
+        "en": "Completion is certified with a micro-credential."
+      },
+      "options": [],
+      "filterable": true,
+      "show_as_tag": true,
+      "sort_order": 50
+    },
+    {
+      "key": "free_course",
+      "value_type": "boolean",
+      "label": {
+        "en": "Free course"
+      },
+      "description": null,
+      "options": [],
+      "filterable": true,
+      "show_as_tag": true,
+      "sort_order": 60
+    },
+    {
+      "key": "only_enrolled",
+      "value_type": "boolean",
+      "label": {
+        "en": "Only for enrolled students"
+      },
+      "description": null,
+      "options": [],
+      "filterable": true,
+      "show_as_tag": false,
+      "sort_order": 70
+    },
+    {
+      "key": "faculty",
+      "value_type": "text",
+      "label": {
+        "en": "Faculty"
+      },
+      "description": null,
+      "options": [],
+      "filterable": false,
+      "show_as_tag": false,
+      "sort_order": 80
+    }
+  ]
 }

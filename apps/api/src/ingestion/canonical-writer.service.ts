@@ -1,14 +1,22 @@
 // SPDX-License-Identifier: EUPL-1.2
 import { Inject, Injectable } from '@nestjs/common';
-import type {
-  AcademicSession,
-  Course,
-  CourseOffering,
-  CourseText,
-  LifecycleStatus,
-  ProblemError,
+import {
+  type AcademicSession,
+  type AttributeDefinition,
+  buildAttributesSchema,
+  type Course,
+  type CourseAttributes,
+  type CourseKind,
+  type CourseLevel,
+  type CourseOffering,
+  type CourseText,
+  issuesToProblemErrors,
+  type LifecycleStatus,
+  type ProblemError,
+  resolveLevels,
 } from '@oecp/schemas';
 import { sql, type Transaction } from 'kysely';
+import { loadAttributeDefinitions } from '../attributes/attribute-definitions.js';
 import type { Database, HistoryEntityType } from '../db/database.js';
 import { type Db, KYSELY } from '../db/db.module.js';
 import { jcsSha256 } from './jcs.js';
@@ -31,8 +39,11 @@ export const HARVESTER_ACTOR = 'system:harvester';
 /** Course columns an override may replace (keys never; spec §5 "Overrides"). */
 const COURSE_OVERRIDABLE = [
   'status',
+  'kind',
   'ects',
   'level',
+  'levels',
+  'attributes',
   'eqf_level',
   'teaching_hours',
   'info_url',
@@ -66,6 +77,7 @@ const OFFERING_OVERRIDABLE = [
   'seats_available',
   'seats_updated_at',
   'application_url',
+  'application_instructions',
 ] as const;
 
 /** Source values merged with overrides; overrides win field by field. */
@@ -82,6 +94,38 @@ export function applyOverrides<T extends Record<string, unknown>>(
     }
   }
   return effective as T;
+}
+
+/**
+ * Effective `level`/`levels` after overrides (decision 18): an override of
+ * `levels` decides both; an override of `level` alone makes it the primary of the
+ * source levels; otherwise {@link resolveLevels}.
+ */
+export function effectiveLevels(
+  effective: { level: unknown; levels: unknown },
+  overrides: Overrides | null | undefined,
+): { level: CourseLevel | null; levels: CourseLevel[] } {
+  const levels = Array.isArray(effective.levels) ? (effective.levels as CourseLevel[]) : [];
+  const level = typeof effective.level === 'string' ? (effective.level as CourseLevel) : null;
+  if (overrides?.['levels']) return resolveLevels(null, levels);
+  if (overrides?.['level']) {
+    return level
+      ? resolveLevels(level, [level, ...levels.filter((l) => l !== level)])
+      : { level: null, levels: [] };
+  }
+  return resolveLevels(level, levels);
+}
+
+/**
+ * Content the canonical schema accepts but the alliance's definitions do not
+ * (attributes). Thrown before anything is written; the caller rejects the entity
+ * with {@link errors} (pointers relative to the course DTO).
+ */
+export class CanonicalContentRejected extends Error {
+  constructor(readonly errors: ProblemError[]) {
+    super(errors.map((e) => `${e.code}${e.pointer ? ` at ${e.pointer}` : ''}`).join('; '));
+    this.name = 'CanonicalContentRejected';
+  }
 }
 
 /** `ext_metadata_history.ext_id` and `sync_errors.ext_id` of an offering (unique per partner). */
@@ -117,6 +161,8 @@ function eqBytes(a: Buffer | null | undefined, b: Buffer): boolean {
 export class CanonicalWriter {
   /** Set on the writer handed out by {@link transaction}: every write joins that transaction. */
   private bound: Trx | null = null;
+  /** Definitions read once per bound transaction (an upload sees one consistent set). */
+  private definitions: AttributeDefinition[] | null = null;
 
   constructor(@Inject(KYSELY) private readonly db: Db) {}
 
@@ -214,6 +260,7 @@ export class CanonicalWriter {
   ): Promise<UpsertResult> {
     const contentHash = jcsSha256(course);
     return this.run(async (trx) => {
+      await this.checkAttributes(trx, course);
       const existing = await trx
         .selectFrom('courses')
         .select(['id', 'status', 'content_hash', 'overrides', 'absent_count'])
@@ -225,8 +272,11 @@ export class CanonicalWriter {
       const effective = applyOverrides(
         {
           status: course.status as LifecycleStatus,
+          kind: course.kind as CourseKind,
           ects: course.ects,
           level: course.level ?? null,
+          levels: course.levels as unknown,
+          attributes: course.attributes as unknown,
           eqf_level: course.eqf_level ?? null,
           teaching_hours: course.teaching_hours ?? null,
           info_url: course.info_url ?? null,
@@ -236,6 +286,7 @@ export class CanonicalWriter {
         existing?.overrides,
         COURSE_OVERRIDABLE,
       );
+      const levels = effectiveLevels(effective, existing?.overrides);
 
       let outcome: UpsertResult['outcome'];
       let entityId: string;
@@ -272,8 +323,11 @@ export class CanonicalWriter {
           source_channel: ctx.channel,
           ...teachingUnit,
           status: effective.status,
+          kind: effective.kind,
           ects: effective.ects,
-          level: effective.level,
+          level: levels.level,
+          levels: levels.levels,
+          attributes: (effective.attributes ?? {}) as CourseAttributes,
           eqf_level: effective.eqf_level,
           teaching_hours: effective.teaching_hours,
           info_url: effective.info_url,
@@ -375,6 +429,7 @@ export class CanonicalWriter {
           seats_available: offering.seats_available ?? null,
           seats_updated_at: (offering.seats_updated_at ?? null) as string | null,
           application_url: offering.application_url ?? null,
+          application_instructions: offering.application_instructions as unknown,
         },
         existing?.overrides,
         OFFERING_OVERRIDABLE,
@@ -420,6 +475,10 @@ export class CanonicalWriter {
           seats_available: effective.seats_available,
           seats_updated_at: effective.seats_available === null ? null : effective.seats_updated_at,
           application_url: effective.application_url,
+          application_instructions: (effective.application_instructions ?? {}) as Record<
+            string,
+            string
+          >,
           content_hash: contentHash,
           absent_count: 0,
           last_seen_at: ctx.now,
@@ -652,6 +711,23 @@ export class CanonicalWriter {
       }
       return result;
     });
+  }
+
+  /**
+   * Checks the source attributes against the alliance's definitions (decision 18);
+   * nothing to check (and no query) when the course has none.
+   */
+  private async checkAttributes(trx: Trx, course: Course): Promise<void> {
+    if (Object.keys(course.attributes ?? {}).length === 0) return;
+    const definitions =
+      this.bound && this.definitions ? this.definitions : await loadAttributeDefinitions(trx);
+    if (this.bound) this.definitions = definitions;
+    const checked = buildAttributesSchema(definitions).safeParse(course.attributes);
+    if (checked.success) return;
+    const errors = issuesToProblemErrors(checked.error.issues, {
+      fallback: 'oecp.content.invalid_attribute_value',
+    }).map((e) => ({ ...e, pointer: `/attributes${e.pointer ?? ''}`, ext_id: course.ext_id }));
+    throw new CanonicalContentRejected(errors);
   }
 
   private async writeTexts(

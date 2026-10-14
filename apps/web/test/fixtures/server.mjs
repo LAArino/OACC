@@ -39,15 +39,34 @@ function searchResponse(params) {
   const partners = params.getAll('partner');
   const modes = params.getAll('mode');
   const langs = params.getAll('lang');
+  const kinds = params.getAll('kind');
+  const levels = params.getAll('level');
   const upcoming = params.get('upcoming') !== 'false';
+  // attr_<key>=<value>: any of the values of one key, all keys [DL 18].
+  const attrs = {};
+  for (const [key, value] of params) {
+    if (key.startsWith('attr_')) (attrs[key.slice(5)] ??= []).push(value);
+  }
+  const hasAttr = (c, key, wanted) =>
+    (c.attributes ?? []).some(
+      (a) => a.key === key && a.values.some((v) => wanted.includes(v.value)),
+    );
   const items = search.items.filter(
     (c) =>
       (!q || c.title.toLowerCase().includes(q)) &&
       (!partners.length || partners.includes(c.organization.slug)) &&
       (!modes.length || c.delivery_modes.some((m) => modes.includes(m))) &&
       (!langs.length || c.teaching_languages.some((l) => langs.includes(l))) &&
+      (!kinds.length || kinds.includes(c.kind ?? 'course')) &&
+      (!levels.length || (c.levels ?? [c.level]).some((l) => levels.includes(l))) &&
+      Object.entries(attrs).every(([key, wanted]) => hasAttr(c, key, wanted)) &&
       (!upcoming || c.next_offering !== null),
   );
+  if (params.get('sort') === 'deadline') {
+    // Next application deadline ascending, courses without one last.
+    const deadline = (c) => c.next_offering?.application_deadline ?? '9999-12-31';
+    items.sort((a, b) => deadline(a).localeCompare(deadline(b)));
+  }
   const pageSize = Number(params.get('page_size') ?? 20);
   return { ...search, items: items.slice(0, pageSize), total: items.length, page_size: pageSize };
 }
@@ -89,6 +108,9 @@ createServer((req, res) => {
         texts: { en: { ...course.texts.en, title: card.title, abstract: card.abstract } },
         ects: card.ects,
         level: card.level,
+        kind: card.kind,
+        levels: card.levels,
+        attributes: card.attributes,
         offerings: [],
       });
     }

@@ -33,6 +33,25 @@ export type OrgType = z.infer<typeof orgType>;
 export const courseLevel = z.enum(['short_cycle', 'bachelor', 'master', 'doctoral', 'other']);
 export type CourseLevel = z.infer<typeof courseLevel>;
 
+/**
+ * Kind of course (decision 18): a regular course, an Erasmus+ Blended Intensive
+ * Programme, a lecture series, or anything else. DDL `courses.kind`.
+ */
+export const courseKind = z.enum(['course', 'bip', 'lecture_series', 'other']);
+export type CourseKind = z.infer<typeof courseKind>;
+
+/** English labels of {@link courseKind} (`/api/public/v1/reference` `kinds`). */
+export const COURSE_KIND_LABELS: Readonly<Record<CourseKind, string>> = {
+  course: 'Course',
+  bip: 'Blended Intensive Programme (BIP)',
+  lecture_series: 'Lecture series',
+  other: 'Other',
+};
+
+/** Value types of alliance attribute definitions (DDL `attribute_definitions.value_type`). */
+export const attributeValueType = z.enum(['enum', 'multi_enum', 'boolean', 'text']);
+export type AttributeValueType = z.infer<typeof attributeValueType>;
+
 export const sessionType = z.enum([
   'academic_year',
   'semester',

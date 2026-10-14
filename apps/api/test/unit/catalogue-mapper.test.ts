@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: EUPL-1.2
 import {
+  type AttributeDefinition,
   courseSearchQuery,
   courseSearchResponse,
   normalizeCourseSearch,
   publicCourseDetail,
+  referenceResponse,
 } from '@oecp/schemas';
 import { describe, expect, it } from 'vitest';
 import {
+  localizedText,
+  resolveAttributes,
   toCourseDetail,
+  toReference,
   toSearchResponse,
   toSitemap,
   truncate,
@@ -51,6 +56,60 @@ describe('truncate', () => {
   });
 });
 
+const DEFINITIONS: AttributeDefinition[] = [
+  {
+    key: 'free_course',
+    value_type: 'boolean',
+    label: label('Free course'),
+    description: null,
+    options: null,
+    filterable: true,
+    show_as_tag: true,
+    sort_order: 50,
+  },
+  {
+    key: 'sdg',
+    value_type: 'multi_enum',
+    label: label('SDGs'),
+    description: label('UN goals'),
+    options: [
+      { value: 'sdg04', label: label('SDG 4: Quality education') },
+      { value: 'sdg13', label: label('SDG 13: Climate action') },
+    ],
+    filterable: true,
+    show_as_tag: true,
+    sort_order: 20,
+  },
+  {
+    key: 'competence_framework',
+    value_type: 'enum',
+    label: label('Competence framework'),
+    description: null,
+    options: [{ value: 'louis', label: label('LOUIS') }],
+    filterable: false,
+    show_as_tag: false,
+    sort_order: 30,
+  },
+  {
+    key: 'enrolled_only',
+    value_type: 'boolean',
+    label: label('Only for enrolled students'),
+    description: null,
+    options: null,
+    filterable: false,
+    show_as_tag: true,
+    sort_order: 60,
+  },
+];
+
+const ATTRIBUTES = {
+  free_course: true,
+  enrolled_only: false,
+  competence_framework: 'louis',
+  sdg: ['sdg13', 'sdg04', 'sdg99'],
+  undefined_key: 'x',
+};
+
 const offering = (over: Partial<CardOfferingRow>): CardOfferingRow => ({
   id: '0c000000-0000-4000-8000-000000000011',
   course_id: COURSE,
@@ -63,6 +122,7 @@ const offering = (over: Partial<CardOfferingRow>): CardOfferingRow => ({
   alliance_seats: null,
   seats_available: null,
   seats_updated_at: null,
+  application_instructions: {},
   modes: [mode('presential', 10)],
   ...over,
 });
@@ -70,13 +130,27 @@ const offering = (over: Partial<CardOfferingRow>): CardOfferingRow => ({
 const rows: SearchResultRows = {
   ids: [COURSE],
   total: 1,
-  facets: { partner: [], mode: [], lang: [], isced: [], level: [] },
+  facets: new Map([
+    ['kind', [{ value: 'bip', count: 1 }]],
+    [
+      'attr:free_course',
+      [
+        { value: 'true', count: 3 },
+        { value: 'false', count: 1 },
+      ],
+    ],
+    ['attr:sdg', [{ value: 'sdg13', count: 2 }]],
+  ]),
+  definitions: DEFINITIONS,
   courses: [
     {
       id: COURSE,
       ext_id: 'X1',
+      kind: 'bip',
       ects: '7.50',
       level: 'master',
+      levels: ['master', 'bachelor'],
+      attributes: ATTRIBUTES,
       org_id: ORG,
       org_slug: 'uibk',
       org_name: label('Innsbruck'),
@@ -111,7 +185,7 @@ const rows: SearchResultRows = {
     },
   ],
   offerings: [
-    offering({}),
+    offering({ application_instructions: { en: 'Ask your home office.', de: 'Fragen Sie.' } }),
     offering({
       id: '0c000000-0000-4000-8000-000000000012',
       start_date: '2027-03-01',
@@ -143,6 +217,42 @@ describe('toSearchResponse', () => {
       offerings_count: 2,
     });
     expect(body.items[0]!.next_offering!.id).toBe('0c000000-0000-4000-8000-000000000011');
+    expect(body.items[0]!.next_offering!.application_instructions).toBe('Fragen Sie.');
+    expect(body.items[0]).toMatchObject({ kind: 'bip', levels: ['master', 'bachelor'] });
+  });
+
+  it('shows tag attributes on cards: show_as_tag definitions, booleans only when true', () => {
+    const body = toSearchResponse(rows, search({}));
+    expect(body.items[0]!.attributes).toEqual([
+      {
+        key: 'sdg',
+        label: { en: 'SDGs' },
+        values: [
+          { value: 'sdg04', label: { en: 'SDG 4: Quality education' } },
+          { value: 'sdg13', label: { en: 'SDG 13: Climate action' } },
+          { value: 'sdg99', label: { en: 'sdg99' } },
+        ],
+      },
+      {
+        key: 'free_course',
+        label: { en: 'Free course' },
+        values: [{ value: 'true', label: { en: 'Yes' } }],
+      },
+    ]);
+    expect(body.items[0]!.next_offering!.application_instructions).toBe('Ask your home office.');
+  });
+
+  it('labels kind and attribute facets, one entry per filterable definition', () => {
+    const body = courseSearchResponse.parse(toSearchResponse(rows, search({})));
+    expect(body.facets.kind).toEqual([{ value: 'bip', count: 1 }]);
+    expect(body.facets.attributes).toEqual({
+      sdg: [{ value: 'sdg13', count: 2, label: { en: 'SDG 13: Climate action' } }],
+      free_course: [
+        { value: 'true', count: 3, label: { en: 'Yes' } },
+        { value: 'false', count: 1, label: { en: 'No' } },
+      ],
+    });
+    expect(body.facets.partner).toEqual([]);
   });
 
   it('falls back to English, and picks the next offering matching mode/lang filters', () => {
@@ -168,11 +278,15 @@ describe('toSearchResponse', () => {
 
 describe('toCourseDetail', () => {
   const detail: CourseDetailRows = {
+    definitions: DEFINITIONS,
     course: {
       id: COURSE,
       ext_id: 'X1',
+      kind: 'course',
       ects: '5.00',
       level: 'weird',
+      levels: ['weird', 'master'],
+      attributes: ATTRIBUTES,
       eqf_level: null,
       teaching_hours: '22.5',
       info_url: null,
@@ -221,6 +335,7 @@ describe('toCourseDetail', () => {
         seats_available: null,
         seats_updated_at: null,
         application_url: null,
+        application_instructions: { en: 'Nomination by the home university.' },
         updated_at: new Date('2026-02-01T00:00:00Z'),
         session_id: null,
         session_name: null,
@@ -239,7 +354,62 @@ describe('toCourseDetail', () => {
       contact_email: 'info@uibk.example',
       updated_at: '2026-03-01T00:00:00.000Z',
     });
-    expect(body.offerings[0]).toMatchObject({ status: 'cancelled', delivery_modes: ['hybrid'] });
+    expect(body.offerings[0]).toMatchObject({
+      status: 'cancelled',
+      delivery_modes: ['hybrid'],
+      application_instructions: { en: 'Nomination by the home university.' },
+    });
+    expect(body.levels).toEqual(['master']);
+    expect(body.attributes.map((a) => [a.key, a.values.map((v) => v.value)])).toEqual([
+      ['sdg', ['sdg04', 'sdg13', 'sdg99']],
+      ['competence_framework', ['louis']],
+      ['free_course', ['true']],
+      ['enrolled_only', ['false']],
+    ]);
+  });
+});
+
+describe('attribute helpers', () => {
+  it('drops values of the wrong shape and keys without a definition', () => {
+    expect(
+      resolveAttributes(DEFINITIONS, { free_course: 'yes', sdg: 'sdg04', undefined_key: true }),
+    ).toEqual([]);
+  });
+
+  it('picks instructions in the locale, else English, else the first language', () => {
+    expect(localizedText({ de: 'D', en: 'E' }, 'de')).toBe('D');
+    expect(localizedText({ de: 'D', en: 'E' }, 'fr')).toBe('E');
+    expect(localizedText({ nl: 'N', de: 'D' }, 'fr')).toBe('D');
+    expect(localizedText({}, 'en')).toBeNull();
+  });
+
+  it('lists kinds and definitions in /reference', () => {
+    const body = referenceResponse.parse(
+      toReference({
+        organizations: [],
+        modes: [],
+        isced: [],
+        languages: [],
+        definitions: DEFINITIONS,
+      }),
+    );
+    expect(body.kinds.map((k) => k.code)).toEqual(['course', 'bip', 'lecture_series', 'other']);
+    expect(body.attribute_definitions.map((d) => d.key)).toEqual([
+      'sdg',
+      'competence_framework',
+      'free_course',
+      'enrolled_only',
+    ]);
+    expect(body.attribute_definitions[0]).toMatchObject({
+      value_type: 'multi_enum',
+      description: { en: 'UN goals' },
+      options: [
+        { value: 'sdg04', label: { en: 'SDG 4: Quality education' } },
+        { value: 'sdg13', label: { en: 'SDG 13: Climate action' } },
+      ],
+      filterable: true,
+    });
+    expect(body.attribute_definitions[2]!.options).toEqual([]);
   });
 });
 

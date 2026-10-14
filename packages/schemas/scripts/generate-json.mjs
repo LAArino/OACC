@@ -36,15 +36,18 @@ write('json/canonical/oecp-canonical-1.schema.json', {
     course: def(s.course),
     courseText: def(s.courseText),
     courseOffering: def(s.courseOffering),
+    attributeDefinition: def(s.attributeDefinition),
+    courseAttributes: def(s.courseAttributes),
     languageTag: def(s.languageTag),
     iscedCode: def(s.iscedCode),
   },
 });
 
-write('json/csv/oecp-csv-1.0.schema.json', {
+// json/csv/oecp-csv-1.0.schema.json is frozen (template 1.0); 1.1 accepts 1.0 files too.
+write('json/csv/oecp-csv-1.1.schema.json', {
   $schema: DRAFT,
-  $id: 'urn:oecp:schema:csv:1.0',
-  title: 'OECP CSV template 1.0',
+  $id: 'urn:oecp:schema:csv:1.1',
+  title: 'OECP CSV template 1.1 (accepts 1.0)',
   $defs: {
     courseRow: def(s.csvCourseRow),
     offeringRow: def(s.csvOfferingRow),

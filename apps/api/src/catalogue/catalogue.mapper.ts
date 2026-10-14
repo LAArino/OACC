@@ -1,17 +1,27 @@
 // SPDX-License-Identifier: EUPL-1.2
 /** Pure mapping of catalogue rows to the `/api/public/v1` contract (public-responses.ts). */
 import type {
+  AttributeDefinition,
   CourseLevel,
+  CourseSearchFacets,
   CourseSearchResponse,
   NormalizedCourseSearch,
   PublicCourseCard,
   PublicCourseDetail,
   PublicCourseText,
   PublicDeliveryMode,
+  PublicAttribute,
+  PublicAttributeDefinition,
   PublicIscedField,
   ReferenceResponse,
 } from '@oecp/schemas';
-import { courseLevel } from '@oecp/schemas';
+import {
+  attributeValueLabels,
+  COURSE_KIND_LABELS,
+  courseKind,
+  courseLevel,
+  sortAttributeDefinitions,
+} from '@oecp/schemas';
 import type {
   CardOfferingRow,
   CourseDetailRows,
@@ -43,6 +53,66 @@ const toNumber = (v: string | null): number | null => (v === null ? null : Numbe
 const primary = (tag: string): string => tag.split('-')[0]!.toLowerCase();
 const asLevel = (v: string | null): CourseLevel | null =>
   courseLevel.safeParse(v).success ? (v as CourseLevel) : null;
+const asLevels = (values: readonly string[]): CourseLevel[] =>
+  values.filter((v): v is CourseLevel => courseLevel.safeParse(v).success);
+
+/**
+ * A course's attributes resolved with the alliance's definitions, in definition
+ * order. Keys without a definition are left out. `tags`: only definitions shown
+ * as tags, and booleans only when true (course cards).
+ */
+export function resolveAttributes(
+  definitions: readonly AttributeDefinition[],
+  attributes: Readonly<Record<string, unknown>> | null | undefined,
+  options: { tags?: boolean } = {},
+): PublicAttribute[] {
+  const out: PublicAttribute[] = [];
+  for (const definition of sortAttributeDefinitions(definitions)) {
+    if (!attributes || !Object.hasOwn(attributes, definition.key)) continue;
+    const value = attributes[definition.key];
+    if (options.tags && (!definition.show_as_tag || value === false)) continue;
+    const values = attributeValueLabels(definition, value);
+    if (values.length > 0) out.push({ key: definition.key, label: definition.label, values });
+  }
+  return out;
+}
+
+/** Text in `locale`, else English, else the first language (alphabetically); null when empty. */
+export function localizedText(
+  texts: Readonly<Record<string, string>> | null | undefined,
+  locale: string,
+): string | null {
+  if (!texts) return null;
+  const first = Object.keys(texts).sort()[0];
+  return texts[locale] || texts['en'] || (first ? texts[first] : undefined) || null;
+}
+
+function toFacets(rows: SearchResultRows): CourseSearchFacets {
+  const get = (key: string) => rows.facets.get(key as never) ?? [];
+  const attributes: CourseSearchFacets['attributes'] = {};
+  for (const definition of sortAttributeDefinitions(rows.definitions)) {
+    if (!definition.filterable) continue;
+    attributes[definition.key] = get(`attr:${definition.key}`).map((f) => {
+      const stored =
+        definition.value_type === 'boolean'
+          ? f.value === 'true'
+          : definition.value_type === 'multi_enum'
+            ? [f.value]
+            : f.value;
+      const label = attributeValueLabels(definition, stored)[0]?.label ?? { en: f.value };
+      return { value: f.value, count: f.count, label };
+    });
+  }
+  return {
+    partner: get('partner'),
+    mode: get('mode'),
+    lang: get('lang'),
+    isced: get('isced'),
+    level: get('level'),
+    kind: get('kind'),
+    attributes,
+  };
+}
 
 function publicMode(m: ModeRef): PublicDeliveryMode {
   return { code: m.code, label: m.label, schema_org: m.schema_org };
@@ -116,7 +186,10 @@ export function toSearchResponse(
       abstract: abstractRow?.abstract ? truncate(abstractRow.abstract) : null,
       abstract_lang: abstractRow?.lang ?? null,
       ects: Number(c.ects),
+      kind: c.kind,
       level: asLevel(c.level),
+      levels: asLevels(c.levels),
+      attributes: resolveAttributes(rows.definitions, c.attributes, { tags: true }),
       isced_broad_fields: broadFields(isced.get(id) ?? []),
       delivery_modes: [...modes.entries()]
         .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
@@ -132,6 +205,7 @@ export function toSearchResponse(
         seats_available: next.seats_available,
         alliance_seats: next.alliance_seats,
         seats_updated_at: toIso(next.seats_updated_at),
+        application_instructions: localizedText(next.application_instructions, search.locale),
       },
       offerings_count: upcoming.length,
     });
@@ -141,7 +215,7 @@ export function toSearchResponse(
     page: search.page,
     page_size: search.pageSize,
     total: rows.total,
-    facets: rows.facets,
+    facets: toFacets(rows),
   };
 }
 
@@ -182,7 +256,9 @@ export function toCourseDetail(rows: CourseDetailRows): PublicCourseDetail {
         ? { id: c.unit_id, slug: c.unit_slug, name: c.unit_name }
         : null,
     ects: Number(c.ects),
+    kind: c.kind,
     level: asLevel(c.level),
+    levels: asLevels(c.levels),
     eqf_level: c.eqf_level,
     teaching_hours: toNumber(c.teaching_hours),
     info_url: c.info_url,
@@ -194,6 +270,7 @@ export function toCourseDetail(rows: CourseDetailRows): PublicCourseDetail {
       is_primary: i.is_primary,
       label: i.label,
     })),
+    attributes: resolveAttributes(rows.definitions, c.attributes),
     offerings: rows.offerings.map((o) => ({
       id: o.id,
       ext_offering_id: o.ext_offering_id,
@@ -220,6 +297,7 @@ export function toCourseDetail(rows: CourseDetailRows): PublicCourseDetail {
       seats_available: o.seats_available,
       seats_updated_at: toIso(o.seats_updated_at),
       application_url: o.application_url,
+      application_instructions: o.application_instructions ?? {},
     })),
     updated_at: updated.toISOString(),
   };
@@ -242,6 +320,21 @@ export function toReference(rows: ReferenceRows): ReferenceResponse {
     isced_broad_fields: rows.isced.map((i) => ({ code: i.code, label: i.label })),
     teaching_languages: rows.languages,
     levels: [...courseLevel.options],
+    kinds: courseKind.options.map((code) => ({ code, label: { en: COURSE_KIND_LABELS[code] } })),
+    attribute_definitions: sortAttributeDefinitions(rows.definitions).map(publicDefinition),
+  };
+}
+
+function publicDefinition(d: AttributeDefinition): PublicAttributeDefinition {
+  return {
+    key: d.key,
+    value_type: d.value_type,
+    label: d.label,
+    description: d.description ?? null,
+    options: (d.options ?? []).map((o) => ({ value: o.value, label: o.label })),
+    filterable: d.filterable,
+    show_as_tag: d.show_as_tag,
+    sort_order: d.sort_order,
   };
 }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 /** Query contracts of the anonymous APIs (spec §7 and §9). */
 import { z } from 'zod';
-import { courseLevel } from './enums.js';
+import { courseKind, courseLevel } from './enums.js';
 import { OEAPI_V5_LEVELS, OEAPI_V5_MODES_OF_DELIVERY } from './oeapi-v5.js';
 import { deliveryModeCode, primaryLanguage, slug } from './primitives.js';
 
@@ -14,6 +14,25 @@ const booleanFlag = z.enum(['true', 'false']).transform((v) => v === 'true');
 /** Results per page of `GET /api/public/v1/courses` (spec §7). */
 export const COURSE_SEARCH_PAGE_SIZE = 20;
 
+/** `attr_<key>` query parameters of `GET /api/public/v1/courses`; the key is group 1. */
+export const ATTRIBUTE_FILTER_PARAM = /^attr_([a-z][a-z0-9_]{1,39})$/;
+/** Distinct `attr_<key>` parameters per request. */
+export const MAX_ATTRIBUTE_FILTERS = 20;
+
+/** Moves `attr_<key>` parameters into `attributes: {key: value | value[]}`. */
+function collectAttributeFilters(input: unknown): unknown {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return input;
+  const out: Record<string, unknown> = {};
+  const attributes: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(input)) {
+    const match = ATTRIBUTE_FILTER_PARAM.exec(name);
+    if (match) attributes[match[1] as string] = value;
+    else if (name !== 'attributes') out[name] = value;
+  }
+  out['attributes'] = attributes;
+  return out;
+}
+
 /**
  * `GET /api/public/v1/courses`. Repeated parameters (`partner=a&partner=b`) are
  * OR-ed within a filter and AND-ed across filters (spec §7).
@@ -25,30 +44,46 @@ export const COURSE_SEARCH_PAGE_SIZE = 20;
  *   `end_date` is today or later; `upcoming=false` lists every published course.
  *   `includeUnscheduled=true` is the older spelling of `upcoming=false`; `upcoming`
  *   wins when both are given. Use {@link normalizeCourseSearch} to resolve them.
+ * - `level` matches any of a course's `levels`; `kind` filters by course kind.
+ * - `attr_<key>=<value>` (repeatable) filters by alliance attribute: values OR-ed
+ *   within a key, keys AND-ed. Booleans take `true` or `false`; `enum`/`multi_enum`
+ *   an option value. Parsed into `attributes`; keys without a definition are ignored.
+ * - `sort=deadline`: next upcoming `application_deadline` first, courses without one last.
  */
-export const courseSearchQuery = z.object({
-  q: z.string().trim().max(200).optional(),
-  partner: list(slug),
-  mode: list(deliveryModeCode),
-  ectsMin: ects.optional(),
-  ectsMax: ects.optional(),
-  /** Alias of `ectsMin`. */
-  ects_min: ects.optional(),
-  /** Alias of `ectsMax`. */
-  ects_max: ects.optional(),
-  lang: list(primaryLanguage),
-  isced: list(z.string().regex(/^\d{2}$/)),
-  level: list(courseLevel),
-  sort: z.enum(['relevance', 'title', 'start_date']).optional(),
-  page: z.coerce.number().int().min(1).max(500).default(1),
-  pageSize: z.coerce.number().int().min(1).max(50).optional(),
-  /** Alias of `pageSize`. */
-  page_size: z.coerce.number().int().min(1).max(50).optional(),
-  includeUnscheduled: booleanFlag.default(false),
-  upcoming: booleanFlag.optional(),
-  /** Display language of resolved texts (`title`, `abstract`); English fallback. */
-  locale: primaryLanguage.optional(),
-});
+export const courseSearchQuery = z.preprocess(
+  collectAttributeFilters,
+  z.object({
+    q: z.string().trim().max(200).optional(),
+    partner: list(slug),
+    mode: list(deliveryModeCode),
+    ectsMin: ects.optional(),
+    ectsMax: ects.optional(),
+    /** Alias of `ectsMin`. */
+    ects_min: ects.optional(),
+    /** Alias of `ectsMax`. */
+    ects_max: ects.optional(),
+    lang: list(primaryLanguage),
+    isced: list(z.string().regex(/^\d{2}$/)),
+    level: list(courseLevel),
+    kind: list(courseKind),
+    /** From the `attr_<key>` parameters. */
+    attributes: z
+      .record(z.string().regex(/^[a-z][a-z0-9_]{1,39}$/), list(z.string().trim().min(1).max(100)))
+      .refine((r) => Object.keys(r).length <= MAX_ATTRIBUTE_FILTERS, {
+        message: `At most ${MAX_ATTRIBUTE_FILTERS} attr_* filters`,
+      })
+      .default({}),
+    sort: z.enum(['relevance', 'title', 'start_date', 'deadline']).optional(),
+    page: z.coerce.number().int().min(1).max(500).default(1),
+    pageSize: z.coerce.number().int().min(1).max(50).optional(),
+    /** Alias of `pageSize`. */
+    page_size: z.coerce.number().int().min(1).max(50).optional(),
+    includeUnscheduled: booleanFlag.default(false),
+    upcoming: booleanFlag.optional(),
+    /** Display language of resolved texts (`title`, `abstract`); English fallback. */
+    locale: primaryLanguage.optional(),
+  }),
+);
 export type CourseSearchQuery = z.infer<typeof courseSearchQuery>;
 
 /** {@link CourseSearchQuery} with aliases and defaults resolved. */
@@ -59,10 +94,13 @@ export interface NormalizedCourseSearch {
   lang: string[];
   isced: string[];
   level: string[];
+  kind: string[];
+  /** `attr_<key>` filters: key → accepted values. */
+  attributes: Record<string, string[]>;
   ectsMin: number | undefined;
   ectsMax: number | undefined;
   upcoming: boolean;
-  sort: 'relevance' | 'title' | 'start_date';
+  sort: 'relevance' | 'title' | 'start_date' | 'deadline';
   page: number;
   pageSize: number;
   locale: string;
@@ -78,6 +116,10 @@ export function normalizeCourseSearch(query: CourseSearchQuery): NormalizedCours
     lang: query.lang,
     isced: query.isced,
     level: query.level,
+    kind: query.kind,
+    attributes: Object.fromEntries(
+      Object.entries(query.attributes).filter(([, values]) => values.length > 0),
+    ),
     ectsMin: query.ectsMin ?? query.ects_min,
     ectsMax: query.ectsMax ?? query.ects_max,
     upcoming: query.upcoming ?? !query.includeUnscheduled,

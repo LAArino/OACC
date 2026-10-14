@@ -44,13 +44,16 @@
     "emptySpelling": "Check the spelling or try more general words.",
     "errorRefresh": "The results could not be updated: the catalogue is temporarily unavailable. Try again in a moment.",
     "noUpcoming": "No upcoming offering scheduled.",
-    "moreOfferings": "no other offerings | 1 more offering | {n} more offerings"
+    "moreOfferings": "no other offerings | 1 more offering | {n} more offerings",
+    "tags": "Course attributes",
+    "moreTags": "no other attributes | 1 more attribute | {n} more attributes"
   },
   "sort": {
     "label": "Sort by",
     "relevance": "Best match",
     "title": "Title (A–Z)",
     "start_date": "Next start date",
+    "deadline": "Application deadline",
     "apply": "Sort"
   },
   "filters": {
@@ -69,7 +72,9 @@
     "includePast": "Include past offerings",
     "includePastHint": "Also show courses whose offerings have ended or that have no scheduled offering.",
     "apply": "Apply filters",
-    "courseCount": "no courses | 1 course | {n} courses"
+    "courseCount": "no courses | 1 course | {n} courses",
+    "kind": "Type of course",
+    "features": "Course features"
   },
   "chips": {
     "heading": "Active filters",
@@ -92,6 +97,17 @@
     "doctoral": "Doctoral",
     "other": "Other"
   },
+  "kind": {
+    "course": "Course",
+    "bip": "Blended intensive programme (BIP)",
+    "lecture_series": "Lecture series",
+    "other": "Other activity"
+  },
+  "kindBadge": {
+    "bip": "BIP",
+    "lecture_series": "Lecture series",
+    "other": "Other"
+  },
   "facts": {
     "ects": "ECTS credits",
     "level": "Level",
@@ -105,7 +121,9 @@
     "courseCode": "Course code",
     "contact": "Contact",
     "teachingUnit": "Teaching unit",
-    "updated": "Last updated"
+    "updated": "Last updated",
+    "kind": "Type",
+    "levels": "Level | Levels"
   },
   "dates": {
     "range": "{start} – {end}"
@@ -128,7 +146,10 @@
     "noOfferings": "No offering is scheduled for this course at the moment.",
     "datesNote": "Dates and deadlines are in the time zone shown for each offering.",
     "metaFallback": "Course offered by {partner}.",
-    "machineTranslated": "This text was machine-translated."
+    "machineTranslated": "This text was machine-translated.",
+    "attributesHeading": "Course attributes",
+    "yes": "Yes",
+    "no": "No"
   },
   "offering": {
     "dates": "Dates",
@@ -142,7 +163,8 @@
     "applyAt": "Apply at {partner}",
     "contactToApply": "To apply, contact {partner}:",
     "contactPartner": "To apply, contact {partner}.",
-    "cancelled": "Cancelled"
+    "cancelled": "Cancelled",
+    "howToApply": "How to apply"
   },
   "seats": {
     "available": "Seats available: {n} (as of {date})",
@@ -297,11 +319,11 @@
     },
     "csv": {
       "title": "CSV upload",
-      "intro": "Upload courses.csv and/or offerings.csv (template 1.0, at most 5 MB and {rows} rows each). Your files are checked in this browser first; the server checks them again.",
+      "intro": "Upload courses.csv and/or offerings.csv (template 1.1, at most 5 MB and {rows} rows each). Your files are checked in this browser first; the server checks them again.",
       "templatesHeading": "Templates",
       "templateCourses": "Download the courses.csv template",
       "templateOfferings": "Download the offerings.csv template",
-      "templateSchema": "Download the JSON Schema of template 1.0",
+      "templateSchema": "Download the JSON Schema of template 1.1",
       "filesHeading": "Files",
       "dropHint": "Up to two files: one with courses, one with offerings. The type is detected from the header columns or the file name; you can change it.",
       "selectedCaption": "Selected files",

@@ -3,6 +3,8 @@
 // label resolution, dates and the seats rule [DL 8]. No Nuxt imports, so they
 // are unit-testable in Node.
 import type {
+  AttributeDefinition,
+  CourseAttribute,
   FacetValue,
   Label,
   ListFilter,
@@ -17,8 +19,18 @@ import { pickLocalized } from './localized';
 type QueryValue = string | null | undefined | readonly (string | null)[];
 export type QueryLike = Readonly<Record<string, QueryValue>>;
 
-export const LIST_FILTERS: readonly ListFilter[] = ['partner', 'mode', 'lang', 'isced', 'level'];
-export const SORT_ORDERS: readonly SortOrder[] = ['relevance', 'title', 'start_date'];
+export const LIST_FILTERS: readonly ListFilter[] = [
+  'partner',
+  'mode',
+  'lang',
+  'isced',
+  'level',
+  'kind',
+];
+export const SORT_ORDERS: readonly SortOrder[] = ['relevance', 'title', 'start_date', 'deadline'];
+/** Query parameter prefix of attribute filters [DL 18]: `attr_<key>=<value>`. */
+export const ATTR_PREFIX = 'attr_';
+const ATTR_KEYS_MAX = 20;
 export const ECTS_MAX = 120;
 export const PAGE_MAX = 500;
 const LIST_MAX = 50;
@@ -30,7 +42,16 @@ const LIST_PATTERNS: Readonly<Record<ListFilter, RegExp>> = {
   lang: /^[a-z]{2,3}$/,
   isced: /^\d{2}$/,
   level: /^[a-z][a-z0-9_]*$/,
+  kind: /^[a-z][a-z0-9_]*$/,
 };
+/** Attribute keys: definition keys of the alliance schema (as `ATTRIBUTE_FILTER_PARAM`). */
+const ATTR_KEY = /^[a-z][a-z0-9_]{1,39}$/;
+/**
+ * Attribute values: option values or `true`. Their grammar is not part of the
+ * contract, so anything printable up to 100 characters is accepted (no
+ * control characters or markup-significant characters).
+ */
+const ATTR_VALUE = /^[^\p{Cc}<>"&]{1,100}$/u;
 
 export function emptySearchState(): SearchState {
   return {
@@ -40,6 +61,8 @@ export function emptySearchState(): SearchState {
     lang: [],
     isced: [],
     level: [],
+    kind: [],
+    attrs: {},
     ectsMin: null,
     ectsMax: null,
     includePast: false,
@@ -65,6 +88,24 @@ function parseEcts(value: QueryValue): number | null {
   return Number.isFinite(n) && n > 0 && n <= ECTS_MAX ? n : null;
 }
 
+/** `attr_<key>` parameters of a query, keys sorted, values deduplicated. */
+function parseAttributes(query: QueryLike): Record<string, string[]> {
+  const attrs: Record<string, string[]> = {};
+  const keys = Object.keys(query)
+    .filter((k) => k.startsWith(ATTR_PREFIX) && ATTR_KEY.test(k.slice(ATTR_PREFIX.length)))
+    .sort();
+  for (const param of keys.slice(0, ATTR_KEYS_MAX)) {
+    const seen = new Set<string>();
+    for (const v of values(query[param])) {
+      const value = v.trim();
+      if (ATTR_VALUE.test(value)) seen.add(value);
+      if (seen.size >= LIST_MAX) break;
+    }
+    if (seen.size) attrs[param.slice(ATTR_PREFIX.length)] = [...seen];
+  }
+  return attrs;
+}
+
 /**
  * Reads the search state from the page URL. Unknown or malformed values are
  * dropped silently (the URL is user input), so the API never sees them.
@@ -82,6 +123,7 @@ export function parseSearchState(query: QueryLike): SearchState {
     }
     state[key] = [...seen];
   }
+  state.attrs = parseAttributes(query);
   state.ectsMin = parseEcts(query.ects_min);
   state.ectsMax = parseEcts(query.ects_max);
   if (state.ectsMin !== null && state.ectsMax !== null && state.ectsMin > state.ectsMax) {
@@ -104,6 +146,10 @@ export function toRouteQuery(state: SearchState): Record<string, string | string
   if (state.q) query.q = state.q;
   for (const key of LIST_FILTERS) {
     if (state[key].length) query[key] = [...state[key]];
+  }
+  for (const key of Object.keys(state.attrs).sort()) {
+    const list = state.attrs[key];
+    if (list?.length) query[`${ATTR_PREFIX}${key}`] = [...list];
   }
   if (state.ectsMin !== null) query.ects_min = String(state.ectsMin);
   if (state.ectsMax !== null) query.ects_max = String(state.ectsMax);
@@ -137,6 +183,41 @@ export function withoutValue(state: SearchState, key: ListFilter, value: string)
   return { ...state, [key]: state[key].filter((v) => v !== value), page: 1 };
 }
 
+/** The state without one attribute filter value (chip removal); back to page 1. */
+export function withoutAttribute(state: SearchState, key: string, value: string): SearchState {
+  const attrs = { ...state.attrs };
+  const rest = (attrs[key] ?? []).filter((v) => v !== value);
+  if (rest.length) attrs[key] = rest;
+  else delete attrs[key];
+  return { ...state, attrs, page: 1 };
+}
+
+/**
+ * Keeps only the attribute filters the alliance schema offers: known filterable
+ * keys, `true` for booleans and listed options for enums. Without definitions
+ * (`/reference` unavailable) the state is returned unchanged; an empty list of
+ * definitions (older API) drops every attribute filter.
+ */
+export function restrictAttributes(
+  state: SearchState,
+  definitions: readonly AttributeDefinition[] | null | undefined,
+): SearchState {
+  if (!definitions) return state;
+  const attrs: Record<string, string[]> = {};
+  for (const [key, list] of Object.entries(state.attrs)) {
+    const def = definitions.find((d) => d.key === key);
+    if (!def?.filterable || def.value_type === 'text') continue;
+    const allowed =
+      def.value_type === 'boolean'
+        ? list.filter((v) => v === 'true')
+        : def.options
+          ? list.filter((v) => def.options!.some((o) => o.value === v))
+          : list;
+    if (allowed.length) attrs[key] = allowed;
+  }
+  return { ...state, attrs };
+}
+
 export function withPage(state: SearchState, page: number): SearchState {
   return { ...state, page };
 }
@@ -149,6 +230,7 @@ export function withoutFilters(state: SearchState): SearchState {
 export function activeFilterCount(state: SearchState): number {
   return (
     LIST_FILTERS.reduce((n, key) => n + state[key].length, 0) +
+    Object.values(state.attrs).reduce((n, list) => n + list.length, 0) +
     (state.ectsMin !== null ? 1 : 0) +
     (state.ectsMax !== null ? 1 : 0) +
     (state.includePast ? 1 : 0)
@@ -224,6 +306,86 @@ export function facetOptions(
     }
   }
   return options;
+}
+
+// ---------------------------------------------------------------------------
+// Attributes, levels, instructions [DL 18]
+
+/**
+ * Course attributes in the order of the alliance schema (`sort_order`, then
+ * key); attributes without a definition keep their order, after the others.
+ * Attributes without values are dropped.
+ */
+export function orderAttributes(
+  attributes: readonly CourseAttribute[] | null | undefined,
+  definitions: readonly AttributeDefinition[] | null | undefined,
+): CourseAttribute[] {
+  const list = (Array.isArray(attributes) ? attributes : []).filter(
+    (a) => a && typeof a.key === 'string' && Array.isArray(a.values) && a.values.length,
+  );
+  const rank = (key: string) => {
+    const def = definitions?.find((d) => d.key === key);
+    return def ? def.sort_order : Number.POSITIVE_INFINITY;
+  };
+  return list
+    .map((a, i) => ({ a, i }))
+    .sort((x, y) => rank(x.a.key) - rank(y.a.key) || x.i - y.i)
+    .map((x) => x.a);
+}
+
+/**
+ * Tags of a search card: the attributes whose definition has `show_as_tag`,
+ * in schema order. A boolean shows its definition label, other types one tag
+ * per value label. Without definitions there are no tags.
+ */
+export function attributeTags(
+  attributes: readonly CourseAttribute[] | null | undefined,
+  definitions: readonly AttributeDefinition[] | null | undefined,
+  locale: string,
+): string[] {
+  const tags: string[] = [];
+  for (const attribute of orderAttributes(attributes, definitions)) {
+    const def = definitions?.find((d) => d.key === attribute.key);
+    if (!def?.show_as_tag) continue;
+    if (def.value_type === 'boolean') {
+      if (attribute.values.some((v) => v.value === 'true')) {
+        tags.push(labelText(attribute.label, locale) ?? labelText(def.label, locale) ?? def.key);
+      }
+      continue;
+    }
+    for (const v of attribute.values) tags.push(labelText(v.label, locale) ?? v.value);
+  }
+  return [...new Set(tags)];
+}
+
+/** Levels of a course: `levels` when sent (newer API), else the single `level`. */
+export function courseLevels(course: {
+  levels?: readonly string[] | null;
+  level?: string | null;
+}): string[] {
+  const levels = Array.isArray(course.levels)
+    ? course.levels.filter((l): l is string => typeof l === 'string' && !!l)
+    : [];
+  if (levels.length) return [...new Set(levels)];
+  return course.level ? [course.level] : [];
+}
+
+/**
+ * Text of a `{lang: text}` record in `lang`, else English, else any language
+ * (empty texts are skipped). `lang` of the result says which one it is.
+ */
+export function textIn(
+  byLang: Readonly<Record<string, string>> | null | undefined,
+  lang: string,
+): { value: string; lang: string } | undefined {
+  if (!byLang || typeof byLang !== 'object') return undefined;
+  const primary = lang.split('-')[0]?.toLowerCase() ?? 'en';
+  const order = [primary, 'en', ...Object.keys(byLang).sort()];
+  for (const key of order) {
+    const value = byLang[key];
+    if (typeof value === 'string' && value.trim()) return { value, lang: key };
+  }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------

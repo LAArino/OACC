@@ -20,9 +20,19 @@ export type ExitCode = (typeof EXIT)[keyof typeof EXIT];
 export const DEFAULT_SEED_FILE = fileURLToPath(
   new URL('../../db/seed/organizations.json', import.meta.url),
 );
+/** `apps/api/db/seed/attribute-definitions.json`, from both `src/cli` and `dist/cli`. */
+export const DEFAULT_ATTRIBUTE_SEED_FILE = fileURLToPath(
+  new URL('../../db/seed/attribute-definitions.json', import.meta.url),
+);
 export const BOOTSTRAP_TTL_HOURS = 24;
 
 export interface SeedOrganizationsOptions {
+  /** Absolute path. */
+  file: string;
+  dryRun: boolean;
+}
+
+export interface SeedAttributeDefinitionsOptions {
   /** Absolute path. */
   file: string;
   dryRun: boolean;
@@ -41,6 +51,7 @@ export interface StoreSecretOptions {
 
 export interface CliHandlers {
   seedOrganizations(options: SeedOrganizationsOptions): Promise<ExitCode>;
+  seedAttributeDefinitions(options: SeedAttributeDefinitionsOptions): Promise<ExitCode>;
   bootstrapAllianceAdmin(options: BootstrapAllianceAdminOptions): Promise<ExitCode>;
   storeSecret(options: StoreSecretOptions): Promise<ExitCode>;
 }
@@ -103,6 +114,20 @@ export function buildProgram(
     .option('--dry-run', 'validate the file and report the changes without writing', false)
     .action(async (opts: { file: string; dryRun: boolean }) => {
       onResult(await handlers.seedOrganizations({ file: resolve(opts.file), dryRun: opts.dryRun }));
+    });
+
+  program
+    .command('seed-attribute-definitions')
+    .description(
+      "Insert or update the alliance's course attribute definitions from a JSON seed file, " +
+        'matched by key (definitions missing from the file are kept)',
+    )
+    .option('--file <path>', 'seed file', DEFAULT_ATTRIBUTE_SEED_FILE)
+    .option('--dry-run', 'validate the file and report the changes without writing', false)
+    .action(async (opts: { file: string; dryRun: boolean }) => {
+      onResult(
+        await handlers.seedAttributeDefinitions({ file: resolve(opts.file), dryRun: opts.dryRun }),
+      );
     });
 
   program

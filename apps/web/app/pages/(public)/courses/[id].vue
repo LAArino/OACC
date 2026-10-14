@@ -1,6 +1,7 @@
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 <script setup lang="ts">
-// Course page (spec §7): partner header, key facts, course texts per language,
+// Course page (spec §7): partner header, key facts (with the course kind,
+// levels and every alliance attribute [DL 18]), course texts per language,
 // offerings with how to apply, schema.org/Course JSON-LD, canonical URL.
 import type { CourseTexts } from '~/types/catalogue';
 
@@ -95,13 +96,37 @@ const iscedLabels = computed(() =>
 );
 const teachingUnit = computed(() => labelText(course.value?.teaching_unit?.name, locale.value));
 const updatedAt = computed(() => formatDateTimeAsDate(course.value?.updated_at, locale.value));
+const levelCount = computed(() => (course.value ? courseLevels(course.value).length : 0));
 const level = computed(() => {
   const c = course.value;
   if (!c) return undefined;
-  const name = c.level ? labels.levelLabel(c.level) : undefined;
+  const names = courseLevels(c)
+    .map((l) => labels.levelLabel(l))
+    .join(', ');
   const eqf = c.eqf_level ? t('facts.eqf', { n: c.eqf_level }) : undefined;
-  return [name, eqf].filter(Boolean).join(', ') || undefined;
+  if (names && eqf) return `${names} (${eqf})`;
+  return names || eqf || undefined;
 });
+const kind = computed(() => (course.value?.kind ? labels.kindLabel(course.value.kind) : undefined));
+/** Every attribute of the course, in schema order, with resolved labels. */
+const attributes = computed(() =>
+  orderAttributes(course.value?.attributes, reference.value?.attribute_definitions).map((a) => {
+    const def = labels.attributeDefinition(a.key);
+    const isBoolean =
+      def?.value_type === 'boolean' ||
+      (!def && a.values.every((v) => v.value === 'true' || v.value === 'false'));
+    return {
+      key: a.key,
+      label: labelText(a.label, locale.value) ?? labels.attributeLabel(a.key),
+      // Booleans read "Yes"/"No" in the UI language; other values use their labels.
+      values: a.values.map((v) =>
+        isBoolean && (v.value === 'true' || v.value === 'false')
+          ? t(v.value === 'true' ? 'course.yes' : 'course.no')
+          : (labelText(v.label, locale.value) ?? labels.attributeValueLabel(a.key, v.value)),
+      ),
+    };
+  }),
+);
 const offerings = computed(() =>
   [...(course.value?.offerings ?? [])].sort((a, b) => a.start_date.localeCompare(b.start_date)),
 );
@@ -202,8 +227,12 @@ useHead({
         </template>
         <dt>{{ t('facts.ects') }}</dt>
         <dd>{{ course.ects }}</dd>
+        <template v-if="kind">
+          <dt>{{ t('facts.kind') }}</dt>
+          <dd>{{ kind }}</dd>
+        </template>
         <template v-if="level">
-          <dt>{{ t('facts.level') }}</dt>
+          <dt>{{ t('facts.levels', Math.max(1, levelCount)) }}</dt>
           <dd>{{ level }}</dd>
         </template>
         <template v-if="course.teaching_hours">
@@ -235,6 +264,17 @@ useHead({
           <dd>{{ updatedAt }}</dd>
         </template>
       </dl>
+      <template v-if="attributes.length">
+        <h3 id="attributes-heading" class="course__subheading">
+          {{ t('course.attributesHeading') }}
+        </h3>
+        <dl class="facts">
+          <template v-for="attribute in attributes" :key="attribute.key">
+            <dt>{{ attribute.label }}</dt>
+            <dd>{{ attribute.values.join(', ') }}</dd>
+          </template>
+        </dl>
+      </template>
       <p v-if="infoUrl" class="course__info">
         <a :href="infoUrl" target="_blank" rel="noopener">
           {{ t('course.moreInfo') }}
@@ -298,6 +338,7 @@ useHead({
             :contact-email="course.contact_email"
             :reference="reference"
             :heading-level="3"
+            :text-lang="textLang"
           />
         </li>
       </ul>
@@ -334,6 +375,10 @@ useHead({
   .course__facts .facts dd {
     margin-bottom: 0.4rem;
   }
+}
+.course__subheading {
+  margin: 1rem 0 0.25rem;
+  font-size: 1.05rem;
 }
 .course__info {
   margin: 0.75rem 0 0;

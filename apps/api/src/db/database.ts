@@ -6,6 +6,10 @@
  */
 import type {
   AdminRole,
+  AttributeOption,
+  AttributeValueType,
+  CourseAttributes,
+  CourseKind,
   LifecycleStatus,
   LocalizedLabel,
   SourceChannel,
@@ -19,6 +23,8 @@ type Json<T> = ColumnType<T, T, T>;
 export type OverrideMap = Record<string, { value: unknown; by: string; at: string }>;
 /** `overrides` jsonb (spec §5 "Overrides"); DEFAULT '{}' makes it optional on insert. */
 type Overrides = ColumnType<OverrideMap, OverrideMap | undefined, OverrideMap>;
+/** jsonb object with DEFAULT '{}' (optional on insert). */
+type JsonObject<T> = ColumnType<T, T | undefined, T>;
 
 export interface OrganizationsTable {
   id: Generated<string>;
@@ -80,8 +86,12 @@ export interface CoursesTable {
   source_ref: string | null;
   source_channel: SourceChannel;
   status: Generated<LifecycleStatus>;
+  kind: Generated<CourseKind>;
   ects: Numeric;
+  /** Primary level, `levels[1]` (kept consistent by CanonicalWriter). */
   level: string | null;
+  levels: Generated<string[]>;
+  attributes: JsonObject<CourseAttributes>;
   eqf_level: number | null;
   teaching_hours: Numeric | null;
   info_url: string | null;
@@ -138,6 +148,8 @@ export interface CourseOfferingsTable {
   seats_available: number | null;
   seats_updated_at: Timestamp | null;
   application_url: string | null;
+  /** `{lang: text}` (primary subtags). */
+  application_instructions: JsonObject<Record<string, string>>;
   overrides: Overrides;
   content_hash: Buffer | null;
   absent_count: Generated<number>;
@@ -145,6 +157,19 @@ export interface CourseOfferingsTable {
   created_at: Timestamp;
   updated_at: Timestamp;
   deleted_at: Timestamp | null;
+}
+
+export interface AttributeDefinitionsTable {
+  key: string;
+  value_type: AttributeValueType;
+  label: Json<LocalizedLabel>;
+  description: Json<LocalizedLabel> | null;
+  options: Json<AttributeOption[]> | null;
+  filterable: Generated<boolean>;
+  show_as_tag: Generated<boolean>;
+  sort_order: Generated<number>;
+  created_at: Timestamp;
+  updated_at: Timestamp;
 }
 
 export interface CourseOfferingDeliveryModesTable {
@@ -286,6 +311,7 @@ export interface Database {
   course_isced_codes: CourseIscedCodesTable;
   course_offerings: CourseOfferingsTable;
   course_offering_delivery_modes: CourseOfferingDeliveryModesTable;
+  attribute_definitions: AttributeDefinitionsTable;
   secrets: SecretsTable;
   partner_integrations: PartnerIntegrationsTable;
   sync_runs: SyncRunsTable;

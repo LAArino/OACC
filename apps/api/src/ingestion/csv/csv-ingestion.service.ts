@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: EUPL-1.2
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
+  type CourseAttributes,
+  type CourseKind,
   type CourseLevel,
   type CourseOffering,
   type CourseText,
@@ -11,14 +13,17 @@ import {
   decodeCsvBytes,
   ERROR_CODES,
   type ErrorCode,
+  isErrorCode,
   type NormalizedCourseRow,
+  type ProblemError,
   type NormalizedOfferingRow,
   validateCsvFiles,
 } from '@oecp/schemas';
 import { sql, type Transaction } from 'kysely';
+import { loadAttributeDefinitions } from '../../attributes/attribute-definitions.js';
 import type { Database } from '../../db/database.js';
 import { type Db, KYSELY } from '../../db/db.module.js';
-import { CanonicalWriter } from '../canonical-writer.service.js';
+import { CanonicalContentRejected, CanonicalWriter } from '../canonical-writer.service.js';
 import { offeringKey, type WriteContext } from '../ports/canonical-writer.js';
 import type { FinishRun, RunCounters, SyncRunRow } from '../sync-runs.repository.js';
 import { SyncRunsRepository } from '../sync-runs.repository.js';
@@ -64,6 +69,20 @@ class CanonicalRejected extends Error {
   constructor(readonly issues: CsvIssue[]) {
     super('canonical validation failed');
   }
+}
+
+/** A writer rejection (pointer `/attributes/<key>`) as a `courses.csv` cell issue. */
+function writerIssue(error: ProblemError, row: number): CsvIssue {
+  const key = /^\/attributes\/([^/]+)/.exec(error.pointer ?? '')?.[1];
+  const issue: CsvIssue = {
+    code: (isErrorCode(error.code) ? error.code : 'oecp.content.invalid_value') as ErrorCode,
+    severity: 'error',
+    file: 'courses',
+    row,
+    message: error.message,
+  };
+  if (key) issue.column = `attr_${key}`;
+  return issue;
 }
 
 const zero = (): RunCounters => ({
@@ -306,10 +325,10 @@ export class CsvIngestionService {
     );
 
     const issues: CsvIssue[] = [];
-    const courses: MappedCsvCourse[] = [];
+    const courses: (MappedCsvCourse & { row: number })[] = [];
     for (const row of input.courses) {
       const mapped = this.adapter.mapCourse(row, existingCourses.get(row.course_code));
-      if (mapped.ok) courses.push(mapped.value);
+      if (mapped.ok) courses.push({ ...mapped.value, row: row.row });
       else issues.push(...mapped.errors);
     }
     const offerings: MappedCsvOffering[] = [];
@@ -350,9 +369,17 @@ export class CsvIngestionService {
 
     const counters = zero();
     // Courses first, so every offering's course exists (in the database or this transaction).
-    for (const { course, raw } of courses) {
-      counters[`n_${(await writer.upsertCourse(ctx, course, raw)).outcome}`] += 1;
+    // The writer checks attributes against the definitions before writing anything, so a
+    // rejection leaves the transaction usable; every rejection is reported, then all roll back.
+    for (const { course, raw, row } of courses) {
+      try {
+        counters[`n_${(await writer.upsertCourse(ctx, course, raw)).outcome}`] += 1;
+      } catch (error) {
+        if (!(error instanceof CanonicalContentRejected)) throw error;
+        issues.push(...error.errors.map((e) => writerIssue(e, row)));
+      }
     }
+    if (issues.length > 0) throw new CanonicalRejected(issues);
     for (const { offering, raw } of offerings) {
       counters[`n_${(await writer.upsertOffering(ctx, offering, raw)).outcome}`] += 1;
     }
@@ -361,7 +388,7 @@ export class CsvIngestionService {
   }
 
   private async referenceData(organizationId: string): Promise<CsvReferenceData> {
-    const [isced, modes, units, courses] = await Promise.all([
+    const [isced, modes, units, courses, attributeDefinitions] = await Promise.all([
       this.db.selectFrom('isced_broad_fields').select('code').execute(),
       this.db.selectFrom('delivery_modes').select('code').where('active', '=', true).execute(),
       teachingUnits(this.db, organizationId),
@@ -371,8 +398,10 @@ export class CsvIngestionService {
         .where('organization_id', '=', organizationId)
         .where('deleted_at', 'is', null)
         .execute(),
+      loadAttributeDefinitions(this.db),
     ]);
     return {
+      attributeDefinitions,
       iscedCodes: isced.map((r) => r.code),
       deliveryModes: modes.map((r) => r.code),
       teachingUnitCodes: units.keys(),
@@ -394,7 +423,10 @@ export class CsvIngestionService {
       .select([
         'c.id',
         'c.ext_id',
+        'c.kind',
         'c.level',
+        'c.levels',
+        'c.attributes',
         'c.eqf_level',
         'c.teaching_hours',
         'c.info_url',
@@ -442,7 +474,10 @@ export class CsvIngestionService {
     }
     for (const r of rows) {
       out.set(r.ext_id, {
+        kind: r.kind as CourseKind,
         level: r.level as CourseLevel | null,
+        levels: r.levels as CourseLevel[],
+        attributes: r.attributes as CourseAttributes,
         eqf_level: r.eqf_level,
         teaching_hours: r.teaching_hours === null ? null : Number(r.teaching_hours),
         teaching_unit_ext_id: r.teaching_unit_ext_id ?? null,
@@ -479,6 +514,7 @@ export class CsvIngestionService {
         'o.seats_available',
         'o.seats_updated_at',
         'o.application_url',
+        'o.application_instructions',
       ])
       .where('c.organization_id', '=', organizationId)
       .where('c.ext_id', 'in', [...new Set(courseCodes)])
@@ -496,6 +532,7 @@ export class CsvIngestionService {
         seats_updated_at:
           r.seats_updated_at === null ? null : new Date(r.seats_updated_at).toISOString(),
         application_url: r.application_url,
+        application_instructions: r.application_instructions,
       });
     }
     return out;

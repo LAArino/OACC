@@ -15,7 +15,8 @@
 | CSV JSON Schema should `$ref` the canonical schema | 2026-10-14 | Before CSV channel implementation | Spec §6.3. |
 | pgBackRest in the Compose production profile | 2026-10-14 | Before go-live | Spec §10. |
 | MFA / LoA flows tested against a real SAML IdP | 2026-10-14 | Before go-live | Spec §2.2, §4. |
-| Alliance-level course attributes (`course_attributes` jsonb validated per alliance + `course_kind`), `application_instructions` text, multi-valued level, deadline sort | 2026-10-14 | Next, after the admin CSV console (decision 18, confirmed 2026-10-14) | docs/research/aurora-virtual-campus-draft.md; attribute list for Aurora to be agreed with the Foundation. |
+| Web form (Channel C): CRUD wizard for courses and offerings in the admin area, overrides on harvested data, attributes editing from definitions | 2026-10-14 | Next | Decision 18 is implemented (2026-10-14); the form must edit kind, levels, attributes and application instructions. |
+| Confirm the Aurora attribute definitions with the Aurora Foundation (6 hubs from the website, 17 SDGs, LOUIS, flags, target audience) before migrating the 13 current entries | 2026-10-14 | Owner / Foundation | Seed at apps/api/db/seed/attribute-definitions.aurora.json. |
 | Migrate the 13 current Aurora Virtual Campus entries (+ archive) as the first CSV upload | 2026-10-14 | With Channel B | Real acceptance test for the CSV template and first public content. |
 | Docs: sync spec v4.0 with the implementation (migrations 0002–0004 DDL, `locale` param, real error codes, `consumer` behaviour, invitation flow as built) | 2026-10-14 | Before tagging the first version | Spec and code diverge in details. |
 | Docs: OpenAPI for `/api/public/v1` and `/api/admin/v1` (generated from the NestJS app) | 2026-10-14 | Before partner onboarding | `/oeapi/v5` is covered by the standard. |

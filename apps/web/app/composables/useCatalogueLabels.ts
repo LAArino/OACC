@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: EUPL-1.2
 // Human labels for catalogue codes, in the UI locale. Partner names, delivery
-// modes and ISCED fields come from `/reference` (or a facet label); levels are
-// translated in the UI catalogue; languages and countries come from Intl.
-import type { Label, ReferenceData } from '../types/catalogue';
+// modes, ISCED fields and attribute definitions come from `/reference` (or a
+// facet label); levels and course kinds are translated in the UI catalogue;
+// languages and countries come from Intl.
+import type { AttributeDefinition, Label, ReferenceData } from '../types/catalogue';
 import { countryName, labelText, languageName } from '../utils/catalogue';
 
 export type MaybeReference = ReferenceData | null | undefined;
@@ -34,6 +35,45 @@ export function useCatalogueLabels(reference: () => MaybeReference) {
     return te(key) ? t(key) : (labelText(fallback, locale.value) ?? code);
   }
 
+  /** Full name of a course kind (filters, chips, course page). */
+  function kindLabel(code: string, fallback?: Label): string {
+    const key = `kind.${code}`;
+    if (te(key)) return t(key);
+    const kind = reference()?.kinds?.find((k) => k.code === code);
+    return (
+      labelText(fallback, locale.value) ??
+      labelText(kind?.label, locale.value) ??
+      code.replace(/[_-]+/g, ' ')
+    );
+  }
+
+  /** Short name of a course kind for the badge on search cards. */
+  function kindBadge(code: string): string {
+    const key = `kindBadge.${code}`;
+    return te(key) ? t(key) : kindLabel(code);
+  }
+
+  function attributeDefinition(key: string): AttributeDefinition | undefined {
+    return reference()?.attribute_definitions?.find((d) => d.key === key);
+  }
+
+  /** Name of an attribute (its definition label). */
+  function attributeLabel(key: string, fallback?: Label): string {
+    return (
+      labelText(attributeDefinition(key)?.label, locale.value) ??
+      labelText(fallback, locale.value) ??
+      key.replace(/[_-]+/g, ' ')
+    );
+  }
+
+  /** Label of one attribute value: the option label, else the given label, else the value. */
+  function attributeValueLabel(key: string, value: string, fallback?: Label): string {
+    const def = attributeDefinition(key);
+    if (def?.value_type === 'boolean' && value === 'true') return attributeLabel(key, fallback);
+    const option = def?.options?.find((o) => o.value === value);
+    return labelText(option?.label, locale.value) ?? labelText(fallback, locale.value) ?? value;
+  }
+
   function languageLabel(code: string, fallback?: Label): string {
     return labelText(fallback, locale.value) ?? languageName(code, locale.value);
   }
@@ -52,6 +92,11 @@ export function useCatalogueLabels(reference: () => MaybeReference) {
     modeLabel,
     iscedLabel,
     levelLabel,
+    kindLabel,
+    kindBadge,
+    attributeDefinition,
+    attributeLabel,
+    attributeValueLabel,
     languageLabel,
     countryLabel,
     organizationName,

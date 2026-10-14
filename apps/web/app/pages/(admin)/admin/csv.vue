@@ -48,7 +48,7 @@ const MAX_FILES = 2;
 const TEMPLATES = [
   { path: 'courses.csv', filename: 'courses.csv', label: 'admin.csv.templateCourses' },
   { path: 'offerings.csv', filename: 'offerings.csv', label: 'admin.csv.templateOfferings' },
-  { path: 'schema.json', filename: 'oecp-csv-1.0.schema.json', label: 'admin.csv.templateSchema' },
+  { path: 'schema.json', filename: 'oecp-csv-1.1.schema.json', label: 'admin.csv.templateSchema' },
 ] as const;
 
 interface SelectedFile {

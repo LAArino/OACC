@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: EUPL-1.2
 /**
- * CSV template 1.0 row schemas (spec §6.3). They validate raw cells as parsed
+ * CSV template 1.1 row schemas (spec §6.3; 1.0 files stay valid). They validate raw cells as parsed
  * by an RFC 4180 reader: every value is a string, an empty optional cell clears
  * the field, and a column absent from the header leaves the field untouched.
  * Issue messages are stable error codes from `errors.json`.
@@ -10,6 +10,11 @@
  * the server through {@link validateCsvRows} but cannot be expressed in the
  * generated JSON Schema. Header, cross-row and reference checks live in
  * `csv-validate.ts`.
+ *
+ * Template 1.1 (decision 18) adds optional columns: `kind`, `levels` (preferred
+ * over `level`) and `attr_<key>` per alliance attribute in `courses.csv`;
+ * `application_instructions_<lang>` in `offerings.csv`. Rows using them declare
+ * `template_version` 1.1; a 1.0 row simply has none of them.
  */
 import { z } from 'zod';
 import { syncRunStatus } from './enums.js';
@@ -24,9 +29,11 @@ import {
   uuid,
 } from './primitives.js';
 
-export const CSV_TEMPLATE_VERSION = '1.0';
+/** Current template version (generated templates); every version of {@link CSV_TEMPLATE_VERSIONS} is accepted. */
+export const CSV_TEMPLATE_VERSION = '1.1';
+export const CSV_TEMPLATE_VERSIONS = ['1.0', '1.1'] as const;
 /** `sync_runs.schema_version` and `ext_metadata_history.schema_version` of Channel B. */
-export const CSV_SCHEMA_VERSION = 'csv-1.0';
+export const CSV_SCHEMA_VERSION = 'csv-1.1';
 export const CSV_MAX_CELL_LENGTH = 20_000;
 export const CSV_MULTI_VALUE_SEPARATOR = '|';
 /** Spec §6.3 limits: 5 MB (MiB) and 5,000 rows per file, 300 columns, 10 uploads per hour. */
@@ -59,6 +66,24 @@ export const CSV_COURSE_LANGUAGE_COLUMN = new RegExp(
   `^(${CSV_COURSE_TEXT_FIELDS.join('|')})_(${LANG})$`,
 );
 
+/** `attr_<key>` columns of `courses.csv` (template 1.1); the key is group 1. */
+export const CSV_COURSE_ATTRIBUTE_COLUMN = /^attr_([a-z][a-z0-9_]{1,39})$/;
+/** `application_instructions_<lang>` columns of `offerings.csv` (template 1.1); the language is group 1. */
+export const CSV_OFFERING_LANGUAGE_COLUMN = new RegExp(`^application_instructions_(${LANG})$`);
+/** Fixed columns introduced by template 1.1. */
+export const CSV_TEMPLATE_1_1_COLUMNS: Readonly<Record<CsvFileKind, readonly string[]>> = {
+  courses: ['kind', 'levels'],
+  offerings: [],
+};
+
+/** Whether a column exists only in template 1.1. */
+export function isTemplate11Column(kind: CsvFileKind, column: string): boolean {
+  if (CSV_TEMPLATE_1_1_COLUMNS[kind].includes(column)) return true;
+  return kind === 'courses'
+    ? CSV_COURSE_ATTRIBUTE_COLUMN.test(column)
+    : CSV_OFFERING_LANGUAGE_COLUMN.test(column);
+}
+
 export const CSV_COURSE_REQUIRED_COLUMNS = [
   'template_version',
   'course_code',
@@ -68,6 +93,8 @@ export const CSV_COURSE_REQUIRED_COLUMNS = [
   'title_en',
 ] as const;
 export const CSV_COURSE_OPTIONAL_COLUMNS = [
+  'kind',
+  'levels',
   'level',
   'eqf_level',
   'teaching_hours',
@@ -135,7 +162,8 @@ const areLanguageTags = (v: string) =>
   splitMultiValue(v).every((tag) => languageTag.safeParse(tag).success);
 
 const status = cell(/^(draft|published|withdrawn|cancelled)$/, 'oecp.csv.invalid_status');
-const templateVersion = cell(/^1\.0$/, 'oecp.csv.invalid_template_version');
+const templateVersion = cell(/^1\.[01]$/, 'oecp.csv.invalid_template_version');
+const LEVEL = '(short_cycle|bachelor|master|doctoral|other)';
 const code = required(CODE_PATTERN, 'oecp.csv.invalid_code');
 
 const courseColumns = {
@@ -145,7 +173,9 @@ const courseColumns = {
   ects: required(/^\d{1,3}(\.\d{1,2})?$/, 'oecp.csv.invalid_number'),
   isced_codes: required(/^\d{2,6}(\|\d{2,6})*$/, 'oecp.csv.invalid_isced'),
   title_en: required(/^[\s\S]{1,500}$/, 'oecp.content.english_missing'),
-  level: blankOr(/^(short_cycle|bachelor|master|doctoral|other)$/, 'oecp.csv.invalid_level'),
+  kind: blankOr(/^(course|bip|lecture_series|other)$/, 'oecp.csv.invalid_kind'),
+  levels: blankOr(new RegExp(`^${LEVEL}(\\|${LEVEL})*$`), 'oecp.csv.invalid_level'),
+  level: blankOr(new RegExp(`^${LEVEL}$`), 'oecp.csv.invalid_level'),
   eqf_level: blankOr(/^[1-8]$/, 'oecp.csv.invalid_level'),
   teaching_hours: blankOr(/^\d{1,5}(\.\d)?$/, 'oecp.csv.invalid_number', (v) => Number(v) > 0),
   teaching_unit_code: blankOr(CODE_PATTERN, 'oecp.csv.invalid_code'),
@@ -153,13 +183,39 @@ const courseColumns = {
   contact_email: blankOr(EMAIL_PATTERN, 'oecp.csv.invalid_email', (v) => v.length <= 320),
 };
 
-/** One row of `courses.csv`. Extra keys must match {@link CSV_COURSE_LANGUAGE_COLUMN}. */
+/** Template 1.0 rows must not use 1.1 columns (non-empty or not: the header decides). */
+function checkTemplateVersion(
+  kind: CsvFileKind,
+  row: Record<string, unknown>,
+  ctx: z.RefinementCtx,
+): void {
+  if (row['template_version'] !== '1.0') return;
+  const newer = Object.keys(row).filter((key) => isTemplate11Column(kind, key));
+  if (newer.length > 0) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['template_version'],
+      message: 'oecp.csv.invalid_template_version',
+    });
+  }
+}
+
+/**
+ * One row of `courses.csv`. Extra keys must match {@link CSV_COURSE_LANGUAGE_COLUMN}
+ * or {@link CSV_COURSE_ATTRIBUTE_COLUMN}; attribute values are checked against the
+ * alliance's definitions in `csv-validate.ts`.
+ */
 export const csvCourseRow = z
   .object(courseColumns)
   .catchall(cell(null, 'oecp.csv.cell_too_long'))
   .superRefine((row, ctx) => {
+    checkTemplateVersion('courses', row, ctx);
     for (const key of Object.keys(row)) {
-      if (!(key in courseColumns) && !CSV_COURSE_LANGUAGE_COLUMN.test(key)) {
+      if (
+        !(key in courseColumns) &&
+        !CSV_COURSE_LANGUAGE_COLUMN.test(key) &&
+        !CSV_COURSE_ATTRIBUTE_COLUMN.test(key)
+      ) {
         ctx.addIssue({ code: 'custom', path: [key], message: 'oecp.csv.unknown_column' });
       } else if (key.startsWith('title_') && String(row[key]).length > 500) {
         ctx.addIssue({ code: 'custom', path: [key], message: 'oecp.content.invalid_value' });
@@ -181,6 +237,7 @@ export const csvCourseRow = z
   .meta({
     patternProperties: {
       [CSV_COURSE_LANGUAGE_COLUMN.source]: { type: 'string', maxLength: CSV_MAX_CELL_LENGTH },
+      [CSV_COURSE_ATTRIBUTE_COLUMN.source]: { type: 'string', maxLength: CSV_MAX_CELL_LENGTH },
     },
     additionalProperties: false,
   });
@@ -189,44 +246,50 @@ export type CsvCourseRow = z.infer<typeof csvCourseRow>;
 const date = required(ISO_DATE, 'oecp.csv.invalid_date', isCalendarDate);
 const optionalDate = blankOr(ISO_DATE, 'oecp.csv.invalid_date', isCalendarDate);
 
-/** One row of `offerings.csv`. */
+const offeringColumns = {
+  template_version: templateVersion,
+  course_code: code,
+  offering_code: code,
+  status,
+  start_date: date,
+  end_date: date,
+  teaching_languages: required(
+    new RegExp(`^${TAG}(\\|${TAG})*$`),
+    'oecp.csv.invalid_language',
+    areLanguageTags,
+  ),
+  delivery_modes: required(
+    new RegExp(`^${DELIVERY_MODE}(\\|${DELIVERY_MODE})*$`),
+    'oecp.csv.invalid_delivery_mode',
+  ),
+  academic_session_code: blankOr(CODE_PATTERN, 'oecp.csv.invalid_code'),
+  enrol_start_date: optionalDate,
+  application_deadline: optionalDate,
+  timezone: blankOr(
+    /^[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+)*$/,
+    'oecp.csv.invalid_timezone',
+    isTimeZone,
+  ),
+  campus: blankOr(/^[\s\S]{1,200}$/, 'oecp.content.invalid_value'),
+  max_students: blankOr(/^[1-9]\d{0,8}$/, 'oecp.csv.invalid_number'),
+  alliance_seats: blankOr(/^\d{1,9}$/, 'oecp.csv.invalid_number'),
+  seats_available: blankOr(/^\d{1,9}$/, 'oecp.csv.invalid_number'),
+  application_url: blankOr(HTTPS_URL_PATTERN, 'oecp.csv.invalid_url', (v) => v.length <= 2048),
+};
+
+/** One row of `offerings.csv`. Extra keys must match {@link CSV_OFFERING_LANGUAGE_COLUMN}. */
 export const csvOfferingRow = z
-  .strictObject(
-    {
-      template_version: templateVersion,
-      course_code: code,
-      offering_code: code,
-      status,
-      start_date: date,
-      end_date: date,
-      teaching_languages: required(
-        new RegExp(`^${TAG}(\\|${TAG})*$`),
-        'oecp.csv.invalid_language',
-        areLanguageTags,
-      ),
-      delivery_modes: required(
-        new RegExp(`^${DELIVERY_MODE}(\\|${DELIVERY_MODE})*$`),
-        'oecp.csv.invalid_delivery_mode',
-      ),
-      academic_session_code: blankOr(CODE_PATTERN, 'oecp.csv.invalid_code'),
-      enrol_start_date: optionalDate,
-      application_deadline: optionalDate,
-      timezone: blankOr(
-        /^[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+)*$/,
-        'oecp.csv.invalid_timezone',
-        isTimeZone,
-      ),
-      campus: blankOr(/^[\s\S]{1,200}$/, 'oecp.content.invalid_value'),
-      max_students: blankOr(/^[1-9]\d{0,8}$/, 'oecp.csv.invalid_number'),
-      alliance_seats: blankOr(/^\d{1,9}$/, 'oecp.csv.invalid_number'),
-      seats_available: blankOr(/^\d{1,9}$/, 'oecp.csv.invalid_number'),
-      application_url: blankOr(HTTPS_URL_PATTERN, 'oecp.csv.invalid_url', (v) => v.length <= 2048),
-    },
-    { error: 'oecp.csv.unknown_column' },
-  )
+  .object(offeringColumns)
+  .catchall(cell(null, 'oecp.csv.cell_too_long'))
   .superRefine((row, ctx) => {
     const issue = (path: string, message: ErrorCode) =>
       ctx.addIssue({ code: 'custom', path: [path], message });
+    checkTemplateVersion('offerings', row, ctx);
+    for (const key of Object.keys(row)) {
+      if (!(key in offeringColumns) && !CSV_OFFERING_LANGUAGE_COLUMN.test(key)) {
+        issue(key, 'oecp.csv.unknown_column');
+      }
+    }
     if (row.end_date < row.start_date) issue('end_date', 'oecp.content.date_order');
     if (row.application_deadline && row.application_deadline > row.end_date) {
       issue('application_deadline', 'oecp.content.date_order');
@@ -245,6 +308,12 @@ export const csvOfferingRow = z
     if (row.seats_available && max !== null && Number(row.seats_available) > max) {
       issue('seats_available', 'oecp.content.seats_exceed_capacity');
     }
+  })
+  .meta({
+    patternProperties: {
+      [CSV_OFFERING_LANGUAGE_COLUMN.source]: { type: 'string', maxLength: CSV_MAX_CELL_LENGTH },
+    },
+    additionalProperties: false,
   });
 export type CsvOfferingRow = z.infer<typeof csvOfferingRow>;
 

@@ -28,6 +28,7 @@ const GROUP_KEYS: Readonly<Record<ListFilter, string>> = {
   lang: 'filters.lang',
   isced: 'filters.isced',
   level: 'filters.level',
+  kind: 'filters.kind',
 };
 
 function valueLabel(key: ListFilter, value: string): string {
@@ -42,7 +43,25 @@ function valueLabel(key: ListFilter, value: string): string {
       return labels.iscedLabel(value);
     case 'level':
       return labels.levelLabel(value);
+    case 'kind':
+      return labels.kindLabel(value);
   }
+}
+
+/** Attribute filter keys in schema order (`sort_order`), unknown keys last. */
+function attributeKeys(attrs: Record<string, string[]>): string[] {
+  const defs = props.reference?.attribute_definitions ?? [];
+  const rank = (key: string) =>
+    defs.find((d) => d.key === key)?.sort_order ?? Number.POSITIVE_INFINITY;
+  return Object.keys(attrs).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+}
+
+/** "Name: value" for enum values; booleans (`true`) read as the attribute name alone. */
+function attributeChipText(key: string, value: string): string {
+  const def = labels.attributeDefinition(key);
+  const name = labels.attributeLabel(key);
+  if (value === 'true' && (!def || def.value_type === 'boolean')) return name;
+  return `${name}: ${labels.attributeValueLabel(key, value)}`;
 }
 
 const link = (state: SearchState) => ({ path: props.listPath, query: toRouteQuery(state) });
@@ -63,6 +82,15 @@ const chips = computed<Chip[]>(() => {
         key: `${key}:${value}`,
         text: `${t(GROUP_KEYS[key])}: ${valueLabel(key, value)}`,
         to: link(withoutValue(s, key, value)),
+      });
+    }
+  }
+  for (const key of attributeKeys(s.attrs)) {
+    for (const value of s.attrs[key] ?? []) {
+      list.push({
+        key: `attr:${key}:${value}`,
+        text: attributeChipText(key, value),
+        to: link(withoutAttribute(s, key, value)),
       });
     }
   }

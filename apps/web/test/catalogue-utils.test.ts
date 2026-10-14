@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: EUPL-1.2
 import { describe, expect, it } from 'vitest';
-import type { CourseDetail } from '../app/types/catalogue';
+import type { AttributeDefinition, CourseAttribute, CourseDetail } from '../app/types/catalogue';
 import {
   activeFilterCount,
+  attributeTags,
   catalogueBackPath,
   countryName,
+  courseLevels,
   emptySearchState,
   facetOptions,
   formatDate,
@@ -12,22 +14,30 @@ import {
   isDeadlinePassed,
   labelText,
   languageName,
+  orderAttributes,
   parseSearchState,
   queryString,
+  restrictAttributes,
   safeEmail,
   safeHttpUrl,
   seatsInfo,
   stateFromFormData,
+  textIn,
   toApiQuery,
   toRouteQuery,
   todayIn,
   urlHost,
+  withoutAttribute,
   withoutFilters,
   withoutValue,
   withPage,
 } from '../app/utils/catalogue';
 import { courseJsonLd, serializeJsonLd } from '../app/utils/courseJsonLd';
 import course from './fixtures/catalogue/course.json';
+import reference from './fixtures/catalogue/reference.json';
+
+const definitions = reference.attribute_definitions as unknown as AttributeDefinition[];
+const courseAttributes = course.attributes as unknown as CourseAttribute[];
 
 describe('parseSearchState', () => {
   it('returns the defaults for an empty query', () => {
@@ -42,6 +52,9 @@ describe('parseSearchState', () => {
       lang: ['en', 'ca'],
       isced: '05',
       level: 'master',
+      kind: ['bip', 'lecture_series'],
+      attr_sdg: ['sdg_13', 'sdg_14'],
+      attr_free_course: 'true',
       ects_min: '3',
       ects_max: '7.5',
       upcoming: 'false',
@@ -55,6 +68,8 @@ describe('parseSearchState', () => {
       lang: ['en', 'ca'],
       isced: ['05'],
       level: ['master'],
+      kind: ['bip', 'lecture_series'],
+      attrs: { free_course: ['true'], sdg: ['sdg_13', 'sdg_14'] },
       ectsMin: 3,
       ectsMax: 7.5,
       includePast: true,
@@ -84,6 +99,24 @@ describe('parseSearchState', () => {
     expect(state.includePast).toBe(false);
   });
 
+  it('reads attribute filters, dropping malformed keys and values', () => {
+    const state = parseSearchState({
+      attr_sdg: ['sdg_13', 'sdg_13', ' sdg_14 ', '<x>', ''],
+      attr_hub: 'Digital society',
+      'attr_Bad-Key': 'x',
+      attr_: 'x',
+      attr_empty: '',
+      attribute: 'x',
+      kind: ['bip', 'BIP!'],
+    });
+    expect(state.attrs).toEqual({ hub: ['Digital society'], sdg: ['sdg_13', 'sdg_14'] });
+    expect(state.kind).toEqual(['bip']);
+  });
+
+  it('accepts the deadline sort', () => {
+    expect(parseSearchState({ sort: 'deadline' }).sort).toBe('deadline');
+  });
+
   it('swaps an inverted ECTS range and caps the page', () => {
     const state = parseSearchState({ ects_min: '10', ects_max: '2', page: '9999' });
     expect([state.ectsMin, state.ectsMax]).toEqual([2, 10]);
@@ -105,13 +138,22 @@ describe('toRouteQuery / toApiQuery', () => {
       lang: ['en'],
       isced: ['06'],
       level: ['bachelor'],
+      kind: ['bip'],
+      attr_educational_hub: ['sustainability'],
+      attr_micro_credential: ['true'],
       ects_min: '3',
       ects_max: '6',
       upcoming: 'false',
-      sort: 'start_date',
+      sort: 'deadline',
       page: '2',
     };
     expect(toRouteQuery(parseSearchState(query))).toEqual(query);
+  });
+
+  it('writes attribute filters after the list filters, keys sorted', () => {
+    const state = parseSearchState({ attr_sdg: 'sdg_13', attr_free_course: 'true', kind: 'bip' });
+    expect(Object.keys(toRouteQuery(state))).toEqual(['kind', 'attr_free_course', 'attr_sdg']);
+    expect(queryString(toApiQuery(state))).toBe('?kind=bip&attr_free_course=true&attr_sdg=sdg_13');
   });
 
   it('uses the API parameter names (`upcoming=false` for past offerings)', () => {
@@ -140,6 +182,39 @@ describe('state transitions', () => {
     });
   });
 
+  it('removes one attribute value, and the key with its last value', () => {
+    const s = parseSearchState({
+      attr_sdg: ['sdg_13', 'sdg_14'],
+      attr_free_course: 'true',
+      page: '3',
+    });
+    expect(withoutAttribute(s, 'sdg', 'sdg_13')).toMatchObject({
+      attrs: { sdg: ['sdg_14'], free_course: ['true'] },
+      page: 1,
+    });
+    expect(withoutAttribute(s, 'free_course', 'true').attrs).toEqual({
+      sdg: ['sdg_13', 'sdg_14'],
+    });
+  });
+
+  it('keeps only attribute filters the alliance schema offers', () => {
+    const s = parseSearchState({
+      attr_sdg: ['sdg_13', 'sdg_99'],
+      attr_free_course: ['true', 'yes'],
+      attr_faculty: 'Chemistry',
+      attr_competence_framework: 'louis',
+      attr_unknown: 'x',
+    });
+    expect(restrictAttributes(s, definitions).attrs).toEqual({
+      sdg: ['sdg_13'],
+      free_course: ['true'],
+    });
+    // Without definitions (reference unavailable) nothing can be checked.
+    expect(restrictAttributes(s, undefined)).toBe(s);
+    // An older API has no attribute schema: no attribute filter applies.
+    expect(restrictAttributes(s, []).attrs).toEqual({});
+  });
+
   it('changes page', () => {
     expect(withPage(state, 2).page).toBe(2);
   });
@@ -147,6 +222,17 @@ describe('state transitions', () => {
   it('counts active filters (not the text query)', () => {
     expect(activeFilterCount(state)).toBe(2);
     expect(activeFilterCount({ ...state, ectsMin: 1, ectsMax: 2, includePast: true })).toBe(5);
+    expect(
+      activeFilterCount({ ...state, kind: ['bip'], attrs: { sdg: ['a', 'b'], free: ['true'] } }),
+    ).toBe(6);
+  });
+
+  it('clears attribute and kind filters with the others', () => {
+    expect(withoutFilters({ ...state, kind: ['bip'], attrs: { sdg: ['sdg_13'] } })).toEqual({
+      ...emptySearchState(),
+      q: 'x',
+      sort: 'title',
+    });
   });
 
   it('reads the GET form and goes back to page 1', () => {
@@ -157,10 +243,16 @@ describe('state transitions', () => {
     form.append('ects_min', '');
     form.append('sort', 'relevance');
     form.append('upcoming', 'false');
+    form.append('kind', 'bip');
+    form.append('attr_sdg', 'sdg_13');
+    form.append('attr_sdg', 'sdg_15');
+    form.append('attr_free_course', 'true');
     expect(stateFromFormData(form)).toEqual({
       ...emptySearchState(),
       q: 'law',
       partner: ['urv', 'univie'],
+      kind: ['bip'],
+      attrs: { free_course: ['true'], sdg: ['sdg_13', 'sdg_15'] },
       includePast: true,
       sort: 'relevance',
     });
@@ -201,6 +293,63 @@ describe('labels', () => {
       { value: 'vu-amsterdam', count: 0, label: 'VU-AMSTERDAM', checked: true },
     ]);
     expect(facetOptions(undefined, [], (v) => v)).toEqual([]);
+  });
+});
+
+describe('attributes, levels and instructions [DL 18]', () => {
+  it('orders course attributes by the schema and drops empty ones', () => {
+    const shuffled = [
+      {
+        key: 'zzz_unknown',
+        label: { en: 'Unknown' },
+        values: [{ value: 'a', label: { en: 'A' } }],
+      },
+      ...[...courseAttributes].reverse(),
+      { key: 'sdg', label: { en: 'SDG' }, values: [] },
+    ];
+    expect(orderAttributes(shuffled, definitions).map((a) => a.key)).toEqual([
+      'educational_hub',
+      'sdg',
+      'target_audience',
+      'competence_framework',
+      'micro_credential',
+      'free_course',
+      'only_enrolled',
+      'faculty',
+      'zzz_unknown',
+    ]);
+    expect(orderAttributes(undefined, definitions)).toEqual([]);
+  });
+
+  it('builds card tags from show_as_tag definitions only', () => {
+    expect(attributeTags(courseAttributes, definitions, 'en')).toEqual([
+      'Sustainability',
+      'SDG 13: Climate action',
+      'SDG 14: Life below water',
+      'Micro-credential',
+      'Free course',
+    ]);
+    // No definitions (reference unavailable or older API): no tags.
+    expect(attributeTags(courseAttributes, undefined, 'en')).toEqual([]);
+    expect(attributeTags(undefined, definitions, 'en')).toEqual([]);
+  });
+
+  it('reads levels, falling back to the single level of an older API', () => {
+    expect(courseLevels({ levels: ['bachelor', 'master', 'master'], level: 'master' })).toEqual([
+      'bachelor',
+      'master',
+    ]);
+    expect(courseLevels({ level: 'doctoral' })).toEqual(['doctoral']);
+    expect(courseLevels({ levels: [], level: null })).toEqual([]);
+  });
+
+  it('picks instructions in the text language, else English, else any', () => {
+    const byLang = { en: 'Apply', ca: 'Sol·licita', de: '  ' };
+    expect(textIn(byLang, 'ca')).toEqual({ value: 'Sol·licita', lang: 'ca' });
+    expect(textIn(byLang, 'de')).toEqual({ value: 'Apply', lang: 'en' });
+    expect(textIn({ nl: 'Aanmelden' }, 'en')).toEqual({ value: 'Aanmelden', lang: 'nl' });
+    expect(textIn({}, 'en')).toBeUndefined();
+    expect(textIn(null, 'en')).toBeUndefined();
   });
 });
 
@@ -314,7 +463,7 @@ describe('courseJsonLd', () => {
         address: { addressCountry: 'ES' },
       },
       numberOfCredits: { '@type': 'StructuredValue', value: 6, unitText: 'ECTS' },
-      educationalLevel: 'master',
+      educationalLevel: ['bachelor', 'master'],
       dateModified: '2026-10-12T09:30:00Z',
     });
     const instances = ld.hasCourseInstance as Record<string, unknown>[];
@@ -327,6 +476,13 @@ describe('courseJsonLd', () => {
       url: 'https://apply.urv.cat/aurora/20345',
     });
     expect(instances[1]).not.toHaveProperty('location');
+  });
+
+  it('uses the single level of an older API', () => {
+    const { levels: _levels, ...old } = detail;
+    expect(courseJsonLd(old as CourseDetail, { url, locale: 'en' }).educationalLevel).toBe(
+      'master',
+    );
   });
 
   it('leaves out cancelled offerings', () => {

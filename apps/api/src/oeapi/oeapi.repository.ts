@@ -62,7 +62,7 @@ const MODE_CONDITIONS: Readonly<Record<string, RawBuilder<unknown>>> = {
 const OFFERING_COLUMNS = sql`o.id, o.course_id, o.ext_offering_id, o.status, o.academic_session_id,
   o.start_date, o.end_date, o.enrol_start_date, o.application_deadline, o.timezone,
   o.teaching_languages, o.campus, o.max_students, o.alliance_seats, o.seats_available,
-  o.seats_updated_at, o.application_url,
+  o.seats_updated_at, o.application_url, o.application_instructions,
   array(SELECT m.mode_code FROM course_offering_delivery_modes m
         JOIN delivery_modes d ON d.code = m.mode_code
         WHERE m.offering_id = o.id ORDER BY d.sort_order, m.mode_code) AS modes`;
@@ -167,8 +167,8 @@ export class OeapiRepository {
   async courseBundles(ids: string[]): Promise<CourseBundle[]> {
     if (ids.length === 0) return [];
     const [courses, texts, isced, offerings] = await Promise.all([
-      sql<CourseRow>`SELECT c.id, c.organization_id, c.teaching_unit_id, c.ext_id, c.ects,
-          c.level, c.eqf_level, c.teaching_hours, c.info_url, c.contact_email, c.updated_at
+      sql<CourseRow>`SELECT c.id, c.organization_id, c.teaching_unit_id, c.ext_id, c.kind, c.ects,
+          c.level, c.levels, c.attributes, c.eqf_level, c.teaching_hours, c.info_url, c.contact_email, c.updated_at
         FROM courses c JOIN organizations org ON org.id = c.organization_id
         WHERE c.id = ANY(${ids}::uuid[]) AND ${PUBLISHED_COURSE}`.execute(this.db),
       sql<CourseTextRow>`SELECT t.course_id, t.lang, t.title, t.abstract, t.description,
