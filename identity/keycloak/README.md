@@ -35,7 +35,7 @@ Keycloak image by `deploy/compose/dockerfiles/keycloak.Dockerfile`.
 | Client scope `oecp` | `aud` ∋ `oecp-api`, `org_id`, flat `roles`, `idp`, `name`; no role scope mappings | §4 JWT contract |
 | ACR | realm map `{"mfa": 2}` | §4 |
 | Flows | `oecp-browser-mfa`, `oecp-post-broker-mfa`, `oecp-first-broker-login` | §2.1, §2.2 |
-| IdPs | `example-partner` (disabled SAML template) with attribute importers | §4 |
+| IdPs | `example-partner` (disabled SAML template) with attribute importers; `urv`, the development test IdP (enabled only with `OECP_DEV_IDP_ENABLED=true`, see below) | §4 |
 
 ### Claims and where they come from
 
@@ -258,5 +258,82 @@ within minutes.
 - The bootstrap admin of `master` has no e-mail address, so the admin
   console's SMTP "Test connection" fails; trigger an execute-actions e-mail
   for a test user instead.
-- A test SAML IdP for the Playwright invitation test (spec §10) can be added
-  as another IdP entry pointing at a local SimpleSAMLphp or Keycloak instance.
+- The brokered path is tested against the dev-only test SAML IdP below.
+
+## Test SAML IdP (dev profile)
+
+The compose `dev` profile runs **`test-saml-idp`**, a SimpleSAMLphp 1.19 IdP
+(`kenchan0130/simplesamlphp:1.19.9`, multi-arch) that plays the partner
+university URV, so the brokered (eduGAIN-style) administrator path can be
+exercised end to end on a laptop. Files: `deploy/compose/test-saml-idp/`.
+
+| Item | Value |
+|---|---|
+| Realm IdP | alias `urv` (= `organizations.keycloak_idp_alias` of the seeded `urv`), declared in `realm-oecp.yaml` with `enabled: "$(env:…)"` → `OECP_DEV_IDP_ENABLED` (default `false`) |
+| IdP entity ID | `https://idp.urv.test/saml2/idp` (an identifier only; nobody resolves it) |
+| SSO URL (browser) | `http://127.0.0.1:${OECP_DEV_IDP_PORT:-8091}/simplesaml/saml2/idp/SSOService.php` |
+| IdP metadata | `http://127.0.0.1:8091/simplesaml/saml2/idp/metadata.php` |
+| Signing key | `deploy/compose/test-saml-idp/cert/idp.urv.test.{key,crt}`, development only, committed on purpose, valid until 2036-10-11; the certificate is pasted into `realm-oecp.yaml` |
+| Users | `deploy/compose/test-saml-idp/users.json` (also read by the Playwright scripts): `partner.admin` (happy path, `partner.admin@urv.cat`, `schacHomeOrganization=urv.cat`, subject-id `abc123@urv.cat`), `visiting.scholar` (asserts `example.edu`), `email.collision` (asserts the dev alliance admin's e-mail) |
+| Attributes | released under their URI names (`urn:oid:…`, `urn:oasis:names:tc:SAML:attribute:subject-id`), as eduGAIN IdPs do |
+| Assertions | signed (RSA-SHA256) and encrypted for Keycloak (RSA-OAEP-MGF1P key transport); Keycloak's signed AuthnRequests are verified |
+
+**Reachability.** Both SAML legs use the HTTP-POST binding through the
+browser: Keycloak's redirector page posts the AuthnRequest to the SSO URL on
+`127.0.0.1:8091`, and the IdP's page posts the response to
+`https://auth.oecp.localhost/realms/oecp/broker/urv/endpoint`. Keycloak never
+calls the IdP, so the SSO URL only has to work from the browser. The IdP, in
+turn, reads Keycloak's SP descriptor
+(`http://keycloak:8080/realms/oecp/broker/urv/endpoint/descriptor`, network
+`edge`) to get the realm's encryption and signing certificates, which
+Keycloak generates at first start; it caches them for 60 s and refuses to
+answer while IdP `urv` is disabled. The entity ID and ACS it trusts are the
+public ones (`TEST_IDP_SP_*`), not those of the internal descriptor.
+
+**Enable it** (local `.env`, then apply):
+
+```sh
+OECP_DEV_IDP_ENABLED=true
+OECP_DEV_IDP_PORT=8091
+docker compose --profile dev up -d test-saml-idp
+docker compose --profile dev run --rm keycloak-config
+docker compose restart api        # or wait: /api/public/v1/reference caches the enabled IdPs 300 s
+curl -sk https://oecp.localhost/api/public/v1/reference | jq '.organizations[] | select(.slug=="urv") | .idp_alias'   # "urv"
+```
+
+Then run `tools/e2e-identity/brokered-accept.js` and `brokered-negative.js`
+(see [`tools/e2e-identity/README.md`](../../tools/e2e-identity/README.md)).
+
+**Why the IdP is in `realm-oecp.yaml` and not in a second, dev-only file.**
+keycloak-config-cli 6.5.1 (`import.managed.identity-provider=full`) deletes
+every identity provider that is missing from the file it imports, and its
+identity-provider import does not consult the remote state (read from the
+6.5.1 `IdentityProviderImportService`; not exercised on purpose). Two files
+for one realm would therefore delete and recreate `urv` (or `example-partner`)
+on every run, and deleting an IdP deletes its users' federated identity
+links. The same applies to an IdP added by hand in the admin console. With the
+flag, `urv` is updated in place: a re-import keeps the links (verified).
+
+**Found while wiring it** (Keycloak 26.8.1):
+
+1. **Expired IdP certificates are ignored.** The image's built-in key has a
+   certificate that expired in 2020; Keycloak logs `Ignoring invalid
+   certificate` and rejects every response with `invalid_signature`. Partner
+   certificates must be inside their validity period (the metadata refresh
+   job of the API must not keep an expired one).
+2. **First login enrols TOTP as a required action.** On the first brokered
+   login the post-broker flow's enrolment branch hands over to the
+   `CONFIGURE_TOTP` required action (`/login-actions/required-action`); later
+   logins show the OTP form inside the post-broker flow
+   (`/login-actions/post-broker-login`). Both yield `acr=mfa`.
+3. **No linking by e-mail holds.** An IdP assertion carrying the e-mail of
+   an existing local account stops at `first-broker-login` with "User with
+   email … already exists" (HTTP 409); no user is created and nothing is linked.
+4. **No SLO with the test IdP.** The realm entry declares no
+   `singleLogoutServiceUrl`, so signing out of OECP leaves the IdP session; the
+   next login through the chooser is a silent single sign-on at the IdP
+   (still followed by the OTP form in Keycloak).
+
+When URV joins with its real IdP, replace the values of the `urv` block
+(entity ID, SSO URL, certificate, principal attribute per step 4 above) and
+its `enabled` line; keep the alias and the mappers.

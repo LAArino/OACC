@@ -19,6 +19,7 @@ scripts.
 | `keycloak-config` | `adorsys/keycloak-config-cli:6.5.1-26.5.5` | one-shot: applies `identity/keycloak/realm-oecp.yaml` |
 | `mailpit` | `axllent/mailpit:v1.31.5` (MIT), profile `dev` | local SMTP sink with a web UI |
 | `oeapi-mock` | built from `tools/oeapi-mock` (`node:22.23.3-alpine3.24`), profile `dev` | simulated partner university serving OEAPI v5.0 for the harvester |
+| `test-saml-idp` | `kenchan0130/simplesamlphp:1.19.9` (MIT; SimpleSAMLphp LGPL-2.1), profile `dev` | test SAML IdP playing URV for the brokered admin path (realm IdP `urv`, `OECP_DEV_IDP_ENABLED=true`) |
 | `otel-collector`, `prometheus`, `loki`, `grafana` | profile `observability` | metrics and logs (spec §10) |
 
 ```
@@ -101,6 +102,7 @@ Then open:
 | `https://auth.oecp.localhost/admin/` | Keycloak admin console: user `KEYCLOAK_ADMIN_USER` (default `admin`), password in `secrets/keycloak_admin_password`; reachable only from `KEYCLOAK_ADMIN_ALLOWLIST` |
 | `http://127.0.0.1:8025/` | Mailpit (profile `dev`): every e-mail sent by Keycloak and the api |
 | `http://127.0.0.1:8090/` | OEAPI v5.0 mock partner (profile `dev`), HTTP Basic `oecp` / `oecp-mock-secret` |
+| `http://127.0.0.1:8091/simplesaml/` | test SAML IdP (profile `dev`), users in `test-saml-idp/users.json` |
 | `http://127.0.0.1:8080/dashboard/` | Traefik dashboard (local development only) |
 | `http://127.0.0.1:3001/` | Grafana (profile `observability`), user `admin`, password in `secrets/grafana_admin_password` |
 
@@ -209,6 +211,23 @@ detection), set `OEAPI_MOCK_DATASET=/app/data/uibk-next-run.json` in `.env`
 and run `docker compose up -d oeapi-mock`; set `OEAPI_MOCK_FAIL_RATE`,
 `OEAPI_MOCK_RATE_LIMIT_PER_SEC` or `OEAPI_MOCK_LATENCY_MS` the same way to
 exercise retries and back-off.
+
+#### Test SAML IdP (`test-saml-idp`)
+
+SimpleSAMLphp configured from [`test-saml-idp/`](test-saml-idp/) as the IdP
+of partner URV (entity ID `https://idp.urv.test/saml2/idp`), published on
+`127.0.0.1:${OECP_DEV_IDP_PORT:-8091}` for the browser; the realm's IdP `urv`
+points at it when `.env` sets `OECP_DEV_IDP_ENABLED=true` (applied by
+`keycloak-config`). Keycloak never calls it (HTTP-POST binding through the
+browser); it reads Keycloak's SP descriptor over the `edge` network for the
+encryption certificate. Setup, design and pitfalls:
+[`identity/keycloak/README.md`](../../identity/keycloak/README.md#test-saml-idp-dev-profile);
+end-to-end scripts: [`tools/e2e-identity`](../../tools/e2e-identity/README.md).
+
+```sh
+docker compose --profile dev up -d test-saml-idp
+docker compose --profile dev run --rm keycloak-config   # with OECP_DEV_IDP_ENABLED=true
+```
 
 ### Security headers and rate limits
 
