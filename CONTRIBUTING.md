@@ -73,8 +73,10 @@ Pull requests should:
 4. Update documentation and add an entry under `Unreleased` in
    [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
 5. Start every new source file with SPDX headers, for example
+   <!-- REUSE-IgnoreStart -->
    `// SPDX-License-Identifier: EUPL-1.2` in TypeScript or
    `<!-- SPDX-License-Identifier: EUPL-1.2 -->` in Markdown.
+   <!-- REUSE-IgnoreEnd -->
 
 ## Architecture decision records (ADRs)
 
