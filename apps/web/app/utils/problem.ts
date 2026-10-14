@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: EUPL-1.2
+// Admin API errors: RFC 9457 `application/problem+json` (spec §6.6) parsed into a
+// typed error, and stable error codes mapped to translated messages.
+import type { ProblemDetails, ProblemError } from '@oecp/schemas';
+
+/** An admin API call that failed; `status` 0 means no HTTP response (network error). */
+export class AdminApiError extends Error {
+  readonly status: number;
+  readonly title: string;
+  readonly detail: string | undefined;
+  /** Stable error codes from `errors[]`, in order (e.g. `oecp.invitation.expired`). */
+  readonly codes: readonly string[];
+  /** True when title/detail come from a problem+json body (server text worth showing). */
+  readonly fromServer: boolean;
+
+  constructor(init: {
+    status: number;
+    title: string;
+    detail?: string;
+    codes?: readonly string[];
+    fromServer?: boolean;
+  }) {
+    super(init.detail ?? init.title);
+    this.name = 'AdminApiError';
+    this.status = init.status;
+    this.title = init.title;
+    this.detail = init.detail;
+    this.codes = init.codes ?? [];
+    this.fromServer = init.fromServer ?? false;
+  }
+
+  /** First stable code, the one the UI explains. */
+  get code(): string | undefined {
+    return this.codes[0];
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function codesOf(errors: unknown): string[] {
+  if (!Array.isArray(errors)) return [];
+  return errors
+    .filter((e): e is Pick<ProblemError, 'code'> => isRecord(e) && typeof e.code === 'string')
+    .map((e) => e.code);
+}
+
+/**
+ * Builds an AdminApiError from a failed response. `body` is the parsed JSON body
+ * (problem+json or anything else); non-problem bodies keep only the status.
+ */
+export function toAdminApiError(status: number | undefined, body: unknown): AdminApiError {
+  const httpStatus = typeof status === 'number' ? status : 0;
+  if (isRecord(body) && typeof body.title === 'string') {
+    const problem = body as Partial<ProblemDetails>;
+    return new AdminApiError({
+      status: typeof problem.status === 'number' ? problem.status : httpStatus,
+      title: body.title,
+      ...(typeof problem.detail === 'string' ? { detail: problem.detail } : {}),
+      codes: codesOf(problem.errors),
+      fromServer: true,
+    });
+  }
+  return new AdminApiError({
+    status: httpStatus,
+    title: httpStatus === 0 ? 'Network error' : `HTTP ${httpStatus}`,
+  });
+}
+
+/** i18n keys (under `problem.`) for the codes the admin UI explains to people. */
+const MESSAGE_KEYS: Readonly<Record<string, string>> = {
+  'oecp.invitation.expired': 'problem.invitationExpired',
+  'oecp.invitation.invalid': 'problem.invitationInvalid',
+  'oecp.invitation.mismatch': 'problem.invitationMismatch',
+  'oecp.auth.missing_token': 'problem.signInAgain',
+  'oecp.auth.invalid_token': 'problem.signInAgain',
+  'oecp.auth.insufficient_acr': 'problem.insufficientAcr',
+  'oecp.auth.no_role': 'problem.noRole',
+  'oecp.auth.unknown_organization': 'problem.forbidden',
+  'oecp.auth.idp_mismatch': 'problem.forbidden',
+  'oecp.auth.forbidden_organization': 'problem.forbidden',
+  'oecp.auth.forbidden_role': 'problem.forbidden',
+};
+
+/** Translation key of the human message for an error (falls back on generic messages). */
+export function problemMessageKey(error: Pick<AdminApiError, 'status' | 'codes'>): string {
+  for (const code of error.codes) {
+    const key = MESSAGE_KEYS[code];
+    if (key) return key;
+  }
+  if (error.status === 0) return 'problem.network';
+  if (error.status === 401) return 'problem.signInAgain';
+  return 'problem.generic';
+}
