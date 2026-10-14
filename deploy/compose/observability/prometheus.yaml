@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Minimal Prometheus configuration (spec §10). Alert rules (failed harvests,
+# backup age, disk, metadata refresh, 5xx rate) are added with the dashboards.
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  # Application metrics received over OTLP by the collector.
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8889"]
+  # Edge: request rates, status codes, rate-limit rejections.
+  - job_name: traefik
+    static_configs:
+      - targets: ["traefik:8082"]
+  # Keycloak management interface (metrics-enabled at build time).
+  - job_name: keycloak
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["keycloak:9000"]

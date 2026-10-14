@@ -1,0 +1,101 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# publiccode.yml metadata, schema version 0.4
+# https://yml.publiccode.tools/
+
+publiccodeYmlVersion: "0.4"
+
+name: Open European Campus Portal
+url: "https://github.com/<org>/oecp"
+
+platforms:
+  - web
+
+categories:
+  - content-management
+  - data-collection
+
+developmentStatus: development
+
+softwareType: "standalone/web"
+
+dependsOn:
+  open:
+    - name: PostgreSQL
+      versionMin: "16"
+    - name: Keycloak
+      versionMin: "26.0"
+    - name: Traefik Proxy
+      versionMin: "3.0"
+    - name: Valkey
+      versionMin: "8.0"
+    - name: Node.js
+      versionMin: "22"
+
+maintenance:
+  type: "internal"
+  contacts:
+    - name: Lluís Alfons Ariño
+
+legal:
+  license: EUPL-1.2
+  mainCopyrightOwner: Lluís Alfons Ariño
+  repoOwner: Lluís Alfons Ariño
+
+intendedAudience:
+  scope:
+    - education
+
+localisation:
+  localisationReady: true
+  availableLanguages:
+    - en
+
+description:
+  en:
+    shortDescription: >-
+      Public course catalogue and read API for a European University alliance,
+      fed by OEAPI harvesting, CSV upload or a web form.
+    longDescription: |
+      The Open European Campus Portal (OECP) publishes the course offer of a
+      European University alliance as one public catalogue and one read API.
+
+      Partner universities feed their courses through three channels:
+      scheduled harvesting of their Open Education API (OEAPI, formerly OOAPI)
+      endpoints, CSV upload, or a web form. An anti-corruption layer normalises
+      every channel into one canonical model (courses, offerings and academic
+      sessions, with multilingual texts and English as the mandatory fallback)
+      before publication. Harvesting is pull-only and idempotent; courses that
+      disappear from a partner's source are withdrawn only after repeated
+      absence from complete harvests.
+
+      Visitors search the catalogue anonymously, without cookies, filtering by
+      partner, delivery mode, ECTS range, teaching language and ISCED field of
+      education. Each course page shows its offerings, dates, application
+      deadline, seats and an Apply link, and carries schema.org/Course
+      structured data. The published catalogue is also exposed through an
+      anonymous OEAPI v5-compatible read API so that other platforms can
+      harvest it.
+
+      Partner and alliance administrators sign in through Keycloak with their
+      institutional identity provider (SAML, eduGAIN) and mandatory
+      multi-factor authentication. They configure integrations, upload and
+      validate CSV files, edit courses in a wizard, and monitor
+      synchronisation runs and network status.
+
+      OECP is alliance-agnostic: alliance name, partners, domains, branding and
+      UI languages are configuration, and one deployment serves one alliance.
+      It never handles applications or enrolment and stores no student data.
+      Reference deployments are provided for Docker Compose and, later, Helm.
+    features:
+      - Public course catalogue with server-side rendering and no cookies
+      - Multilingual full-text search with typo-tolerant suggestions
+      - Filters by partner, delivery mode, ECTS, teaching language and ISCED field
+      - Scheduled OEAPI v5 harvesting with withdrawal by repeated absence
+      - CSV upload validated in the browser and on the server
+      - Web form wizard with overrides over harvested data
+      - Anonymous OEAPI v5-compatible read API
+      - schema.org/Course JSON-LD and sitemap
+      - Keycloak admin login via eduGAIN SAML IdPs with mandatory MFA
+      - Synchronisation monitor and partner network status

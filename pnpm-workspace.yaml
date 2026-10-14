@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: EUPL-1.2
+packages:
+  - apps/*
+  - packages/*
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
+  msgpackr-extract: true

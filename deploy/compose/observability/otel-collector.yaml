@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Minimal OpenTelemetry Collector pipeline (spec §10 Observability):
+# api, worker and web export OTLP here; metrics go to Prometheus (scrape),
+# logs to Loki (native OTLP endpoint), traces to the debug exporter only
+# (no trace backend in the MVP).
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 75
+    spike_limit_percentage: 20
+  batch: {}
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/loki]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]

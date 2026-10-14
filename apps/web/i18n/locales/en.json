@@ -1,0 +1,37 @@
+{
+  "a11y": {
+    "skipToContent": "Skip to main content"
+  },
+  "nav": {
+    "main": "Main",
+    "home": "Home",
+    "courses": "Courses"
+  },
+  "home": {
+    "title": "Find a course",
+    "searchLabel": "Search courses",
+    "searchButton": "Search"
+  },
+  "courses": {
+    "title": "Courses",
+    "empty": "No courses match your search.",
+    "error": "The catalogue is not available right now."
+  },
+  "course": {
+    "notFound": "Course not found.",
+    "ects": "{n} ECTS"
+  },
+  "common": {
+    "loading": "Loading…"
+  },
+  "admin": {
+    "title": "Administration",
+    "signIn": "Sign in",
+    "signOut": "Sign out"
+  },
+  "accept": {
+    "title": "Accept invitation",
+    "missingToken": "This invitation link is incomplete.",
+    "signIn": "Sign in to accept"
+  }
+}

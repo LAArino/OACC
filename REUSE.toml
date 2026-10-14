@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# REUSE Specification 3.2 — https://reuse.software/spec-3.2/
+# Run `reuse lint` from the repository root to check compliance.
+
+version = 1
+
+# Default: everything in the repository is the author's work under EUPL-1.2.
+# "aggregate" keeps any in-file SPDX header and adds this information to it.
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Lluís Alfons Ariño"
+SPDX-License-Identifier = "EUPL-1.2"
+
+# Trivial configuration files and generated lockfiles are dedicated to the
+# public domain so they can be copied freely between projects.
+[[annotations]]
+path = [
+  ".gitignore",
+  "**/.gitignore",
+  ".editorconfig",
+  "pnpm-lock.yaml",
+  "**/pnpm-lock.yaml",
+  "**/package-lock.json",
+  "**/yarn.lock",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Lluís Alfons Ariño"
+SPDX-License-Identifier = "CC0-1.0"
+
+# Third-party texts reproduced verbatim keep their own copyright and licence.
+[[annotations]]
+path = "CODE_OF_CONDUCT.md"
+precedence = "override"
+SPDX-FileCopyrightText = "Contributor Covenant <https://www.contributor-covenant.org>"
+SPDX-License-Identifier = "CC-BY-4.0"
+
+[[annotations]]
+path = "DCO"
+precedence = "override"
+SPDX-FileCopyrightText = "2004, 2006 The Linux Foundation and its contributors"
+SPDX-License-Identifier = "LicenseRef-DCO"

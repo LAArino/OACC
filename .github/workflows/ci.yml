@@ -1,0 +1,191 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Continuous integration (spec v4.0 §10, §11; ADR-0006 "Confirmation").
+# Third-party actions are pinned to full commit SHAs (tag in the comment);
+# Dependabot keeps them current.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    name: Lint, type check, test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.15
+        env:
+          POSTGRES_USER: oecp
+          POSTGRES_PASSWORD: oecp-ci
+          POSTGRES_DB: oecp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oecp -d oecp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      valkey:
+        image: valkey/valkey:8.1.10-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://oecp:oecp-ci@localhost:5432/oecp
+      VALKEY_URL: redis://localhost:6379/0
+      # Tests must not reach a real Keycloak; these only satisfy configuration validation.
+      KEYCLOAK_ISSUER: https://auth.ci.invalid/realms/oecp
+      KEYCLOAK_JWKS_URL: https://auth.ci.invalid/realms/oecp/protocol/openid-connect/certs
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Enable pnpm through Corepack
+        # pnpm version comes from package.json#packageManager.
+        run: |
+          npm install --global corepack@0.36.0
+          corepack enable
+          corepack install
+          pnpm --version
+
+      - name: Locate the pnpm store
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the pnpm store
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create a throwaway master key
+        run: |
+          umask 077
+          openssl rand -base64 32 | tr -d '\n' > "$RUNNER_TEMP/oecp_master_key"
+          echo "OECP_MASTER_KEY_FILE=$RUNNER_TEMP/oecp_master_key" >> "$GITHUB_ENV"
+
+      - name: Apply database migrations to the service database
+        run: pnpm db:migrate
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+  reuse:
+    name: REUSE compliance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: reuse lint
+        uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0
+
+  dco:
+    name: DCO sign-off
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Check Signed-off-by on every commit of the pull request
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        # Every non-merge commit needs "Signed-off-by: <author name> <author email>"
+        # (DCO 1.1, CONTRIBUTING.md). Dependabot commits are exempt.
+        run: |
+          set -euo pipefail
+          failed=0
+          for sha in $(git rev-list --no-merges "$BASE_SHA..$HEAD_SHA"); do
+            author_name=$(git show -s --format='%an' "$sha")
+            author_email=$(git show -s --format='%ae' "$sha")
+            if [ "$author_name" = "dependabot[bot]" ]; then
+              echo "skip  $sha (dependabot)"
+              continue
+            fi
+            expected="Signed-off-by: $author_name <$author_email>"
+            if git show -s --format='%B' "$sha" | grep -qiF -- "$expected"; then
+              echo "ok    $sha"
+            else
+              echo "::error::Commit $sha lacks '$expected'. Sign off with 'git commit -s' (see CONTRIBUTING.md)."
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+  compose-config:
+    name: Validate Docker Compose file
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: docker compose config
+        run: |
+          docker compose version
+          docker compose --env-file deploy/compose/.env.example \
+            -f deploy/compose/compose.yaml --profile observability config --quiet
+          echo "compose.yaml is valid"
+
+  trivy-fs:
+    name: Trivy filesystem scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Scan dependencies, secrets and IaC
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          # Report only for now; switch to 1 once the baseline is clean.
+          exit-code: "0"
+          format: table

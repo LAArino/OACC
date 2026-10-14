@@ -1,0 +1,769 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Realm `oecp` as code, applied by keycloak-config-cli (adorsys) on every
+# `docker compose up` (service `keycloak-config`). Spec v4.0 §2.1, §2.2, §4.
+#
+# Variable substitution is enabled (IMPORT_VARSUBSTITUTION_ENABLED=true): a
+# dollar sign followed by "(env:NAME)" or "(env:NAME:-default)" is replaced by
+# the environment of the keycloak-config container (deploy/compose/compose.yaml),
+# and "(file:UTF-8:/path)" by a file's content. Substitution runs on the raw
+# text BEFORE YAML parsing, comments included, and an undefined variable is an
+# error: never write a literal dollar-parenthesis example in a comment, and
+# keep substituted values quoted. Keycloak message keys such as ${username}
+# are not affected.
+#
+# keycloak-config-cli keeps remote state: resources it created and that are
+# later removed from this file are deleted from Keycloak. Resources created by
+# the API at runtime (users, role mappings, attribute `oecp_org_id`) are not
+# touched. Partner IdPs managed here are only the static part; certificates and
+# endpoints are refreshed daily by the API job `idp-metadata-refresh`
+# (see README.md), so keep `signingCertificate` placeholders minimal.
+
+realm: oecp
+enabled: true
+displayName: "$(env:OECP_REALM_DISPLAY_NAME:-Open European Campus Portal)"
+sslRequired: external
+defaultLocale: en
+internationalizationEnabled: false
+
+# --- Accounts: no self-service ------------------------------------------------
+registrationAllowed: false            # spec §2.1: no self-registration
+registrationEmailAsUsername: false
+rememberMe: false                     # spec §2.2: no remember-me
+resetPasswordAllowed: false           # local users get execute-actions e-mails from the API
+editUsernameAllowed: false
+loginWithEmailAllowed: true
+duplicateEmailsAllowed: false
+verifyEmail: false                    # brokered e-mail is trusted (trustEmail on each IdP)
+# Local users only (organizations without an eduGAIN IdP, spec §2.1).
+passwordPolicy: length(12) and maxLength(128) and notUsername and notEmail and passwordHistory(5)
+bruteForceProtected: true
+permanentLockout: false
+failureFactor: 10
+waitIncrementSeconds: 60
+maxFailureWaitSeconds: 900
+maxDeltaTimeSeconds: 43200
+quickLoginCheckMilliSeconds: 1000
+minimumQuickLoginWaitSeconds: 60
+
+# --- Token and session lifetimes (spec §2.2) ----------------------------------
+accessTokenLifespan: 300              # 5 min
+accessTokenLifespanForImplicitFlow: 300
+ssoSessionIdleTimeout: 1800           # 30 min
+ssoSessionMaxLifespan: 28800          # 8 h
+ssoSessionIdleTimeoutRememberMe: 0
+ssoSessionMaxLifespanRememberMe: 0
+clientSessionIdleTimeout: 0           # inherit SSO values
+clientSessionMaxLifespan: 0
+# Rotating, single-use refresh tokens.
+revokeRefreshToken: true
+refreshTokenMaxReuse: 0
+# No offline tokens: clients below do not get the `offline_access` scope or
+# role (fullScopeAllowed: false), so offline sessions cannot be created; the
+# lifetimes are kept short in case a client is misconfigured later.
+offlineSessionIdleTimeout: 1800
+offlineSessionMaxLifespanEnabled: true
+offlineSessionMaxLifespan: 28800
+accessCodeLifespan: 60
+accessCodeLifespanUserAction: 300
+accessCodeLifespanLogin: 1800
+actionTokenGeneratedByAdminLifespan: 43200   # execute-actions e-mail links: 12 h
+actionTokenGeneratedByUserLifespan: 300
+
+# --- Events (retention 90 days, spec §10 GDPR) --------------------------------
+eventsEnabled: true
+eventsExpiration: 7776000
+adminEventsEnabled: true
+adminEventsDetailsEnabled: false
+
+attributes:
+  # ACR-to-LoA map (spec §4): LoA 2 (second factor passed) is reported as acr="mfa".
+  acr.loa.map: '{"mfa":2}'
+  # Admin event retention, seconds (90 days).
+  adminEventsExpiration: "7776000"
+
+# --- Second factor policies (spec §2.2: WebAuthn preferred, TOTP offered) ------
+otpPolicyType: totp
+otpPolicyAlgorithm: HmacSHA1          # widest authenticator-app compatibility
+otpPolicyDigits: 6
+otpPolicyPeriod: 30
+otpPolicyLookAheadWindow: 1
+otpPolicyCodeReusable: false
+webAuthnPolicyRpEntityName: "$(env:OECP_REALM_DISPLAY_NAME:-Open European Campus Portal)"
+webAuthnPolicySignatureAlgorithms: [ES256, RS256]
+webAuthnPolicyRpId: ""                # defaults to the auth host
+webAuthnPolicyAttestationConveyancePreference: not specified
+webAuthnPolicyAuthenticatorAttachment: not specified
+webAuthnPolicyRequireResidentKey: not specified
+webAuthnPolicyUserVerificationRequirement: preferred
+webAuthnPolicyAvoidSameAuthenticatorRegister: true
+
+# --- Outgoing mail (host institution relay) -----------------------------------
+smtpServer:
+  host: "$(env:OECP_SMTP_HOST:-)"
+  port: "$(env:OECP_SMTP_PORT:-25)"
+  from: "$(env:OECP_SMTP_FROM:-no-reply@example.org)"
+  fromDisplayName: "$(env:OECP_REALM_DISPLAY_NAME:-Open European Campus Portal)"
+  starttls: "true"
+  auth: "false"
+  ssl: "false"
+
+# --- Flow bindings ------------------------------------------------------------
+browserFlow: oecp-browser-mfa
+firstBrokerLoginFlow: oecp-first-broker-login
+
+# --- Roles (spec §2, §4): assigned by the API, never derived from IdP attributes
+roles:
+  realm:
+    - name: partner_admin
+      description: Administers the courses, integrations and uploads of the organization in claim org_id and its sub-units.
+    - name: alliance_admin
+      description: Administers every organization, admin invitations and revocations, network status.
+
+# --- User profile (Keycloak 24+ declarative user profile) ---------------------
+# Every attribute is admin-editable only: users never type their own e-mail,
+# names or organization, so no attribute used by the invitation checks of
+# spec §2.1 step 4 can be self-asserted. Brokered values are written by the
+# IdP mappers (sync mode FORCE) on every login.
+userProfile:
+  attributes:
+    - name: username
+      displayName: ${username}
+      permissions:
+        view: [admin, user]
+        edit: [admin]
+      validations:
+        length: {min: 3, max: 255}
+        username-prohibited-characters: {}
+        up-username-not-idn-homograph: {}
+    - name: email
+      displayName: ${email}
+      permissions:
+        view: [admin, user]
+        edit: [admin]
+      validations:
+        email: {}
+        length: {max: 255}
+    - name: firstName
+      displayName: ${firstName}
+      permissions:
+        view: [admin, user]
+        edit: [admin]
+      validations:
+        length: {max: 255}
+        person-name-prohibited-characters: {}
+    - name: lastName
+      displayName: ${lastName}
+      permissions:
+        view: [admin, user]
+        edit: [admin]
+      validations:
+        length: {max: 255}
+        person-name-prohibited-characters: {}
+    - name: displayName
+      displayName: Display name
+      permissions:
+        view: [admin, user]
+        edit: [admin]
+      validations:
+        length: {max: 255}
+    # Asserted by the partner IdP; compared by the API with organizations.schac_home_organization.
+    - name: schacHomeOrganization
+      displayName: Home organization (schacHomeOrganization)
+      permissions:
+        view: [admin]
+        edit: [admin]
+      validations:
+        length: {max: 255}
+    # organizations.id, set by the API (oecp-backend) at invitation acceptance (spec §2.1, §4).
+    - name: oecp_org_id
+      displayName: OECP organization id
+      permissions:
+        view: [admin]
+        edit: [admin]
+      validations:
+        pattern:
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          error-message: oecp_org_id must be a lowercase UUID
+
+# --- Required actions -----------------------------------------------------------
+# CONFIGURE_TOTP is a default action, so every new user (local or brokered)
+# must enrol a second factor at first login (spec §2.1 step 3). WebAuthn can be
+# added afterwards (kc_action=webauthn-register from the admin SPA, or the
+# account console); Keycloak cannot require "one of" two factors at enrolment.
+# VERIFY_PROFILE is disabled because users cannot edit any attribute.
+requiredActions:
+  - alias: CONFIGURE_TOTP
+    name: Configure OTP
+    providerId: CONFIGURE_TOTP
+    enabled: true
+    defaultAction: true
+    priority: 10
+  - alias: webauthn-register
+    name: Webauthn Register
+    providerId: webauthn-register
+    enabled: true
+    defaultAction: false
+    priority: 20
+  - alias: UPDATE_PASSWORD
+    name: Update Password
+    providerId: UPDATE_PASSWORD
+    enabled: true
+    defaultAction: false
+    priority: 30
+  - alias: VERIFY_EMAIL
+    name: Verify Email
+    providerId: VERIFY_EMAIL
+    enabled: true
+    defaultAction: false
+    priority: 40
+  - alias: UPDATE_PROFILE
+    name: Update Profile
+    providerId: UPDATE_PROFILE
+    enabled: false
+    defaultAction: false
+    priority: 50
+  - alias: VERIFY_PROFILE
+    name: Verify Profile
+    providerId: VERIFY_PROFILE
+    enabled: false
+    defaultAction: false
+    priority: 60
+
+# --- Client scope `oecp`: the JWT contract of spec §4 ----------------------------
+clientScopes:
+  - name: oecp
+    description: OECP admin API claims (spec §4 JWT contract)
+    protocol: openid-connect
+    attributes:
+      include.in.token.scope: "false"
+      display.on.consent.screen: "false"
+    protocolMappers:
+      # aud contains oecp-api.
+      - name: audience oecp-api
+        protocol: openid-connect
+        protocolMapper: oidc-audience-mapper
+        config:
+          included.client.audience: oecp-api
+          access.token.claim: "true"
+          id.token.claim: "false"
+          introspection.token.claim: "true"
+      # org_id = user attribute oecp_org_id (organizations.id).
+      - name: org_id
+        protocol: openid-connect
+        protocolMapper: oidc-usermodel-attribute-mapper
+        config:
+          user.attribute: oecp_org_id
+          claim.name: org_id
+          jsonType.label: String
+          multivalued: "false"
+          aggregate.attrs: "false"
+          access.token.claim: "true"
+          id.token.claim: "false"
+          userinfo.token.claim: "false"
+          introspection.token.claim: "true"
+      # roles = flat array of OECP realm roles. Only partner_admin and
+      # alliance_admin are in this scope's role scope mappings (scopeMappings
+      # below) and the clients use fullScopeAllowed: false, so default roles
+      # never appear and the array is empty for a role-less invited user.
+      - name: roles
+        protocol: openid-connect
+        protocolMapper: oidc-usermodel-realm-role-mapper
+        config:
+          claim.name: roles
+          jsonType.label: String
+          multivalued: "true"
+          access.token.claim: "true"
+          id.token.claim: "false"
+          userinfo.token.claim: "false"
+          introspection.token.claim: "true"
+      # idp = broker alias, from the user-session note `identity_provider` that
+      # Keycloak sets on brokered logins. IMPORTANT: local (non-brokered) users
+      # have no such note, so the claim is ABSENT for them; the contract value
+      # `local` must be set for non-brokered users. The API MUST treat a missing
+      # `idp` claim as "local" (and accept it only for organizations whose
+      # keycloak_idp_alias IS NULL); no custom Keycloak SPI is needed for that.
+      - name: idp
+        protocol: openid-connect
+        protocolMapper: oidc-usersessionmodel-note-mapper
+        config:
+          user.session.note: identity_provider
+          claim.name: idp
+          jsonType.label: String
+          access.token.claim: "true"
+          id.token.claim: "true"
+          introspection.token.claim: "true"
+      # name = "firstName lastName" (display only, spec §4).
+      - name: full name
+        protocol: openid-connect
+        protocolMapper: oidc-full-name-mapper
+        config:
+          access.token.claim: "true"
+          id.token.claim: "true"
+          userinfo.token.claim: "true"
+          introspection.token.claim: "true"
+
+scopeMappings:
+  - clientScope: oecp
+    roles: [partner_admin, alliance_admin]
+
+# --- Clients ----------------------------------------------------------------------
+clients:
+  # Admin SPA (Nuxt /{locale}/admin, oidc-client-ts, tokens in memory).
+  - clientId: oecp-admin
+    name: OECP admin dashboard
+    description: Public client of the admin dashboard (Authorization Code + PKCE)
+    enabled: true
+    protocol: openid-connect
+    publicClient: true
+    standardFlowEnabled: true
+    implicitFlowEnabled: false
+    directAccessGrantsEnabled: false
+    serviceAccountsEnabled: false
+    consentRequired: false
+    frontchannelLogout: true
+    fullScopeAllowed: false
+    rootUrl: "$(env:OECP_PORTAL_URL)"
+    baseUrl: /en/admin
+    # One entry per UI locale with an admin route (English only in the MVP).
+    redirectUris:
+      - "$(env:OECP_PORTAL_URL)/en/admin/*"
+    webOrigins:
+      - "$(env:OECP_PORTAL_URL)"
+    attributes:
+      pkce.code.challenge.method: S256
+      post.logout.redirect.uris: "$(env:OECP_PORTAL_URL)/en/*"
+      # Every token must carry acr=mfa (spec §4: minimum ACR `mfa`).
+      minimum.acr.value: mfa
+      default.acr.values: mfa
+      use.refresh.tokens: "true"
+      client_credentials.use_refresh_token: "false"
+      oauth2.device.authorization.grant.enabled: "false"
+      oidc.ciba.grant.enabled: "false"
+      backchannel.logout.session.required: "true"
+    # `basic` carries sub and auth_time, `acr` the acr claim, `email` email and
+    # email_verified. `profile` and `roles` are left out on purpose: `name`
+    # comes from scope `oecp`, and `roles` would add realm_access/resource_access.
+    # No optional scopes: in particular no `offline_access` (spec §2.2).
+    defaultClientScopes: [basic, acr, email, web-origins, oecp]
+    optionalClientScopes: []
+
+  # Resource server identifier, used only as token audience (aud=oecp-api).
+  - clientId: oecp-api
+    name: OECP API (audience)
+    description: Bearer-only resource server; never obtains tokens.
+    enabled: true
+    protocol: openid-connect
+    bearerOnly: true
+    publicClient: false
+    standardFlowEnabled: false
+    implicitFlowEnabled: false
+    directAccessGrantsEnabled: false
+    serviceAccountsEnabled: false
+    fullScopeAllowed: false
+    defaultClientScopes: []
+    optionalClientScopes: []
+
+  # Confidential client used by the API for the Keycloak Admin API (spec §3):
+  # invitations (role and oecp_org_id), revocation, IdP metadata refresh.
+  - clientId: oecp-backend
+    name: OECP backend (Admin API)
+    enabled: true
+    protocol: openid-connect
+    publicClient: false
+    clientAuthenticatorType: client-secret
+    # Read from the Docker secret mounted in the keycloak-config container.
+    secret: "$(file:UTF-8:/run/secrets/oecp_backend_client_secret)"
+    standardFlowEnabled: false
+    implicitFlowEnabled: false
+    directAccessGrantsEnabled: false
+    serviceAccountsEnabled: true
+    fullScopeAllowed: false
+    defaultClientScopes: [basic]
+    optionalClientScopes: []
+    attributes:
+      use.refresh.tokens: "false"
+      client_credentials.use_refresh_token: "false"
+
+users:
+  - username: service-account-oecp-backend
+    enabled: true
+    serviceAccountClientId: oecp-backend
+    clientRoles:
+      realm-management:
+        - manage-users
+        - view-users
+        # Updating IdP certificates and endpoints (idp-metadata-refresh job).
+        - manage-identity-providers
+        - view-identity-providers
+
+# --- Authentication flows ----------------------------------------------------------
+# Browser flow (local users, and the entry point of brokered logins):
+#   oecp-browser-mfa
+#     auth-cookie                      ALTERNATIVE  (SSO; honours LoA max-age)
+#     identity-provider-redirector     ALTERNATIVE  (kc_idp_hint={alias}, spec §2.1)
+#     oecp-browser-forms               ALTERNATIVE
+#       oecp-browser-loa1              CONDITIONAL  [LoA 1] username + password
+#       oecp-browser-loa2              CONDITIONAL  [LoA 2] second factor -> acr=mfa
+# Brokered logins skip the forms; their second factor runs in the IdP's post
+# broker login flow `oecp-post-broker-mfa`, with the same LoA 2 condition.
+#
+# Second factor sub-flow (both variants):
+#   *-2fa-use    CONDITIONAL  if the user has WebAuthn or OTP: WebAuthn | OTP
+#   *-2fa-enrol  CONDITIONAL  if *-2fa-use did not run: OTP form, REQUIRED,
+#                             which triggers CONFIGURE_TOTP enrolment.
+authenticatorConfig:
+  - alias: oecp-browser-loa1-condition
+    config:
+      loa-condition-level: "1"
+      loa-max-age: "28800"
+  - alias: oecp-browser-loa2-condition
+    config:
+      loa-condition-level: "2"
+      loa-max-age: "28800"
+  - alias: oecp-browser-2fa-enrol-condition
+    config:
+      flow_to_check: oecp-browser-2fa-use
+      check_result: not-executed
+  - alias: oecp-post-broker-loa2-condition
+    config:
+      loa-condition-level: "2"
+      loa-max-age: "28800"
+  - alias: oecp-post-broker-2fa-enrol-condition
+    config:
+      flow_to_check: oecp-post-broker-2fa-use
+      check_result: not-executed
+  - alias: oecp-create-user-if-unique-config
+    config:
+      require.password.update.after.registration: "false"
+
+authenticationFlows:
+  # ---- browser -------------------------------------------------------------------
+  - alias: oecp-browser-mfa
+    description: OECP browser flow, second factor always required (spec §2.2)
+    providerId: basic-flow
+    topLevel: true
+    builtIn: false
+    authenticationExecutions:
+      - authenticator: auth-cookie
+        authenticatorFlow: false
+        requirement: ALTERNATIVE
+        priority: 10
+        userSetupAllowed: false
+      - authenticator: identity-provider-redirector
+        authenticatorFlow: false
+        requirement: ALTERNATIVE
+        priority: 20
+        userSetupAllowed: false
+      - flowAlias: oecp-browser-forms
+        authenticatorFlow: true
+        requirement: ALTERNATIVE
+        priority: 30
+        userSetupAllowed: false
+
+  - alias: oecp-browser-forms
+    description: Local users (organizations without an eduGAIN IdP)
+    providerId: basic-flow
+    topLevel: false
+    builtIn: false
+    authenticationExecutions:
+      - flowAlias: oecp-browser-loa1
+        authenticatorFlow: true
+        requirement: CONDITIONAL
+        priority: 10
+        userSetupAllowed: false
+      - flowAlias: oecp-browser-loa2
+        authenticatorFlow: true
+        requirement: CONDITIONAL
+        priority: 20
+        userSetupAllowed: false
+
+  - alias: oecp-browser-loa1
+    description: LoA 1, first factor
+    providerId: basic-flow
+    topLevel: false
+    builtIn: false
+    authenticationExecutions:
+      - authenticator: conditional-level-of-authentication
+        authenticatorConfig: oecp-browser-loa1-condition
+        authenticatorFlow: false
+        requirement: REQUIRED
+        priority: 10
+        userSetupAllowed: false
+      - authenticator: auth-username-password-form
+        authenticatorFlow: false
+        requirement: REQUIRED
+        priority: 20
+        userSetupAllowed: false
+
+  - alias: oecp-browser-loa2
+    description: LoA 2 (acr=mfa), second factor
+    providerId: basic-flow
+    topLevel: false
+    builtIn: false
+    authenticationExecutions:
+      - authenticator: conditional-level-of-authentication
+        authenticatorConfig: oecp-browser-loa2-condition
+        authenticatorFlow: false
+        requirement: REQUIRED
+        priority: 10
+        userSetupAllowed: false
+      - flowAlias: oecp-browser-2fa-use
+        authenticatorFlow: true
+        requirement: CONDITIONAL
+        priority: 20
+        userSetupAllowed: false
+      - flowAlias: oecp-browser-2fa-enrol
+        authenticatorFlow: true
+        requirement: CONDITIONAL
+        priority: 30
+        userSetupAllowed: false
+
+  - alias: oecp-browser-2fa-use
+    description: Existing second factor, WebAuthn preferred
+    providerId: basic-flow
+    topLevel: false
+    builtIn: false
+    authenticationExecutions:
+      - authenticator: conditional-user-configured
+        authenticatorFlow: false
+        requirement: REQUIRED
+        priority: 10
+        userSetupAllowed: false
+      - authenticator: webauthn-authenticator
+        authenticatorFlow: false
+        requirement: ALTERNATIVE
+        priority: 20
+        userSetupAllowed: false
+      - authenticator: auth-otp-form
+        authenticatorFlow: false
+        requirement: ALTERNATIVE
+        priority: 30
+        userSetupAllowed: false
+
+  - alias: oecp-browser-2fa-enrol
+    description: No second factor yet, enrol TOTP
+    providerId: basic-flow
+    topLevel: false
+    builtIn: false
+    authenticationExecutions:
+      - authenticator: conditional-sub-flow-executed
+        authenticatorConfig: oecp-browser-2fa-enrol-condition
+        authenticatorFlow: false
+        requirement: REQUIRED
+        priority: 10
+        userSetupAllowed: false
+      - authenticator: auth-otp-form
+        authenticatorFlow: false
+        requirement: REQUIRED
+        priority: 20
+        userSetupAllowed: true
+
+  # ---- post broker login (every login through a partner IdP) ------------------------
+  - alias: oecp-post-broker-mfa
+    description: Second factor after every brokered login (spec §2.2, regardless of the IdP)
+    providerId: basic-flow
+    topLevel: true
+    builtIn: false
+    authenticationExecutions:
+      - flowAlias: oecp-post-broker-loa2
+        authenticatorFlow: true
+        requirement: CONDITIONAL
+        priority: 10
+        userSetupAllowed: false
+
+  - alias: oecp-post-broker-loa2
+    description: LoA 2 (acr=mfa) for brokered users
+    providerId: basic-flow
+    topLevel: false
+    builtIn: false
+    authenticationExecutions:
+      - authenticator: conditional-level-of-authentication
+        authenticatorConfig: oecp-post-broker-loa2-condition
+        authenticatorFlow: false
+        requirement: REQUIRED
+        priority: 10
+        userSetupAllowed: false
+      - flowAlias: oecp-post-broker-2fa-use
+        authenticatorFlow: true
+        requirement: CONDITIONAL
+        priority: 20
+        userSetupAllowed: false
+      - flowAlias: oecp-post-broker-2fa-enrol
+        authenticatorFlow: true
+        requirement: CONDITIONAL
+        priority: 30
+        userSetupAllowed: false
+
+  - alias: oecp-post-broker-2fa-use
+    description: Existing second factor, WebAuthn preferred
+    providerId: basic-flow
+    topLevel: false
+    builtIn: false
+    authenticationExecutions:
+      - authenticator: conditional-user-configured
+        authenticatorFlow: false
+        requirement: REQUIRED
+        priority: 10
+        userSetupAllowed: false
+      - authenticator: webauthn-authenticator
+        authenticatorFlow: false
+        requirement: ALTERNATIVE
+        priority: 20
+        userSetupAllowed: false
+      - authenticator: auth-otp-form
+        authenticatorFlow: false
+        requirement: ALTERNATIVE
+        priority: 30
+        userSetupAllowed: false
+
+  - alias: oecp-post-broker-2fa-enrol
+    description: No second factor yet, enrol TOTP
+    providerId: basic-flow
+    topLevel: false
+    builtIn: false
+    authenticationExecutions:
+      - authenticator: conditional-sub-flow-executed
+        authenticatorConfig: oecp-post-broker-2fa-enrol-condition
+        authenticatorFlow: false
+        requirement: REQUIRED
+        priority: 10
+        userSetupAllowed: false
+      - authenticator: auth-otp-form
+        authenticatorFlow: false
+        requirement: REQUIRED
+        priority: 20
+        userSetupAllowed: true
+
+  # ---- first broker login: create a role-less user, never link by e-mail ----------
+  # No idp-review-profile (users cannot type attributes), no "Handle Existing
+  # Account" sub-flow (no idp-detect-existing-broker-user, idp-confirm-link or
+  # idp-auto-link): if a user with the same username or e-mail exists, login
+  # fails instead of linking accounts (spec §2.1 step 3, [R01 §2]).
+  - alias: oecp-first-broker-login
+    description: First login through a partner IdP, without account linking by e-mail
+    providerId: basic-flow
+    topLevel: true
+    builtIn: false
+    authenticationExecutions:
+      - authenticator: idp-create-user-if-unique
+        authenticatorConfig: oecp-create-user-if-unique-config
+        authenticatorFlow: false
+        requirement: REQUIRED
+        priority: 10
+        userSetupAllowed: false
+
+# --- Partner identity providers (one SAML IdP per partner, alias = partner slug) ---
+# `example-partner` is a disabled template. To add a real partner, copy the
+# entry and its mappers, set alias = organizations.slug, and fill the values
+# from the partner's eduGAIN EntityDescriptor (see README.md).
+identityProviders:
+  - alias: example-partner
+    displayName: Example Partner University
+    providerId: saml
+    enabled: false
+    # Login starts with kc_idp_hint={alias}; no IdP buttons on the login page.
+    hideOnLogin: true
+    trustEmail: true
+    storeToken: false
+    addReadTokenRoleOnCreate: false
+    authenticateByDefault: false
+    linkOnly: false
+    firstBrokerLoginFlowAlias: oecp-first-broker-login
+    postBrokerLoginFlowAlias: oecp-post-broker-mfa
+    config:
+      syncMode: FORCE
+      # SP side: one SP for every partner, registered in SIR/eduGAIN (spec §4).
+      entityId: "$(env:OECP_AUTH_URL)/realms/oecp"
+      # IdP side: from the partner's eduGAIN EntityDescriptor.
+      idpEntityId: "$(env:EXAMPLE_PARTNER_IDP_ENTITY_ID:-https://idp.example-partner.invalid/idp/shibboleth)"
+      singleSignOnServiceUrl: "$(env:EXAMPLE_PARTNER_IDP_SSO_URL:-https://idp.example-partner.invalid/idp/profile/SAML2/POST/SSO)"
+      # Only if the IdP declares a SingleLogoutService (spec §2.2); Keycloak
+      # rejects an empty value, so the key is omitted otherwise.
+      # singleLogoutServiceUrl: https://idp.example-partner.invalid/idp/profile/SAML2/Redirect/SLO
+      # Base64 DER, comma-separated if the IdP publishes several (rollover).
+      # Refreshed daily by the API job idp-metadata-refresh.
+      signingCertificate: "$(env:EXAMPLE_PARTNER_IDP_SIGNING_CERT:-)"
+      validateSignature: "true"
+      # Stable identifier (spec §4): Principal type = Attribute [Name].
+      # Keycloak accepts ONE principal attribute per IdP, so the spec's order
+      # is applied per partner: use subject-id when the IdP releases it
+      # (REFEDS Personalized Access); otherwise switch this IdP to
+      #   urn:oasis:names:tc:SAML:attribute:pairwise-id
+      # ePPN (urn:oid:1.3.6.1.4.1.5923.1.1.1.6) only with the partner's written
+      # confirmation that it is never reassigned. Never e-mail or transient NameID.
+      principalType: ATTRIBUTE
+      principalAttribute: urn:oasis:names:tc:SAML:attribute:subject-id
+      # The NameID is not used as identifier (principalType above); transient is
+      # the format every eduGAIN IdP supports.
+      nameIDPolicyFormat: urn:oasis:names:tc:SAML:2.0:nameid-format:transient
+      allowCreate: "true"
+      postBindingResponse: "true"
+      postBindingAuthnRequest: "true"
+      postBindingLogout: "true"
+      artifactBindingResponse: "false"
+      wantAuthnRequestsSigned: "true"
+      signatureAlgorithm: RSA_SHA256
+      xmlSigKeyInfoKeyNameTransformer: KEY_ID
+      # Spec §4: assertions MUST be signed and encrypted.
+      wantAssertionsSigned: "true"
+      wantAssertionsEncrypted: "true"
+      encryptionAlgorithm: RSA-OAEP
+      forceAuthn: "false"
+      backchannelSupported: "false"
+      loginHint: "false"
+      signSpMetadata: "true"
+      allowedClockSkew: "30"
+      guiOrder: "100"
+
+# Attribute importers (spec §4 required attributes), sync mode FORCE so that
+# every login refreshes them from the IdP assertion. Attribute names use the
+# SAML2 URI (urn:oid) form released by eduGAIN IdPs.
+identityProviderMappers:
+  - name: mail
+    identityProviderAlias: example-partner
+    identityProviderMapper: saml-user-attribute-idp-mapper
+    config:
+      syncMode: FORCE
+      attribute.name: urn:oid:0.9.2342.19200300.100.1.3
+      attribute.friendly.name: mail
+      attribute.name.format: ATTRIBUTE_FORMAT_URI
+      user.attribute: email
+  - name: schacHomeOrganization
+    identityProviderAlias: example-partner
+    identityProviderMapper: saml-user-attribute-idp-mapper
+    config:
+      syncMode: FORCE
+      attribute.name: urn:oid:1.3.6.1.4.1.25178.1.2.9
+      attribute.friendly.name: schacHomeOrganization
+      attribute.name.format: ATTRIBUTE_FORMAT_URI
+      user.attribute: schacHomeOrganization
+  - name: displayName
+    identityProviderAlias: example-partner
+    identityProviderMapper: saml-user-attribute-idp-mapper
+    config:
+      syncMode: FORCE
+      attribute.name: urn:oid:2.16.840.1.113730.3.1.241
+      attribute.friendly.name: displayName
+      attribute.name.format: ATTRIBUTE_FORMAT_URI
+      user.attribute: displayName
+  # givenName + sn feed firstName/lastName, from which the `name` claim is built.
+  - name: givenName
+    identityProviderAlias: example-partner
+    identityProviderMapper: saml-user-attribute-idp-mapper
+    config:
+      syncMode: FORCE
+      attribute.name: urn:oid:2.5.4.42
+      attribute.friendly.name: givenName
+      attribute.name.format: ATTRIBUTE_FORMAT_URI
+      user.attribute: firstName
+  - name: sn
+    identityProviderAlias: example-partner
+    identityProviderMapper: saml-user-attribute-idp-mapper
+    config:
+      syncMode: FORCE
+      attribute.name: urn:oid:2.5.4.4
+      attribute.friendly.name: sn
+      attribute.name.format: ATTRIBUTE_FORMAT_URI
+      user.attribute: lastName

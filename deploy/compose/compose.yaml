@@ -1,0 +1,531 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Open European Campus Portal (OECP): reference Docker Compose deployment (MVP).
+# Spec v4.0 §3 (architecture), §4 (identity), §10 (non-functional requirements).
+#
+# Quick start: see README.md in this directory.
+#   cp .env.example .env && (create secrets, see secrets/README.md)
+#   docker compose up -d
+#   docker compose run --rm api pnpm db:migrate
+#
+# Optional observability stack (OpenTelemetry Collector, Prometheus, Loki, Grafana):
+#   docker compose --profile observability up -d
+
+name: oecp
+
+# ---------------------------------------------------------------------------
+# Shared fragments
+# ---------------------------------------------------------------------------
+
+# Environment shared by the `api` (HTTP) and `worker` (BullMQ) processes, which
+# run the same image (spec §3: one codebase, one image, two processes).
+x-oecp-backend-env: &oecp-backend-env
+  NODE_ENV: production
+  # The password is injected from DATABASE_PASSWORD_FILE by the image entrypoint
+  # (dockerfiles/oecp-entrypoint.sh), so it never appears in the environment of
+  # `docker inspect` nor in this file.
+  DATABASE_URL: postgres://oecp@postgres:5432/oecp
+  DATABASE_PASSWORD_FILE: /run/secrets/oecp_db_password
+  VALKEY_URL: redis://valkey:6379/0
+  # `iss` is checked exactly against the public auth host (spec §4); the JWKS is
+  # fetched over the internal network.
+  KEYCLOAK_ISSUER: https://${OECP_AUTH_HOST:?set OECP_AUTH_HOST in .env}/realms/oecp
+  KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/oecp/protocol/openid-connect/certs
+  OECP_MASTER_KEY_FILE: /run/secrets/oecp_master_key
+  # --- Proposed contract extensions (ignored until apps/api reads them) -------
+  OECP_PUBLIC_BASE_URL: https://${OECP_PORTAL_HOST:?set OECP_PORTAL_HOST in .env}
+  OECP_UPLOADS_DIR: /data/uploads
+  # Confidential client `oecp-backend` (manage-users, view-users), spec §3.
+  KEYCLOAK_ADMIN_URL: http://keycloak:8080
+  KEYCLOAK_REALM: oecp
+  KEYCLOAK_ADMIN_CLIENT_ID: oecp-backend
+  KEYCLOAK_ADMIN_CLIENT_SECRET_FILE: /run/secrets/oecp_backend_client_secret
+  SMTP_HOST: ${OECP_SMTP_HOST:-}
+  SMTP_PORT: ${OECP_SMTP_PORT:-25}
+  SMTP_FROM: ${OECP_SMTP_FROM:-no-reply@example.org}
+  # Standard OpenTelemetry SDK variables (spec §10 Observability). The SDK is
+  # disabled unless the `observability` profile is running.
+  OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+  OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${OECP_ENVIRONMENT:-local}
+
+x-oecp-backend-secrets: &oecp-backend-secrets
+  - oecp_db_password
+  - oecp_master_key
+  - oecp_backend_client_secret
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
+services:
+  # -------------------------------------------------------------------------
+  # Edge proxy: Traefik Proxy v3 (MIT), spec §3 and ADR-0003.
+  # -------------------------------------------------------------------------
+  traefik:
+    image: traefik:v3.7.14
+    restart: unless-stopped
+    command:
+      - --global.checknewversion=false
+      - --global.sendanonymoususage=false
+      - --log.level=${TRAEFIK_LOG_LEVEL:-INFO}
+      - --accesslog=true
+      - --accesslog.format=json
+      - --ping=true
+      # Providers: Docker labels for routers, a file for shared middlewares and TLS options.
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=oecp-edge
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      # Entry points: HTTP only redirects to HTTPS.
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.websecure.http.tls=true
+      # If Traefik sits behind a load balancer, trust its X-Forwarded-For so the
+      # per-IP rate limits see the client address (and set ipStrategy.depth in
+      # traefik/dynamic/middlewares.yaml):
+      # - --entrypoints.websecure.forwardedheaders.trustedips=10.0.0.0/8
+      - --entrypoints.metrics.address=:8082
+      - --metrics.prometheus=true
+      - --metrics.prometheus.entrypoint=metrics
+      # LOCAL DEVELOPMENT ONLY: dashboard without authentication on 127.0.0.1:8080.
+      # TLS uses Traefik's built-in self-signed default certificate.
+      - --api.dashboard=true
+      - --api.insecure=true
+      # --- PRODUCTION (uncomment, and remove --api.insecure above and the
+      # dashboard port below) --------------------------------------------------
+      # - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
+      # - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      # - --certificatesresolvers.le.acme.tlschallenge=true
+      # - --entrypoints.websecure.http.tls.certresolver=le
+    ports:
+      - "${OECP_HTTP_PORT:-80}:80"
+      - "${OECP_HTTPS_PORT:-443}:443"
+      - "127.0.0.1:${TRAEFIK_DASHBOARD_PORT:-8080}:8080"
+    volumes:
+      # Read-only Docker socket for the Docker provider. In production consider
+      # a socket proxy (e.g. tecnativa/docker-socket-proxy) exposing only GET /containers.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - traefik_acme:/letsencrypt
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging: *default-logging
+
+  # -------------------------------------------------------------------------
+  # Data stores
+  # -------------------------------------------------------------------------
+  postgres:
+    image: postgres:16.15
+    restart: unless-stopped
+    shm_size: 256mb
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_superuser_password
+      POSTGRES_DB: postgres
+      POSTGRES_INITDB_ARGS: --data-checksums --encoding=UTF8 --locale=C.UTF-8
+    secrets:
+      - postgres_superuser_password
+      - oecp_db_password
+      - keycloak_db_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Runs once, on an empty data directory: creates databases `oecp` and `keycloak`.
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - backend
+    healthcheck:
+      # TCP probe: during first-run initialisation the entrypoint's temporary
+      # server listens on the Unix socket only, so this turns healthy only after
+      # postgres/init/*.sql has completed.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    logging: *default-logging
+
+  valkey:
+    image: valkey/valkey:8.1.10-alpine
+    restart: unless-stopped
+    # BullMQ requires `noeviction`; AOF keeps queues across restarts (the worker
+    # re-registers schedules at start anyway, spec §3).
+    command: ["valkey-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction", "--save", ""]
+    volumes:
+      - valkey_data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    logging: *default-logging
+
+  # -------------------------------------------------------------------------
+  # Identity: Keycloak 26 (Apache-2.0), spec §4 and ADR-0004.
+  # -------------------------------------------------------------------------
+  keycloak:
+    build:
+      context: ./keycloak
+      dockerfile: ../dockerfiles/keycloak.Dockerfile
+    image: oecp/keycloak:${OECP_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    command: ["start", "--optimized"]
+    environment:
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD_FILE: /run/secrets/keycloak_db_password
+      # Public URL of the auth host; tokens carry iss=https://<auth-host>/realms/oecp.
+      KC_HOSTNAME: https://${OECP_AUTH_HOST:?set OECP_AUTH_HOST in .env}
+      # Internal callers (api JWKS, keycloak-config-cli) use http://keycloak:8080.
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # TLS terminates at Traefik; Keycloak is reachable only on internal networks.
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      # Temporary admin in the `master` realm, used by keycloak-config-cli and
+      # the operator; replace by a permanent admin with MFA after first start.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD_FILE: /run/secrets/keycloak_admin_password
+      KC_LOG_LEVEL: ${KEYCLOAK_LOG_LEVEL:-info}
+      KC_LOG_CONSOLE_OUTPUT: json
+    secrets:
+      - keycloak_db_password
+      - keycloak_admin_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - edge
+      - backend
+    healthcheck:
+      # The image has no curl/wget: probe the management interface (port 9000)
+      # with bash built-ins only (no head/grep needed).
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          read -r -t 5 status <&3 && [[ "$$status" == *" 200 "* ]]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    labels:
+      traefik.enable: "true"
+      traefik.http.services.keycloak.loadbalancer.server.port: "8080"
+      # auth-host: realm endpoints and login-page static resources (public).
+      traefik.http.routers.auth.rule: Host(`${OECP_AUTH_HOST}`) && (PathPrefix(`/realms/oecp`) || PathPrefix(`/resources`))
+      traefik.http.routers.auth.entrypoints: websecure
+      traefik.http.routers.auth.tls: "true"
+      traefik.http.routers.auth.priority: "50"
+      traefik.http.routers.auth.service: keycloak
+      traefik.http.routers.auth.middlewares: security-headers-auth@file
+      # Admin console and master realm: IP-allowlisted (spec §3).
+      traefik.http.routers.auth-admin.rule: Host(`${OECP_AUTH_HOST}`) && (PathPrefix(`/admin`) || PathPrefix(`/realms/master`))
+      traefik.http.routers.auth-admin.entrypoints: websecure
+      traefik.http.routers.auth-admin.tls: "true"
+      traefik.http.routers.auth-admin.priority: "60"
+      traefik.http.routers.auth-admin.service: keycloak
+      traefik.http.routers.auth-admin.middlewares: keycloak-admin-allowlist,security-headers-auth@file
+      traefik.http.middlewares.keycloak-admin-allowlist.ipallowlist.sourcerange: ${KEYCLOAK_ADMIN_ALLOWLIST:-127.0.0.1/32}
+    logging: *default-logging
+
+  # One-shot: applies identity/keycloak/realm-oecp.yaml (realm as code) and exits.
+  keycloak-config:
+    image: adorsys/keycloak-config-cli:6.5.1-26.5.5
+    restart: "no"
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_USER: ${KEYCLOAK_ADMIN_USER:-admin}
+      # KEYCLOAK_PASSWORD comes from the file /run/secrets/kcc/keycloak.password
+      # through Spring Boot's config tree (property `keycloak.password`).
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/kcc/
+      KEYCLOAK_AVAILABILITYCHECK_ENABLED: "true"
+      KEYCLOAK_AVAILABILITYCHECK_TIMEOUT: 180s
+      IMPORT_FILES_LOCATIONS: /config/realm-oecp.yaml
+      IMPORT_VARSUBSTITUTION_ENABLED: "true"
+      # Variables substituted into realm-oecp.yaml as $(env:NAME).
+      OECP_PORTAL_URL: https://${OECP_PORTAL_HOST}
+      OECP_AUTH_URL: https://${OECP_AUTH_HOST}
+      OECP_REALM_DISPLAY_NAME: ${OECP_REALM_DISPLAY_NAME:-Open European Campus Portal}
+      OECP_SMTP_HOST: ${OECP_SMTP_HOST:-}
+      OECP_SMTP_PORT: ${OECP_SMTP_PORT:-25}
+      OECP_SMTP_FROM: ${OECP_SMTP_FROM:-no-reply@example.org}
+      # Placeholders of the disabled `example-partner` IdP (must be valid URLs).
+      EXAMPLE_PARTNER_IDP_ENTITY_ID: ${EXAMPLE_PARTNER_IDP_ENTITY_ID:-https://idp.example-partner.invalid/idp/shibboleth}
+      EXAMPLE_PARTNER_IDP_SSO_URL: ${EXAMPLE_PARTNER_IDP_SSO_URL:-https://idp.example-partner.invalid/idp/profile/SAML2/POST/SSO}
+      EXAMPLE_PARTNER_IDP_SIGNING_CERT: ${EXAMPLE_PARTNER_IDP_SIGNING_CERT:-}
+    secrets:
+      - source: keycloak_admin_password
+        target: /run/secrets/kcc/keycloak.password
+      - oecp_backend_client_secret
+    volumes:
+      - ../../identity/keycloak:/config:ro
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    networks:
+      - backend
+    logging: *default-logging
+
+  # -------------------------------------------------------------------------
+  # OECP application: api (HTTP), worker (BullMQ), web (Nuxt)
+  # -------------------------------------------------------------------------
+  api:
+    build:
+      # Repository root: pnpm workspaces need the root lockfile and packages/*.
+      context: ../..
+      dockerfile: deploy/compose/dockerfiles/api.Dockerfile
+    image: oecp/api:${OECP_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    init: true
+    command: ["node", "dist/main.js"]
+    environment:
+      <<: *oecp-backend-env
+      OTEL_SERVICE_NAME: oecp-api
+    secrets: *oecp-backend-secrets
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    networks:
+      - edge
+      - backend
+    healthcheck:
+      # TCP probe until apps/api exposes a health endpoint; then switch to e.g.
+      # wget -qO- http://127.0.0.1:3000/api/health (Traefik skips unhealthy containers).
+      test: ["CMD", "node", "-e", "require('net').connect(3000,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      traefik.enable: "true"
+      traefik.http.services.api.loadbalancer.server.port: "3000"
+      # Generic API router: /api (public and admin) and /oeapi on the portal host.
+      traefik.http.routers.api.rule: Host(`${OECP_PORTAL_HOST}`) && (PathPrefix(`/api`) || PathPrefix(`/oeapi`))
+      traefik.http.routers.api.entrypoints: websecure
+      traefik.http.routers.api.tls: "true"
+      traefik.http.routers.api.priority: "50"
+      traefik.http.routers.api.service: api
+      traefik.http.routers.api.middlewares: security-headers@file
+      # Per-IP rate limits, spec §10: search 20 r/s, suggest and /oeapi/v5 10 r/s, admin 30 r/s.
+      # Explicit priorities: Traefik otherwise ranks routers by rule length.
+      traefik.http.routers.api-search.rule: Host(`${OECP_PORTAL_HOST}`) && Path(`/api/public/v1/courses`)
+      traefik.http.routers.api-search.entrypoints: websecure
+      traefik.http.routers.api-search.tls: "true"
+      traefik.http.routers.api-search.priority: "100"
+      traefik.http.routers.api-search.service: api
+      traefik.http.routers.api-search.middlewares: ratelimit-search@file,security-headers@file
+      traefik.http.routers.api-suggest.rule: Host(`${OECP_PORTAL_HOST}`) && Path(`/api/public/v1/suggest`)
+      traefik.http.routers.api-suggest.entrypoints: websecure
+      traefik.http.routers.api-suggest.tls: "true"
+      traefik.http.routers.api-suggest.priority: "100"
+      traefik.http.routers.api-suggest.service: api
+      traefik.http.routers.api-suggest.middlewares: ratelimit-suggest@file,security-headers@file
+      traefik.http.routers.oeapi.rule: Host(`${OECP_PORTAL_HOST}`) && PathPrefix(`/oeapi/v5`)
+      traefik.http.routers.oeapi.entrypoints: websecure
+      traefik.http.routers.oeapi.tls: "true"
+      traefik.http.routers.oeapi.priority: "100"
+      traefik.http.routers.oeapi.service: api
+      traefik.http.routers.oeapi.middlewares: ratelimit-oeapi@file,security-headers@file
+      traefik.http.routers.api-admin.rule: Host(`${OECP_PORTAL_HOST}`) && PathPrefix(`/api/admin`)
+      traefik.http.routers.api-admin.entrypoints: websecure
+      traefik.http.routers.api-admin.tls: "true"
+      traefik.http.routers.api-admin.priority: "100"
+      traefik.http.routers.api-admin.service: api
+      traefik.http.routers.api-admin.middlewares: ratelimit-admin@file,security-headers@file
+    logging: *default-logging
+
+  worker:
+    image: oecp/api:${OECP_IMAGE_TAG:-dev}
+    pull_policy: never
+    restart: unless-stopped
+    init: true
+    command: ["node", "dist/worker.js"]
+    environment:
+      <<: *oecp-backend-env
+      OTEL_SERVICE_NAME: oecp-worker
+    secrets: *oecp-backend-secrets
+    volumes:
+      - uploads:/data/uploads
+    # Same image as `api` (built by the `api` service; `docker compose up` builds
+    # every image before creating containers).
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    networks:
+      - backend
+      # Outbound HTTPS to partner OEAPI endpoints (allowlisted in the application, spec §6.2.6).
+      - egress
+    logging: *default-logging
+
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/compose/dockerfiles/web.Dockerfile
+    image: oecp/web:${OECP_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      NUXT_PUBLIC_API_BASE: https://${OECP_PORTAL_HOST}/api
+      # --- Proposed (ignored unless declared in apps/web runtimeConfig) -------
+      # Server-side rendering cannot reach the public host from inside the
+      # container network; SSR fetches should use the internal API address.
+      NUXT_API_INTERNAL_BASE: http://api:3000/api
+      NUXT_PUBLIC_OIDC_AUTHORITY: https://${OECP_AUTH_HOST}/realms/oecp
+      NUXT_PUBLIC_OIDC_CLIENT_ID: oecp-admin
+      OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
+      OTEL_SERVICE_NAME: oecp-web
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(3000,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    labels:
+      traefik.enable: "true"
+      traefik.http.services.web.loadbalancer.server.port: "3000"
+      traefik.http.routers.web.rule: Host(`${OECP_PORTAL_HOST}`)
+      traefik.http.routers.web.entrypoints: websecure
+      traefik.http.routers.web.tls: "true"
+      traefik.http.routers.web.priority: "1"
+      traefik.http.routers.web.service: web
+      traefik.http.routers.web.middlewares: security-headers@file
+    logging: *default-logging
+
+  # -------------------------------------------------------------------------
+  # Optional observability (profile `observability`), spec §10. Kept minimal:
+  # OTLP in, metrics to Prometheus, logs to Loki, traces to the debug exporter.
+  # -------------------------------------------------------------------------
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.162.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    networks:
+      - backend
+    logging: *default-logging
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - backend
+      - edge
+    logging: *default-logging
+
+  loki:
+    image: grafana/loki:3.7.8
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - loki_data:/loki
+    networks:
+      - backend
+    logging: *default-logging
+
+  grafana:
+    # AGPL-3.0, used unmodified (spec §10).
+    image: grafana/grafana:13.2.4
+    profiles: ["observability"]
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    secrets:
+      - grafana_admin_password
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - backend
+      - edge
+    logging: *default-logging
+
+networks:
+  # Traefik and the services it routes to. Not internal: also gives api and
+  # keycloak outbound access (SMTP, federation endpoints).
+  edge:
+    name: oecp-edge
+  # Data stores and internal traffic only; no outbound access.
+  backend:
+    name: oecp-backend
+    internal: true
+  # Outbound access for the harvester (worker).
+  egress:
+    name: oecp-egress
+
+volumes:
+  postgres_data:
+  valkey_data:
+  # CSV uploads (spec §3 `/data/uploads`; S3-compatible storage in v1). Back up daily (spec §10).
+  uploads:
+  traefik_acme:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+
+# File-based Docker secrets; create them as described in secrets/README.md.
+secrets:
+  postgres_superuser_password:
+    file: ./secrets/postgres_superuser_password
+  oecp_db_password:
+    file: ./secrets/oecp_db_password
+  keycloak_db_password:
+    file: ./secrets/keycloak_db_password
+  keycloak_admin_password:
+    file: ./secrets/keycloak_admin_password
+  oecp_backend_client_secret:
+    file: ./secrets/oecp_backend_client_secret
+  oecp_master_key:
+    file: ./secrets/oecp_master_key
+  grafana_admin_password:
+    file: ./secrets/grafana_admin_password

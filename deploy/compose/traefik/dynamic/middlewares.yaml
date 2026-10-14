@@ -1,0 +1,76 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Traefik dynamic configuration (file provider): shared middlewares and TLS
+# options, referenced from Docker labels as `<name>@file`. Spec §10 Security.
+
+http:
+  middlewares:
+    # Portal host (web and api). The nonce-based Content-Security-Policy is set
+    # by the application (Nuxt), because only it knows the per-response nonce.
+    security-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        # Enable only once the domain is committed to HTTPS for the long term.
+        stsPreload: false
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: strict-origin-when-cross-origin
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+        customResponseHeaders:
+          Cross-Origin-Opener-Policy: same-origin
+          X-Powered-By: ""
+          Server: ""
+
+    # Auth host (Keycloak). Keycloak sets its own CSP and X-Frame-Options per
+    # realm (Realm settings > Security defenses), so only transport headers here.
+    security-headers-auth:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: false
+        contentTypeNosniff: true
+        referrerPolicy: strict-origin-when-cross-origin
+        customResponseHeaders:
+          Server: ""
+
+    # Per-client-IP rate limits (spec §10). `average` is requests per `period`;
+    # `burst` absorbs short spikes (e.g. a page firing several requests).
+    # Behind a load balancer, set `sourceCriterion.ipStrategy.depth` (or
+    # `excludedIPs`) so the limit applies to the real client address, and
+    # configure forwardedHeaders.trustedIPs on the entry point.
+    ratelimit-search:
+      rateLimit:
+        average: 20
+        period: 1s
+        burst: 40
+    ratelimit-suggest:
+      rateLimit:
+        average: 10
+        period: 1s
+        burst: 20
+    ratelimit-oeapi:
+      rateLimit:
+        average: 10
+        period: 1s
+        burst: 20
+    ratelimit-admin:
+      rateLimit:
+        average: 30
+        period: 1s
+        burst: 60
+
+tls:
+  options:
+    # Spec §10: TLS 1.2+. Applies to every router without explicit TLS options.
+    default:
+      minVersion: VersionTLS12
+      sniStrict: false
+      cipherSuites:
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
