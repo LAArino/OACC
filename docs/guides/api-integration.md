@@ -3,9 +3,9 @@
 
 # API integration: exposing an OEAPI v5 endpoint to OECP
 
-For partner IT teams. OECP **pulls** course data from your Open Education API (OEAPI, formerly OOAPI) **v5.0** endpoint on a schedule (Channel A, spec §6.2); it never receives pushes. This guide states what OECP 0.1.0 requests, how it maps your data and how to read the outcome. Getting an administrator account, agreeing to the data reuse and choosing this channel are covered in the onboarding guide [B. Partner with an OEAPI endpoint](../onboarding/partner-with-oeapi.md). Common data rules: [guides README](README.md#common-data-quality-rules).
+For partner IT teams. OECP **pulls** course data from your Open Education API (OEAPI, formerly OOAPI) **v5.0** endpoint on a schedule (Channel A, spec §6.2); it never receives pushes. This guide states what OECP 0.2.0 requests, how it maps your data and how to read the outcome. Getting an administrator account, agreeing to the data reuse and choosing this channel are covered in the onboarding guide [B. Partner with an OEAPI endpoint](../onboarding/partner-with-oeapi.md). Common data rules: [guides README](README.md#common-data-quality-rules).
 
-> **Status in 0.1.0.** The harvester is verified only against the bundled mock partner (`tools/oeapi-mock`); no real partner endpoint has been harvested yet. Integration settings have **no form** in the admin console (the page is read-only): they are set through the admin API shown below.
+> **Status in 0.2.0.** The harvester is verified only against the bundled mock partner (`tools/oeapi-mock`); no real partner endpoint has been harvested yet. Integration settings are entered on the **Integration settings** page of the admin console (settings form, host approval, "Test connection", "Sync now"; walkthrough in [Guide B, steps 5–8](../onboarding/partner-with-oeapi.md#5-enter-the-integration-settings)); the admin API calls below do the same for scripting.
 
 ## What OECP requests
 
@@ -51,14 +51,14 @@ The credential is **write-only**. It is encrypted with AES-256-GCM (12-byte nonc
 ## Network requirements
 
 - **https on port 443** only: `base_url` must be `https://` without a port other than 443, without user info, query or fragment. (`http`, other ports and private addresses are accepted only when the deployment sets the development switch `OECP_ALLOW_INSECURE_PARTNER_HTTP=true`.)
-- **Host approval:** an `alliance_admin` approves the exact host (`host[:port]`) of `base_url` (`POST …/integration/approve-host`). Changing the host clears the approval; changing only the path keeps it. Until approved, nothing is requested (`oecp.oeapi.host_not_approved`).
+- **Host approval:** an `alliance_admin` approves the exact host (`host[:port]`) of `base_url` (*Approve host* on the *Integration settings* page, or `POST …/integration/approve-host`). Changing the host clears the approval; changing only the path keeps it. Until approved, nothing is requested (`oecp.oeapi.host_not_approved`).
 - **Public DNS:** every A/AAAA record of your host must be a public unicast address. Loopback, RFC 1918, CGNAT, ULA, link-local, multicast, documentation and reserved ranges (also embedded in IPv4-mapped, NAT64 or 6to4 addresses) make the run fail with `oecp.oeapi.address_refused`. The connection is pinned to the checked address; the certificate is verified against your host name.
 - **Redirects:** at most 3, and only to the same scheme and host. A redirect to another host (for example a gateway or a login page) is refused (`oecp.oeapi.redirect_refused`).
-- **IP allowlist:** requests come from the OECP worker's egress address. OECP does not publish a fixed address list in 0.1.0; ask the alliance's hosting operator for the address to allowlist.
+- **IP allowlist:** requests come from the OECP worker's egress address. OECP does not publish a fixed address list in 0.2.0; ask the alliance's hosting operator for the address to allowlist.
 
 ## Integration settings
 
-Set with `PUT /api/admin/v1/organizations/{orgId}/integration` (`partner_admin` of the organization or `alliance_admin`). The body is the **full document**: an omitted member takes its default, not its current value (except `secret`). Every change is audited with from/to values.
+Set on the *Integration settings* page (`partner_admin` of the organization or `alliance_admin`), which validates every field before saving and sends `PUT /api/admin/v1/organizations/{orgId}/integration`; the page's "Test connection" and "Sync now" use the saved settings. The credential is write-only: the page shows only whether one is stored and lets you keep, replace or delete it. For scripting, the body of the `PUT` is the **full document**: an omitted member takes its default, not its current value (except `secret`). Every change is audited with from/to values.
 
 ```sh
 API=https://portal.example.org/api/admin/v1
@@ -216,6 +216,8 @@ To retire a course: remove it from the listing for your `consumer` and let three
 
 ## Testing
 
+In the console: **Test connection** and **Sync now** under *Test and run* on the *Integration settings* page, then **Sync history**. The API equivalents:
+
 ```sh
 curl -sS -X POST "$API/organizations/$ORG/integration/test-connection" -H "Authorization: Bearer $TOKEN"
 curl -sS -X POST "$API/organizations/$ORG/integration/sync-now" -H "Authorization: Bearer $TOKEN"
@@ -225,7 +227,7 @@ curl -sS "$API/sync-runs/$RUN?severity=error&page=1&page_size=100" -H "Authoriza
 
 - **Test connection** returns 200 with `{ok, target, duration_ms, service, first_course_primary_code, courses_available, error}`; a remote failure is `ok: false` with `error.code`. A blocker (no access mode, unapproved host…) is 409.
 - **Sync now** (202 `{sync_run_id, status: "queued"}`) works even with `enabled: false`, needs channel `oeapi` and no blocker, refuses while a run is queued or running (409), and is limited to once per 15 minutes per organization (429, `Retry-After` in seconds).
-- **Sync runs:** the list returns at most 100 runs (default 20); the run page returns its errors paged (`page_size` ≤ 500) with `code`, `severity`, `message`, `ext_id` and `json_pointer` into your payload. The admin console shows the same under **Sync runs** (`/{locale}/admin/sync-runs`, latest 50 runs).
+- **Sync runs:** the list returns at most 100 runs (default 20); the run page returns its errors paged (`page_size` ≤ 500) with `code`, `severity`, `message`, `ext_id` and `json_pointer` into your payload. The admin console shows the same under **Sync history** (`/{locale}/admin/sync-runs`, latest 50 runs).
 
 ## Comparing with the OECP mock partner
 

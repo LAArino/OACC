@@ -32,6 +32,35 @@ export const createInvitationRequest = z.strictObject({
 });
 export type CreateInvitationRequest = z.infer<typeof createInvitationRequest>;
 
+/**
+ * `POST /api/admin/v1/organizations/{orgId}/invitations` (alliance_admin): the
+ * same as `POST /invitations` with the organization taken from the path.
+ */
+export const createOrganizationInvitationRequest = createInvitationRequest.omit({
+  organization_id: true,
+});
+export type CreateOrganizationInvitationRequest = z.infer<
+  typeof createOrganizationInvitationRequest
+>;
+
+/**
+ * `POST /api/admin/v1/invitations/{id}/resend` (alliance_admin): revokes the
+ * invitation (unless already revoked) and sends a new one with the same e-mail,
+ * role and organization. `ttl_hours` defaults to the lifetime of the original.
+ */
+export const resendInvitationRequest = z.strictObject({
+  ttl_hours: z.int().min(1).max(INVITATION_MAX_TTL_HOURS).optional(),
+});
+export type ResendInvitationRequest = z.infer<typeof resendInvitationRequest>;
+
+/**
+ * Members of the acceptance link fragment
+ * `{OECP_PUBLIC_BASE_URL}/{locale}/admin/accept#token=<token>[&idp=<alias>]`:
+ * `idp` is the organization's Keycloak IdP alias, present only for brokered
+ * organizations; the accept page sends it as `kc_idp_hint`.
+ */
+export const INVITATION_LINK_PARAMS = { token: 'token', idp: 'idp' } as const;
+
 export const invitationStatus = z.enum(['pending', 'accepted', 'revoked', 'expired']);
 export type InvitationStatus = z.infer<typeof invitationStatus>;
 
@@ -51,7 +80,7 @@ export const invitation = z.object({
 });
 export type Invitation = z.infer<typeof invitation>;
 
-/** `GET /api/admin/v1/invitations` */
+/** `GET /api/admin/v1/invitations` and `GET /api/admin/v1/organizations/{orgId}/invitations` */
 export const invitationList = z.object({ items: z.array(invitation) });
 export type InvitationList = z.infer<typeof invitationList>;
 

@@ -12,6 +12,10 @@ import {
 } from '@oecp/schemas';
 import { ProblemException } from '../common/problem.js';
 import type { Env } from '../config/env.js';
+import {
+  IDENTITY_PROVIDER_ALIASES,
+  type IdentityProviderAliasesPort,
+} from '../identity/identity-provider-aliases.js';
 import { toCourseDetail, toReference, toSearchResponse, toSitemap } from './catalogue.mapper.js';
 import { CatalogueRepository } from './catalogue.repository.js';
 import { type Clock, READ_API_CLOCK, utcToday } from './clock.js';
@@ -24,6 +28,7 @@ export class CatalogueService {
     private readonly repository: CatalogueRepository,
     private readonly config: ConfigService<Env, true>,
     @Inject(READ_API_CLOCK) private readonly clock: Clock,
+    @Inject(IDENTITY_PROVIDER_ALIASES) private readonly idps: IdentityProviderAliasesPort,
   ) {}
 
   async search(query: CourseSearchQuery): Promise<CourseSearchResponse> {
@@ -53,7 +58,11 @@ export class CatalogueService {
   }
 
   async reference(): Promise<ReferenceResponse> {
-    return toReference(await this.repository.reference());
+    const [rows, enabledIdps] = await Promise.all([
+      this.repository.reference(),
+      this.idps.enabled(),
+    ]);
+    return toReference(rows, enabledIdps);
   }
 
   async sitemap(): Promise<string> {

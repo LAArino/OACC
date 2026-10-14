@@ -334,6 +334,7 @@ clientScopeMappings:
         - view-users
         - manage-identity-providers
         - view-identity-providers
+        - view-events
 
 # --- Clients ----------------------------------------------------------------------
 clients:
@@ -424,6 +425,7 @@ users:
         # Updating IdP certificates and endpoints (idp-metadata-refresh job).
         - manage-identity-providers
         - view-identity-providers
+        - view-events
 
 # --- Authentication flows ----------------------------------------------------------
 # Browser flow (local users, and the entry point of brokered logins):

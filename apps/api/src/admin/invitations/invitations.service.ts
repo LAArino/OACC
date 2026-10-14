@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: EUPL-1.2
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { AdminRole, Invitation } from '@oecp/schemas';
-import type { Selectable } from 'kysely';
+import { type AdminRole, INVITATION_MAX_TTL_HOURS, type Invitation } from '@oecp/schemas';
+import type { Selectable, Transaction } from 'kysely';
 import { ProblemException } from '../../common/problem.js';
-import type { AdminInvitationsTable } from '../../db/database.js';
+import type { AdminInvitationsTable, Database } from '../../db/database.js';
 import { type Db, KYSELY } from '../../db/db.module.js';
 import { KeycloakAdminError } from '../../identity/keycloak-admin.error.js';
 import {
@@ -52,6 +52,11 @@ export interface CreateInvitationInput {
   ttlHours: number;
   /** E-mail the link to the invitee (default true); the bootstrap CLI prints it instead. */
   sendEmail?: boolean;
+  /**
+   * Id of the invitation this one replaces ("resend"): it is revoked in the same
+   * transaction, so a failed e-mail leaves the old invitation untouched.
+   */
+  replaces?: string;
 }
 
 export interface LocalUserOutcome {
@@ -123,10 +128,18 @@ export class InvitationsService {
         : undefined;
 
     const { token, sha256 } = generateInvitationToken();
-    const link = buildInvitationLink(this.options.publicBaseUrl, token);
+    const link = buildInvitationLink(this.options.publicBaseUrl, token, {
+      idpAlias: organization.keycloak_idp_alias,
+    });
     const expiresAt = new Date(this.now().getTime() + input.ttlHours * 3_600_000);
 
     const invitation = await this.db.transaction().execute(async (trx) => {
+      if (input.replaces) {
+        await this.revokeReplaced(trx, input.replaces, {
+          sub: input.invitedBy,
+          orgId: input.invitedByOrgId ?? undefined,
+        });
+      }
       const row = await trx
         .insertInto('admin_invitations')
         .values({
@@ -144,7 +157,7 @@ export class InvitationsService {
         .values({
           actor_sub: input.invitedBy,
           actor_org_id: input.invitedByOrgId ?? null,
-          action: 'invitation.create',
+          action: input.replaces ? 'invitation.resend' : 'invitation.create',
           entity_type: 'admin_invitation',
           entity_id: row.id,
           changes: {
@@ -152,6 +165,7 @@ export class InvitationsService {
             role: input.role,
             organization_id: organization.id,
             expires_at: expiresAt.toISOString(),
+            ...(input.replaces ? { replaces: input.replaces } : {}),
             ...(localUser ? { keycloak_user_created: localUser.created } : {}),
           },
         })
@@ -234,6 +248,43 @@ export class InvitationsService {
     });
   }
 
+  /**
+   * "Resend": revokes the invitation (unless it is already revoked) and creates a
+   * new one with the same e-mail, role and organization, e-mailing the new link.
+   * Accepted invitations cannot be resent (409 `oecp.invitation.invalid`).
+   * `ttlHours` defaults to the lifetime of the original invitation.
+   */
+  async resend(
+    id: string,
+    actor: { sub: string; orgId: string | undefined },
+    ttlHours?: number,
+  ): Promise<CreatedInvitation> {
+    const original = await this.db
+      .selectFrom('admin_invitations')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (!original) {
+      throw new ProblemException(404, 'oecp.request.not_found', 'Invitation not found');
+    }
+    if (original.accepted_at) {
+      throw new ProblemException(409, 'oecp.invitation.invalid', 'The invitation is accepted');
+    }
+    const lifetimeHours = Math.round(
+      (new Date(original.expires_at).getTime() - new Date(original.created_at).getTime()) /
+        3_600_000,
+    );
+    return this.create({
+      email: original.email,
+      role: original.role,
+      organizationId: original.organization_id,
+      invitedBy: actor.sub,
+      invitedByOrgId: actor.orgId ?? null,
+      ttlHours: ttlHours ?? Math.min(INVITATION_MAX_TTL_HOURS, Math.max(1, lifetimeHours)),
+      replaces: id,
+    });
+  }
+
   /** Most recent first; `organizationId` limits the list to one organization. */
   async list(scope: { organizationId?: string } = {}): Promise<Invitation[]> {
     let query = this.db
@@ -279,6 +330,41 @@ export class InvitationsService {
         })
         .execute();
     });
+  }
+
+  /** Locks the replaced invitation and revokes it (audited) unless already revoked. */
+  private async revokeReplaced(
+    trx: Transaction<Database>,
+    id: string,
+    actor: { sub: string; orgId: string | undefined },
+  ): Promise<void> {
+    const old = await trx
+      .selectFrom('admin_invitations')
+      .selectAll()
+      .where('id', '=', id)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!old) throw new ProblemException(404, 'oecp.request.not_found', 'Invitation not found');
+    if (old.accepted_at) {
+      throw new ProblemException(409, 'oecp.invitation.invalid', 'The invitation is accepted');
+    }
+    if (old.revoked_at) return;
+    await trx
+      .updateTable('admin_invitations')
+      .set({ revoked_at: this.now() })
+      .where('id', '=', id)
+      .execute();
+    await trx
+      .insertInto('audit_log')
+      .values({
+        actor_sub: actor.sub,
+        actor_org_id: actor.orgId ?? null,
+        action: 'invitation.revoke',
+        entity_type: 'admin_invitation',
+        entity_id: id,
+        changes: { email: old.email, role: old.role, reason: 'resend' },
+      })
+      .execute();
   }
 
   /** Whether an unexpired, unaccepted, unrevoked invitation for the role exists. */

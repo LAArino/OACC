@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: EUPL-1.2
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthConfig } from '../app/composables/useAuth';
 
 const oidc = vi.hoisted(() => {
@@ -10,6 +10,8 @@ const oidc = vi.hoisted(() => {
     signinRedirect: vi.fn(),
     signinRedirectCallback: vi.fn(),
     signoutRedirect: vi.fn(),
+    signinSilent: vi.fn(),
+    signinSilentCallback: vi.fn(),
   };
 });
 
@@ -27,6 +29,8 @@ vi.mock('oidc-client-ts', () => ({
     signinRedirect = oidc.signinRedirect;
     signinRedirectCallback = oidc.signinRedirectCallback;
     signoutRedirect = oidc.signoutRedirect;
+    signinSilent = oidc.signinSilent;
+    signinSilentCallback = oidc.signinSilentCallback;
   },
 }));
 
@@ -34,6 +38,7 @@ const config: AuthConfig = {
   authority: 'https://auth.oecp.localhost/realms/oecp',
   clientId: 'oecp-admin',
   redirectPath: '/en/admin/callback',
+  silentRedirectPath: '/en/admin/silent-callback',
   postLogoutPath: '/en',
   homePath: '/en/admin',
 };
@@ -61,6 +66,8 @@ describe('oidcSettings', () => {
       authority: 'https://auth.oecp.localhost/realms/oecp',
       client_id: 'oecp-admin',
       redirect_uri: 'https://oecp.localhost/en/admin/callback',
+      silent_redirect_uri: 'https://oecp.localhost/en/admin/silent-callback',
+      silentRequestTimeoutInSeconds: 60,
       post_logout_redirect_uri: 'https://oecp.localhost/en',
       response_type: 'code',
       scope: 'openid email',
@@ -166,5 +173,90 @@ describe('createAuth', () => {
     expect(oidc.signoutRedirect).toHaveBeenLastCalledWith({
       post_logout_redirect_uri: `${window.location.origin}/en`,
     });
+  });
+});
+
+describe('restoreSession (silent renew after a reload)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('restores the user in memory through signinSilent, once per page load', async () => {
+    const { createAuth } = await load();
+    oidc.signinSilent.mockResolvedValue(fakeUser(undefined));
+    const auth = createAuth(config);
+    expect(auth.isAuthenticated.value).toBe(false);
+    const pending = auth.restoreSession();
+    expect(auth.restoring.value).toBe(true);
+    await expect(pending).resolves.toBe(true);
+    expect(auth.restoring.value).toBe(false);
+    expect(auth.isAuthenticated.value).toBe(true);
+    expect(auth.accessToken.value).toBe('access');
+    // The user store is the in-memory one: nothing reaches sessionStorage or localStorage.
+    const settings = oidc.settings[0] as { userStore: { options: { store: { kind?: string } } } };
+    expect(settings.userStore.options.store.kind).toBe('memory');
+    expect(window.localStorage.length).toBe(0);
+    await expect(createAuth(config).restoreSession()).resolves.toBe(true);
+    expect(oidc.signinSilent).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves to false when Keycloak has no session (login_required), without retrying', async () => {
+    const { createAuth } = await load();
+    oidc.signinSilent.mockRejectedValue(
+      Object.assign(new Error('login_required'), { error: 'login_required' }),
+    );
+    const auth = createAuth(config);
+    await expect(auth.restoreSession()).resolves.toBe(false);
+    expect(auth.isAuthenticated.value).toBe(false);
+    expect(auth.restoring.value).toBe(false);
+    await expect(auth.restoreSession()).resolves.toBe(false);
+    expect(oidc.signinSilent).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores an expired or missing user', async () => {
+    const { createAuth } = await load();
+    oidc.signinSilent.mockResolvedValue(fakeUser(undefined, true));
+    const auth = createAuth(config);
+    await expect(auth.restoreSession()).resolves.toBe(false);
+    expect(auth.isAuthenticated.value).toBe(false);
+  });
+
+  it('gives up after 60 seconds when the iframe never answers', async () => {
+    const { createAuth, SILENT_RENEW_TIMEOUT_SECONDS } = await load();
+    expect(SILENT_RENEW_TIMEOUT_SECONDS).toBe(60);
+    oidc.signinSilent.mockReturnValue(new Promise(() => undefined));
+    vi.useFakeTimers();
+    const auth = createAuth(config);
+    let result: boolean | undefined;
+    void auth.restoreSession().then((r) => (result = r));
+    await vi.advanceTimersByTimeAsync(59_000);
+    expect(result).toBeUndefined();
+    expect(auth.restoring.value).toBe(true);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(result).toBe(false);
+    expect(auth.restoring.value).toBe(false);
+  });
+
+  it('never starts a renew inside a frame (the silent-callback page itself)', async () => {
+    const { createAuth } = await load();
+    vi.stubGlobal('top', {});
+    await expect(createAuth(config).restoreSession()).resolves.toBe(false);
+    expect(oidc.signinSilent).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when a user is already signed in', async () => {
+    const { createAuth } = await load();
+    oidc.signinRedirectCallback.mockResolvedValue(fakeUser(undefined));
+    const auth = createAuth(config);
+    await auth.handleCallback();
+    await expect(auth.restoreSession()).resolves.toBe(true);
+    expect(oidc.signinSilent).not.toHaveBeenCalled();
+  });
+
+  it('handleSilentCallback hands the response to the parent window', async () => {
+    const { createAuth } = await load();
+    await createAuth(config).handleSilentCallback();
+    expect(oidc.signinSilentCallback).toHaveBeenCalledTimes(1);
   });
 });

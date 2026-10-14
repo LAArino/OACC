@@ -33,6 +33,6 @@ import { createMailer, MAILER } from './mailer.js';
         }),
     },
   ],
-  exports: [InvitationsService, IdentityModule],
+  exports: [InvitationsService, INVITATIONS_OPTIONS, IdentityModule],
 })
 export class InvitationsModule {}

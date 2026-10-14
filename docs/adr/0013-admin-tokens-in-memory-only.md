@@ -119,3 +119,20 @@ observed on the dev stack (`docs/backlog.md`).
 - Planned for v1 (`docs/backlog.md`): silent renew through a hidden iframe
   with `prompt=none` or the in-memory refresh token, keeping tokens out of
   storage. That change does not supersede this ADR.
+
+## 2026-10-14 update: silent renew implemented
+
+Release 0.2.0 implements the planned session restore without changing this
+decision: tokens are still kept in memory only and nothing is persisted. After
+a reload the admin layout calls oidc-client-ts `signinSilent()` once per page
+load; a hidden iframe requests a new code with `prompt=none` against
+`/en/admin/silent-callback`, and the page falls back to the sign-in prompt when
+Keycloak has no live SSO session, when the attempt fails or after 60 seconds.
+There is still no renew timer and no session-monitor iframe, so an access token
+that expires while the page stays open still leads to the sign-in prompt. The
+restore works only with the auth host on the same site as the portal and with
+portal pages frameable by themselves (`X-Frame-Options: SAMEORIGIN`, now the
+reference Traefik setting, instead of `DENY`). The "Bad (accepted)" consequence
+about reloads therefore applies only when those requirements are not met or
+the SSO session has ended. Details: spec §2.2 and §4
+(`docs/spec-v4.1.md`); tests in `apps/web/test/useAuth.test.ts`.

@@ -17,6 +17,9 @@ export interface KeycloakUser {
   firstName?: string;
   lastName?: string;
   enabled?: boolean;
+  emailVerified?: boolean;
+  /** Epoch milliseconds. */
+  createdTimestamp?: number;
   requiredActions?: string[];
   attributes?: Record<string, string[]>;
   [key: string]: unknown;
@@ -26,6 +29,27 @@ export interface KeycloakRole {
   id: string;
   name: string;
 }
+
+/** A link between a Keycloak user and a brokered identity provider. */
+export interface KeycloakFederatedIdentity {
+  identityProvider: string;
+  userId?: string;
+  userName?: string;
+}
+
+/** An identity provider of the realm (subset of IdentityProviderRepresentation). */
+export interface KeycloakIdentityProvider {
+  alias: string;
+  enabled?: boolean;
+  displayName?: string;
+  providerId?: string;
+}
+
+/** Result of {@link KeycloakAdminService.lastLogin}. */
+export type LastLogin =
+  | { available: true; at: Date | null }
+  /** The service account lacks `view-events` (403): events cannot be read. */
+  | { available: false };
 
 export interface CreateLocalUserInput {
   email: string;
@@ -99,6 +123,91 @@ export class KeycloakAdminService {
     });
     if (response.status === 404) return undefined;
     return (await response.json()) as KeycloakUser;
+  }
+
+  /**
+   * Users whose single-valued attribute `name` equals `value` (case-insensitive,
+   * as Keycloak compares). Uses the Admin API attribute search
+   * `GET /users?q=<name>:<value>` (Keycloak 15+; verified on 26: exact match, no
+   * prefix match, `briefRepresentation=false` returns `attributes`). Keycloak
+   * ignores a `q` it cannot parse and then lists every user, so results are
+   * always filtered again here; a 400 (server without `q`) falls back to a scan.
+   */
+  async findUsersByAttribute(name: string, value: string): Promise<KeycloakUser[]> {
+    const matches = (u: KeycloakUser) =>
+      (u.attributes?.[name] ?? []).some((v) => v.toLowerCase() === value.toLowerCase());
+    const found: KeycloakUser[] = [];
+    for (let first = 0; ; first += PAGE_SIZE) {
+      const response = await this.request('search users by attribute', 'GET', '/users', {
+        query: { q: `${name}:${value}`, first, max: PAGE_SIZE, briefRepresentation: false },
+        accept: [400],
+      });
+      if (response.status === 400) {
+        await response.body?.cancel();
+        return this.scanUsers(matches);
+      }
+      const page = (await response.json()) as KeycloakUser[];
+      found.push(...page.filter(matches));
+      if (page.length < PAGE_SIZE) return found;
+    }
+  }
+
+  /** Every user (full representation) matching `predicate`, page by page. */
+  private async scanUsers(predicate: (user: KeycloakUser) => boolean): Promise<KeycloakUser[]> {
+    const found: KeycloakUser[] = [];
+    for (let first = 0; ; first += PAGE_SIZE) {
+      const response = await this.request('list users', 'GET', '/users', {
+        query: { first, max: PAGE_SIZE, briefRepresentation: false },
+      });
+      const page = (await response.json()) as KeycloakUser[];
+      found.push(...page.filter(predicate));
+      if (page.length < PAGE_SIZE) return found;
+    }
+  }
+
+  /** Names of the realm roles mapped directly to the user. */
+  async realmRoleNames(userId: string): Promise<string[]> {
+    return (await this.realmRoleMappings(userId)).map((r) => r.name);
+  }
+
+  /** Identity provider links of the user (empty for a local account). */
+  async federatedIdentities(userId: string): Promise<KeycloakFederatedIdentity[]> {
+    const response = await this.request(
+      'list federated identities',
+      'GET',
+      `/users/${enc(userId)}/federated-identity`,
+    );
+    return (await response.json()) as KeycloakFederatedIdentity[];
+  }
+
+  /**
+   * Time of the user's latest `LOGIN` event. Reading events needs the
+   * realm-management role `view-events`; without it (403) the result says so.
+   */
+  async lastLogin(userId: string): Promise<LastLogin> {
+    const response = await this.request('list login events', 'GET', '/events', {
+      query: { user: userId, type: 'LOGIN', first: 0, max: 1 },
+      accept: [403],
+    });
+    if (response.status === 403) {
+      await response.body?.cancel();
+      return { available: false };
+    }
+    const [event] = (await response.json()) as { time?: unknown }[];
+    return {
+      available: true,
+      at: typeof event?.time === 'number' ? new Date(event.time) : null,
+    };
+  }
+
+  /** Identity providers of the realm (`view-identity-providers`). */
+  async listIdentityProviders(): Promise<KeycloakIdentityProvider[]> {
+    const response = await this.request(
+      'list identity providers',
+      'GET',
+      '/identity-provider/instances',
+    );
+    return (await response.json()) as KeycloakIdentityProvider[];
   }
 
   /** Creates an enabled local user (username = e-mail) and returns its id. */

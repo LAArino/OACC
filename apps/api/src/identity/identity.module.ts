@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../config/env.js';
+import { IDENTITY_PROVIDER_ALIASES, IdentityProviderAliases } from './identity-provider-aliases.js';
 import { KeycloakAdminService } from './keycloak-admin.service.js';
 
 /** Reads a Docker secret file (trimmed); throws if it is missing or empty. */
@@ -29,7 +30,12 @@ export function readSecretFile(path: string): string {
         });
       },
     },
+    {
+      provide: IDENTITY_PROVIDER_ALIASES,
+      inject: [KeycloakAdminService],
+      useFactory: (keycloak: KeycloakAdminService) => new IdentityProviderAliases(keycloak),
+    },
   ],
-  exports: [KeycloakAdminService],
+  exports: [KeycloakAdminService, IDENTITY_PROVIDER_ALIASES],
 })
 export class IdentityModule {}

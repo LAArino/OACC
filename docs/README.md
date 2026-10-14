@@ -5,7 +5,7 @@
 
 | Document | Description | Language |
 |---|---|---|
-| [spec-v4.1.md](spec-v4.1.md) | **Specification v4.1**, v4.0 synchronised with the implementation of release 0.1.0. Start here. | English |
+| [spec-v4.1.md](spec-v4.1.md) | **Specification v4.1**, v4.0 synchronised with the implementation of release 0.1.0 and updated for release 0.2.0 (admin UI completion). Start here. | English |
 | [spec-v4.0.md](spec-v4.0.md) | Specification v4.0, the implementation baseline (2026-10-14), superseded by v4.1; cited by ADR-0001 to ADR-0015. | English |
 | [spec-v3.0-original.md](spec-v3.0-original.md) | Original specification v3.0, superseded by v4.0; kept for reference. | Spanish |
 | [review/](review/) | Critical reviews of specification v3.0 that led to v4.0, cited as [R00]–[R03]. | Spanish |
@@ -28,7 +28,7 @@ Guides for alliances and partner universities joining an OECP deployment [DL 17]
 
 ## Data-provider guides
 
-Technical reference for whoever supplies course data, accurate to release 0.1.0; the onboarding guides above cover process and roles.
+Technical reference for whoever supplies course data, accurate to release 0.2.0; the onboarding guides above cover process and roles.
 
 - [guides/README.md](guides/README.md) — overview of the three guides and the data-quality rules shared by every channel (English title, ISCED-F, ECTS, dates, language tags, delivery modes, status lifecycle).
 - [guides/api-integration.md](guides/api-integration.md) — for partner IT: the OEAPI v5 requests OECP sends, authentication, network requirements, the full v5 → OECP mapping, harvester codes, withdrawal by absence, testing and the mock partner.

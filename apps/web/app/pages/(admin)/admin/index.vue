@@ -23,8 +23,14 @@ const modules = computed(() => {
     { key: 'csv', to: localePath({ path: '/admin/csv', query }) },
     { key: 'syncRuns', to: localePath({ path: '/admin/sync-runs', query }) },
     { key: 'integration', to: localePath({ path: '/admin/integration', query }) },
+    { key: 'invitations', to: localePath({ path: '/admin/invitations', query }) },
   ];
 });
+
+const allianceModules = computed(() => [
+  { key: 'network', to: localePath('/admin/network') },
+  { key: 'organizations', to: localePath('/admin/organizations') },
+]);
 </script>
 
 <template>
@@ -81,11 +87,11 @@ const modules = computed(() => {
           <template v-if="isAlliance">
             <h3>{{ t('admin.modules.allianceHeading') }}</h3>
             <ul class="admin-modules">
-              <li>
-                <NuxtLink :to="localePath('/admin/organizations')">
-                  {{ t('admin.modules.organizations.title') }}
+              <li v-for="m in allianceModules" :key="m.key">
+                <NuxtLink :to="m.to">
+                  {{ t(`admin.modules.${m.key}.title`) }}
                 </NuxtLink>
-                <p>{{ t('admin.modules.organizations.description') }}</p>
+                <p>{{ t(`admin.modules.${m.key}.description`) }}</p>
               </li>
             </ul>
           </template>

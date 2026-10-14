@@ -13,6 +13,7 @@ import { READ_API_CLOCK } from '../../src/catalogue/clock.js';
 import { ProblemDetailsFilter } from '../../src/common/problem-details.filter.js';
 import type { Database } from '../../src/db/database.js';
 import { KYSELY } from '../../src/db/db.module.js';
+import { IDENTITY_PROVIDER_ALIASES } from '../../src/identity/identity-provider-aliases.js';
 import {
   OeapiAcademicSessionsController,
   OeapiCoursesController,
@@ -49,6 +50,8 @@ export async function createReadApiApp(db: Kysely<Database>, now: Date): Promise
         useValue: configStub({ OECP_PUBLIC_BASE_URL: PUBLIC_BASE_URL, SMTP_FROM }),
       },
       { provide: READ_API_CLOCK, useValue: () => now },
+      // Keycloak knows (and has enabled) only the UIBK identity provider.
+      { provide: IDENTITY_PROVIDER_ALIASES, useValue: { enabled: async () => new Set(['uibk']) } },
       { provide: APP_FILTER, useClass: ProblemDetailsFilter },
     ],
   }).compile();

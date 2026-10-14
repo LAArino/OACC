@@ -21,7 +21,7 @@ import {
   lifecycleStatus,
   schemaOrgCourseMode,
 } from './enums.js';
-import { localizedLabel } from './primitives.js';
+import { IDP_ALIAS_PATTERN, localizedLabel } from './primitives.js';
 
 const nullable = <T extends z.ZodType>(t: T) => t.nullable();
 const date = z.iso.date();
@@ -291,6 +291,12 @@ export const referenceResponse = z.strictObject({
       org_type: z.string(),
       is_partner: z.boolean(),
       parent_id: nullable(z.uuid()),
+      /**
+       * Keycloak alias of the organization's identity provider (`kc_idp_hint`
+       * for "sign in through your university"); null for local accounts and
+       * when Keycloak has no enabled identity provider with that alias.
+       */
+      idp_alias: nullable(z.string().regex(IDP_ALIAS_PATTERN)),
     }),
   ),
   delivery_modes: z.array(publicDeliveryMode),
