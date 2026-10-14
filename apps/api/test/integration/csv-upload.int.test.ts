@@ -1,0 +1,572 @@
+// SPDX-License-Identifier: EUPL-1.2
+import 'reflect-metadata';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { INestApplication } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
+import { Test } from '@nestjs/testing';
+import { sql } from 'kysely';
+import request from 'supertest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AdminJwtGuard } from '../../src/admin/auth/admin-jwt.guard.js';
+import { AdminTokenVerifier } from '../../src/admin/auth/admin-token-verifier.js';
+import {
+  KyselyOrganizationDirectory,
+  ORGANIZATION_DIRECTORY,
+} from '../../src/admin/auth/organization-directory.js';
+import { OrganizationAccess } from '../../src/admin/integrations/organization-access.js';
+import { CsvUploadInterceptor } from '../../src/admin/uploads/csv-upload.interceptor.js';
+import { UploadsController } from '../../src/admin/uploads/uploads.controller.js';
+import { UploadsService } from '../../src/admin/uploads/uploads.service.js';
+import { ProblemDetailsFilter } from '../../src/common/problem-details.filter.js';
+import { KYSELY } from '../../src/db/db.module.js';
+import { CanonicalWriter } from '../../src/ingestion/canonical-writer.service.js';
+import { CsvIngestionService } from '../../src/ingestion/csv/csv-ingestion.service.js';
+import { CsvRetentionService } from '../../src/ingestion/csv/csv-retention.service.js';
+import { CsvAdapter } from '../../src/ingestion/csv/csv.adapter.js';
+import { CsvQueue } from '../../src/ingestion/csv/csv.queue.js';
+import { UploadStorage } from '../../src/ingestion/csv/upload-storage.js';
+import { SyncRunsRepository } from '../../src/ingestion/sync-runs.repository.js';
+import { BASE_CLAIMS, createTestTokens } from '../support/admin-tokens.js';
+import { configStub } from '../support/config-stub.js';
+import {
+  createTestDatabase,
+  describeWithDatabase,
+  ORG,
+  type TestDatabase,
+} from '../support/test-database.js';
+
+const PARTNER_SUB = '11111111-1111-4111-8111-111111111111';
+const ALLIANCE_SUB = '22222222-2222-4222-8222-222222222222';
+
+const fixture = (file: 'courses' | 'offerings') =>
+  readFileSync(
+    new URL(`../fixtures/csv/aurora-virtual-campus.${file}.csv`, import.meta.url),
+    'utf8',
+  );
+
+const COURSES_HEADER = 'template_version,course_code,status,ects,isced_codes,title_en';
+const OFFERINGS_HEADER =
+  'template_version,course_code,offering_code,status,start_date,end_date,teaching_languages,delivery_modes';
+
+describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () => {
+  let tdb: TestDatabase;
+  let app: INestApplication;
+  let uploadsDir: string;
+  let ingestion: CsvIngestionService;
+  let retention: CsvRetentionService;
+  const queue = { enqueue: vi.fn(async (_id: string) => undefined) };
+  const auth = { partner: '', alliance: '' };
+  const http = () => request(app.getHttpServer());
+  const uploadUrl = (org: string) => `/api/admin/v1/organizations/${org}/uploads`;
+
+  const upload = (
+    org: string,
+    files: { courses?: string; offerings?: string },
+    token = auth.alliance,
+  ) => {
+    let req = http().post(uploadUrl(org)).set('Authorization', token);
+    if (files.courses !== undefined) {
+      req = req.attach('courses', Buffer.from(files.courses, 'utf8'), 'courses.csv');
+    }
+    if (files.offerings !== undefined) {
+      req = req.attach('offerings', Buffer.from(files.offerings, 'utf8'), 'offerings.csv');
+    }
+    return req;
+  };
+
+  const count = async (table: 'courses' | 'course_offerings', org: string) => {
+    const q =
+      table === 'courses'
+        ? tdb.db.selectFrom('courses').where('organization_id', '=', org)
+        : tdb.db
+            .selectFrom('course_offerings')
+            .innerJoin('courses', 'courses.id', 'course_offerings.course_id')
+            .where('courses.organization_id', '=', org);
+    return Number((await q.select(sql<string>`count(*)`.as('n')).executeTakeFirstOrThrow()).n);
+  };
+
+  beforeAll(async () => {
+    Logger.overrideLogger(['error']);
+    tdb = await createTestDatabase();
+    uploadsDir = mkdtempSync(join(tmpdir(), 'oecp-uploads-'));
+    const tokens = await createTestTokens();
+    const storage = new UploadStorage(configStub({ OECP_UPLOADS_DIR: uploadsDir }));
+    const moduleRef = await Test.createTestingModule({
+      controllers: [UploadsController],
+      providers: [
+        { provide: KYSELY, useValue: tdb.db },
+        { provide: AdminTokenVerifier, useValue: tokens.verifier },
+        { provide: ORGANIZATION_DIRECTORY, useClass: KyselyOrganizationDirectory },
+        AdminJwtGuard,
+        OrganizationAccess,
+        UploadsService,
+        CsvUploadInterceptor,
+        CsvIngestionService,
+        CsvRetentionService,
+        CsvAdapter,
+        CanonicalWriter,
+        SyncRunsRepository,
+        { provide: UploadStorage, useValue: storage },
+        { provide: CsvQueue, useValue: queue },
+        { provide: APP_FILTER, useClass: ProblemDetailsFilter },
+      ],
+    }).compile();
+    app = moduleRef.createNestApplication();
+    await app.init();
+    ingestion = moduleRef.get(CsvIngestionService);
+    retention = moduleRef.get(CsvRetentionService);
+    auth.partner = `Bearer ${await tokens.sign(
+      { ...BASE_CLAIMS, roles: ['partner_admin'], org_id: ORG.urv, idp: 'urv' },
+      PARTNER_SUB,
+    )}`;
+    auth.alliance = `Bearer ${await tokens.sign(
+      { ...BASE_CLAIMS, roles: ['alliance_admin'], org_id: ORG.aurora },
+      ALLIANCE_SUB,
+    )}`;
+    // UIBK harvests over OEAPI: CSV is refused there (spec §6.5).
+    await tdb.db
+      .insertInto('partner_integrations')
+      .values({
+        organization_id: ORG.uibk,
+        authoritative_channel: 'oeapi',
+        access_mode: 'direct',
+        base_url: 'https://oeapi.uibk.example',
+      })
+      .execute();
+  }, 60_000);
+
+  afterAll(async () => {
+    await app?.close();
+    await tdb?.drop();
+    if (uploadsDir) rmSync(uploadsDir, { recursive: true, force: true });
+  });
+
+  beforeEach(() => {
+    queue.enqueue.mockClear();
+  });
+
+  it('requires a bearer token', async () => {
+    await http().post(uploadUrl(ORG.aurora)).expect(401);
+  });
+
+  it('uploads the Aurora Virtual Campus listing: courses, texts, sessions, offerings, history', async () => {
+    const response = await upload(ORG.aurora, {
+      courses: fixture('courses'),
+      offerings: fixture('offerings'),
+    }).expect(201);
+    expect(response.body).toMatchObject({
+      status: 'succeeded',
+      processed_inline: true,
+      run: {
+        channel: 'csv',
+        trigger_kind: 'upload',
+        schema_version: 'csv-1.0',
+        triggered_by: ALLIANCE_SUB,
+        n_created: 16,
+        n_updated: 0,
+        n_unchanged: 0,
+        is_complete: true,
+      },
+      warnings: [],
+    });
+    const runId: string = response.body.sync_run_id;
+    expect(response.headers['location']).toBe(`/api/admin/v1/sync-runs/${runId}`);
+
+    const run = await tdb.db
+      .selectFrom('sync_runs')
+      .selectAll()
+      .where('id', '=', runId)
+      .executeTakeFirstOrThrow();
+    expect(run.upload_object_key).toBe(`${ORG.aurora}/${runId}`);
+    expect(existsSync(join(uploadsDir, ORG.aurora, runId, 'courses.csv'))).toBe(true);
+    expect(existsSync(join(uploadsDir, ORG.aurora, runId, 'offerings.csv'))).toBe(true);
+
+    expect(await count('courses', ORG.aurora)).toBe(8);
+    expect(await count('course_offerings', ORG.aurora)).toBe(8);
+    const course = await tdb.db
+      .selectFrom('courses')
+      .selectAll()
+      .where('organization_id', '=', ORG.aurora)
+      .where('ext_id', '=', 'AVC-SPARK-SOCIAL')
+      .executeTakeFirstOrThrow();
+    expect(course).toMatchObject({
+      source_channel: 'csv',
+      source_ref: null,
+      status: 'published',
+      level: 'master',
+      eqf_level: 7,
+    });
+    expect(Number(course.ects)).toBe(6);
+    const text = await tdb.db
+      .selectFrom('course_texts')
+      .selectAll()
+      .where('course_id', '=', course.id)
+      .executeTakeFirstOrThrow();
+    expect(text).toMatchObject({
+      lang: 'en',
+      title: 'BIP: Spark Social',
+      keywords: ['social innovation', 'entrepreneurship', 'BIP'],
+    });
+    const isced = await tdb.db
+      .selectFrom('course_isced_codes')
+      .selectAll()
+      .where('course_id', '=', course.id)
+      .orderBy('is_primary', 'desc')
+      .execute();
+    expect(isced.map((r) => [r.isced_code, r.is_primary])).toEqual([
+      ['0413', true],
+      ['0319', false],
+    ]);
+    const offering = await tdb.db
+      .selectFrom('course_offerings')
+      .innerJoin(
+        'academic_sessions',
+        'academic_sessions.id',
+        'course_offerings.academic_session_id',
+      )
+      .select([
+        'course_offerings.timezone',
+        'course_offerings.teaching_languages',
+        'course_offerings.application_url',
+        'course_offerings.application_deadline',
+        'academic_sessions.ext_id as session',
+      ])
+      .where('course_offerings.course_id', '=', course.id)
+      .executeTakeFirstOrThrow();
+    expect(offering).toEqual({
+      timezone: 'Atlantic/Reykjavik',
+      teaching_languages: ['en'],
+      application_url: null,
+      application_deadline: '2026-11-15',
+      session: 'AUR-2026-27-S2',
+    });
+    const sessions = await tdb.db
+      .selectFrom('academic_sessions')
+      .selectAll()
+      .where('organization_id', '=', ORG.aurora)
+      .orderBy('ext_id')
+      .execute();
+    expect(sessions.map((s) => [s.ext_id, s.start_date, s.end_date, s.session_type])).toEqual([
+      ['AUR-2026-27-S1', '2026-10-20', '2027-01-31', 'period'],
+      ['AUR-2026-27-S2', '2027-01-12', '2027-05-15', 'period'],
+    ]);
+    // Offerings without a timezone column value get the organization's default.
+    const defaults = await tdb.db
+      .selectFrom('course_offerings')
+      .select('timezone')
+      .where('ext_offering_id', '=', '2026-27-S1')
+      .execute();
+    expect(new Set(defaults.map((r) => r.timezone))).toEqual(new Set(['Europe/Brussels']));
+
+    const history = await tdb.db
+      .selectFrom('ext_metadata_history')
+      .select(['entity_type', 'channel', 'schema_version', 'raw_payload'])
+      .where('sync_run_id', '=', runId)
+      .execute();
+    expect(history.filter((h) => h.entity_type === 'course')).toHaveLength(8);
+    expect(history.filter((h) => h.entity_type === 'course_offering')).toHaveLength(8);
+    expect(history.filter((h) => h.entity_type === 'academic_session')).toHaveLength(2);
+    expect(history.every((h) => h.channel === 'csv' && h.schema_version === 'csv-1.0')).toBe(true);
+    expect(history.find((h) => h.entity_type === 'course')?.raw_payload).toMatchObject({
+      template_version: '1.0',
+    });
+
+    const audit = await tdb.db
+      .selectFrom('audit_log')
+      .select(['action', 'actor_sub'])
+      .where('entity_id', '=', runId)
+      .orderBy('id')
+      .execute();
+    expect(audit).toEqual([
+      { action: 'upload.create', actor_sub: ALLIANCE_SUB },
+      { action: 'upload.processed', actor_sub: ALLIANCE_SUB },
+    ]);
+  });
+
+  it('re-uploading unchanged files changes nothing', async () => {
+    const before = Number(
+      (
+        await tdb.db
+          .selectFrom('ext_metadata_history')
+          .select(sql<string>`count(*)`.as('n'))
+          .executeTakeFirstOrThrow()
+      ).n,
+    );
+    const response = await upload(ORG.aurora, {
+      courses: fixture('courses'),
+      offerings: fixture('offerings'),
+    }).expect(201);
+    expect(response.body.run).toMatchObject({ n_created: 0, n_updated: 0, n_unchanged: 16 });
+    const after = Number(
+      (
+        await tdb.db
+          .selectFrom('ext_metadata_history')
+          .select(sql<string>`count(*)`.as('n'))
+          .executeTakeFirstOrThrow()
+      ).n,
+    );
+    expect(after).toBe(before);
+  });
+
+  it('withdraws a course only through its status column; omission never withdraws', async () => {
+    const response = await upload(ORG.aurora, {
+      courses: `${COURSES_HEADER}\n1.0,AVC-SUST-EDU,withdrawn,5,0111|0521,Sustainability Education and Learning\n`,
+    }).expect(201);
+    expect(response.body.run).toMatchObject({ n_updated: 1, n_created: 0 });
+    const rows = await tdb.db
+      .selectFrom('courses')
+      .select(['ext_id', 'status'])
+      .where('organization_id', '=', ORG.aurora)
+      .execute();
+    expect(rows.find((r) => r.ext_id === 'AVC-SUST-EDU')?.status).toBe('withdrawn');
+    expect(rows.filter((r) => r.status === 'published')).toHaveLength(7);
+    // Columns absent from the header (abstract_en, keywords_en, level…) are untouched.
+    const kept = await tdb.db
+      .selectFrom('courses')
+      .innerJoin('course_texts', 'course_texts.course_id', 'courses.id')
+      .select(['courses.level', 'course_texts.abstract'])
+      .where('courses.ext_id', '=', 'AVC-SUST-EDU')
+      .executeTakeFirstOrThrow();
+    expect(kept.level).toBe('master');
+    expect(kept.abstract).toMatch(/^Graduate course/);
+    const audit = await tdb.db
+      .selectFrom('audit_log')
+      .select(['action', 'changes'])
+      .where('action', '=', 'course.status')
+      .execute();
+    expect(audit[0]?.changes).toMatchObject({ status: { from: 'published', to: 'withdrawn' } });
+  });
+
+  it('deletes a language whose cells are all empty and keeps languages absent from the header', async () => {
+    const header = `${COURSES_HEADER},title_de,title_fr`;
+    await upload(
+      ORG.urv,
+      {
+        courses: `${header}\n1.0,URV-1,draft,6,0613,Data science,Datenwissenschaft,Science des données\n`,
+      },
+      auth.partner,
+    ).expect(201);
+    await upload(
+      ORG.urv,
+      {
+        courses: `${COURSES_HEADER},title_de\n1.0,URV-1,draft,6,0613,Data science,\n`,
+      },
+      auth.partner,
+    ).expect(201);
+    const langs = await tdb.db
+      .selectFrom('course_texts')
+      .innerJoin('courses', 'courses.id', 'course_texts.course_id')
+      .select('lang')
+      .where('courses.ext_id', '=', 'URV-1')
+      .orderBy('lang')
+      .execute();
+    expect(langs.map((r) => r.lang)).toEqual(['en', 'fr']);
+  });
+
+  it('fails an invalid upload with row/column errors and writes nothing', async () => {
+    const response = await upload(
+      ORG.urv,
+      {
+        courses: `${COURSES_HEADER}\n1.0,URV-2,published,6,0613,Valid\n1.0,URV-3,live,6,0613,Bad status\n`,
+        offerings: `${OFFERINGS_HEADER}\n1.0,URV-2,A,published,2027-02-30,2027-06-30,en,online\n1.0,NOPE,B,published,2027-02-01,2027-06-30,en,teleport\n`,
+      },
+      auth.partner,
+    ).expect(422);
+    expect(response.headers['content-type']).toMatch(/^application\/problem\+json/);
+    const runId: string = response.body.sync_run_id;
+    expect(response.body).toMatchObject({
+      type: '/problems/validation-failed',
+      title: 'Upload validation failed',
+      status: 422,
+      instance: `/api/admin/v1/sync-runs/${runId}`,
+      run_status: 'failed',
+      processed_inline: true,
+      error_count: 4,
+    });
+    expect(
+      response.body.errors.map((e: Record<string, unknown>) => [e.file, e.row, e.column, e.code]),
+    ).toEqual([
+      ['courses', 3, 'status', 'oecp.csv.invalid_status'],
+      ['offerings', 2, 'start_date', 'oecp.csv.invalid_date'],
+      ['offerings', 3, 'course_code', 'oecp.content.unknown_course'],
+      ['offerings', 3, 'delivery_modes', 'oecp.content.unknown_delivery_mode'],
+    ]);
+    expect(
+      await tdb.db.selectFrom('courses').select('id').where('ext_id', '=', 'URV-2').execute(),
+    ).toEqual([]);
+    const run = await tdb.db
+      .selectFrom('sync_runs')
+      .selectAll()
+      .where('id', '=', runId)
+      .executeTakeFirstOrThrow();
+    expect(run).toMatchObject({
+      status: 'failed',
+      n_created: 0,
+      n_rejected: 3,
+      is_complete: false,
+    });
+    expect(run.error_summary).toMatch(/4 error\(s\).*nothing was written/);
+    const errors = await tdb.db
+      .selectFrom('sync_errors')
+      .select(['file', 'row_number', 'column_name', 'code', 'severity'])
+      .where('sync_run_id', '=', runId)
+      .orderBy('id')
+      .execute();
+    expect(errors[0]).toEqual({
+      file: 'courses',
+      row_number: 3,
+      column_name: 'status',
+      code: 'oecp.csv.invalid_status',
+      severity: 'error',
+    });
+    expect(errors).toHaveLength(4);
+  });
+
+  it('rejects files that are not UTF-8', async () => {
+    const response = await http()
+      .post(uploadUrl(ORG.urv))
+      .set('Authorization', auth.partner)
+      .attach('courses', Buffer.from([0x74, 0xed, 0x74, 0x0a]), 'courses.csv')
+      .expect(422);
+    expect(response.body.errors[0]).toMatchObject({ code: 'oecp.csv.encoding', file: 'courses' });
+  });
+
+  it('refuses CSV for an organization whose authoritative channel is oeapi', async () => {
+    const response = await upload(ORG.uibk, { courses: fixture('courses') }).expect(409);
+    expect(response.body.errors[0].code).toBe('oecp.sync.channel_disabled');
+  });
+
+  it('scopes partner_admins to their organization', async () => {
+    const response = await upload(ORG.aurora, { courses: fixture('courses') }, auth.partner).expect(
+      403,
+    );
+    expect(response.body.errors[0].code).toBe('oecp.auth.forbidden_organization');
+  });
+
+  it('validates the multipart request', async () => {
+    const none = await http()
+      .post(uploadUrl(ORG.urv))
+      .set('Authorization', auth.partner)
+      .expect(400);
+    expect(none.body.errors[0].code).toBe('oecp.csv.no_files');
+    const unexpected = await http()
+      .post(uploadUrl(ORG.urv))
+      .set('Authorization', auth.partner)
+      .attach('programmes', Buffer.from('a\n'), 'programmes.csv')
+      .expect(400);
+    expect(unexpected.body.errors[0].code).toBe('oecp.csv.unexpected_file');
+    const big = await http()
+      .post(uploadUrl(ORG.urv))
+      .set('Authorization', auth.partner)
+      .attach('courses', Buffer.alloc(5 * 1024 * 1024 + 1, 0x61), 'courses.csv')
+      .expect(413);
+    expect(big.body.errors[0].code).toBe('oecp.csv.file_too_large');
+  });
+
+  it('queues uploads above 500 rows for the worker', async () => {
+    const lines = Array.from(
+      { length: 501 },
+      (_, i) => `1.0,BULK-${i},draft,3,0613,Bulk course ${i}`,
+    );
+    const response = await upload(
+      ORG.urv,
+      {
+        courses: `${COURSES_HEADER}\n${lines.join('\n')}\n`,
+      },
+      auth.partner,
+    ).expect(202);
+    expect(response.body).toEqual({
+      sync_run_id: expect.any(String),
+      status: 'queued',
+      processed_inline: false,
+    });
+    expect(queue.enqueue).toHaveBeenCalledWith(response.body.sync_run_id);
+    const outcome = await ingestion.process(response.body.sync_run_id);
+    expect(outcome).toMatchObject({ status: 'succeeded', counters: { n_created: 501 } });
+    // A second delivery of the job is a no-op.
+    expect((await ingestion.process(response.body.sync_run_id)).status).toBe('skipped');
+  }, 60_000);
+
+  it('limits uploads to 10 per hour per organization', async () => {
+    const now = new Date();
+    await tdb.db
+      .insertInto('sync_runs')
+      .values(
+        Array.from({ length: 10 }, (_, i) => ({
+          organization_id: ORG.uibkFaculty,
+          channel: 'csv' as const,
+          trigger_kind: 'upload' as const,
+          schema_version: 'csv-1.0',
+          status: 'succeeded' as const,
+          created_at: new Date(now.getTime() - (50 - i) * 60_000),
+        })),
+      )
+      .execute();
+    const response = await upload(ORG.uibkFaculty, { courses: fixture('courses') }).expect(429);
+    expect(response.body.errors[0].code).toBe('oecp.csv.rate_limited');
+    const retryAfter = Number(response.headers['retry-after']);
+    expect(retryAfter).toBeGreaterThan(9 * 60);
+    expect(retryAfter).toBeLessThanOrEqual(10 * 60);
+  });
+
+  it('serves injection-safe templates and the JSON Schema', async () => {
+    const courses = await http()
+      .get('/api/admin/v1/csv-template/courses.csv')
+      .set('Authorization', auth.partner)
+      .expect(200);
+    expect(courses.headers['content-type']).toMatch(/^text\/csv/);
+    expect(courses.headers['content-disposition']).toBe('attachment; filename="courses.csv"');
+    expect(courses.text.startsWith('\uFEFFtemplate_version,course_code,status,')).toBe(true);
+    const offerings = await http()
+      .get('/api/admin/v1/csv-template/offerings.csv')
+      .set('Authorization', auth.partner)
+      .expect(200);
+    expect(offerings.text.split('\r\n')).toHaveLength(3);
+    const schema = await http()
+      .get('/api/admin/v1/csv-template/schema.json')
+      .set('Authorization', auth.partner)
+      .expect(200);
+    expect(schema.headers['content-type']).toMatch(/^application\/schema\+json/);
+    expect(JSON.parse(schema.text)).toMatchObject({
+      $id: 'urn:oecp:schema:csv:1.0',
+      $defs: { courseRow: expect.any(Object), offeringRow: expect.any(Object) },
+    });
+    await http().get('/api/admin/v1/csv-template/courses.csv').expect(401);
+  });
+
+  it('purges upload files after 90 days and keeps the run', async () => {
+    const run = await tdb.db
+      .selectFrom('sync_runs')
+      .select(['id', 'upload_object_key'])
+      .where('organization_id', '=', ORG.aurora)
+      .where('upload_object_key', 'is not', null)
+      .orderBy('created_at')
+      .executeTakeFirstOrThrow();
+    await tdb.db
+      .updateTable('sync_runs')
+      .set({ created_at: new Date(Date.now() - 91 * 86_400_000) })
+      .where('id', '=', run.id)
+      .execute();
+    const result = await retention.purge();
+    expect(result.purged).toBe(1);
+    expect(existsSync(join(uploadsDir, ...(run.upload_object_key as string).split('/')))).toBe(
+      false,
+    );
+    const after = await tdb.db
+      .selectFrom('sync_runs')
+      .select(['upload_object_key', 'status'])
+      .where('id', '=', run.id)
+      .executeTakeFirstOrThrow();
+    expect(after).toEqual({ upload_object_key: null, status: 'succeeded' });
+    const audit = await tdb.db
+      .selectFrom('audit_log')
+      .select('actor_sub')
+      .where('action', '=', 'upload.purge')
+      .where('entity_id', '=', run.id)
+      .execute();
+    expect(audit).toEqual([{ actor_sub: 'system:retention' }]);
+  });
+});

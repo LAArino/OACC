@@ -1,0 +1,183 @@
+{
+  "items": [
+    {
+      "id": "6f1d2c3b-0000-4000-8000-000000000001",
+      "ext_id": "URV-20345",
+      "organization": {
+        "id": "0b9f6c1e-1d7a-4f39-9a51-6c1e0f0a0001",
+        "slug": "urv",
+        "name": {
+          "en": "Universitat Rovira i Virgili"
+        },
+        "country_code": "ES"
+      },
+      "title": "Climate Change and Mediterranean Ecosystems",
+      "title_lang": "en",
+      "abstract": "An interdisciplinary introduction to climate impacts on Mediterranean ecosystems, with field data from the Ebro Delta.",
+      "abstract_lang": "en",
+      "ects": 6,
+      "level": "master",
+      "isced_broad_fields": [
+        {
+          "code": "05",
+          "label": {
+            "en": "Natural sciences, mathematics and statistics"
+          }
+        }
+      ],
+      "delivery_modes": ["online", "hybrid"],
+      "teaching_languages": ["en", "ca"],
+      "next_offering": {
+        "id": "a1b2c3d4-0000-4000-8000-000000000011",
+        "start_date": "2027-02-08",
+        "end_date": "2027-06-11",
+        "application_deadline": "2026-12-15",
+        "enrol_start_date": "2026-10-01",
+        "seats_available": 12,
+        "alliance_seats": 5,
+        "seats_updated_at": "2026-10-10T06:00:00Z",
+        "timezone": "Europe/Madrid"
+      },
+      "offerings_count": 2
+    },
+    {
+      "id": "6f1d2c3b-0000-4000-8000-000000000002",
+      "ext_id": "VU-AI-101",
+      "organization": {
+        "id": "0b9f6c1e-1d7a-4f39-9a51-6c1e0f0a0002",
+        "slug": "vu-amsterdam",
+        "name": {
+          "en": "Vrije Universiteit Amsterdam"
+        },
+        "country_code": "NL"
+      },
+      "title": "Responsible Artificial Intelligence",
+      "title_lang": "en",
+      "abstract": "Ethics, law and engineering of AI systems in Europe.",
+      "abstract_lang": "en",
+      "ects": 3,
+      "level": "bachelor",
+      "isced_broad_fields": [
+        {
+          "code": "06",
+          "label": {
+            "en": "Information and Communication Technologies"
+          }
+        }
+      ],
+      "delivery_modes": ["coil"],
+      "teaching_languages": ["en"],
+      "next_offering": {
+        "id": "a1b2c3d4-0000-4000-8000-000000000021",
+        "start_date": "2026-11-02",
+        "end_date": "2027-01-29",
+        "application_deadline": "2026-10-01",
+        "enrol_start_date": null,
+        "seats_available": null,
+        "alliance_seats": 20,
+        "seats_updated_at": null,
+        "timezone": "Europe/Amsterdam"
+      },
+      "offerings_count": 1
+    },
+    {
+      "id": "6f1d2c3b-0000-4000-8000-000000000003",
+      "ext_id": "UNIVIE-PHIL-7",
+      "organization": {
+        "id": "0b9f6c1e-1d7a-4f39-9a51-6c1e0f0a0003",
+        "slug": "univie",
+        "name": {
+          "en": "University of Vienna",
+          "de": "Universität Wien"
+        },
+        "country_code": "AT"
+      },
+      "title": "European Philosophy of Science",
+      "title_lang": "en",
+      "abstract": null,
+      "abstract_lang": null,
+      "ects": 4.5,
+      "level": "doctoral",
+      "isced_broad_fields": [],
+      "delivery_modes": ["presential"],
+      "teaching_languages": ["de", "en"],
+      "next_offering": null,
+      "offerings_count": 0
+    }
+  ],
+  "page": 1,
+  "page_size": 20,
+  "total": 3,
+  "facets": {
+    "partner": [
+      {
+        "value": "urv",
+        "count": 1
+      },
+      {
+        "value": "vu-amsterdam",
+        "count": 1
+      },
+      {
+        "value": "univie",
+        "count": 1
+      }
+    ],
+    "mode": [
+      {
+        "value": "online",
+        "count": 1
+      },
+      {
+        "value": "hybrid",
+        "count": 1
+      },
+      {
+        "value": "coil",
+        "count": 1
+      },
+      {
+        "value": "presential",
+        "count": 1
+      }
+    ],
+    "lang": [
+      {
+        "value": "en",
+        "count": 3
+      },
+      {
+        "value": "ca",
+        "count": 1
+      },
+      {
+        "value": "de",
+        "count": 1
+      }
+    ],
+    "isced": [
+      {
+        "value": "05",
+        "count": 1
+      },
+      {
+        "value": "06",
+        "count": 1
+      }
+    ],
+    "level": [
+      {
+        "value": "bachelor",
+        "count": 1
+      },
+      {
+        "value": "master",
+        "count": 1
+      },
+      {
+        "value": "doctoral",
+        "count": 1
+      }
+    ]
+  }
+}

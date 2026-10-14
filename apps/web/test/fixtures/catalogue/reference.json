@@ -1,0 +1,115 @@
+{
+  "organizations": [
+    {
+      "id": "0b9f6c1e-1d7a-4f39-9a51-6c1e0f0a0001",
+      "slug": "urv",
+      "name": {
+        "en": "Universitat Rovira i Virgili",
+        "ca": "Universitat Rovira i Virgili"
+      },
+      "country_code": "ES",
+      "logo_url": null,
+      "website_url": "https://www.urv.cat",
+      "org_type": "institution",
+      "is_partner": true,
+      "parent_id": null
+    },
+    {
+      "id": "0b9f6c1e-1d7a-4f39-9a51-6c1e0f0a0002",
+      "slug": "vu-amsterdam",
+      "name": {
+        "en": "Vrije Universiteit Amsterdam"
+      },
+      "country_code": "NL",
+      "logo_url": null,
+      "website_url": null,
+      "org_type": "institution",
+      "is_partner": true,
+      "parent_id": null
+    },
+    {
+      "id": "0b9f6c1e-1d7a-4f39-9a51-6c1e0f0a0003",
+      "slug": "univie",
+      "name": {
+        "en": "University of Vienna"
+      },
+      "country_code": "AT",
+      "logo_url": null,
+      "website_url": null,
+      "org_type": "institution",
+      "is_partner": true,
+      "parent_id": null
+    },
+    {
+      "id": "0b9f6c1e-1d7a-4f39-9a51-6c1e0f0a0009",
+      "slug": "aurora",
+      "name": {
+        "en": "Aurora Foundation"
+      },
+      "country_code": "NL",
+      "logo_url": null,
+      "website_url": null,
+      "org_type": "alliance",
+      "is_partner": false,
+      "parent_id": null
+    }
+  ],
+  "delivery_modes": [
+    {
+      "code": "presential",
+      "label": {
+        "en": "On campus"
+      },
+      "schema_org": "Onsite"
+    },
+    {
+      "code": "online",
+      "label": {
+        "en": "Online"
+      },
+      "schema_org": "Online"
+    },
+    {
+      "code": "hybrid",
+      "label": {
+        "en": "Hybrid"
+      },
+      "schema_org": "Blended"
+    },
+    {
+      "code": "coil",
+      "label": {
+        "en": "COIL (virtual exchange)"
+      },
+      "schema_org": "Online"
+    }
+  ],
+  "isced_broad_fields": [
+    {
+      "code": "02",
+      "label": {
+        "en": "Arts and humanities"
+      }
+    },
+    {
+      "code": "04",
+      "label": {
+        "en": "Business, administration and law"
+      }
+    },
+    {
+      "code": "05",
+      "label": {
+        "en": "Natural sciences, mathematics and statistics"
+      }
+    },
+    {
+      "code": "06",
+      "label": {
+        "en": "Information and Communication Technologies"
+      }
+    }
+  ],
+  "teaching_languages": ["ca", "de", "en", "es", "nl"],
+  "levels": ["bachelor", "master", "doctoral"]
+}

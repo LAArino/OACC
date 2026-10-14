@@ -1,40 +1,374 @@
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 <script setup lang="ts">
-interface CourseText {
-  title: string;
-  abstract: string | null;
-}
-interface CoursePage {
-  id: string;
-  ects: number;
-  texts: Record<string, CourseText>;
-}
+// Course page (spec §7): partner header, key facts, course texts per language,
+// offerings with how to apply, schema.org/Course JSON-LD, canonical URL.
+import type { CourseTexts } from '~/types/catalogue';
+
+const TEXT_SECTIONS = [
+  'abstract',
+  'description',
+  'learning_outcomes',
+  'prerequisites',
+  'assessment',
+] as const satisfies readonly (keyof CourseTexts)[];
 
 const { t, locale } = useI18n();
+const localePath = useLocalePath();
 const route = useRoute();
-const api = useApi();
-const id = computed(() => String(route.params.id));
+const router = useRouter();
+const config = useRuntimeConfig();
+const api = useCatalogueApi();
 
-const { data, error } = await useAsyncData(`course-${id.value}`, () =>
-  api<CoursePage>(`/api/public/v1/courses/${encodeURIComponent(id.value)}`),
+const id = computed(() => String(route.params.id));
+const { data: reference } = await useCatalogueReference();
+const labels = useCatalogueLabels(() => reference.value);
+
+const { data: course, error } = await useAsyncData(`course-${id.value}`, () =>
+  api.course(id.value),
 );
-const text = computed(() =>
-  data.value ? pickLocalized(data.value.texts, locale.value) : undefined,
+if (error.value || !course.value) {
+  const statusCode = error.value ? catalogueErrorStatus(error.value) : 404;
+  throw createError({
+    statusCode,
+    statusMessage: statusCode === 404 ? 'Not Found' : 'Service Unavailable',
+    fatal: true,
+  });
+}
+
+// --- Texts and languages ---------------------------------------------------
+const textLanguages = computed(() => {
+  const langs = Object.keys(course.value?.texts ?? {});
+  const name = (l: string) => languageName(l, locale.value);
+  return langs.sort((a, b) =>
+    a === 'en' ? -1 : b === 'en' ? 1 : name(a).localeCompare(name(b), locale.value),
+  );
+});
+const defaultTextLang = computed(() =>
+  textLanguages.value.includes('en') ? 'en' : (textLanguages.value[0] ?? 'en'),
 );
-useHead({ title: () => text.value?.value.title ?? t('course.notFound') });
+/** Text language shown: `?text_lang=` when available, else English, else the first one. */
+const textLang = computed(() => {
+  const asked = typeof route.query.text_lang === 'string' ? route.query.text_lang : undefined;
+  return asked && textLanguages.value.includes(asked) ? asked : defaultTextLang.value;
+});
+const shownText = computed(() => course.value?.texts[textLang.value]);
+/** Title in the page locale (English fallback), used in the header and the head. */
+const pageText = computed(() =>
+  course.value ? pickLocalized(course.value.texts, locale.value) : undefined,
+);
+const title = computed(() => pageText.value?.value.title ?? shownText.value?.title ?? '');
+const titleLang = computed(() =>
+  pageText.value && pageText.value.lang !== locale.value ? pageText.value.lang : undefined,
+);
+
+/** Page query showing the texts in `lang` (other parameters kept). */
+function textQuery(lang: string): Record<string, string | string[]> {
+  const query = { ...route.query } as Record<string, string | string[]>;
+  if (lang === defaultTextLang.value) delete query.text_lang;
+  else query.text_lang = lang;
+  return query;
+}
+const textHref = (lang: string) =>
+  router.resolve({ path: route.path, query: textQuery(lang), hash: '#course-texts' }).href;
+function selectText(lang: string) {
+  void router.replace({ query: textQuery(lang) });
+}
+
+// --- Facts -------------------------------------------------------------------
+const partner = computed(() =>
+  course.value ? labels.organizationName(course.value.organization) : '',
+);
+const country = computed(() => labels.countryLabel(course.value?.organization.country_code));
+const unique = (values: string[]) => [...new Set(values)];
+const languages = computed(() =>
+  unique(course.value?.offerings.flatMap((o) => o.teaching_languages) ?? []),
+);
+const modes = computed(() =>
+  unique(course.value?.offerings.flatMap((o) => o.delivery_modes) ?? []),
+);
+const iscedLabels = computed(() =>
+  unique(
+    [...(course.value?.isced_codes ?? [])]
+      .sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
+      .map((c) => labelText(c.label, locale.value) ?? labels.iscedLabel(c.broad_code)),
+  ),
+);
+const teachingUnit = computed(() => labelText(course.value?.teaching_unit?.name, locale.value));
+const updatedAt = computed(() => formatDateTimeAsDate(course.value?.updated_at, locale.value));
+const level = computed(() => {
+  const c = course.value;
+  if (!c) return undefined;
+  const name = c.level ? labels.levelLabel(c.level) : undefined;
+  const eqf = c.eqf_level ? t('facts.eqf', { n: c.eqf_level }) : undefined;
+  return [name, eqf].filter(Boolean).join(', ') || undefined;
+});
+const offerings = computed(() =>
+  [...(course.value?.offerings ?? [])].sort((a, b) => a.start_date.localeCompare(b.start_date)),
+);
+const infoUrl = computed(() => safeHttpUrl(course.value?.info_url));
+const contactEmail = computed(() => safeEmail(course.value?.contact_email));
+
+// --- Back to results -----------------------------------------------------------
+const listPath = computed(() => localePath('/courses'));
+const backPath = ref(listPath.value);
+onMounted(() => {
+  const origin = window.location.origin;
+  const historyBack = (window.history.state as { back?: unknown } | null)?.back;
+  backPath.value =
+    catalogueBackPath(
+      typeof historyBack === 'string' ? historyBack : null,
+      listPath.value,
+      origin,
+    ) ??
+    catalogueBackPath(document.referrer, listPath.value, origin) ??
+    listPath.value;
+});
+
+// --- Head: title, description, canonical, JSON-LD ------------------------------
+const requestUrl = useRequestURL();
+const i18nBase = (config.public.i18n as { baseUrl?: string } | undefined)?.baseUrl;
+const canonical = computed(
+  () =>
+    `${(i18nBase || requestUrl.origin).replace(/\/$/, '')}${localePath(
+      `/courses/${encodeURIComponent(id.value)}`,
+    )}`,
+);
+const description = computed(() => {
+  const text = pageText.value?.value;
+  const source =
+    text?.abstract || text?.description || t('course.metaFallback', { partner: partner.value });
+  return source.length > 160 ? `${source.slice(0, 157).trimEnd()}…` : source;
+});
+useHead({
+  title,
+  meta: [{ name: 'description', content: description }],
+  link: [{ rel: 'canonical', href: canonical, key: 'canonical' }],
+  script: [
+    {
+      key: 'course-jsonld',
+      type: 'application/ld+json',
+      innerHTML: () =>
+        course.value
+          ? serializeJsonLd(
+              courseJsonLd(course.value, {
+                url: canonical.value,
+                locale: locale.value,
+                courseModes: Object.fromEntries(
+                  (reference.value?.delivery_modes ?? []).map((m) => [m.code, m.schema_org]),
+                ),
+              }),
+            )
+          : '',
+    },
+  ],
+});
 </script>
 
 <template>
-  <article v-if="data && text">
-    <h1 :lang="text.lang === locale ? undefined : text.lang">
-      {{ text.value.title }}
-    </h1>
-    <p>{{ t('course.ects', { n: data.ects }) }}</p>
-    <p v-if="text.value.abstract" :lang="text.lang === locale ? undefined : text.lang">
-      {{ text.value.abstract }}
+  <article v-if="course" class="course" :aria-labelledby="'course-title'">
+    <nav class="breadcrumb" :aria-label="t('breadcrumb.label')">
+      <ol>
+        <li>
+          <NuxtLink :to="localePath('/')">{{ t('nav.home') }}</NuxtLink>
+        </li>
+        <li>
+          <NuxtLink :to="listPath">{{ t('nav.courses') }}</NuxtLink>
+        </li>
+        <li>
+          <span aria-current="page" :lang="titleLang">{{ title }}</span>
+        </li>
+      </ol>
+    </nav>
+
+    <p class="course__back">
+      <NuxtLink :to="backPath">
+        <span aria-hidden="true">← </span>{{ t('course.backToResults') }}
+      </NuxtLink>
     </p>
+
+    <header class="course__header">
+      <h1 id="course-title" :lang="titleLang">{{ title }}</h1>
+      <p class="course__partner">
+        {{ partner }}<template v-if="country"> · {{ country }}</template>
+      </p>
+    </header>
+
+    <section class="course__facts" aria-labelledby="facts-heading">
+      <h2 id="facts-heading" class="visually-hidden">{{ t('course.factsHeading') }}</h2>
+      <dl class="facts">
+        <template v-if="teachingUnit">
+          <dt>{{ t('facts.teachingUnit') }}</dt>
+          <dd>{{ teachingUnit }}</dd>
+        </template>
+        <dt>{{ t('facts.ects') }}</dt>
+        <dd>{{ course.ects }}</dd>
+        <template v-if="level">
+          <dt>{{ t('facts.level') }}</dt>
+          <dd>{{ level }}</dd>
+        </template>
+        <template v-if="course.teaching_hours">
+          <dt>{{ t('facts.teachingHours') }}</dt>
+          <dd>{{ course.teaching_hours }}</dd>
+        </template>
+        <template v-if="iscedLabels.length">
+          <dt>{{ t('facts.fields') }}</dt>
+          <dd>{{ iscedLabels.join('; ') }}</dd>
+        </template>
+        <template v-if="languages.length">
+          <dt>{{ t('facts.languages') }}</dt>
+          <dd>{{ languages.map((l) => labels.languageLabel(l)).join(', ') }}</dd>
+        </template>
+        <template v-if="modes.length">
+          <dt>{{ t('facts.modes') }}</dt>
+          <dd>{{ modes.map((m) => labels.modeLabel(m)).join(', ') }}</dd>
+        </template>
+        <dt>{{ t('facts.courseCode') }}</dt>
+        <dd>{{ course.ext_id }}</dd>
+        <template v-if="contactEmail">
+          <dt>{{ t('facts.contact') }}</dt>
+          <dd>
+            <a :href="`mailto:${contactEmail}`">{{ contactEmail }}</a>
+          </dd>
+        </template>
+        <template v-if="updatedAt">
+          <dt>{{ t('facts.updated') }}</dt>
+          <dd>{{ updatedAt }}</dd>
+        </template>
+      </dl>
+      <p v-if="infoUrl" class="course__info">
+        <a :href="infoUrl" target="_blank" rel="noopener">
+          {{ t('course.moreInfo') }}
+          <span class="visually-hidden">{{ t('common.newTab') }}</span>
+          <span aria-hidden="true">↗</span>
+        </a>
+      </p>
+    </section>
+
+    <section id="course-texts" class="course__texts" aria-labelledby="texts-heading">
+      <h2 id="texts-heading">{{ t('course.aboutHeading') }}</h2>
+      <LanguageTabs
+        v-if="textLanguages.length > 1"
+        :languages="textLanguages"
+        :active="textLang"
+        :label="t('course.textLanguage')"
+        panel-id="course-text-panel"
+        :href-for="textHref"
+        @select="selectText"
+      />
+      <div
+        v-if="shownText"
+        id="course-text-panel"
+        class="course__panel"
+        :lang="textLang"
+        :role="textLanguages.length > 1 ? 'tabpanel' : undefined"
+        :aria-labelledby="textLanguages.length > 1 ? `text-tab-${textLang}` : undefined"
+        :tabindex="textLanguages.length > 1 ? 0 : undefined"
+      >
+        <p v-if="shownText.is_machine_translated" class="course__mt" :lang="locale">
+          {{ t('course.machineTranslated') }}
+        </p>
+        <p v-if="shownText.title && shownText.title !== title" class="course__alt-title">
+          <strong>{{ shownText.title }}</strong>
+        </p>
+        <template v-for="section in TEXT_SECTIONS" :key="section">
+          <section v-if="shownText[section]" class="course__text-section">
+            <h3 :lang="locale">{{ t(`course.sections.${section}`) }}</h3>
+            <p class="text-block">{{ shownText[section] }}</p>
+          </section>
+        </template>
+        <section v-if="shownText.keywords.length" class="course__text-section">
+          <h3 :lang="locale">{{ t('course.sections.keywords') }}</h3>
+          <ul class="tag-list">
+            <li v-for="keyword in shownText.keywords" :key="keyword">{{ keyword }}</li>
+          </ul>
+        </section>
+      </div>
+    </section>
+
+    <section class="course__offerings" aria-labelledby="offerings-heading">
+      <h2 id="offerings-heading">
+        {{ t('course.offeringsHeading', { n: offerings.length }, offerings.length) }}
+      </h2>
+      <p v-if="!offerings.length">{{ t('course.noOfferings') }}</p>
+      <ul v-else class="course__offering-list">
+        <li v-for="offering in offerings" :key="offering.id">
+          <OfferingDetails
+            :offering="offering"
+            :partner="partner"
+            :contact-email="course.contact_email"
+            :reference="reference"
+            :heading-level="3"
+          />
+        </li>
+      </ul>
+      <p class="course__dates-note">{{ t('course.datesNote') }}</p>
+    </section>
   </article>
-  <p v-else-if="error" role="alert">
-    {{ t('course.notFound') }}
-  </p>
 </template>
+
+<style scoped>
+.course__back {
+  margin: 0.75rem 0 0;
+}
+.course__header h1 {
+  margin-bottom: 0.25rem;
+}
+.course__partner {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--c-muted);
+}
+.course__facts {
+  background: var(--c-surface);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+.course__facts .facts {
+  margin: 0;
+}
+@media (max-width: 30rem) {
+  .course__facts .facts {
+    grid-template-columns: 1fr;
+  }
+  .course__facts .facts dd {
+    margin-bottom: 0.4rem;
+  }
+}
+.course__info {
+  margin: 0.75rem 0 0;
+}
+.course__panel:focus-visible {
+  outline: 3px solid var(--c-focus);
+  outline-offset: 4px;
+}
+.course__text-section h3 {
+  margin: 1.25rem 0 0.25rem;
+}
+.course__text-section p {
+  margin: 0;
+}
+.course__mt {
+  color: var(--c-muted);
+  font-style: italic;
+}
+.course__alt-title {
+  font-size: 1.1rem;
+}
+.course__offering-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+@media (min-width: 48rem) {
+  .course__offering-list {
+    grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  }
+}
+.course__dates-note {
+  color: var(--c-muted);
+  font-size: 0.9rem;
+}
+</style>

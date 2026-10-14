@@ -12,6 +12,8 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-10-01',
   modules: ['@nuxtjs/i18n'],
   devtools: { enabled: false },
+  // Self-hosted, bundled styles of the public portal (no external CSS or fonts).
+  css: ['~/assets/css/main.css'],
 
   runtimeConfig: {
     // NUXT_API_INTERNAL_BASE: server-only origin used during SSR (e.g. http://api:3000
@@ -19,6 +21,8 @@ export default defineNuxtConfig({
     // Empty means "use public.apiBase".
     apiInternalBase: '',
     public: {
+      // NUXT_PUBLIC_ALLIANCE_NAME: shown in the public portal (e.g. "Aurora").
+      allianceName: 'the alliance',
       // NUXT_PUBLIC_API_BASE: origin serving /api/public, /api/admin and /oeapi/v5.
       apiBase: 'http://localhost:3000',
       // NUXT_PUBLIC_OIDC_AUTHORITY: https://{auth-host}/realms/oecp

@@ -106,6 +106,36 @@ export const ERROR_CODES = {
   'oecp.csv.malformed': { severity: 'error', message: 'File is not valid RFC 4180 CSV' },
   'oecp.csv.rate_limited': { severity: 'error', message: 'Upload limit reached (10 per hour)' },
   'oecp.csv.english_delete': { severity: 'error', message: 'English texts cannot be deleted' },
+  'oecp.csv.duplicate_column': {
+    severity: 'error',
+    message: 'Column appears more than once in the header',
+  },
+  'oecp.csv.field_count': {
+    severity: 'error',
+    message: 'Row has a different number of cells than the header',
+  },
+  'oecp.csv.empty_file': { severity: 'error', message: 'File has no header row' },
+  'oecp.csv.text_without_title': {
+    severity: 'error',
+    message: 'Texts in a language need the title in that language',
+  },
+  'oecp.csv.language_deleted': {
+    severity: 'warning',
+    message: 'Every text of this language is empty; the language will be deleted',
+  },
+  'oecp.csv.no_data_rows': { severity: 'warning', message: 'File has a header but no rows' },
+  'oecp.csv.no_files': {
+    severity: 'error',
+    message: 'Upload a courses file, an offerings file or both',
+  },
+  'oecp.csv.unexpected_file': {
+    severity: 'error',
+    message: 'Only the multipart fields courses and offerings (one file each) are accepted',
+  },
+  'oecp.csv.write_failed': {
+    severity: 'error',
+    message: 'The upload could not be written; nothing was saved',
+  },
 
   'oecp.oeapi.mass_absence': {
     severity: 'warning',
