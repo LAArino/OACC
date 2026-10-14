@@ -80,6 +80,11 @@ adminEventsDetailsEnabled: false
 attributes:
   # ACR-to-LoA map (spec §4): LoA 2 (second factor passed) is reported as acr="mfa".
   acr.loa.map: '{"mfa":2}'
+  # Required by keycloak-config-cli to import `userProfile` below: without it the
+  # declarative user profile is skipped SILENTLY (debug log only), the realm keeps
+  # Keycloak's default profile and every undeclared attribute, `oecp_org_id`
+  # included, is dropped when the API writes it. Keycloak 24+ ignores the flag.
+  userProfileEnabled: "true"
   # Admin event retention, seconds (90 days).
   adminEventsExpiration: "7776000"
 
@@ -105,7 +110,9 @@ smtpServer:
   port: "$(env:OECP_SMTP_PORT:-25)"
   from: "$(env:OECP_SMTP_FROM:-no-reply@example.org)"
   fromDisplayName: "$(env:OECP_REALM_DISPLAY_NAME:-Open European Campus Portal)"
-  starttls: "true"
+  # Opportunistic STARTTLS; set OECP_SMTP_STARTTLS=false for a relay or sink
+  # without TLS (Mailpit in the `dev` compose profile).
+  starttls: "$(env:OECP_SMTP_STARTTLS:-true)"
   auth: "false"
   ssl: "false"
 
@@ -264,9 +271,10 @@ clientScopes:
           userinfo.token.claim: "false"
           introspection.token.claim: "true"
       # roles = flat array of OECP realm roles. Only partner_admin and
-      # alliance_admin are in this scope's role scope mappings (scopeMappings
+      # alliance_admin are in the role scope of client oecp-admin (scopeMappings
       # below) and the clients use fullScopeAllowed: false, so default roles
-      # never appear and the array is empty for a role-less invited user.
+      # never appear. For a role-less invited user Keycloak omits the claim
+      # (no empty array); the API reads a missing `roles` as [].
       - name: roles
         protocol: openid-connect
         protocolMapper: oidc-usermodel-realm-role-mapper
@@ -304,9 +312,28 @@ clientScopes:
           userinfo.token.claim: "true"
           introspection.token.claim: "true"
 
+# Role scope of the admin SPA. Deliberately on the CLIENT, never on client
+# scope `oecp`: Keycloak applies a client scope that has role scope mappings
+# only to users holding at least one of those roles, so a role-less invited
+# user (spec §2.1 step 4) would get a token without aud=oecp-api, name and idp
+# and could never call /invitations/accept.
 scopeMappings:
-  - clientScope: oecp
+  - client: oecp-admin
     roles: [partner_admin, alliance_admin]
+
+# Role scope of `oecp-backend` (fullScopeAllowed: false). The Admin API grants
+# an operation only if the service-account user HAS the realm-management role
+# AND the client has that role IN SCOPE; without these mappings every Admin API
+# call of the service account is rejected with 403 even though the roles are
+# assigned (users: below).
+clientScopeMappings:
+  realm-management:
+    - client: oecp-backend
+      roles:
+        - manage-users
+        - view-users
+        - manage-identity-providers
+        - view-identity-providers
 
 # --- Clients ----------------------------------------------------------------------
 clients:

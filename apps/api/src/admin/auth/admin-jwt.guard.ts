@@ -13,7 +13,7 @@ import type { ProblemBody } from '../../common/problem-details.filter.js';
 import { AdminAuthError } from './admin-auth.error.js';
 import { AdminTokenVerifier } from './admin-token-verifier.js';
 import { type AdminPrincipal, LOCAL_IDP, REQUIRED_ACR } from './claims.js';
-import { AllowRoleless } from './decorators.js';
+import { AllowRoleless, RequireRoles } from './decorators.js';
 import { ORGANIZATION_DIRECTORY, type OrganizationDirectory } from './organization-directory.js';
 
 interface GuardedRequest {
@@ -28,7 +28,8 @@ interface GuardedResponse {
 /**
  * Bearer-only guard for `/api/admin` (spec §4): signature via realm JWKS, `iss`,
  * `aud ∋ oecp-api`, `azp = oecp-admin`, `acr = mfa`, non-empty OECP roles, and an
- * existing organization whose IdP alias (or `local`) equals the `idp` claim.
+ * existing organization whose IdP alias (or `local`) equals the `idp` claim
+ * (a missing `idp` claim means `local`). `@RequireRoles()` narrows the roles.
  */
 @Injectable()
 export class AdminJwtGuard implements CanActivate {
@@ -79,6 +80,14 @@ export class AdminJwtGuard implements CanActivate {
       }
     }
 
+    const required = this.reflector.getAllAndOverride(RequireRoles, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (required && !claims.roles.some((role) => required.includes(role))) {
+      throw new AdminAuthError('oecp.auth.forbidden_role', 403);
+    }
+
     return {
       sub: claims.sub,
       roles: claims.roles,
@@ -86,6 +95,7 @@ export class AdminJwtGuard implements CanActivate {
       idp: claims.idp,
       email: claims.email,
       name: claims.name,
+      schacHomeOrganization: claims.schac_home_organization,
     };
   }
 }

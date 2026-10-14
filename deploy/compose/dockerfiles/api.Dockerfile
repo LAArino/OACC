@@ -21,13 +21,22 @@ ENV PNPM_HOME=/pnpm \
 ENV PATH=${PNPM_HOME}:${PATH}
 WORKDIR /repo
 COPY package.json ./
+# pnpm 11+ is a native binary that its Corepack wrapper downloads on first use
+# (`pnpm-native`, next to the wrapper under COREPACK_HOME). Run it once here so
+# the binary is part of the image: otherwise `pnpm db:migrate` in the runtime
+# stage (uid 1000, possibly without Internet access) downloads it on every run.
 RUN corepack enable \
  && corepack install \
+ && pnpm --version \
  && chown -R node:node /corepack
 
 # --- source: the filtered workspace -------------------------------------------
 FROM toolchain AS source
 COPY . .
+# The runtime runs as uid 1000 and pnpm reads the root workspace files: normalise
+# permissions, because a restrictive umask on the build host (pnpm writes
+# pnpm-lock.yaml and pnpm-workspace.yaml as 0600) is otherwise copied verbatim.
+RUN chmod -R a+rX /repo
 
 # --- build: all dependencies, then compile api and the workspace packages it uses
 FROM source AS build
@@ -42,7 +51,13 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 
 # --- runtime -------------------------------------------------------------------
 FROM toolchain AS runtime
-ENV NODE_ENV=production
+# pnpm 12 checks node_modules against the whole lockfile before `pnpm run`
+# (verify-deps-before-run). This image holds the production dependencies of
+# @oecp/api only, so the check would try to download every other package (and
+# hang without Internet access) on `pnpm db:migrate`. Dependencies are fixed at
+# build time: skip the check.
+ENV NODE_ENV=production \
+    pnpm_config_verify_deps_before_run=false
 LABEL org.opencontainers.image.title="oecp-api" \
       org.opencontainers.image.description="Open European Campus Portal: API and worker" \
       org.opencontainers.image.licenses="EUPL-1.2"

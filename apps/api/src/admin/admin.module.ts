@@ -10,9 +10,12 @@ import {
   KyselyOrganizationDirectory,
   ORGANIZATION_DIRECTORY,
 } from './auth/organization-directory.js';
+import { InvitationsController } from './invitations/invitations.controller.js';
+import { InvitationsModule } from './invitations/invitations.module.js';
 
 @Module({
-  controllers: [AdminController],
+  imports: [InvitationsModule],
+  controllers: [AdminController, InvitationsController],
   providers: [
     {
       provide: AdminTokenVerifier,

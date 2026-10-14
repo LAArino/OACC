@@ -19,7 +19,8 @@ ENV PNPM_HOME=/pnpm \
 ENV PATH=${PNPM_HOME}:${PATH}
 WORKDIR /repo
 COPY package.json ./
-RUN corepack enable && corepack install
+# pnpm 11+ downloads its native binary on first use: do it once, cached in this layer.
+RUN corepack enable && corepack install && pnpm --version
 
 FROM toolchain AS build
 COPY . .

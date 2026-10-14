@@ -14,6 +14,10 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
 
   runtimeConfig: {
+    // NUXT_API_INTERNAL_BASE: server-only origin used during SSR (e.g. http://api:3000
+    // inside Docker, where the public host would resolve to the web container itself).
+    // Empty means "use public.apiBase".
+    apiInternalBase: '',
     public: {
       // NUXT_PUBLIC_API_BASE: origin serving /api/public, /api/admin and /oeapi/v5.
       apiBase: 'http://localhost:3000',
