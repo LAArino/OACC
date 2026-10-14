@@ -291,6 +291,10 @@ services:
       EXAMPLE_PARTNER_IDP_ENTITY_ID: ${EXAMPLE_PARTNER_IDP_ENTITY_ID:-https://idp.example-partner.invalid/idp/shibboleth}
       EXAMPLE_PARTNER_IDP_SSO_URL: ${EXAMPLE_PARTNER_IDP_SSO_URL:-https://idp.example-partner.invalid/idp/profile/SAML2/POST/SSO}
       EXAMPLE_PARTNER_IDP_SIGNING_CERT: ${EXAMPLE_PARTNER_IDP_SIGNING_CERT:-}
+      # Dev profile only: enables IdP `urv` pointing at the `test-saml-idp`
+      # service on 127.0.0.1:OECP_DEV_IDP_PORT. Never true in production.
+      OECP_DEV_IDP_ENABLED: ${OECP_DEV_IDP_ENABLED:-false}
+      OECP_DEV_IDP_PORT: ${OECP_DEV_IDP_PORT:-8091}
     secrets:
       - source: keycloak_admin_password
         target: /run/secrets/kcc/keycloak.password
@@ -524,6 +528,59 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+    logging: *default-logging
+
+  # -------------------------------------------------------------------------
+  # Local development only (profile `dev`): test SAML 2.0 IdP playing the
+  # partner university URV (organization `urv`, Keycloak IdP alias `urv`), so
+  # the brokered (eduGAIN-style) administrator path can be exercised end to end
+  # (tools/e2e-identity/brokered-accept.js). SimpleSAMLphp 1.19 (LGPL-2.1) in
+  # kenchan0130/simplesamlphp (MIT), configured by ./test-saml-idp: entity ID
+  # https://idp.urv.test/saml2/idp, users in test-saml-idp/users.json,
+  # attributes under their urn:oid names, assertions signed and encrypted.
+  #
+  # Front channel only: the browser reaches the IdP at
+  # http://127.0.0.1:${OECP_DEV_IDP_PORT:-8091}/simplesaml/ (the SSO URL in the
+  # realm) and posts its response to https://${OECP_AUTH_HOST}; Keycloak never
+  # calls the IdP. The IdP reads Keycloak's SP descriptor (encryption and
+  # signing keys) at http://keycloak:8080 over the `edge` network. The realm
+  # side is enabled with OECP_DEV_IDP_ENABLED=true (keycloak-config).
+  # See identity/keycloak/README.md, "Test SAML IdP (dev profile)".
+  # -------------------------------------------------------------------------
+  test-saml-idp:
+    image: kenchan0130/simplesamlphp:1.19.9
+    profiles: ["dev"]
+    restart: unless-stopped
+    environment:
+      # Absolute base URL: every endpoint the IdP generates points at the
+      # published port, whatever Host header reaches the container.
+      SIMPLESAMLPHP_IDP_BASE_URL: http://127.0.0.1:${OECP_DEV_IDP_PORT:-8091}/simplesaml/
+      SIMPLESAMLPHP_IDP_SECRET_SALT: oecp-dev-test-saml-idp
+      # Required by the image's own saml20-sp-remote.php, which is replaced below.
+      SIMPLESAMLPHP_SP_ENTITY_ID: https://${OECP_AUTH_HOST}/realms/oecp
+      SIMPLESAMLPHP_SP_ASSERTION_CONSUMER_SERVICE: https://${OECP_AUTH_HOST}/realms/oecp/broker/urv/endpoint
+      TEST_IDP_SP_ENTITY_ID: https://${OECP_AUTH_HOST}/realms/oecp
+      TEST_IDP_SP_ACS_URL: https://${OECP_AUTH_HOST}/realms/oecp/broker/urv/endpoint
+      TEST_IDP_SP_DESCRIPTOR_URL: http://keycloak:8080/realms/oecp/broker/urv/endpoint/descriptor
+    volumes:
+      - ./test-saml-idp/authsources.php:/var/www/simplesamlphp/config/authsources.php:ro
+      - ./test-saml-idp/users.json:/var/www/simplesamlphp/config/users.json:ro
+      - ./test-saml-idp/saml20-idp-hosted.php:/var/www/simplesamlphp/metadata/saml20-idp-hosted.php:ro
+      - ./test-saml-idp/saml20-sp-remote.php:/var/www/simplesamlphp/metadata/saml20-sp-remote.php:ro
+      - ./test-saml-idp/cert/idp.urv.test.key:/var/www/simplesamlphp/cert/idp.urv.test.key:ro
+      - ./test-saml-idp/cert/idp.urv.test.crt:/var/www/simplesamlphp/cert/idp.urv.test.crt:ro
+    ports:
+      - "127.0.0.1:${OECP_DEV_IDP_PORT:-8091}:8080"
+    networks:
+      edge:
+        aliases: [idp.urv.test]
+    healthcheck:
+      # The IdP metadata endpoint (does not need Keycloak).
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8080/simplesaml/saml2/idp/metadata.php') === false ? 1 : 0);"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     logging: *default-logging
 
   # -------------------------------------------------------------------------

@@ -10,7 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- Test SAML IdP for local development (compose profile `dev`, service
+  `test-saml-idp`, SimpleSAMLphp 1.19.9) playing partner URV, and realm IdP
+  `urv` pointing at it, enabled only with `OECP_DEV_IDP_ENABLED=true`
+  (spec §2.1, §4). `tools/e2e-identity/brokered-accept.js` and
+  `brokered-negative.js` verify the brokered partner-admin path end to end:
+  invitation link with `idp=urv`, `kc_idp_hint`, first-broker-login without
+  account linking, post-broker TOTP (`acr=mfa`), acceptance, re-login through
+  the university chooser, administrators list with `idp: "urv"`, and the
+  e-mail, IdP and schacHomeOrganization mismatches (403
+  `oecp.invitation.mismatch`).
 
 ## [0.2.0] - 2026-10-14
 
