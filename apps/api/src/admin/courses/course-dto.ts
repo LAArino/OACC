@@ -25,6 +25,19 @@ function sorted<T>(record: Readonly<Record<string, T>>): Record<string, T> {
 }
 
 /** `[{code, is_primary}]` → codes, primary first. */
+
+/** EQF level implied by the primary level when the input does not give one
+ * (same table as the OEAPI adapter), so a form save never erases it. */
+const EQF_BY_LEVEL: Readonly<Record<string, number>> = {
+  short_cycle: 5,
+  bachelor: 6,
+  master: 7,
+  doctoral: 8,
+};
+function eqfFromLevel(level: string | undefined): number | null {
+  return level ? (EQF_BY_LEVEL[level] ?? null) : null;
+}
+
 export function iscedList(codes: readonly { code: string; is_primary: boolean }[]): string[] {
   const primary = codes.find((c) => c.is_primary) ?? codes[0];
   return primary ? [primary.code, ...codes.filter((c) => c !== primary).map((c) => c.code)] : [];
@@ -57,7 +70,7 @@ export function courseFromInput(
     ects: input.ects,
     level: input.levels[0] ?? null,
     levels: input.levels,
-    eqf_level: input.eqf_level ?? null,
+    eqf_level: input.eqf_level ?? eqfFromLevel(input.levels[0]),
     teaching_hours: input.teaching_hours ?? null,
     teaching_unit_ext_id: input.teaching_unit_ext_id ?? null,
     info_url: input.info_url ?? null,

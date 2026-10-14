@@ -16,6 +16,25 @@
 | [RELEASING.md](RELEASING.md) | Versioning, contract and migration policy, release procedure and checklist. | English |
 | [screenshots/](screenshots/) | Screenshots of the development stack taken while verifying features (identity, catalogue, admin console, course wizard). Illustrative only: not kept in sync with every change. | — |
 
+## Onboarding
+
+Guides for alliances and partner universities joining an OECP deployment [DL 17]; start with the decision tree in the index.
+
+- [onboarding/README.md](onboarding/README.md) — which guide to read, and the model on one page (organizations, roles, channels, overrides).
+- [onboarding/alliance.md](onboarding/alliance.md) — Guide A: governance, deployment, identity, organizations, attributes, first alliance admin, operation.
+- [onboarding/partner-with-oeapi.md](onboarding/partner-with-oeapi.md) — Guide B: a university with an OEAPI v5 endpoint (direct harvesting).
+- [onboarding/partner-with-integration-capacity.md](onboarding/partner-with-integration-capacity.md) — Guide C: build an OEAPI endpoint or automate the CSV files.
+- [onboarding/partner-manual.md](onboarding/partner-manual.md) — Guide D: web form and hand-made CSV files.
+
+## Data-provider guides
+
+Technical reference for whoever supplies course data, accurate to release 0.1.0; the onboarding guides above cover process and roles.
+
+- [guides/README.md](guides/README.md) — overview of the three guides and the data-quality rules shared by every channel (English title, ISCED-F, ECTS, dates, language tags, delivery modes, status lifecycle).
+- [guides/api-integration.md](guides/api-integration.md) — for partner IT: the OEAPI v5 requests OECP sends, authentication, network requirements, the full v5 → OECP mapping, harvester codes, withdrawal by absence, testing and the mock partner.
+- [guides/csv-authoring.md](guides/csv-authoring.md) — template 1.1 column reference for `courses.csv` and `offerings.csv`, limits, processing, browser validation, the `oecp.csv.*`/`oecp.content.*` code table and a worked example.
+- [guides/web-form.md](guides/web-form.md) — the course wizard, offerings, status actions, overrides on harvested records, history and the admin API equivalents.
+
 ## Reviews
 
 - [00-consolidado-decisiones-pendientes.md](review/00-consolidado-decisiones-pendientes.md) — [R00] consolidated review and pending decisions.

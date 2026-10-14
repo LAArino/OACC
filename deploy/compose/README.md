@@ -116,7 +116,7 @@ code must use internal addresses (`http://api:3000`, `http://keycloak:8080`).
 ```sh
 curl -sk -o /dev/null -w '%{http_code} %{redirect_url}\n' https://oecp.localhost/      # 302 → /en
 curl -sk https://oecp.localhost/en | grep -o '<html[^>]*>'                            # lang="en", no Set-Cookie
-curl -sk -i 'https://oecp.localhost/oeapi/v5/courses?pageSize=1' | head -1            # 501 problem+json until implemented
+curl -sk -i 'https://oecp.localhost/oeapi/v5/courses?pageSize=1' | head -1            # 200, OEAPI v5 envelope
 curl -sk -i https://oecp.localhost/api/admin/v1/me | grep -i www-authenticate         # 401, WWW-Authenticate: Bearer
 curl -sk https://auth.oecp.localhost/realms/oecp/.well-known/openid-configuration | grep -o '"issuer":"[^"]*"'
 # → "issuer":"https://auth.oecp.localhost/realms/oecp"
@@ -297,7 +297,7 @@ reads every other variable listed above.
   `pnpm_config_verify_deps_before_run=false`); rebuild the `api` image.
 - **Catalogue pages show the error message under SSR:** the web container
   cannot reach `https://<portal host>` (inside the container it is not
-  Traefik); server-side fetches must use `NUXT_API_INTERNAL_BASE`
-  (`http://api:3000`), which `apps/web` does not read yet.
+  Traefik); server-side fetches use `NUXT_API_INTERNAL_BASE`
+  (`http://api:3000`), so check that it is set and that `api` is healthy.
 - **Postgres init script did not run:** it only runs on an empty
   `postgres_data` volume.
