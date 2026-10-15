@@ -1,15 +1,22 @@
 // SPDX-License-Identifier: EUPL-1.2
-// Header image of the deployment (NUXT_PUBLIC_HERO_IMAGE): a path on the portal
-// origin (normally /branding/<file>, see server/middleware/branding.ts) or an
-// absolute https URL. Its alt text is empty (decorative) unless
-// NUXT_PUBLIC_HERO_IMAGE_ALT is set. Shown by <BrandingBanner> on the home page
-// and the course list; `heroImageUrl` is the absolute URL for link previews.
-export function useHeroImage() {
+// Header images of the deployment: NUXT_PUBLIC_HERO_IMAGE (home page) and
+// NUXT_PUBLIC_HERO_IMAGE_COURSES (course list; empty = the home image), each a
+// path on the portal origin (normally /branding/<file>, see
+// server/middleware/branding.ts) or an absolute https URL. The alt texts
+// (NUXT_PUBLIC_HERO_IMAGE_ALT, NUXT_PUBLIC_HERO_IMAGE_COURSES_ALT) are empty
+// (decorative) by default; the course list's alt follows its own image. Shown
+// by <BrandingBanner>; `heroImageUrl` is the absolute URL for link previews.
+export type HeroVariant = 'home' | 'courses';
+
+export function useHeroImage(variant: HeroVariant = 'home') {
   const config = useRuntimeConfig();
   const requestUrl = useRequestURL();
   const i18nBase = (config.public.i18n as { baseUrl?: string } | undefined)?.baseUrl;
-  const heroImage = computed(() => config.public.heroImage);
-  const heroImageAlt = computed(() => config.public.heroImageAlt);
+  const own = computed(() => (variant === 'courses' ? config.public.heroImageCourses : ''));
+  const heroImage = computed(() => own.value || config.public.heroImage);
+  const heroImageAlt = computed(() =>
+    own.value ? config.public.heroImageCoursesAlt : config.public.heroImageAlt,
+  );
   const heroImageUrl = computed(() => {
     const src = heroImage.value;
     if (!src || /^https?:\/\//i.test(src)) return src;

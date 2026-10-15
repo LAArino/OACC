@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Web: deployment branding. The home page and the course list show an optional header image
   (`NUXT_PUBLIC_HERO_IMAGE`, with `NUXT_PUBLIC_HERO_IMAGE_ALT`; decorative
-  `alt=""` by default; also the `og:image` link preview) and the site header an
+  `alt=""` by default; the course list may have its own,
+  `NUXT_PUBLIC_HERO_IMAGE_COURSES` and `_ALT`; also the `og:image` link preview) and the site header an
   optional alliance logo instead of the text brand (`NUXT_PUBLIC_LOGO_IMAGE`,
   alt text = alliance name). The images are deployment configuration, never
   repository content: the web app serves the directory `NUXT_BRANDING_DIR` at

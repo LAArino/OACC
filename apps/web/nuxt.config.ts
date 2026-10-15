@@ -39,6 +39,11 @@ export default defineNuxtConfig({
       heroImage: '',
       // NUXT_PUBLIC_HERO_IMAGE_ALT: its text alternative; empty = decorative (alt="").
       heroImageAlt: '',
+      // NUXT_PUBLIC_HERO_IMAGE_COURSES: a different header image for the course
+      // list; empty = the home page image (and its alt text).
+      heroImageCourses: '',
+      // NUXT_PUBLIC_HERO_IMAGE_COURSES_ALT: its text alternative; empty = decorative.
+      heroImageCoursesAlt: '',
       // NUXT_PUBLIC_LOGO_IMAGE: optional alliance logo in the site header, in place
       // of the text brand (alt = allianceName); a path or an absolute https URL.
       logoImage: '',

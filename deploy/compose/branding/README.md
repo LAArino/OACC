@@ -39,6 +39,8 @@ a changed image a new file name and update the variable.
   ```sh
   OECP_HERO_IMAGE=/branding/hero.jpg
   OECP_HERO_IMAGE_ALT=
+  OECP_HERO_IMAGE_COURSES=        # optional: a different image for the course list
+  OECP_HERO_IMAGE_COURSES_ALT=    # its text alternative (empty = decorative)
   ```
 
   Leave `OECP_HERO_IMAGE_ALT` empty when the image is decorative (the default:

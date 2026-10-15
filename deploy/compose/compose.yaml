@@ -556,6 +556,9 @@ services:
       NUXT_PUBLIC_HERO_IMAGE: ${OECP_HERO_IMAGE:-}
       # Empty = decorative header image (alt="").
       NUXT_PUBLIC_HERO_IMAGE_ALT: ${OECP_HERO_IMAGE_ALT:-}
+      # Optional different image for the course list (empty = the home image).
+      NUXT_PUBLIC_HERO_IMAGE_COURSES: ${OECP_HERO_IMAGE_COURSES:-}
+      NUXT_PUBLIC_HERO_IMAGE_COURSES_ALT: ${OECP_HERO_IMAGE_COURSES_ALT:-}
       NUXT_PUBLIC_LOGO_IMAGE: ${OECP_LOGO_IMAGE:-}
       # Content-Security-Policy of the portal (spec §10): enforce | report-only | off.
       NUXT_CSP_MODE: ${NUXT_CSP_MODE:-enforce}

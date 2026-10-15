@@ -1,7 +1,10 @@
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 <script setup lang="ts">
+import type { HeroVariant } from '~/composables/useHeroImage';
 // Deployment header image (useHeroImage): renders nothing when none is set.
-const { heroImage, heroImageAlt } = useHeroImage();
+// `variant` picks the course-list image, which falls back to the home one.
+const props = defineProps<{ variant?: HeroVariant }>();
+const { heroImage, heroImageAlt } = useHeroImage(props.variant ?? 'home');
 </script>
 
 <template>

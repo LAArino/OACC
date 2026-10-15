@@ -119,6 +119,8 @@ describe('home page header image', () => {
   afterEach(() => {
     hero().heroImage = '';
     hero().heroImageAlt = '';
+    hero().heroImageCourses = '';
+    hero().heroImageCoursesAlt = '';
   });
 
   it('renders a decorative banner above the title and link-preview meta', async () => {
@@ -169,6 +171,29 @@ describe('home page header image', () => {
       expect(headMeta('property="og:image"')).toMatch(/^https?:\/\/[^/]+\/branding\/hero\.png$/),
     );
     w.unmount();
+  });
+
+  it('gives the course list its own image and alt text when configured', async () => {
+    hero().heroImage = '/branding/hero.png';
+    hero().heroImageAlt = 'Home alt';
+    hero().heroImageCourses = '/branding/courses.jpg';
+    hero().heroImageCoursesAlt = 'Students of the alliance';
+    const courses = await mountSuspended(CataloguePage, { route: '/en/courses' });
+    expect(courses.find('.branding-banner img').attributes()).toMatchObject({
+      src: '/branding/courses.jpg',
+      alt: 'Students of the alliance',
+    });
+    await vi.waitFor(() =>
+      expect(headMeta('property="og:image"')).toMatch(/\/branding\/courses\.jpg$/),
+    );
+    courses.unmount();
+    // The home page keeps its own image.
+    const home = await mountSuspended(HomePage, { route: '/en' });
+    expect(home.find('.branding-banner img').attributes()).toMatchObject({
+      src: '/branding/hero.png',
+      alt: 'Home alt',
+    });
+    home.unmount();
   });
 
   it('renders no banner and no image meta when unset', async () => {

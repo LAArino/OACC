@@ -166,9 +166,11 @@ deployment configuration, never repository content: put the files in
 [`branding/`](branding/README.md) (or the directory named by
 `OECP_BRANDING_DIR`), which `web` mounts read-only and serves at
 `/branding/<file>`. Enable them in `.env` with `OECP_HERO_IMAGE`
-(e.g. `/branding/hero.jpg`), `OECP_HERO_IMAGE_ALT` (empty = decorative) and
-`OECP_LOGO_IMAGE` (e.g. `/branding/logo.svg`, alt text = `OECP_ALLIANCE_NAME`);
-all empty by default. File-name rule, recommended sizes and permissions (uid
+(e.g. `/branding/hero.jpg`), `OECP_HERO_IMAGE_ALT` (empty = decorative),
+`OECP_HERO_IMAGE_COURSES` and `OECP_HERO_IMAGE_COURSES_ALT` (a different image
+for the course list; empty = the home image) and `OECP_LOGO_IMAGE`
+(e.g. `/branding/logo.svg`, alt text = `OECP_ALLIANCE_NAME`); all empty by
+default. File-name rule, recommended sizes and permissions (uid
 1000): [`branding/README.md`](branding/README.md).
 
 ### Local development profile (`dev`)
