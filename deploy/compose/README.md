@@ -22,6 +22,8 @@ scripts.
 | `test-saml-idp` | `kenchan0130/simplesamlphp:1.19.9` (MIT; SimpleSAMLphp LGPL-2.1), profile `dev` | test SAML IdP playing URV for the brokered admin path (realm IdP `urv`, `OECP_DEV_IDP_ENABLED=true`) |
 | `backup` | same image as `postgres`, profile `backup` | pgBackRest backups (weekly full, daily differential, PITR, 35 days), daily uploads archive, backup metrics |
 | `otel-collector`, `prometheus`, `loki`, `grafana` | profile `observability` | metrics and logs (spec §10) |
+| `alloy` | `grafana/alloy:v1.20.1` (Apache-2.0), profile `observability` | ships the container logs of the project to Loki ([Log retention](#log-retention)) |
+| `docker-socket-proxy` | `tecnativa/docker-socket-proxy:v0.5.0` (Apache-2.0), profile `observability` | read-only Docker API for `alloy` (GET containers, events, networks only), internal network `docker-api` |
 | `alertmanager` (`prom/alertmanager:v0.34.1`), `node-exporter` (`prom/node-exporter:v1.12.1`), `blackbox-exporter` (`prom/blackbox-exporter:v0.29.0`), all Apache-2.0 | profile `observability` | alert notifications (e-mail, webhook), disk and backup metrics, readiness probes |
 
 ```
@@ -32,7 +34,8 @@ Internet ─▶ traefik :443
   auth-host    /realms/oecp, /resources ─▶ keycloak:8080
                /admin, /realms/master   ─▶ keycloak:8080 (IP allowlist)
 networks: edge (traefik, web, api, keycloak) · backend, internal (postgres, valkey,
-          api, worker, keycloak) · egress (worker → partner OEAPI endpoints)
+          api, worker, keycloak) · egress (worker → partner OEAPI endpoints) ·
+          docker-api, internal (alloy → docker-socket-proxy; profile observability)
 ```
 
 Only the paths above are routed. In particular the api's `/health` and
@@ -136,7 +139,7 @@ docker compose logs -f api worker          # follow application logs
 docker compose run --rm api pnpm db:migrate     # after pulling new migrations
 docker compose run --rm keycloak-config    # re-apply the realm after editing realm-oecp.yaml
 docker compose up -d --build api worker web     # redeploy the application
-docker compose --profile observability up -d    # add metrics, logs and alerting
+docker compose --profile observability up -d    # add metrics, logs (Alloy → Loki) and alerting
 docker compose --profile backup up -d           # add scheduled backups (pgBackRest)
 scripts/restore-drill.sh                        # restore the latest backup into a scratch container
 docker compose down                        # stop (volumes are kept)
@@ -295,9 +298,50 @@ reads every other variable listed above.
 
 ### Log retention
 
-Spec §10 keeps application logs 90 days and access logs 30 days. Every service
-logs to Docker's `json-file` driver with rotation (`x-logging` in
-`compose.yaml`; Traefik has its own `x-logging-traefik`):
+Spec §10 keeps application logs 90 days and access logs 30 days.
+
+**Time-based retention: Loki, fed by Alloy (profile `observability`).** The
+`alloy` service (Grafana Alloy, `observability/alloy.alloy`) discovers the
+containers of this Compose project (label `com.docker.compose.project`, from
+`COMPOSE_PROJECT_NAME`, default `oecp`) and streams their stdout/stderr to Loki
+through the Docker API, which works the same on Linux hosts and on Docker
+Desktop. Each stream is labelled `service` (the Compose service), `container`
+and `project`; one-off `docker compose run` containers are skipped. Traefik
+lines also get `log_type="access"` (a JSON access-log line) or `log_type="app"`
+(Traefik's own log); api and worker numeric levels (pino) are named so that
+Loki's `detected_level` works for every service. Loki (`observability/loki.yaml`)
+deletes, through its compactor:
+
+| Streams | Retention |
+|---|---|
+| `{service="traefik", log_type="access"}` (client addresses: personal data) | 30 days (`retention_stream`) |
+| everything else | 90 days (`retention_period`) |
+
+Query in Grafana (http://127.0.0.1:3001): dashboard **OECP logs** (folder
+OECP: log volume by service and by level, errors and warnings, a log panel
+filtered by `service` and a search box, the Traefik access log), or *Explore*
+with data source Loki, e.g. `{service="api"} | json | res_statusCode >= 500`
+or `{service="worker"} |= "harvest"`. Loki has no published port; from the
+shell: `docker compose exec grafana wget -qO- 'http://loki:3100/loki/api/v1/label/service/values'`.
+Alloy keeps its read positions in the volume `alloy_data`, so a restart does
+not resend lines; logs written while Alloy was stopped are read on restart
+from the json-file buffer, if still there.
+
+**Docker socket proxy (trade-off).** Alloy never sees the Docker socket. The
+`docker-socket-proxy` service (HAProxy) has the socket mounted read-only and
+answers only `GET` on `/containers` (list, inspect, logs), `/events` and
+`/networks` (Alloy's discovery lists them); every other endpoint and every
+`POST`/`PUT`/`DELETE` gets 403. It sits on the internal network `docker-api`,
+joined by `alloy` only (never `edge`). The proxy itself still needs the socket,
+and container logs can contain whatever the applications write; it is the
+narrowest exposure that gives container logs without host-specific paths
+(`/var/lib/docker/containers` cannot be bind-mounted on Docker Desktop).
+
+**Local fallback: Docker `json-file` (size-based).** Every service still logs to
+Docker's `json-file` driver with rotation (`x-logging` in `compose.yaml`;
+Traefik has its own `x-logging-traefik`). It is what `docker compose logs`
+reads, Alloy's source, and the only copy when the `observability` profile is
+not running:
 
 | Variables | Default | Applies to |
 |---|---|---|
@@ -305,8 +349,10 @@ logs to Docker's `json-file` driver with rotation (`x-logging` in
 | `OECP_TRAEFIK_LOG_MAX_SIZE` × `OECP_TRAEFIK_LOG_MAX_FILE` | `20m` × `10` (200 MB) | Traefik (its log and, when enabled, the access log) |
 
 The driver's limits are **size-based**, not time-based: a container keeps at
-most `max-file` × `max-size`, so the age covered depends on the volume. Size
-them from what a container writes per day:
+most `max-file` × `max-size`, so the age covered depends on the volume. With
+Alloy running, the time-based retention is Loki's and these sizes only need to
+cover a few days (an Alloy or Loki outage); they can be reduced. Without the
+`observability` profile, size them from what a container writes per day:
 
 ```sh
 docker inspect --format '{{.LogPath}}' oecp-api-1   # then measure the file's growth over a day
@@ -320,23 +366,16 @@ recreates the containers (`docker compose up -d`).
 
 **Traefik access log.** Off by default. `OECP_TRAEFIK_ACCESS_LOG=true` writes
 one JSON line per request (request headers dropped; client address, method,
-path, status, duration kept) to Traefik's stdout, so the bound above applies.
-The commented lines in the `traefik` service drop the client address too or
-write to a file (which then needs `logrotate` and `USR1`, outside this file).
+path, status, duration kept) to Traefik's stdout: Loki keeps it 30 days, the
+json-file bound above applies locally. The commented lines in the `traefik`
+service drop the client address too or write to a file (which then needs
+`logrotate` and `USR1`, outside this file, and is not shipped by Alloy).
 
 **API request logs** contain method, URL, status, duration and, for admin
 requests, the JWT `sub`; never headers, client address or User-Agent.
 `OECP_LOG_CLIENT_ADDRESSES=true` adds a salted SHA-256 (16 hex characters) of
 the client address; the salt is random per process, so values cannot be
 linked across restarts.
-
-**Time-based retention: Loki.** The `observability` profile runs Loki with
-`observability/loki.yaml`: 90-day retention enforced by the compactor (a
-commented `retention_stream` rule shows a 30-day period for an access-log
-stream). The applications do not ship logs to it yet (no OpenTelemetry SDK,
-spec §10): a log shipper reading the Docker logs (Grafana Alloy, or the
-Collector's `filelog` receiver with `/var/lib/docker/containers` mounted) is
-the recommended production setup; keep the json-file limits as a local buffer.
 
 ## Backups (profile `backup`)
 
@@ -443,7 +482,14 @@ Prometheus and notifies through Alertmanager. Prometheus scrapes the api
 (`api:3000/metrics`) and worker (`worker:3001/metrics`) over the internal
 network (Traefik does not route `/metrics`), the `/ready` endpoints through the
 blackbox exporter, node-exporter (disk of the data volumes, backup textfile
-metrics), Traefik, Keycloak and itself.
+metrics), Traefik, Keycloak and itself. The blackbox exporter also probes
+`https://traefik:443/` (job `tls`, module `http_tls`, certificate not
+verified) for `probe_ssl_earliest_cert_expiry`; it sends no portal host as
+SNI, so it sees Traefik's default certificate: in production make the ACME
+certificate the default (labels
+`traefik.tls.stores.default.defaultgeneratedcert.resolver=le` and
+`…domain.main=${OECP_PORTAL_HOST}` on `traefik`), otherwise the probe watches
+Traefik's self-generated certificate.
 
 | Alert | Condition (spec §10 in bold) | Severity |
 |---|---|---|
@@ -452,6 +498,9 @@ metrics), Traefik, Keycloak and itself.
 | `OecpBackupMissing`, `OecpBackupFailed`, `OecpBackupMetricsStale`, `OecpBackupNoRecentFull` | no backup metrics for 1 h; last attempt failed; backup service stopped; no full for 8 days | critical / warning |
 | `OecpWalArchivingFailing` | archive_command failing for 15 min | critical |
 | `OecpDiskSpaceLow` | **disk > 80 %** (warning), > 90 % (critical) | warning / critical |
+| `OecpIdpCertificateExpiring` | SAML signing certificate of an enabled partner IdP in Keycloak (latest of its certificates) expires within 30 days (warning) or 7 days (critical) | warning / critical |
+| `OecpIdpCertificateExpired`, `OecpIdpCertificateCheckStale` | every signing certificate of an enabled IdP expired; the worker has not read the certificates from Keycloak for 24 h | critical / warning |
+| `OecpTlsCertificateExpiring`, `OecpTlsProbeFailing` | certificate Traefik serves on :443 expires within 21 days (warning: ACME renews at 30, so renewal is failing) or 7 days (critical); TLS probe failing for 15 min | warning / critical |
 | `OecpIdpMetadataRefreshFailed`, `…Stale` | **metadata-refresh failure**; no success for 26 h | warning |
 | `OecpApiHigh5xxRate`, `OecpEdgeHigh5xxRate` | **5xx > 1 %** of api responses (or per Traefik service) for 10 min, above 0.05 req/s | warning |
 | `OecpServiceDown`, `OecpServiceNotReady` | api or worker not scraped / `/ready` failing for 2 min | critical |
@@ -467,7 +516,8 @@ SMTP AUTH (`OECP_ALERT_SMTP_USER`, secret `alert_smtp_password`), sender
 12 h. Inhibitions: a critical alert silences its warning level; an api or
 worker that is down or not ready silences the alerts about its work.
 
-Grafana provisions the dashboard **OECP overview** (folder OECP: status,
+Grafana provisions the dashboards **OECP logs** ([Log retention](#log-retention))
+and **OECP overview** (folder OECP: status,
 requests and 5xx ratio, p95 latency by route, harvest status per partner,
 maintenance jobs, IdP metadata, backup age and duration, disk) and an
 Alertmanager data source (Alerting > Alert list, silences). Prometheus and
@@ -502,9 +552,11 @@ docker compose --profile observability exec alertmanager amtool --alertmanager.u
    institution relay (`OECP_SMTP_STARTTLS=true` if it offers TLS; SMTP AUTH
    with `OECP_SMTP_USER` and the `smtp_password` secret). Keep
    `OECP_MAIL_LOG_LINKS=false`.
-6. **Logs.** Size the log rotation for the retention of spec §10 (section
-   [Log retention](#log-retention)) or ship the logs to Loki; enable the Traefik
-   access log only with a 30-day bound.
+6. **Logs.** Run the `observability` profile so that Alloy ships the logs to
+   Loki (90 days, Traefik access log 30 days; section
+   [Log retention](#log-retention)); otherwise size the json-file rotation for
+   the retention of spec §10. Enable the Traefik access log only with a 30-day
+   bound.
 7. **Backups (spec §10).** Run the `backup` profile; configure repo2 (second
    site, encrypted, [Backups](#backups-profile-backup)) and copy the uploads
    archives there; set `OECP_WAL_ARCHIVE=on` once the stanza exists; run

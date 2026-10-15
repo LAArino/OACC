@@ -5,6 +5,15 @@
 # readiness endpoints of api (:3000/ready) and worker (:3001/ready), which
 # answer 503 when PostgreSQL or Valkey is unreachable (spec §10 "Worker
 # health"). Targets are listed in prometheus.yaml (job `ready`).
+#
+# http_tls (job `tls`): the expiry of the certificate Traefik serves on :443
+# (probe_ssl_earliest_cert_expiry). The certificate is not verified: the point
+# is its expiry, and the development certificate is self-signed. The probe
+# sends the SNI `traefik` (no fixed portal host can be written here), so it sees
+# Traefik's default certificate: in production make the ACME certificate of the
+# portal the default one (TLS store `defaultGeneratedCert`, Compose README).
+# Traefik answers 404 to the host `traefik` (no router matches it): any answer
+# over TLS counts as a successful probe.
 
 modules:
   http_ready:
@@ -15,3 +24,14 @@ modules:
       valid_status_codes: [200]
       preferred_ip_protocol: ip4
       no_follow_redirects: true
+  http_tls:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [200, 301, 302, 307, 308, 404]
+      preferred_ip_protocol: ip4
+      no_follow_redirects: true
+      fail_if_not_ssl: true
+      tls_config:
+        insecure_skip_verify: true

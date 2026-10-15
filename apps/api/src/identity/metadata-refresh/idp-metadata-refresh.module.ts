@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../config/env.js';
 import { type Db, KYSELY } from '../../db/db.module.js';
 import { IdentityModule } from '../identity.module.js';
+import { IdpCertificateMetricsService } from './idp-certificate-metrics.service.js';
 import { IdpMetadataRefreshService } from './idp-metadata-refresh.service.js';
 import {
   IDP_METADATA_SETTINGS,
@@ -16,7 +17,9 @@ import { MetadataAggregateSource } from './metadata-aggregate.source.js';
 /**
  * The `idp-metadata-refresh` job without any queue: usable from the CLI, the
  * worker and a generic job runner (`IdpMetadataRefreshService.runOnce()`).
- * Needs the global ConfigModule and DbModule of the host application.
+ * Needs the global ConfigModule and DbModule of the host application. In the
+ * worker (global RunMetricsService) it also exports the expiry of the identity
+ * providers' signing certificates (IdpCertificateMetricsService).
  */
 @Module({
   imports: [IdentityModule],
@@ -37,6 +40,7 @@ import { MetadataAggregateSource } from './metadata-aggregate.source.js';
       inject: [IDP_METADATA_SETTINGS],
       useFactory: (settings: IdpMetadataSettings) => new MetadataAggregateSource(settings),
     },
+    IdpCertificateMetricsService,
     IdpMetadataRefreshService,
   ],
   exports: [IdpMetadataRefreshService, IDP_METADATA_SETTINGS],

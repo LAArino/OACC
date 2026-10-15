@@ -129,3 +129,116 @@ tests:
             exp_annotations:
               summary: "PostgreSQL WAL archiving is failing"
               description: "archive_command (pgBackRest archive-push) has failed since its last success for 15 minutes: point-in-time recovery stops at the last archived segment and pg_wal grows. `docker compose logs postgres`, then `docker compose exec backup pgbackrest --stanza=oecp check`."
+
+  # IdP signing certificates (values: notAfter in Unix seconds; time() starts at
+  # 0): 20 days left = warning, 5 days = critical, expired a minute after the
+  # start = OecpIdpCertificateExpired; a disabled IdP and 100 days: nothing.
+  - interval: 1m
+    input_series:
+      - series: 'oecp_idp_certificate_expiry_timestamp_seconds{job="worker",component="worker",instance="worker:3001",alias="warn",enabled="true"}'
+        values: '1728000x40'
+      - series: 'oecp_idp_certificate_expiry_timestamp_seconds{job="worker",component="worker",instance="worker:3001",alias="crit",enabled="true"}'
+        values: '432000x40'
+      - series: 'oecp_idp_certificate_expiry_timestamp_seconds{job="worker",component="worker",instance="worker:3001",alias="gone",enabled="true"}'
+        values: '60x40'
+      - series: 'oecp_idp_certificate_expiry_timestamp_seconds{job="worker",component="worker",instance="worker:3001",alias="off",enabled="false"}'
+        values: '60x40'
+      - series: 'oecp_idp_certificate_expiry_timestamp_seconds{job="worker",component="worker",instance="worker:3001",alias="ok",enabled="true"}'
+        values: '8640000x40'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: OecpIdpCertificateExpired
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: OecpIdpCertificateExpiring
+        exp_alerts:
+          - exp_labels: {severity: warning, component: worker, job: worker, instance: "worker:3001", alias: warn, enabled: "true"}
+            exp_annotations:
+              summary: "SAML signing certificate of the IdP warn expires in 19d 23h 30m 0s"
+              description: "The latest signing certificate Keycloak holds for the identity provider warn expires in 19d 23h 30m 0s; after that Keycloak rejects its assertions and nobody from that partner can sign in. The daily IdP metadata refresh installs the successor as soon as the federation metadata publishes it: check the refresh's last run on the Maintenance page and ask the partner for its key rollover."
+              runbook: "docs/production/runbook.md#7-monitoring-and-alerts"
+          - exp_labels: {severity: critical, component: worker, job: worker, instance: "worker:3001", alias: crit, enabled: "true"}
+            exp_annotations:
+              summary: "SAML signing certificate of the IdP crit expires in 4d 23h 30m 0s"
+              description: "The latest signing certificate Keycloak holds for the identity provider crit expires in 4d 23h 30m 0s and no later one is configured: sign-in through crit stops then. Get the new certificate from the partner or the federation metadata (run the IdP metadata refresh) or set it in Keycloak by hand."
+              runbook: "docs/production/runbook.md#7-monitoring-and-alerts"
+      - eval_time: 30m
+        alertname: OecpIdpCertificateExpired
+        exp_alerts:
+          - exp_labels: {severity: critical, component: worker, job: worker, instance: "worker:3001", alias: gone, enabled: "true"}
+            exp_annotations:
+              summary: "Every SAML signing certificate of the IdP gone has expired"
+              description: "The latest signing certificate Keycloak holds for the enabled identity provider gone expired 29m 0s ago: Keycloak rejects its assertions and nobody from that partner can sign in. Install the partner's current certificate (IdP metadata refresh, or Keycloak by hand) or disable the IdP."
+              runbook: "docs/production/runbook.md#7-monitoring-and-alerts"
+
+  # Certificate check: never succeeded on a worker up for more than a day
+  # fires; a worker that checks every minute or that started recently does not.
+  - interval: 1m
+    input_series:
+      - series: 'oecp_idp_certificate_check_last_success_timestamp_seconds{job="worker",component="worker",instance="worker:3001"}'
+        values: '0x1560'
+      - series: 'oecp_process_start_time_seconds{job="worker",component="worker",instance="worker:3001"}'
+        values: '0x1560'
+      - series: 'oecp_idp_certificate_check_last_success_timestamp_seconds{job="worker",component="worker",instance="fresh:3001"}'
+        values: '0+60x1560'
+      - series: 'oecp_process_start_time_seconds{job="worker",component="worker",instance="fresh:3001"}'
+        values: '0x1560'
+      - series: 'oecp_idp_certificate_check_last_success_timestamp_seconds{job="worker",component="worker",instance="restarted:3001"}'
+        values: '0x1560'
+      - series: 'oecp_process_start_time_seconds{job="worker",component="worker",instance="restarted:3001"}'
+        values: '86000x1560'
+    alert_rule_test:
+      - eval_time: 23h
+        alertname: OecpIdpCertificateCheckStale
+        exp_alerts: []
+      - eval_time: 25h
+        alertname: OecpIdpCertificateCheckStale
+        exp_alerts:
+          - exp_labels: {severity: warning, component: worker, job: worker, instance: "worker:3001"}
+            exp_annotations:
+              summary: "IdP signing certificates not checked for more than 24 hours"
+              description: "The worker has been up for more than a day but last read the identity providers' signing certificates from Keycloak 1d 1h 0m 0s ago (decades = never since it started), so the certificate alerts work on old values. Look for `IdP signing certificates not checked` in the worker log: Keycloak unreachable or the oecp-backend client lacks view-identity-providers."
+              runbook: "docs/production/runbook.md#7-monitoring-and-alerts"
+
+  # TLS certificate served by Traefik: 15 days left = warning (ACME renews at
+  # 30), 3 days = critical, 60 days = nothing; a failing probe.
+  - interval: 1m
+    input_series:
+      - series: 'probe_ssl_earliest_cert_expiry{job="tls",component="edge",instance="https://traefik:443/"}'
+        values: '1296000x40'
+      - series: 'probe_ssl_earliest_cert_expiry{job="tls",component="edge",instance="https://soon:443/"}'
+        values: '259200x40'
+      - series: 'probe_ssl_earliest_cert_expiry{job="tls",component="edge",instance="https://fine:443/"}'
+        values: '5184000x40'
+      - series: 'probe_success{job="tls",component="edge",instance="https://traefik:443/"}'
+        values: '1x40'
+      - series: 'probe_success{job="tls",component="edge",instance="https://down:443/"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: OecpTlsCertificateExpiring
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: OecpTlsProbeFailing
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: OecpTlsCertificateExpiring
+        exp_alerts:
+          - exp_labels: {severity: warning, component: edge, job: tls, instance: "https://traefik:443/"}
+            exp_annotations:
+              summary: "TLS certificate served by Traefik expires in 14d 23h 30m 0s"
+              description: "The certificate Traefik serves on https://traefik:443/ expires in 14d 23h 30m 0s. ACME renews 30 days before expiry, so renewal has been failing for over a week: `docker compose logs traefik | grep -i acme` (port 443 reachable from the Internet for the TLS challenge, DNS, Let's Encrypt rate limits)."
+              runbook: "docs/production/runbook.md#7-monitoring-and-alerts"
+          - exp_labels: {severity: critical, component: edge, job: tls, instance: "https://soon:443/"}
+            exp_annotations:
+              summary: "TLS certificate served by Traefik expires in 2d 23h 30m 0s"
+              description: "The certificate Traefik serves on https://soon:443/ expires in 2d 23h 30m 0s (negative: expired): browsers and partner harvesters will refuse the portal. Fix the ACME renewal now (`docker compose logs traefik | grep -i acme`) or install a certificate by hand."
+              runbook: "docs/production/runbook.md#7-monitoring-and-alerts"
+      - eval_time: 30m
+        alertname: OecpTlsProbeFailing
+        exp_alerts:
+          - exp_labels: {severity: warning, component: edge, job: tls, instance: "https://down:443/"}
+            exp_annotations:
+              summary: "TLS probe of Traefik failing"
+              description: "The blackbox exporter has not completed a TLS request to https://down:443/ for 15 minutes, so the TLS certificate expiry is not watched: Traefik down on :443, or blackbox-exporter not on the `edge` network."
+              runbook: "docs/production/runbook.md#7-monitoring-and-alerts"

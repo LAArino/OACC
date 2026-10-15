@@ -1,0 +1,118 @@
+// SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+// SPDX-License-Identifier: EUPL-1.2
+//
+// Grafana Alloy (profile `observability`): ships the container logs of this
+// Compose project to Loki (spec §10, README "Log retention"), where retention is
+// time-based (observability/loki.yaml: 90 days, Traefik access log 30 days).
+//
+// Containers and their logs are read through the Docker API, behind the
+// read-only `docker-socket-proxy` (GET /containers and /events only), so the
+// same configuration works on Linux hosts and on Docker Desktop, where
+// /var/lib/docker/containers is not reachable from a bind mount.
+//
+// Pipeline: discovery.docker -> discovery.relabel (this project only, labels
+// service/container/project, one-off `run` containers dropped) ->
+// loki.source.docker -> loki.process (Traefik: log_type access|app; pino
+// numeric levels named) -> loki.write.
+
+discovery.docker "compose" {
+  host             = "tcp://docker-socket-proxy:2375"
+  refresh_interval = "15s"
+
+  // Only the containers of this Compose project (COMPOSE_PROJECT_NAME, default oecp).
+  filter {
+    name   = "label"
+    values = ["com.docker.compose.project=" + sys.env("OECP_COMPOSE_PROJECT")]
+  }
+}
+
+discovery.relabel "compose" {
+  targets = discovery.docker.compose.targets
+
+  // One-off containers (`docker compose run`, e.g. oecp-api-run-1a2b3c) are not shipped.
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_oneoff"]
+    regex         = "(?i)true"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/?.+-run-[0-9a-f]+"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/?(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "project"
+  }
+}
+
+loki.source.docker "compose" {
+  host             = "tcp://docker-socket-proxy:2375"
+  targets          = discovery.relabel.compose.output
+  refresh_interval = "15s"
+  forward_to       = [loki.process.compose.receiver]
+}
+
+loki.process "compose" {
+  // Traefik writes its own log and, with OECP_TRAEFIK_ACCESS_LOG=true, the
+  // access log (one JSON object per request) to the same stdout. The access log
+  // carries client addresses and is kept 30 days only (loki.yaml
+  // retention_stream on {service="traefik", log_type="access"}).
+  stage.match {
+    selector = `{service="traefik"} |~ "^[{].*\"(RequestMethod|DownstreamStatus|RouterName)\":"`
+
+    stage.static_labels {
+      values = {log_type = "access"}
+    }
+  }
+
+  stage.match {
+    selector = `{service="traefik"} !~ "^[{].*\"(RequestMethod|DownstreamStatus|RouterName)\":"`
+
+    stage.static_labels {
+      values = {log_type = "app"}
+    }
+  }
+
+  // api and worker log JSON with pino's numeric levels (30 = info, 50 = error),
+  // which Loki's level detection does not map: attach the level name as
+  // structured metadata `level`, which Loki then reports as detected_level
+  // (used by the "OECP logs" dashboard). Other services are detected by Loki.
+  stage.match {
+    selector = `{service=~".+"} |~ "^[{].*\"level\":[0-9]"`
+
+    stage.json {
+      expressions = {level = "level"}
+    }
+
+    stage.template {
+      source   = "level"
+      template = `{{ if eq .Value "10" }}trace{{ else if eq .Value "20" }}debug{{ else if eq .Value "30" }}info{{ else if eq .Value "40" }}warn{{ else if eq .Value "50" }}error{{ else if eq .Value "60" }}fatal{{ else }}{{ .Value }}{{ end }}`
+    }
+
+    stage.structured_metadata {
+      values = {level = ""}
+    }
+  }
+
+  forward_to = [loki.write.loki.receiver]
+}
+
+loki.write "loki" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

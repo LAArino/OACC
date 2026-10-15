@@ -24,11 +24,20 @@ export interface RunMetricsSnapshot {
   idpLastSuccess: Date | null;
 }
 
+/** Latest signing-certificate expiry of one identity provider of the realm. */
+export interface IdpCertificateExpiry {
+  alias: string;
+  enabled: boolean;
+  /** Latest `notAfter` among its parsable signing certificates. */
+  notAfter: Date;
+}
+
 const seconds = (date: Date) => date.getTime() / 1000;
 
 /**
  * The worker's run metrics (spec §10): sync runs (harvests, queued CSV uploads),
- * maintenance runs and the IdP metadata refresh. Plain @prometheus-io/client objects on the
+ * maintenance runs, the IdP metadata refresh and the expiry of the identity
+ * providers' signing certificates. Plain @prometheus-io/client objects on the
  * given registry; RunMetricsService feeds them from the hooks and the database.
  */
 export class RunMetrics {
@@ -39,6 +48,8 @@ export class RunMetrics {
   readonly maintenanceRuns: Counter<'job' | 'status'>;
   readonly maintenanceLastSuccess: Gauge<'job'>;
   readonly idpLastSuccess: Gauge;
+  readonly idpCertificateExpiry: Gauge<'alias' | 'enabled'>;
+  readonly idpCertificateCheckLastSuccess: Gauge;
   /** Seconds; the in-process value wins over an older database row (recorded later). */
   private idpLastSeconds = 0;
 
@@ -84,6 +95,17 @@ export class RunMetrics {
       help: 'Unix time of the last completed IdP metadata refresh without failures; 0 when none (or the job is not configured).',
       registers,
     });
+    this.idpCertificateExpiry = new Gauge({
+      name: 'oecp_idp_certificate_expiry_timestamp_seconds',
+      help: 'Unix time of the latest notAfter among the signing certificates of the identity provider in Keycloak (one series per alias; none without a parsable certificate).',
+      labelNames: ['alias', 'enabled'] as const,
+      registers,
+    });
+    this.idpCertificateCheckLastSuccess = new Gauge({
+      name: 'oecp_idp_certificate_check_last_success_timestamp_seconds',
+      help: 'Unix time of the last successful read of the identity providers signing certificates from Keycloak; 0 when none.',
+      registers,
+    });
   }
 
   syncRunFinished(channel: string, status: string, finishedAt: Date, organizationSlug?: string) {
@@ -104,6 +126,21 @@ export class RunMetrics {
   idpRefreshSucceeded(at: Date): void {
     this.idpLastSeconds = Math.max(this.idpLastSeconds, seconds(at));
     this.idpLastSuccess.set(this.idpLastSeconds);
+  }
+
+  /**
+   * Replaces the certificate expiry series at once (identity providers removed
+   * from the realm disappear) and records the successful check.
+   */
+  idpCertificatesChecked(expiries: readonly IdpCertificateExpiry[], at: Date): void {
+    this.idpCertificateExpiry.reset();
+    for (const e of expiries) {
+      this.idpCertificateExpiry.set(
+        { alias: e.alias, enabled: String(e.enabled) },
+        seconds(e.notAfter),
+      );
+    }
+    this.idpCertificateCheckLastSuccess.set(seconds(at));
   }
 
   /**

@@ -47,10 +47,10 @@ receivers:
 
 inhibit_rules:
   # The critical level of an alert silences its warning level (disk 90% over
-  # 80%, backup age).
+  # 80%, backup age), for the same device, IdP alias or probed instance.
   - source_matchers: ['severity="critical"']
     target_matchers: ['severity="warning"']
-    equal: [alertname, component, type, device]
+    equal: [alertname, component, type, device, alias, instance]
   # A process that is down or not ready explains every alert about its work
   # (harvests, maintenance jobs, IdP metadata, 5xx ratio).
   - source_matchers: ['alertname=~"OecpServiceDown|OecpServiceNotReady"']

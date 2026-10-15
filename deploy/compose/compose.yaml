@@ -10,7 +10,7 @@
 #   docker compose wait keycloak-config          # realm import, exit code 0
 #   docker compose run --rm api pnpm db:migrate
 #
-# Optional observability stack (OpenTelemetry Collector, Prometheus, Loki, Grafana):
+# Optional observability stack (OpenTelemetry Collector, Prometheus, Loki, Alloy, Grafana):
 #   docker compose --profile observability up -d
 #
 # Local development extras (Mailpit SMTP sink on http://127.0.0.1:8025, OEAPI v5
@@ -108,11 +108,12 @@ x-oecp-backend-secrets: &oecp-backend-secrets
   # - smtp_password
 
 # Log retention (spec §10; README "Log retention"). Every service logs to Docker's
-# json-file driver with rotation. The limits are SIZE-based: a container keeps at
-# most max-file × max-size of logs, so the age reached depends on its volume.
-# Size them for ~90 days of application logs (README explains how), or ship the
-# logs to Loki (profile `observability`, observability/loki.yaml), whose retention
-# is time-based (90 days).
+# json-file driver with rotation; this stays the local fallback and the source of
+# `docker compose logs`. Its limits are SIZE-based: a container keeps at most
+# max-file × max-size of logs, so the age reached depends on its volume. With the
+# `observability` profile, Alloy ships these logs to Loki, whose retention is
+# time-based (observability/loki.yaml: 90 days, Traefik access log 30 days); the
+# json-file sizes can then be reduced. Without it, size them for ~90 days.
 x-logging: &default-logging
   driver: json-file
   options:
@@ -182,6 +183,11 @@ services:
       # - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
       # - --certificatesresolvers.le.acme.tlschallenge=true
       # - --entrypoints.websecure.http.tls.certresolver=le
+      # Also make the portal's ACME certificate Traefik's default one, so that the
+      # in-host TLS probe (blackbox exporter, no SNI) watches it
+      # (OecpTlsCertificateExpiring); Traefik takes TLS stores as labels, not flags:
+      #   traefik.tls.stores.default.defaultgeneratedcert.resolver: le
+      #   traefik.tls.stores.default.defaultgeneratedcert.domain.main: ${OECP_PORTAL_HOST}
     ports:
       - "${OECP_HTTP_PORT:-80}:80"
       - "${OECP_HTTPS_PORT:-443}:443"
@@ -783,9 +789,10 @@ services:
   # Optional observability (profile `observability`), spec §10: OTLP in,
   # metrics to Prometheus (also scraped from api and worker `/metrics`,
   # node-exporter and blackbox probes), logs to Loki, traces to the debug
-  # exporter; alert rules in observability/alert-rules.yml, notifications by
-  # Alertmanager (e-mail and/or webhook, OECP_ALERT_* in .env); Grafana with
-  # the provisioned dashboard "OECP overview".
+  # exporter; container logs shipped to Loki by Alloy; alert rules in
+  # observability/alert-rules.yml, notifications by Alertmanager (e-mail and/or
+  # webhook, OECP_ALERT_* in .env); Grafana with the provisioned dashboards
+  # "OECP overview" and "OECP logs".
   # -------------------------------------------------------------------------
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.162.0
@@ -892,6 +899,8 @@ services:
       - ./observability/blackbox.yml:/etc/blackbox/blackbox.yml:ro
     networks:
       - backend
+      # edge: the TLS probe of traefik:443 (job `tls`, alert OecpTlsCertificateExpiring)
+      - edge
     logging: *default-logging
 
   loki:
@@ -905,6 +914,93 @@ services:
       - loki_data:/loki
     networks:
       - backend
+    logging: *default-logging
+
+  # Read-only Docker API for Alloy (Tecnativa docker-socket-proxy, Apache-2.0,
+  # HAProxy). Trade-off: the proxy itself still needs the Docker socket, but it
+  # is the narrowest exposure that gives container logs without host-specific
+  # paths (/var/lib/docker/containers cannot be bind-mounted on Docker Desktop):
+  # only GET on /containers (list, inspect, logs), /events and /networks (list,
+  # needed by Alloy's discovery.docker) passes; every other endpoint and every
+  # POST/PUT/DELETE is answered 403. It sits on the internal `docker-api`
+  # network, which only Alloy joins, never on `edge`.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    environment:
+      CONTAINERS: "1"
+      EVENTS: "1"
+      # discovery.docker lists the networks to label its targets (GET only).
+      NETWORKS: "1"
+      # Image defaults switched off (PING, VERSION): only the three above remain.
+      PING: "0"
+      VERSION: "0"
+      POST: "0"
+      DISABLE_IPV6: "1"
+      LOG_LEVEL: warning
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - docker-api
+    healthcheck:
+      # An allowed GET through HAProxy to the socket (200), from inside.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2375/containers/json || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging: *default-logging
+
+  # Grafana Alloy (Apache-2.0): reads the logs of this Compose project's
+  # containers through docker-socket-proxy and pushes them to Loki, labelled
+  # service, container, project (and log_type on Traefik), see
+  # observability/alloy.alloy. Positions are kept in `alloy_data`.
+  alloy:
+    image: grafana/alloy:v1.20.1
+    profiles: ["observability"]
+    restart: unless-stopped
+    user: "473:473"
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --disable-reporting
+    environment:
+      # Only containers labelled com.docker.compose.project=<this> are shipped.
+      OECP_COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME:-oecp}
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ./observability/alloy.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on:
+      - docker-socket-proxy
+      - loki
+    networks:
+      - backend
+      - docker-api
+    healthcheck:
+      # No wget/curl in the image: plain HTTP over bash's /dev/tcp.
+      test:
+        - CMD
+        - bash
+        - -c
+        - exec 3<>/dev/tcp/127.0.0.1/12345 && printf 'GET /-/ready HTTP/1.0\r\n\r\n' >&3 && head -n 1 <&3 | grep -q ' 200 '
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     logging: *default-logging
 
   grafana:
@@ -947,6 +1043,10 @@ networks:
   # Outbound access for the harvester (worker).
   egress:
     name: oecp-egress
+  # Alloy -> docker-socket-proxy only (observability profile).
+  docker-api:
+    name: oecp-docker-api
+    internal: true
 
 volumes:
   idp-metadata:
@@ -957,6 +1057,8 @@ volumes:
   traefik_acme:
   prometheus_data:
   loki_data:
+  # Alloy's read positions in each container log (observability profile).
+  alloy_data:
   grafana_data:
   alertmanager_data:
   # Unix socket directory of PostgreSQL, shared with `backup`.

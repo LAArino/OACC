@@ -124,6 +124,7 @@ function service(
   s: IdpMetadataSettings,
   fetchImpl: typeof fetch,
   metrics?: Pick<RunMetricsService, 'idpRefreshSucceeded'>,
+  certificates?: { check: () => Promise<boolean> },
 ) {
   return new IdpMetadataRefreshService(
     s,
@@ -132,6 +133,7 @@ function service(
     new MetadataAggregateSource(s, fetchImpl),
     undefined,
     metrics as RunMetricsService | undefined,
+    certificates,
   );
 }
 
@@ -314,6 +316,20 @@ describe('metrics hook', () => {
     await service(settings(), okFetch(), metrics).runOnce({ dryRun: true, aliases: ['same'] });
     await service(settings({ url: undefined }), okFetch(), metrics).runOnce(); // not configured
     expect(metrics.idpRefreshSucceeded).not.toHaveBeenCalled();
+  });
+
+  it('re-reads the certificate expiries after every run but a dry run, success or not', async () => {
+    const certificates = { check: vi.fn(async () => true) };
+    await service(settings(), okFetch(), undefined, certificates).runOnce({ aliases: ['same'] });
+    expect(certificates.check).toHaveBeenCalledTimes(1);
+    await service(settings(), okFetch(), undefined, certificates).runOnce(); // failures
+    expect(certificates.check).toHaveBeenCalledTimes(2);
+    await service(settings(), okFetch(), undefined, certificates).runOnce({ dryRun: true });
+    expect(certificates.check).toHaveBeenCalledTimes(2);
+    await expect(
+      service(settings(), okFetch(), undefined, certificates).runOnce({ verify: false }),
+    ).rejects.toThrow(/only be skipped/);
+    expect(certificates.check).toHaveBeenCalledTimes(3);
   });
 });
 

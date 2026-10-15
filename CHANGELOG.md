@@ -19,6 +19,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   assessments and prerequisites, functional contact addresses). Uploaded to
   the development stack as the first real test of the template: 5 uploads,
   26 records created, Handbook warnings only.
+- Certificate expiry alerts (spec §10). The worker exports
+  `oecp_idp_certificate_expiry_timestamp_seconds{alias,enabled}` (latest
+  `notAfter` among each Keycloak IdP's SAML signing certificates; read at
+  start, after every IdP metadata refresh and hourly) and
+  `oecp_idp_certificate_check_last_success_timestamp_seconds`. The blackbox
+  exporter probes Traefik's certificate on `https://traefik:443/` (module
+  `http_tls`, job `tls`; `blackbox-exporter` joins the `edge` network). New
+  alert group `oecp-certificates`: `OecpIdpCertificateExpiring` (30 d
+  warning, 7 d critical), `OecpIdpCertificateExpired`,
+  `OecpIdpCertificateCheckStale` (24 h), `OecpTlsCertificateExpiring` (21 d
+  warning, 7 d critical), `OecpTlsProbeFailing`. Grafana row *Certificates*.
+  Alertmanager's critical-over-warning inhibition also matches `alias` and
+  `instance`. In production the ACME certificate must be Traefik's default
+  certificate for the probe to watch it (Compose README, Alerting).
+- Deployment: container logs shipped to Loki (spec §10), so log retention is
+  time-based. Profile `observability` gains Grafana Alloy 1.20.1
+  (`observability/alloy.alloy`: every container of the Compose project,
+  labelled `service`, `container`, `project`; Traefik lines `log_type` `access`
+  or `app`; pino levels named) and a read-only Docker socket proxy
+  (`tecnativa/docker-socket-proxy` 0.5.0: GET containers, events and networks
+  only, on the internal network `docker-api`). Loki keeps the Traefik access
+  log 30 days (`retention_stream`) and everything else 90 days. New Grafana
+  dashboard *OECP logs* (volume by service and level, logs by service, Traefik
+  access log). The json-file rotation stays as the local fallback.
 
 ## [0.6.0] - 2026-10-15
 

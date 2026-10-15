@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # Loki, single binary, filesystem storage (profile `observability`), with the
-# time-based retention of spec §10: application logs 90 days. The compactor
-# deletes chunks older than retention_period (plus retention_delete_delay).
-# Access logs (Traefik, client addresses) must not be kept longer than 30 days:
-# if they are shipped here, give their stream a 30-day retention_stream rule.
+# time-based retention of spec §10: application logs 90 days, access logs
+# (Traefik, client addresses) 30 days. The compactor deletes chunks older than
+# the retention of their stream (plus retention_delete_delay). Logs arrive from
+# Alloy (observability/alloy.alloy), labelled service, container, project and,
+# on Traefik, log_type="access" | "app".
 
 auth_enabled: false
 
@@ -37,13 +38,13 @@ schema_config:
         period: 24h
 
 limits_config:
-  # 90 days (spec §10 "application logs 90 days").
+  # Default for every stream: 90 days (spec §10 "application logs 90 days").
   retention_period: 2160h
-  # Example for an access-log stream (30 days), if Traefik logs are shipped:
-  # retention_stream:
-  #   - selector: '{service_name="traefik"}'
-  #     priority: 1
-  #     period: 720h
+  # Traefik access log: 30 days (spec §10). Traefik's own log stays at 90 days.
+  retention_stream:
+    - selector: '{service="traefik", log_type="access"}'
+      priority: 1
+      period: 720h
   allow_structured_metadata: true
 
 compactor:

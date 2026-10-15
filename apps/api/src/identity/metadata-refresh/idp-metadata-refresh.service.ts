@@ -5,6 +5,7 @@ import {
   type KeycloakIdentityProviderRepresentation,
   KeycloakAdminService,
 } from '../keycloak-admin.service.js';
+import { IdpCertificateMetricsService } from './idp-certificate-metrics.service.js';
 import {
   applyChanges,
   changedKeys,
@@ -101,11 +102,24 @@ export class IdpMetadataRefreshService {
     @Optional() @Inject(IDP_REFRESH_CLOCK) clock?: () => Date,
     /** Worker only (spec §10 metrics); absent in the CLI. */
     @Optional() private readonly metrics?: RunMetricsService,
+    /** Re-reads the signing certificate expiries after each run (worker metrics). */
+    @Optional()
+    @Inject(IdpCertificateMetricsService)
+    private readonly certificates?: Pick<IdpCertificateMetricsService, 'check'>,
   ) {
     this.now = clock ?? (() => new Date());
   }
 
   async runOnce(options: IdpRefreshOptions = {}): Promise<IdpRefreshOutcome> {
+    try {
+      return await this.run(options);
+    } finally {
+      // Success or not, the certificates in Keycloak may have changed (spec §10).
+      if (!options.dryRun) await this.certificates?.check();
+    }
+  }
+
+  private async run(options: IdpRefreshOptions): Promise<IdpRefreshOutcome> {
     const dryRun = options.dryRun ?? false;
     const verify = options.verify ?? true;
     if (!verify && !options.file) {

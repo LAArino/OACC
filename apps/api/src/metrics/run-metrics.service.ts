@@ -13,7 +13,7 @@ import type { Env } from '../config/env.js';
 import { type Db, KYSELY } from '../db/db.module.js';
 import { IDP_METADATA_REFRESH_JOB } from '../identity/metadata-refresh/idp-metadata-refresh.constants.js';
 import { METRICS_REGISTRY } from './metrics.registry.js';
-import { RunMetrics, type RunMetricsSnapshot } from './run-metrics.js';
+import { type IdpCertificateExpiry, RunMetrics, type RunMetricsSnapshot } from './run-metrics.js';
 
 /** The database-derived gauges are also recomputed this often (runs finished elsewhere). */
 export const RUN_METRICS_REFRESH_MS = 5 * 60_000;
@@ -106,7 +106,8 @@ export async function loadRunMetricsSnapshot(db: Db): Promise<RunMetricsSnapshot
 export class RunMetricsService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(RunMetricsService.name);
   readonly metrics: RunMetrics;
-  private readonly enabled: boolean;
+  /** OECP_METRICS_ENABLED (default true). */
+  readonly enabled: boolean;
   private timer: NodeJS.Timeout | undefined;
 
   constructor(
@@ -183,5 +184,11 @@ export class RunMetricsService implements OnApplicationBootstrap, OnApplicationS
   idpRefreshSucceeded(at = new Date()): void {
     if (!this.enabled) return;
     this.metrics.idpRefreshSucceeded(at);
+  }
+
+  /** The signing certificates of the realm's identity providers were read (IdpCertificateMetricsService). */
+  idpCertificatesChecked(expiries: readonly IdpCertificateExpiry[], at = new Date()): void {
+    if (!this.enabled) return;
+    this.metrics.idpCertificatesChecked(expiries, at);
   }
 }

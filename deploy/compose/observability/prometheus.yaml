@@ -55,6 +55,25 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: blackbox-exporter:9115
+  # Certificate Traefik serves on :443 (blackbox module http_tls, see
+  # blackbox.yml): probe_ssl_earliest_cert_expiry for OecpTlsCertificateExpiring.
+  # Needs blackbox-exporter on the `edge` network (Traefik is not on `backend`).
+  - job_name: tls
+    metrics_path: /probe
+    scrape_interval: 1m
+    params:
+      module: [http_tls]
+    static_configs:
+      - targets: ["https://traefik:443/"]
+        labels:
+          component: edge
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
   # Disk usage of the data volumes and the backup textfile metrics
   # (oecp_backup_*, oecp_wal_archive_*), written by the `backup` service.
   - job_name: node-exporter
