@@ -3,7 +3,7 @@
 
 # Open European Campus Portal (OECP)
 
-Status: 0.6.0, pre-production (no real partner data yet); specification v4.1 (as built)
+Status: 0.6.0, pre-production (no partner connected yet; the first real course data, the Aurora Virtual Campus 2026-27 courses, tested on the development stack only); specification v4.1 (as built); later changes in the Unreleased section of the [changelog](CHANGELOG.md)
 
 OECP is a sovereign, open-source course-catalogue portal for European
 University alliances. It collects the courses that the partner universities of
@@ -54,14 +54,15 @@ without forcing every partner into the same tooling:
 
 | Module | What it does |
 |---|---|
-| **Public catalogue** | Server-rendered portal with full-text search in several languages, filters (partner, mode, language, ISCED field, level, ECTS, alliance attributes), sorting by start date or application deadline, course pages with texts per language, offerings, seats and "how to apply", structured data for search engines, sitemap, no cookies. |
+| **Public catalogue** | Server-rendered portal with full-text search in several languages, filters (partner, mode, language, ISCED field, level, ECTS, alliance attributes), sorting by start date or application deadline, course pages with texts per language, offerings, seats and "how to apply", structured data for search engines, sitemap, no cookies; optional header image and alliance logo supplied by the deployment (branding). |
 | **Harvester (channel A)** | Scheduled pull of each partner's OEAPI v5 endpoint through an anti-corruption layer: validation, mapping to the canonical model, change detection by content hash, withdrawal of courses that disappear, and a full audit of every run and every original payload (minimised of person data). |
 | **CSV upload (channel B)** | Versioned CSV template, validated in the browser before upload with the same validator the server uses, all-or-nothing processing, row-and-column error reports. |
 | **Web form (channel C)** | A stepped editor for courses and offerings, including alliance attributes and per-language texts; on harvested organisations it works as an overrides editor. |
-| **Administration panel** | Invitations, integration settings per partner (endpoint, credentials, host approval, test connection, sync now), sync history and error reports, organisations and administrators, network status with a health indicator per partner, maintenance runs. |
-| **Identity** | Keycloak as the only identity component: administrators sign in through their own university (SAML / eduGAIN) or with a local account, always with a second factor; roles are assigned inside OECP, never derived from the identity provider. The public portal needs no sign-in. |
+| **Administration panel** | Invitations (refused while the organization's identity provider is not enabled in Keycloak), integration settings per partner (endpoint, credentials, host approval, test connection, sync now), sync history and error reports, organisations and administrators, network status with a health indicator per partner, maintenance runs. |
+| **Identity** | Keycloak as the only identity component: each organization's administrators sign in either through their own university (SAML / eduGAIN) or with local accounts, never a mix within one organization, always with a second factor; roles are assigned inside OECP, never derived from the identity provider. The public portal needs no sign-in. |
 | **OEAPI read API** | The alliance catalogue published in OEAPI v5 shapes, plus two documented JSON APIs of OECP's own (public and administration). |
 | **Maintenance** | Daily jobs for history partitions, retention periods, dormant-administrator review, account clean-up and identity-provider metadata refresh from eduGAIN, all recorded and runnable on demand from the panel. |
+| **Operations** | In the reference deployment: scheduled pgBackRest backups with point-in-time recovery and a restore drill; Prometheus metrics, alert rules (harvests, backups, disk, maintenance jobs, expiring partner IdP and TLS certificates) and e-mail or webhook notifications; container logs shipped to Loki with time-based retention; Grafana dashboards. |
 
 ## Who uses it
 
@@ -74,8 +75,9 @@ without forcing every partner into the same tooling:
 | **Other platforms** | No | Harvest the alliance catalogue through the OEAPI v5 read API. |
 
 The data-protection roles for the first deployment are documented in the
-decisions log: the Aurora Foundation decides what is published (controller)
-and Universitat Rovira i Virgili hosts the service (processor).
+decisions log: the Aurora Foundation decides what is published (controller),
+Universitat Rovira i Virgili hosts the service (processor), and each partner
+university is an independent controller of the data it supplies.
 
 ## Architecture
 
@@ -83,8 +85,9 @@ and Universitat Rovira i Virgili hosts the service (processor).
 - **Web:** Nuxt 4 / Vue 3 renders the public catalogue server-side and the administration panel client-side ([ADR-0002](docs/adr/0002-vue3-nuxt-ssr-catalogue.md)).
 - **Backend:** one NestJS modular monolith, one image, two processes: `api` (HTTP) and `worker` (jobs on BullMQ / Valkey) ([ADR-0001](docs/adr/0001-modular-monolith-on-nestjs.md)).
 - **Data:** PostgreSQL 16 holds the canonical model, full-text search and the ingestion history; ingestion is pull-only OEAPI harvesting plus CSV and form ([ADR-0005](docs/adr/0005-pull-only-oeapi-harvesting-canonical-model.md), [ADR-0010](docs/adr/0010-overrides-on-harvested-records.md)).
-- **Identity:** Keycloak authenticates administrators only, with one SAML identity provider per partner (eduGAIN) and mandatory MFA; the public portal never touches it ([ADR-0004](docs/adr/0004-keycloak-only-identity-one-saml-idp-per-partner.md)).
-- **Alliance-agnostic:** the alliance name, partners, attributes, hosts and UI languages are configuration; one deployment serves one alliance. The first deployment targets the Aurora European Universities Alliance.
+- **Identity:** Keycloak authenticates administrators only, with one SAML identity provider per partner (eduGAIN) or local accounts for an organization without one, and mandatory MFA; the public portal never touches it ([ADR-0004](docs/adr/0004-keycloak-only-identity-one-saml-idp-per-partner.md)).
+- **Operations:** pgBackRest backups (profile `backup`) and Prometheus, Alertmanager, Loki with Grafana Alloy, and Grafana (profile `observability`) in the same Compose file.
+- **Alliance-agnostic:** the alliance name, branding images, partners, attributes and hosts are configuration (the portal interface is English-only in 0.6.0); one deployment serves one alliance. The first deployment targets the Aurora European Universities Alliance.
 
 All architecture decisions are recorded in [docs/adr](docs/adr/README.md).
 
@@ -100,7 +103,8 @@ All architecture decisions are recorded in [docs/adr](docs/adr/README.md).
 ├── identity/
 │   └── keycloak/         Realm as code, SP metadata notes
 ├── deploy/
-│   ├── compose/          Docker Compose reference deployment, test SAML IdP (dev profile)
+│   ├── compose/          Docker Compose reference deployment, test SAML IdP (dev profile),
+│   │                     backups, observability, branding/ (the deployment's images, not committed)
 │   └── helm/             Helm chart (planned)
 ├── tools/
 │   ├── oeapi-mock/       Simulated OEAPI v5 partner for development and tests
@@ -110,6 +114,9 @@ All architecture decisions are recorded in [docs/adr](docs/adr/README.md).
     ├── adr/              Architecture decision records (MADR)
     ├── onboarding/       Guides for the alliance and the three partner profiles
     ├── guides/           Data-provider guides: API integration, CSV authoring, web form
+    ├── api/              OpenAPI documents of the public and administration APIs
+    ├── data/             Real course data transcribed into the CSV template (Aurora Virtual Campus)
+    ├── images/           Screenshots of the portal, the administration panel and operations
     ├── production/       GDPR, accessibility and operations templates for go-live
     ├── research/         Background research (partner endpoints, Aurora portal, IT Handbook)
     ├── decisions-log.md  Owner decisions

@@ -188,7 +188,7 @@ identity, licensing or governance.
 
 ## Changing the canonical model or the schemas
 
-The canonical model ([docs/spec-v4.0.md](docs/spec-v4.0.md) §5) and the
+The canonical model ([docs/spec-v4.1.md](docs/spec-v4.1.md) §5) and the
 schemas in `packages/schemas` (canonical JSON Schema, CSV template, OEAPI
 mappings, error codes) are contracts shared by every partner and every
 deployment. Changes follow a stricter path:

@@ -38,7 +38,7 @@ breaking changes need a major version.
 | Contract | Where | Rule |
 |---|---|---|
 | Database schema | `apps/api/db/migrations/NNNN_*.sql` | Append-only; see [Migrations](#migrations). |
-| CSV template | `template_version` column; `packages/schemas/src/csv.ts` (`CSV_TEMPLATE_VERSION`, `CSV_TEMPLATE_VERSIONS`); `packages/schemas/json/csv/oecp-csv-<version>.schema.json` | Any change visible to CSV authors bumps the template version (1.0 → 1.1 for additive columns). A published template version stays accepted for at least one release after its successor, and its JSON Schema file is never edited. Current: 1.1; accepted: 1.0, 1.1. |
+| CSV template | `template_version` column; `packages/schemas/src/csv.ts` (`CSV_TEMPLATE_VERSION`, `CSV_TEMPLATE_VERSIONS`); `packages/schemas/json/csv/oecp-csv-<version>.schema.json` | Any change visible to CSV authors bumps the template version (1.0 → 1.1 for additive columns). A published template version stays accepted for at least one release after its successor, and its JSON Schema file is never edited. Current: 1.2; accepted: 1.0, 1.1, 1.2. |
 | OEAPI read API | `/oeapi/v5` | Follows the OEAPI **v5.0** standard; OECP-only values go in `ext.oecp` and are additive. A v6 surface will be a new path, `/oeapi/v6` (spec §9, §12). |
 | Public catalogue API | `/api/public/v1` | **Additive only**: new endpoints, optional parameters and response members may be added; nothing is removed, renamed or given a new meaning. A breaking change means `/api/public/v2`, served alongside v1 for at least one minor release. |
 | Admin API | `/api/admin/v1` | Consumed by the admin dashboard of the same release. Changes are recorded in the CHANGELOG; external clients are not supported before 1.0. |
@@ -85,8 +85,9 @@ with their data, and the down of 0004 restores the 0001 search vector.
 A version is closed, and may be tagged, only when all of the following hold:
 
 1. **CI is green** on the release commit: lint, format check, type check,
-   tests, `reuse lint`, DCO, `docker compose config` and Trivy
-   (`.github/workflows/ci.yml`).
+   OpenAPI documents up to date, tests, `reuse lint`, DCO, `docker compose
+   config` for every profile, promtool and amtool checks of the alerting
+   configuration, and Trivy (`.github/workflows/ci.yml`).
 2. **Database suites ran with a database.** The integration suites in
    `apps/api/test/integration` are skipped unless `DATABASE_URL_TEST` is set;
    CI sets it to a PostgreSQL 16 service, so a green CI run covers them. If
@@ -227,7 +228,7 @@ Copy this list into the release pull request or issue.
 
 ```markdown
 - [ ] `main` is clean and up to date; `VERSION` and `DATE` set
-- [ ] CI green on the release commit (lint, format, typecheck, test, REUSE, DCO, compose config, Trivy)
+- [ ] CI green on the release commit (lint, format, typecheck, OpenAPI check, test, REUSE, DCO, compose config, promtool/amtool, Trivy)
 - [ ] `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test` pass locally
 - [ ] API integration suites pass with `DATABASE_URL_TEST` (result recorded)
 - [ ] `uvx reuse@5 lint` passes

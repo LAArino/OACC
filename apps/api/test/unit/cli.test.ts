@@ -376,7 +376,7 @@ describe('seed-attribute-definitions', () => {
     const aurora = attributeDefinitionSeedFile.parse(read('attribute-definitions.aurora.json'));
     expect(read('attribute-definitions.json')).toEqual(read('attribute-definitions.aurora.json'));
     expect(JSON.stringify(read('attribute-definitions.json')['$comment'])).toContain(
-      'To be confirmed by the Aurora Foundation',
+      'Confirmed by the owner against the filters of the Aurora Virtual Campus website',
     );
     const byKey = new Map(aurora.attribute_definitions.map((d) => [d.key, d]));
     expect([...byKey.keys()]).toEqual([

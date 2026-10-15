@@ -33,9 +33,13 @@ Internet ─▶ traefik :443
                                                      suggest and /oeapi/v5 10 r/s, admin 30 r/s)
   auth-host    /realms/oecp, /resources ─▶ keycloak:8080
                /admin, /realms/master   ─▶ keycloak:8080 (IP allowlist)
-networks: edge (traefik, web, api, keycloak) · backend, internal (postgres, valkey,
-          api, worker, keycloak) · egress (worker → partner OEAPI endpoints) ·
-          docker-api, internal (alloy → docker-socket-proxy; profile observability)
+networks: edge (traefik, web, api, keycloak; observability: prometheus, alertmanager,
+          blackbox-exporter, grafana; dev: mailpit, oeapi-mock, test-saml-idp) ·
+          backend, internal (postgres, valkey, api, worker, keycloak, keycloak-config;
+          observability: every service but docker-socket-proxy; dev: mailpit,
+          oeapi-mock) · egress (worker → partner OEAPI endpoints) · docker-api,
+          internal (alloy → docker-socket-proxy; profile observability) ·
+          backup: no network (Unix socket and volumes)
 ```
 
 Only the paths above are routed. In particular the api's `/health` and
@@ -153,7 +157,8 @@ certificates **and the local backup repository** `pgbackrest-repo`); there is no
 - **`.env`** (from `.env.example`): hosts, ports, allowlists, SMTP, image tag;
   every variable is documented there.
 - **`secrets/`**: Docker secrets (database passwords, Keycloak admin,
-  `oecp-backend` client secret, `oecp_master_key`); see
+  `oecp-backend` client secret, `oecp_master_key`, Grafana admin; optional
+  SMTP, alert SMTP and pgBackRest repo2 secrets); see
   [`secrets/README.md`](secrets/README.md). They are mounted under
   `/run/secrets/`, never passed as environment variables. The api/worker
   entrypoint injects the database password into `DATABASE_URL`.
@@ -178,7 +183,7 @@ default. File-name rule, recommended sizes and permissions (uid
 
 ### Local development profile (`dev`)
 
-The `dev` profile adds Mailpit and the OEAPI mock, in `compose.yaml` itself (like
+The `dev` profile adds Mailpit, the OEAPI mock and the test SAML IdP, in `compose.yaml` itself (like
 `observability`) rather than in an override file, so `docker compose config`
 shows one complete model and the production deployment simply never enables
 the profile. Mailpit listens for SMTP on `mailpit:1025` (Docker networks only)
@@ -292,6 +297,18 @@ is checked.
 | `OECP_PUBLIC_BASE_URL` | api, worker | `https://${OECP_PORTAL_HOST}` (invitation links) |
 | `NUXT_PUBLIC_API_BASE` | web | `https://${OECP_PORTAL_HOST}` (origin only: the app appends `/api/public/v1/...`) |
 | `NUXT_PUBLIC_I18N_BASE_URL` | web | `https://${OECP_PORTAL_HOST}` (absolute hreflang links) |
+| `NUXT_API_INTERNAL_BASE` | web | `http://api:3000` (server-side rendering) |
+| `NUXT_PUBLIC_OIDC_AUTHORITY`, `NUXT_PUBLIC_OIDC_CLIENT_ID` | web | `https://${OECP_AUTH_HOST}/realms/oecp`, `oecp-admin` |
+| `NUXT_PUBLIC_ALLIANCE_NAME` | web | from `OECP_ALLIANCE_NAME` |
+| `NUXT_BRANDING_DIR`, `NUXT_PUBLIC_HERO_IMAGE`, `NUXT_PUBLIC_HERO_IMAGE_ALT`, `NUXT_PUBLIC_HERO_IMAGE_COURSES`, `NUXT_PUBLIC_HERO_IMAGE_COURSES_ALT`, `NUXT_PUBLIC_LOGO_IMAGE` | web | `/data/branding` and the `OECP_HERO_IMAGE*` / `OECP_LOGO_IMAGE` values ([Branding](#branding)) |
+| `NUXT_CSP_MODE` | web | `enforce` (or `report-only`, `off`): the portal's nonce-based Content-Security-Policy |
+| `OECP_UPLOADS_DIR` | api, worker | `/data/uploads` (volume `uploads`, CSV files kept 90 days) |
+| `OECP_ALLOW_INSECURE_PARTNER_HTTP` | api, worker | `false` (development against `oeapi-mock` only) |
+| `OECP_PUBLISH_RULE` | api, worker | `warn` (or `enforce`): IT Handbook publication rule |
+| `OECP_DORMANCY_DRY_RUN`, `OECP_DORMANCY_DAYS`, `OECP_ACCOUNT_CLEANUP_DRY_RUN`, `OECP_ACCOUNT_DELETE_MONTHS` | api, worker | `true`, `180`, `true`, `12`: maintenance jobs stay dry runs until the alliance enables them |
+| `OECP_RETENTION_HISTORY_MONTHS`, `…_SYNC_ERRORS_MONTHS`, `…_SYNC_RUNS_MONTHS`, `…_AUDIT_MONTHS`, `…_SOFT_DELETED_MONTHS` | api, worker | `12`, `12`, `24`, `36`, `12` (spec §10) |
+| `OECP_IDP_METADATA_*` | api, worker | metadata refresh of the partner IdPs; empty `OECP_IDP_METADATA_URL` = disabled ([`identity/keycloak/README.md`](../../identity/keycloak/README.md)) |
+| `OECP_METRICS_ENABLED`, `OECP_GIT_COMMIT` | api, worker | `true` (`/metrics` on the internal network), `unknown` (label of `oecp_build_info`) |
 
 `OTEL_*` variables are passed for the observability profile; the application
 reads every other variable listed above.
@@ -482,7 +499,8 @@ Prometheus and notifies through Alertmanager. Prometheus scrapes the api
 (`api:3000/metrics`) and worker (`worker:3001/metrics`) over the internal
 network (Traefik does not route `/metrics`), the `/ready` endpoints through the
 blackbox exporter, node-exporter (disk of the data volumes, backup textfile
-metrics), Traefik, Keycloak and itself. The blackbox exporter also probes
+metrics), Traefik, Keycloak, the OpenTelemetry Collector, Alertmanager, the
+blackbox exporter and itself. The blackbox exporter also probes
 `https://traefik:443/` (job `tls`, module `http_tls`, certificate not
 verified) for `probe_ssl_earliest_cert_expiry`; it sends no portal host as
 SNI, so it sees Traefik's default certificate: in production make the ACME
@@ -519,7 +537,8 @@ worker that is down or not ready silences the alerts about its work.
 Grafana provisions the dashboards **OECP logs** ([Log retention](#log-retention))
 and **OECP overview** (folder OECP: status,
 requests and 5xx ratio, p95 latency by route, harvest status per partner,
-maintenance jobs, IdP metadata, backup age and duration, disk) and an
+maintenance jobs, IdP metadata, backup age and duration, disk, days to the
+IdP and TLS certificate expiry) and an
 Alertmanager data source (Alerting > Alert list, silences). Prometheus and
 Alertmanager have no published port: use Grafana, or
 `docker compose exec prometheus wget -qO- localhost:9090/api/v1/alerts`.
@@ -563,8 +582,9 @@ docker compose --profile observability exec alertmanager amtool --alertmanager.u
    `scripts/restore-drill.sh` before go-live and quarterly.
 8. **Alerting.** Run the `observability` profile with `OECP_ALERT_EMAIL_TO`
    (and/or `OECP_ALERT_WEBHOOK_URL`) set; send a test alert
-   ([Alerting](#alerting)). Prefer a node-exporter on the host itself for disk
-   alerts on every filesystem.
+   ([Alerting](#alerting)). Make the ACME certificate Traefik's default so that
+   the TLS expiry probe watches it. Prefer a node-exporter on the host itself
+   for disk alerts on every filesystem.
 9. **Images.** Build in CI, sign with cosign and pin by digest
    (`OECP_IMAGE_TAG`) rather than building on the server.
 10. **SAML.** Register the SP metadata (see

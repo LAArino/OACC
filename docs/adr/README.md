@@ -53,7 +53,7 @@ need one.
    one's status becomes `Superseded by [ADR-NNNN](NNNN-....md)` and this is
    the only edit allowed to it (besides typo fixes).
 
-Cite sources: sections of the specification (`docs/spec-v4.0.md §n`), the
+Cite sources: sections of the specification (`docs/spec-v4.1.md §n`, the as-built version; ADR-0001 to ADR-0015 cite v4.0), the
 reviews (`docs/review/*.md`, cited as [R00]–[R03]), the research notes
 ([RP]) and rows of the decisions log ([DL n]).
 

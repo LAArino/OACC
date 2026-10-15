@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   assessments and prerequisites, functional contact addresses). Uploaded to
   the development stack as the first real test of the template: 5 uploads,
   26 records created, Handbook warnings only.
+- Docs: every README and documentation page audited against the code,
+  Compose and seeds after 0.6.0 and the unreleased work (32 files): module
+  and service tables, environment variables, alert tables, counts (138 error
+  codes, 26 alert rules), release references, the production templates
+  (RoPA, DPIA, art. 28 checklist) and the spec's status tags; stale
+  "not yet" statements removed; the attribute seed comment and the Compose
+  header now cite the confirmed list and spec v4.1.
 - Certificate expiry alerts (spec §10). The worker exports
   `oecp_idp_certificate_expiry_timestamp_seconds{alias,enabled}` (latest
   `notAfter` among each Keycloak IdP's SAML signing certificates; read at

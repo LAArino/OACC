@@ -3,7 +3,7 @@
 
 # Record of processing activities (GDPR art. 30): OECP deployment
 
-Template for the Aurora deployment of OECP, release 0.3.0, updated for the unreleased changes after it (account clean-up, soft-delete purge, log retention, raw payload minimisation; see the CHANGELOG). System facts come from spec v4.1 (§2, §4, §5, §10) and the code; decisions are `[TO COMPLETE]` ([README](README.md)).
+Template for the Aurora deployment of OECP, release 0.3.0, updated through release 0.6.0 and the Unreleased changes after it (account clean-up, soft-delete purge, raw payload minimisation; backups; branding; container logs shipped to Loki; see the CHANGELOG). System facts come from spec v4.1 (§2, §4, §5, §10) and the code; decisions are `[TO COMPLETE]` ([README](README.md)).
 
 ## Controller, processor and common facts
 
@@ -15,8 +15,8 @@ Template for the Aurora deployment of OECP, release 0.3.0, updated for the unrel
 | Processor (hosting) | Universitat Rovira i Virgili (URV) `[TO COMPLETE: address, DPO contact]`, under the art. 28 contract of `[TO COMPLETE: date]` |
 | System | Open European Campus Portal (OECP), release `[TO COMPLETE: deployed version]`, Docker Compose deployment at URV ([runbook](runbook.md)); portal `[TO COMPLETE: portal host]`, sign-in `[TO COMPLETE: auth host]` |
 | Hosting location | `[TO COMPLETE: data centre(s), country]`; backups `[TO COMPLETE: backup site, country]` |
-| Partner universities | UIBK (AT), UICE (IS), VUA (NL), UDE (DE), URV (ES), UNINA (IT), UP (CZ), CBS (DK), UPEC (FR) [DL 4]; role: `[TO COMPLETE: independent controllers or joint controllers (art. 26)]` |
-| Out of scope | OECP handles no applications and stores **no student data** (spec §1). The public portal sets no cookies and runs no analytics (spec §7.2). |
+| Partner universities | UIBK (AT), UICE (IS), VUA (NL), UDE (DE), URV (ES), UNINA (IT), UP (CZ), CBS (DK), UPEC (FR) [DL 4]; role: **independent controllers** of the data each supplies (instructors, contacts), the Foundation of the published catalogue; no joint controllership under art. 26 [DL 24], recorded in each bilateral access agreement ([art. 28 checklist, section B](art28-processor-checklist.md#b-access-agreement-with-each-harvested-partner)) |
+| Out of scope | OECP handles no applications and stores **no student data** (spec §1). The public portal sets no cookies and runs no analytics (spec §7.2). The portal's branding images (header images, alliance logo) are deployment configuration served from the branding directory, not repository content; for Aurora they are own generated images without real persons and the Aurora logo used with the Foundation's permission [DL 25], so they hold no personal data. |
 
 **Legal basis candidates** used below: art. 6(1)(e), task carried out in the public interest, which needs a basis in Union or member-state law (art. 6(3)) `[TO COMPLETE: the law, e.g. the higher-education law giving the universities and their alliance their mission]`; art. 6(1)(f), legitimate interests, with a balancing test, not available to public authorities for the performance of their tasks (art. 6(1), second subparagraph) `[TO COMPLETE: legal nature of the Aurora Foundation]`; art. 6(1)(c), legal obligation, only for the security logging that a law requires `[TO COMPLETE: if any]`. The controller chooses one per activity and records why.
 
@@ -32,7 +32,7 @@ Template for the Aurora deployment of OECP, release 0.3.0, updated for the unrel
 | Network | Keycloak console IP-allowlisted; per-IP rate limits; outbound calls only to approved partner hosts over HTTPS (ADR-0009) |
 | Minimisation | No IP address or user agent in `admin_activity` or in the API's request logs (an optional salted hash of the address only, `OECP_LOG_CLIENT_ADDRESSES`); instructors limited to names; harvested raw payloads stored without person objects (`apps/api/src/ingestion/oeapi/raw-payload.ts`); invitation links never logged in production (`OECP_MAIL_LOG_LINKS=false`); functional contact mailboxes [DL 18 c, DL 21 a] |
 | Retention | Automatic jobs, below and spec §10 |
-| Backups | `[TO COMPLETE: as deployed]`; see activity 8 |
+| Backups | pgBackRest with continuous WAL archiving, 35-day recovery window, quarterly restore drill (as built, profile `backup`); repo1 on the production host unencrypted, the second site (repo2) always encrypted `[TO COMPLETE: second site as deployed]`; see activity 8 |
 | Organisational | `[TO COMPLETE: confidentiality, access reviews, training, certifications]` |
 
 ---
@@ -71,11 +71,11 @@ Template for the Aurora deployment of OECP, release 0.3.0, updated for the unrel
 | Purpose | Accountability, detection and investigation of security incidents, troubleshooting |
 | Legal basis | `[TO COMPLETE: 6(1)(f) or 6(1)(e); 6(1)(c) if a law requires the logs]` |
 | Data subjects | Administrators; visitors of the public portal and API clients (technical logs only) |
-| Personal data | `audit_log`: actor `sub`, organization, action, entity, changes (includes administrators' e-mail addresses for invitation and revocation events); Keycloak login and admin events (user id, IP address, client, time); `sync_runs.triggered_by`, `maintenance_runs.triggered_by` (`sub`); application logs (api, worker; one line per HTTP request with method, URL, status, duration, request id and, for admin requests, the JWT `sub`; no headers, client address or user agent; with `OECP_LOG_CLIENT_ADDRESSES=true` a salted SHA-256 of the client address, not linkable across restarts); Traefik access logs, **off by default** (`OECP_TRAEFIK_ACCESS_LOG`; when on: client IP address, method, path, status, duration, no request headers) |
+| Personal data | `audit_log`: actor `sub`, organization, action, entity, changes (includes administrators' e-mail addresses for invitation and revocation events, kept in clear for the 36 months of the audit log as evidence of who received or lost access [DL 23]); Keycloak login and admin events (user id, IP address, client, time); `sync_runs.triggered_by`, `maintenance_runs.triggered_by` (`sub`); application logs (api, worker; one line per HTTP request with method, URL, status, duration, request id and, for admin requests, the JWT `sub`; no headers, client address or user agent; with `OECP_LOG_CLIENT_ADDRESSES=true` a salted SHA-256 of the client address, not linkable across restarts); Traefik access logs, **off by default** (`OECP_TRAEFIK_ACCESS_LOG`; when on: client IP address, method, path, status, duration, no request headers) |
 | Recipients | Hosting operator; alliance administrators (history views) |
 | Transfers | None |
-| Retention | `audit_log` 36 months; Keycloak events 90 days (realm setting); `sync_runs` 24 months; `maintenance_runs` 12 months. Application and access logs: target 90 / 30 days. Docker rotates each container's log by size (`OECP_LOG_MAX_SIZE` × `OECP_LOG_MAX_FILE`, default 10 MB × 5; Traefik 20 MB × 10), which the operator sizes for those periods from the measured volume (runbook, section 10); Loki (profile `observability`) keeps 90 days but receives no logs until a shipper is added (backlog "Ship container logs to Loki") `[TO COMPLETE: configured sizes and resulting periods; access log on or off]` |
-| System reference | `audit_log`, `maintenance_runs`; Keycloak database; `apps/api/src/logging/logger.module.ts`; `deploy/compose/compose.yaml` |
+| Retention | `audit_log` 36 months; Keycloak events 90 days (realm setting); `sync_runs` 24 months; `maintenance_runs` 12 months. Application and access logs: 90 / 30 days. With the profile `observability` (after 0.6.0) Grafana Alloy ships every container's log to Loki, which deletes the Traefik access log after 30 days and everything else after 90 days (time-based, `deploy/compose/observability/loki.yaml`). Docker also rotates each container's log by size (`OECP_LOG_MAX_SIZE` × `OECP_LOG_MAX_FILE`, default 10 MB × 5; Traefik 20 MB × 10): the local copy, and the only bound without the profile, sized by the operator for those periods from the measured volume (runbook, section 10) `[TO COMPLETE: observability profile running or not; configured sizes and resulting periods; access log on or off]` |
+| System reference | `audit_log`, `maintenance_runs`; Keycloak database; `apps/api/src/logging/logger.module.ts`; `deploy/compose/compose.yaml`, `deploy/compose/observability/alloy.alloy`, `loki.yaml` |
 
 ## 4. Course catalogue publication
 

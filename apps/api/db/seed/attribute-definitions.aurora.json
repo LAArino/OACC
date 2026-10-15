@@ -3,8 +3,8 @@
     "Copyright 2026 Lluís Alfons Ariño",
     "Licence: EUPL-1.2",
     "Aurora alliance attribute definitions for `oecp seed-attribute-definitions` (upsert by key; decision 18).",
-    "To be confirmed by the Aurora Foundation: the list mirrors the fields of the current Virtual Campus",
-    "pages (docs/research/aurora-virtual-campus-draft.md) and must be agreed before the 13 current entries are migrated.",
+    "Confirmed by the owner against the filters of the Aurora Virtual Campus website on 2026-10-15 (decisions log",
+    "rows 18, 21 and the CHANGELOG 0.6.0): hubs, SDGs, competence frameworks and target audience follow the website.",
     "educational_hub options: the six hubs listed on https://aurora-universities.eu/teach/hubs/ (checked 2026-10-14;",
     "the research note mentioned four). sdg options: the 17 UN Sustainable Development Goals, official short titles.",
     "Option values are stable identifiers (CSV cells, attr_<key> filters); labels may change freely."

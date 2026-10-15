@@ -90,11 +90,11 @@ A row must declare at least the version of every column in the header (filled or
 
 Each deployment defines its own course attributes (`attribute_definitions`, ADR-0012). `GET /api/admin/v1/csv-template/courses.csv` adds one `attr_<key>` column per definition. Cell rules: `boolean` accepts `true`/`false`/`yes`/`no`/`1`/`0` (any case); `enum` one option value; `multi_enum` option values separated by `|` (stored in the definition's order, duplicates dropped); `text` ≤ 500 characters. An **empty cell removes** the attribute; a missing column leaves it as it is. A column naming no definition fails (`oecp.content.unknown_attribute`).
 
-Aurora's definitions (`apps/api/db/seed/attribute-definitions.aurora.json`, still to be confirmed by the Aurora Foundation):
+Aurora's definitions (`apps/api/db/seed/attribute-definitions.aurora.json`, aligned with the filters of the Aurora Virtual Campus website and confirmed by the owner on 2026-10-15):
 
 | Column | Type | Values |
 |---|---|---|
-| `attr_educational_hub` | multi_enum | `sustainability_climate_change`, `digital_society_global_citizenship`, `health_wellbeing`, `culture_identities_diversities`, `social_entrepreneurship_innovation`, `peace_education` |
+| `attr_educational_hub` | multi_enum | `sustainability_climate_change`, `digital_society_global_citizenship`, `health_wellbeing`, `culture_identities_diversities`, `social_entrepreneurship_innovation`, `peace_education`, `other` |
 | `attr_sdg` | multi_enum | `sdg01` … `sdg17` |
 | `attr_competence_framework` | enum | `louis`, `seizmic`, `bevi`, `none` |
 | `attr_micro_credential`, `attr_free_course`, `attr_enrolled_only`, `attr_open_to_alliance` | boolean | `true`, `false` |
@@ -158,7 +158,7 @@ The browser cannot check everything: it checks ISCED broad fields and delivery m
 
 ## Codes
 
-Every `oecp.csv.*` and `oecp.content.*` code of `packages/schemas/errors.json` (137 codes in all; spec [Appendix A](../spec-v4.1.md#appendix-a-error-codes)), in its order. **Sev.** is the catalogue's severity, which is the one every channel reports (spec §6.6): E = error (the upload fails, nothing is written), W = warning (reported, never blocks). Codes that CSV cannot raise are listed with the channel that does.
+Every `oecp.csv.*` code of `packages/schemas/errors.json` (138 codes in all; spec [Appendix A](../spec-v4.1.md#appendix-a-error-codes)) and every `oecp.content.*` code a data file can meet, in its order; the eleven content codes that only the admin API and the web form raise on single records and organizations (`invalid_parent`, `duplicate_identifier`, `duplicate_ext_id`, `unsupported_language`, `slug_immutable`, `ext_id_immutable`, `override_not_allowed`, `harvested_not_deletable`, `published_not_deletable`, `has_published_offerings`, `organization_in_use`) are in Appendix A and the [web form guide](web-form.md). **Sev.** is the catalogue's severity, which is the one every channel reports (spec §6.6): E = error (the upload fails, nothing is written), W = warning (reported, never blocks). Codes that CSV cannot raise are listed with the channel that does.
 
 | Code | Sev. | Cause | Fix |
 |---|---|---|---|

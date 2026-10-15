@@ -43,6 +43,11 @@ node brokered-accept.js        # happy path, ~1-2 min
 node brokered-negative.js      # email | idp | schac | linking | all (default)
 ```
 
+With IdP `urv` disabled (the default, `OECP_DEV_IDP_ENABLED=false`), the
+alliance admin cannot invite to `urv` at all: since 0.6.0 the API refuses with
+409 `oecp.invitation.idp_not_enabled`, so both scripts fail at the invitation
+step.
+
 `brokered-accept.js`: alliance admin invites `partner.admin@urv.cat` as
 `partner_admin` of `urv` → link from Mailpit (`#token=…&idp=urv`) → accept
 page → "Sign in through your university" (`kc_idp_hint=urv`) → IdP login
@@ -61,7 +66,8 @@ Re-runnable: an existing brokered user signs in with the stored OTP secret.
 `email` (invitation for another address → 403 `oecp.invitation.mismatch`),
 `idp` (the alliance admin's address invited to `urv`, link opened without
 `&idp=urv`, local sign-in → 403 mismatch), `schac` (`visiting.scholar`
-asserts `example.edu` → 403 mismatch), `linking` (`email.collision` asserts
+asserts `example.edu` → 403 mismatch; its TOTP secret goes to
+`deploy/compose/secrets/dev_visiting_scholar_totp`), `linking` (`email.collision` asserts
 the alliance admin's e-mail → Keycloak refuses at first-broker-login, nothing
 is linked or created). The OTP period used last per account is kept in the
 temp directory, so consecutive runs wait for a fresh 30 s period instead of

@@ -5,7 +5,7 @@
 
 A simulated partner university that serves an **Open Education API v5.0**
 endpoint with the **`eduxchange` consumer profile**, so the OECP harvester
-(spec v4.0 §6.2) can be developed, tested and demonstrated without real
+(spec v4.1 §6.2) can be developed, tested and demonstrated without real
 partner credentials. None of the four Aurora partners publishes an OEAPI URL
 (`docs/research/partner-oeapi-endpoints.md`), so this is the only endpoint
 available during development.

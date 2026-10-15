@@ -75,6 +75,32 @@ accounts and no linking by e-mail. If a user with the same username or
 e-mail already exists, login fails and an `alliance_admin` resolves it
 (spec §2.1 step 3, [R01 §2]).
 
+### Sign-in mode per organization ([DL 22])
+
+The organization's `keycloak_idp_alias` decides how **all** its
+administrators sign in; there is no mixed mode within one organization:
+
+- **Local** (alias empty): Keycloak local accounts with a password of at
+  least 12 characters and TOTP, set up from the e-mail Keycloak sends with the
+  invitation; no self-registration or open password reset (recovery: *Resend
+  set-up e-mail* on the organization's *Administrators* panel). This is the
+  mode of the alliance organization and of universities outside eduGAIN or not
+  yet connected (in the Aurora seed: `aurora` and `upec`).
+- **Federated** (alias set, = the realm IdP alias): SAML sign-in at the
+  university's IdP through eduGAIN, then TOTP enrolled by OECP after the first
+  login (`oecp-post-broker-mfa`).
+
+The API refuses an invitation to a federated organization whose alias is
+missing from the realm or disabled there (409
+`oecp.invitation.idp_not_enabled`, extension member `idp_alias`): Keycloak
+would ignore the `kc_idp_hint` and the invitee could not sign in. When
+Keycloak does not answer, the check is skipped and logged. The admin panel
+warns beforehand when the alias is not among the enabled IdPs. A sign-in in
+the wrong mode is refused at acceptance (`oecp.invitation.mismatch`) and
+later (`oecp.auth.idp_mismatch`). To move an organization from local to
+federated: enable its IdP here, set the alias on the organization, and invite
+its administrators again.
+
 ## Pitfalls found on the first real deployment
 
 Each of these broke the first `docker compose up` silently (the import
@@ -212,7 +238,8 @@ here: the next run reverts it. Runtime data (users, roles of users,
    resubmit the multi-ACS SP metadata (one more ACS, see
    [`scripts/sp-metadata.md`](scripts/sp-metadata.md)) to the federation
    registry (SIR/RedIRIS for the Aurora MVP, [DL 15]).
-7. **Test** with an invitation (spec §2.1): login with `kc_idp_hint={slug}`,
+7. **Test** with an invitation (spec §2.1); the invitation is refused until
+   the IdP is applied and enabled (`oecp.invitation.idp_not_enabled`): login with `kc_idp_hint={slug}`,
    MFA enrolment, then acceptance; the API checks `email`, `idp` and the
    asserted `schacHomeOrganization`.
 
@@ -283,7 +310,18 @@ What one run does:
    entity = the organization) per updated IdP lists the keys, old and new
    URLs and certificate SHA-256 fingerprints (never certificate bodies).
 7. A failure for one IdP never stops the others; any failed IdP fails the job
-   (an error in the worker log; there is no alerting yet, spec §10).
+   (an error in the worker log and the alert `OecpIdpMetadataRefreshFailed`
+   of the `observability` profile, spec §10).
+
+**Certificate expiry.** Independently of the refresh, the worker reads the
+`signingCertificate` of every IdP of the realm (at start, after every refresh
+run and hourly; client `oecp-backend` needs `view-identity-providers`) and
+exports `oecp_idp_certificate_expiry_timestamp_seconds{alias,enabled}` (the
+latest `notAfter` among its certificates) and
+`oecp_idp_certificate_check_last_success_timestamp_seconds`. The alerts
+`OecpIdpCertificateExpiring` (30 days warning, 7 days critical),
+`OecpIdpCertificateExpired` and `OecpIdpCertificateCheckStale` (24 h) watch
+the enabled IdPs ([Compose README, Alerting](../../deploy/compose/README.md#alerting)).
 
 Run it by hand with the CLI. In Compose, use the `worker` service, which has
 the cache volume (`idp-metadata`), the mounted signing certificate and the

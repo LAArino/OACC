@@ -18,7 +18,7 @@ Do not paste personal data, tokens, secrets or partner credentials.
 
 ## Expected behaviour
 
-<!-- What should have happened? Cite the spec section if relevant (e.g. spec v4.0 §9). -->
+<!-- What should have happened? Cite the spec section if relevant (e.g. spec v4.1 §9). -->
 
 ## Steps to reproduce
 
@@ -28,7 +28,7 @@ Do not paste personal data, tokens, secrets or partner credentials.
 
 ## Area
 
-<!-- public portal · admin dashboard · /oeapi/v5 · ingestion (harvester / CSV / form) · identity (Keycloak, SAML, MFA) · deployment (Compose) · docs -->
+<!-- public portal · admin dashboard · /oeapi/v5 · ingestion (harvester / CSV / form) · identity (Keycloak, SAML, MFA) · deployment (Compose: backups, observability, branding) · docs -->
 
 ## Environment
 

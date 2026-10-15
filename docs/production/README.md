@@ -5,13 +5,13 @@
 
 This folder holds the legal and operational documents an alliance needs before it runs OECP in production with real partner data. They address the backlog item "Docs: GDPR set (RoPA, DPIA, art. 28 contract checklist) and accessibility statement" and the go-live items of spec [§10](../spec-v4.1.md#10-non-functional-requirements) and [§12](../spec-v4.1.md#12-delivery-phases).
 
-They are **templates and drafts**, written against release 0.3.0 (the runbook brought up to release 0.5.0) for the first deployment: the **Aurora alliance**, with the **Aurora Foundation as controller** and **Universitat Rovira i Virgili (URV) as processor** hosting the infrastructure [DL 2]. They describe what the software does, as built, so that legal and operations staff do not have to reverse-engineer it. They do not take legal decisions:
+They are **templates and drafts**, written against release 0.3.0 (the runbook and the RoPA brought up to release 0.6.0 and the Unreleased changes after it) for the first deployment: the **Aurora alliance**, with the **Aurora Foundation as controller** and **Universitat Rovira i Virgili (URV) as processor** hosting the infrastructure [DL 2], and the partner universities as independent controllers of the data they supply [DL 24]. They describe what the software does, as built, so that legal and operations staff do not have to reverse-engineer it. They do not take legal decisions:
 
 - Every value someone has to supply or decide is marked **`[TO COMPLETE: …]`**. Search for that string before signing anything.
 - Where the law offers a choice (legal basis, retention beyond the defaults, supervisory authority), the documents list **candidates**; the controller chooses, with its data protection officer (DPO).
 - Where the implementation does not yet match a target in the specification, the documents say so and point to the backlog item. Do not delete these notes to make a document look complete: fix the gap or record the accepted risk.
 
-Since release 0.5.0 backups (pgBackRest with WAL archiving and a quarterly restore drill) and alerting (Prometheus, Alertmanager, Grafana) are implemented; the [runbook](runbook.md) describes them in sections 3, 4 and 7, which replace the interim procedures of the earlier drafts. The *Backups* entry of the [RoPA](ropa.md#8-backups) still describes the interim state: complete it from the runbook.
+Since release 0.5.0 backups (pgBackRest with WAL archiving and a quarterly restore drill) and alerting (Prometheus, Alertmanager, Grafana) are implemented, and after 0.6.0 container logs are shipped to Loki (90 days, Traefik access log 30 days) and the expiry of partner IdP and TLS certificates is alerted; the [runbook](runbook.md) describes them in sections 3, 4, 7 and 10, which replace the interim procedures of the earlier drafts. The *Backups* entry of the [RoPA](ropa.md#8-backups) describes the 35-day pgBackRest window as built; the second site and its location remain `[TO COMPLETE]`.
 
 Another alliance can reuse the set: replace the names of the Aurora Foundation, URV, the partners and the Spanish authorities, and re-check every statement against its own deployment.
 
@@ -25,7 +25,7 @@ Another alliance can reuse the set: replace the names of the Aurora Foundation, 
 | [accessibility-statement.md](accessibility-statement.md) | Accessibility statement template for the public portal and the administration panel | Directive (EU) 2016/2102, EN 301 549 |
 | [runbook.md](runbook.md) | Production runbook: topology, secrets, backups and restore, upgrades, identity operations, monitoring, incidents, capacity, housekeeping | spec §3, §4, §10 |
 
-A **privacy notice** (GDPR art. 13 and 14) is not part of the set: it is written for the public by the controller, from the RoPA. The portal has no `/privacy` or `/accessibility` page in 0.5.0 (spec §7.1, deferred), so both texts are published on the alliance website and linked from the portal footer once that exists. The federation registration of the service provider also needs the privacy notice URL ([Guide A, step 3](../onboarding/alliance.md#3-identity)).
+A **privacy notice** (GDPR art. 13 and 14) is not part of the set: it is written for the public by the controller, from the RoPA. The portal has no `/privacy` or `/accessibility` page in 0.6.0 (spec §7.1, deferred), so both texts are published on the alliance website and linked from the portal footer once that exists. The federation registration of the service provider also needs the privacy notice URL ([Guide A, step 3](../onboarding/alliance.md#3-identity)).
 
 ## Who completes what
 
@@ -39,7 +39,7 @@ A **privacy notice** (GDPR art. 13 and 14) is not part of the set: it is written
 | **Partner universities** | UIBK, UICE, VUA, UDE (harvested) and URV, UNINA, UP, CBS, UPEC (manual channels) | Access agreement (harvested partners); confirmation that published instructor names and contact mailboxes match their own catalogues and their own privacy notices [DL 21 a] | Their part of the access agreement |
 | **OECP maintainers** | Project owner | Keep these templates accurate for each release; answer technical questions | — |
 
-Whether the partner universities are independent controllers for the data they send, or joint controllers with the Foundation for the alliance catalogue (art. 26), is a legal qualification the controller must make with its DPO: `[TO COMPLETE: qualification of the partners' role]`. The templates are written so that either answer fits.
+The partner universities are **independent controllers**: each is responsible for the data it supplies (instructors, contacts) and the Aurora Foundation for the published catalogue; there is no joint controllership under art. 26 [DL 24]. Each bilateral access agreement records it (section B of the [art. 28 checklist](art28-processor-checklist.md#b-access-agreement-with-each-harvested-partner)).
 
 ## Order of work
 

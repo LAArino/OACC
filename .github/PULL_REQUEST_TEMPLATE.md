@@ -9,7 +9,7 @@ Closes #
 
 ## Spec and decisions
 
-- Spec section(s): <!-- e.g. spec v4.0 §6.2 -->
+- Spec section(s): <!-- e.g. spec v4.1 §6.2 -->
 - ADR: <!-- e.g. docs/adr/0005-…, "new ADR-00NN", or "none needed" -->
 
 ## Checklist

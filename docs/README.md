@@ -15,6 +15,8 @@
 | [backlog.md](backlog.md) | Owner-requested items not yet scheduled, with their trigger. | English |
 | [RELEASING.md](RELEASING.md) | Versioning, contract and migration policy, release procedure and checklist. | English |
 | [api/](api/README.md) | OpenAPI 3.1 documents of the public catalogue API (`/api/public/v1`) and the admin API (`/api/admin/v1`), generated from the Zod contracts; how to regenerate, view and version them. | English |
+| [data/](data/aurora-virtual-campus-2026-27/README.md) | Real course data transcribed into CSV template 1.2: the 13 courses of the Aurora Virtual Campus 2026–27 (a snapshot for the first upload, not a maintained dataset). | English |
+| [images/](images/README.md) | Annotated screenshots of the public portal, the administration panel and the operations stack, used by the guides. | English |
 | [screenshots/](screenshots/) | Screenshots of the development stack taken while verifying features (identity, catalogue, admin console, course wizard). Illustrative only: not kept in sync with every change. | — |
 
 ## Onboarding
@@ -38,7 +40,7 @@ Technical reference for whoever supplies course data, accurate to release 0.6.0;
 
 ## Production
 
-Templates and drafts for the alliance's legal and operations staff before go-live, written for the Aurora deployment (Aurora Foundation controller, URV processor [DL 2]); every value to supply is marked `[TO COMPLETE: …]`.
+Templates and drafts for the alliance's legal and operations staff before go-live, written for the Aurora deployment (Aurora Foundation controller, URV processor [DL 2], partner universities independent controllers [DL 24]); every value to supply is marked `[TO COMPLETE: …]`.
 
 - [production/README.md](production/README.md) — purpose of the set, who completes what (controller, processor, DPOs, hosting operator) and in which order.
 - [production/ropa.md](production/ropa.md) — record of processing activities (GDPR art. 30), one entry per processing activity, with retention as implemented.
@@ -86,12 +88,12 @@ See the [ADR index](adr/README.md) for the process and template.
 
 - [README](../README.md) · [CONTRIBUTING](../CONTRIBUTING.md) · [GOVERNANCE](../GOVERNANCE.md) · [SECURITY](../SECURITY.md) · [CODE_OF_CONDUCT](../CODE_OF_CONDUCT.md) · [CHANGELOG](../CHANGELOG.md) · [RELEASING](RELEASING.md)
 - Deployment: [deploy/compose/README.md](../deploy/compose/README.md) (Docker Compose reference deployment, quick start and smoke test).
-- Operations (release 0.6.0):
-  - Compose README: [Backups](../deploy/compose/README.md#backups-profile-backup) (profile `backup`: pgBackRest, WAL archiving, 35-day retention, uploads archive, backup metrics), [Restore drill and restore](../deploy/compose/README.md#restore-drill-and-restore) and [Alerting](../deploy/compose/README.md#alerting) (profile `observability`: alert rules, Alertmanager, Grafana dashboard *OECP overview*).
-  - [production/runbook.md](production/runbook.md): backups and point-in-time recovery (section 3), restore drill (4), monitoring and alerts (7).
+- Operations (release 0.6.0 and the Unreleased changes after it):
+  - Compose README: [Backups](../deploy/compose/README.md#backups-profile-backup) (profile `backup`: pgBackRest, WAL archiving, 35-day retention, uploads archive, backup metrics), [Restore drill and restore](../deploy/compose/README.md#restore-drill-and-restore), [Alerting](../deploy/compose/README.md#alerting) (profile `observability`: alert rules including partner IdP and TLS certificate expiry, Alertmanager, Grafana dashboards *OECP overview* and *OECP logs*), [Log retention](../deploy/compose/README.md#log-retention) (container logs shipped to Loki by Grafana Alloy through a read-only Docker socket proxy: 90 days, Traefik access log 30 days) and [Branding](../deploy/compose/README.md#branding) (header images and alliance logo, [branding/README.md](../deploy/compose/branding/README.md)).
+  - [production/runbook.md](production/runbook.md): backups and point-in-time recovery (section 3), restore drill (4), monitoring and alerts (7), log and data retention (10).
   - [deploy/compose/scripts/restore-drill.sh](../deploy/compose/scripts/restore-drill.sh): the quarterly restore drill into a scratch container.
   - [api/README.md](api/README.md): the OpenAPI 3.1 documents of the public and admin APIs (`pnpm openapi:generate`, `pnpm openapi:check`).
 
 ## Screenshots
 
-- [images/README.md](images/README.md): annotated screenshots of the public portal and the administration panel (release 0.3.0, simulated data), and of the operations stack and the API description (release 0.6.0).
+- [images/README.md](images/README.md): annotated screenshots of the public portal and the administration panel (release 0.3.0, simulated data), and of the operations stack and the API description (release 0.5.0); branding, the certificate alerts and the logs dashboard came later and have none.

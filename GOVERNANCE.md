@@ -62,23 +62,30 @@ the repository is a significant decision and follows the ADR process.
 
 OECP is alliance-agnostic: one deployment serves one alliance, and
 everything specific to an alliance is configuration, not code
-([docs/spec-v4.0.md](docs/spec-v4.0.md) §1, §10). The usual path is:
+([docs/spec-v4.1.md](docs/spec-v4.1.md) §1, §10). The usual path is:
 
 1. **Assign responsibilities.** Decide which legal entity acts as GDPR
    controller and which hosts the service as processor, and sign an art. 28
    GDPR contract between them; carry out the DPIA and keep the records of
    processing before go-live (spec §10). For the first deployment, Aurora
-   Foundation is controller and URV is processor
-   ([decisions log](docs/decisions-log.md), row 2).
+   Foundation is controller and URV is processor, and the partner universities
+   are independent controllers of the data they supply
+   ([decisions log](docs/decisions-log.md), rows 2 and 24); templates in
+   [docs/production](docs/production/README.md).
 2. **Deploy** with the reference Docker Compose deployment in
    `deploy/compose` (MVP) or the Helm chart in `deploy/helm` (v1), without
    forking the code.
-3. **Configure the alliance:** partner organizations and sub-units, domains,
-   logos, colours, theme tokens and UI languages through the `organizations`
-   table, the Keycloak realm and the Nuxt runtime configuration (spec §1).
+3. **Configure the alliance:** partner organizations and sub-units (seed file
+   or admin panel), course attributes, host names and alliance name (`.env`),
+   the Keycloak realm, and the alliance's header images and logo, which are
+   the deployment's own files in `deploy/compose/branding/` (spec §1, §7.1).
+   Colours, theme tokens and further UI languages are not configurable yet:
+   the portal is English-only in 0.6.0.
 4. **Register the identity service provider** in the hosting institution's
    national federation with eduGAIN export and the required entity
-   categories, and add one SAML IdP per partner (spec §4).
+   categories, and add one SAML IdP per partner whose IdP is connected;
+   organizations without one sign in with local accounts, one mode per
+   organization (spec §4, decisions log row 22).
 5. **Onboard partners** channel by channel: OEAPI harvesting for partners
    with an endpoint (with a bilateral access agreement and credential), CSV
    or web form for the others (spec §6).
@@ -92,7 +99,7 @@ so that their needs can inform the roadmap.
 ## Roadmap
 
 The roadmap is the delivery-phase plan in
-[docs/spec-v4.0.md §12](docs/spec-v4.0.md#12-delivery-phases): an MVP
+[docs/spec-v4.1.md §12](docs/spec-v4.1.md#12-delivery-phases): an MVP
 (public portal, `/oeapi/v5`, OEAPI v5 harvesting, CSV and form channels,
 Keycloak SAML with MFA, Docker Compose), then v1 (OEAPI v6, Helm, OpenBao,
 partner UI languages and more) and v2 (wallet login, EWP Courses API,

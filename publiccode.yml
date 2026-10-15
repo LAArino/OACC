@@ -85,15 +85,19 @@ description:
       harvest it.
 
       Partner and alliance administrators sign in through Keycloak with their
-      institutional identity provider (SAML, eduGAIN) and mandatory
-      multi-factor authentication. They configure integrations, upload and
+      institutional identity provider (SAML, eduGAIN) or with a local account,
+      one mode per organization, always with mandatory multi-factor
+      authentication. They configure integrations, upload and
       validate CSV files, edit courses in a wizard, and monitor
       synchronisation runs and network status.
 
-      OECP is alliance-agnostic: alliance name, partners, domains, branding and
-      UI languages are configuration, and one deployment serves one alliance.
+      OECP is alliance-agnostic: alliance name, partners, course attributes,
+      domains and branding images are configuration, and one deployment serves
+      one alliance.
       It never handles applications or enrolment and stores no student data.
-      Reference deployments are provided for Docker Compose and, later, Helm.
+      The reference Docker Compose deployment includes scheduled backups with
+      point-in-time recovery, alerting and log retention; a Helm chart is
+      planned.
     features:
       - Public course catalogue with server-side rendering and no cookies
       - Multilingual full-text search with typo-tolerant suggestions
@@ -103,5 +107,8 @@ description:
       - Web form wizard with overrides over harvested data
       - Anonymous OEAPI v5-compatible read API
       - schema.org/Course JSON-LD and sitemap
-      - Keycloak admin login via eduGAIN SAML IdPs with mandatory MFA
+      - Keycloak admin login via eduGAIN SAML IdPs or local accounts, with mandatory MFA
+      - Alliance-defined course attributes as catalogue tags and filters
       - Synchronisation monitor and partner network status
+      - Deployment branding with header images and the alliance logo
+      - Compose deployment with pgBackRest backups, Prometheus alerting and Loki logs

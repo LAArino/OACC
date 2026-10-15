@@ -5,16 +5,17 @@
 
 ## Supported versions
 
-OECP is pre-alpha and has no released versions yet. Security fixes are made on
-the `main` branch only.
+OECP is pre-production: the current release is 0.6.0 and no alliance runs it
+in production yet. Security fixes are made on the `main` branch and released
+as a patch of the latest minor version ([docs/RELEASING.md](docs/RELEASING.md#support-policy)).
 
 | Version | Supported |
 |---|---|
 | 0.6.x | Yes, latest minor only (pre-production) |
 | 0.1.x to 0.5.x | No |
 
-This table will list the supported release lines once the first version is
-published.
+Until 1.0 only the latest minor version is supported; the support window after
+1.0 will be set by an ADR.
 
 ## Reporting a vulnerability
 
@@ -22,7 +23,7 @@ published.
 problem.**
 
 Report it privately by email to **`security@<alliance-domain>`** (placeholder,
-to be replaced before the first release). If private vulnerability reporting
+to be replaced before the first production deployment). If private vulnerability reporting
 is enabled on the repository hosting platform, you may use it instead.
 
 Please include:

@@ -26,6 +26,11 @@ Optional, commented out in `compose.yaml` until used:
 | `pgbackrest_repo2_cipher_pass` | postgres, backup (profile `backup`) | Encryption passphrase of pgBackRest repo2, the second site (`openssl rand -base64 48`); without it repo2 cannot be restored: keep it with the offline copy |
 | `pgbackrest_repo2_s3_key_secret` | postgres, backup | S3 secret access key of repo2 |
 
+Files named `dev_*` (`dev_alliance_admin_password`, `dev_alliance_admin_totp`,
+`dev_partner_admin_totp`, `dev_visiting_scholar_totp`) are not Docker secrets:
+the identity end-to-end scripts keep the passwords and TOTP seeds of their
+local test accounts here ([`tools/e2e-identity`](../../../tools/e2e-identity/README.md)).
+
 Any file named `pgbackrest_<option>` mounted into `postgres` or `backup` sets
 that pgBackRest option (`postgres/bin/pgbackrest`); see
 [`../postgres/pgbackrest-repo2.env.example`](../postgres/pgbackrest-repo2.env.example).

@@ -3,7 +3,7 @@
 
 # Helm chart (v1 deliverable, not yet available)
 
-The Helm chart is a **v1** deliverable (spec v4.0 §12; §10 "Deliverables";
+The Helm chart is a **v1** deliverable (spec v4.1 §12; §10 "Deliverables";
 [DL 10]). The MVP ships only the Docker Compose reference deployment in
 [`../compose`](../compose/README.md). This directory reserves the location
 and records what the chart will need, so that the Compose deployment and the
@@ -25,6 +25,14 @@ chart stay aligned.
   egress to partner OEAPI endpoints; data stores have no egress.
 - Pod security: non-root, read-only root filesystem, dropped capabilities,
   `seccompProfile: RuntimeDefault`.
+- Backups and monitoring: what the Compose profiles `backup` (pgBackRest,
+  WAL archiving, 35-day window, restore drill) and `observability` (alert
+  rules, Alertmanager, logs shipped to Loki by Grafana Alloy, Grafana
+  dashboards) provide maps to the PostgreSQL operator's backups and the
+  cluster's monitoring stack; the alert rules of
+  `deploy/compose/observability/alert-rules.yml` as a `PrometheusRule`.
+- Branding: the alliance's header images and logo (deployment files, never in
+  the image) mounted into `web` at `NUXT_BRANDING_DIR`.
 
 ## Values it will need
 
@@ -36,6 +44,7 @@ chart stay aligned.
 | `worker.resources`, `worker.egress.allowedCidrs` | harvester sizing and egress policy |
 | `web.replicas`, `web.resources` | Nuxt sizing |
 | `web.env.NUXT_PUBLIC_API_BASE` | public API base URL |
+| `web.branding.existingConfigMap` (or a volume), `web.env.NUXT_PUBLIC_HERO_IMAGE`, `…_HERO_IMAGE_COURSES`, `…_LOGO_IMAGE` and their alt texts | header images and alliance logo served at `/branding/` (`deploy/compose/branding/README.md`) |
 | `postgresql.host`, `postgresql.port`, `postgresql.database`, `postgresql.user`, `postgresql.existingSecret` | `DATABASE_URL` |
 | `valkey.url`, `valkey.existingSecret` | `VALKEY_URL` |
 | `keycloak.issuer`, `keycloak.jwksUrl`, `keycloak.adminUrl`, `keycloak.backendClientExistingSecret` | JWT validation and Admin API (`oecp-backend`) |

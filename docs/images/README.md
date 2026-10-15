@@ -12,6 +12,15 @@ added on 2026-10-15 from release 0.5.0 (development stack, `observability`
 profile). They illustrate the documentation; the product may change. None
 contains credentials.
 
+They are not retaken for every change, so some show an earlier state: since
+0.6.0 the home page and the course list show the deployment's header image and
+the site header its alliance logo when branding is configured
+([deploy/compose/branding/README.md](../../deploy/compose/branding/README.md)),
+which `public-home.png` and `public-catalogue-filters.png` predate; after 0.6.0
+the alert rules grew to 26 (group `oecp-certificates`), "OECP overview" gained
+a *Certificates* row and a second dashboard, "OECP logs", shows the container
+logs shipped to Loki; none of these has a screenshot.
+
 ## Public portal
 
 | File | Shows |

@@ -54,7 +54,7 @@ The credential is **write-only**. It is encrypted with AES-256-GCM (12-byte nonc
 - **Host approval:** an `alliance_admin` approves the exact host (`host[:port]`) of `base_url` (*Approve host* on the *Integration settings* page, or `POST …/integration/approve-host`). Changing the host clears the approval; changing only the path keeps it. Until approved, nothing is requested (`oecp.oeapi.host_not_approved`).
 - **Public DNS:** every A/AAAA record of your host must be a public unicast address. Loopback, RFC 1918, CGNAT, ULA, link-local, multicast, documentation and reserved ranges (also embedded in IPv4-mapped, NAT64 or 6to4 addresses) make the run fail with `oecp.oeapi.address_refused`. The connection is pinned to the checked address; the certificate is verified against your host name.
 - **Redirects:** at most 3, and only to the same scheme and host. A redirect to another host (for example a gateway or a login page) is refused (`oecp.oeapi.redirect_refused`).
-- **IP allowlist:** requests come from the OECP worker's egress address. OECP does not publish a fixed address list in 0.5.0; ask the alliance's hosting operator for the address to allowlist.
+- **IP allowlist:** requests come from the OECP worker's egress address. OECP does not publish a fixed address list in 0.6.0; ask the alliance's hosting operator for the address to allowlist.
 
 ## Integration settings
 
