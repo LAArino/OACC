@@ -10,7 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- Data: `docs/data/aurora-virtual-campus-2026-27/`, the 13 courses of the
+  Aurora Virtual Campus website (2026-10-15) transcribed into CSV template
+  1.2, one `courses.csv` and `offerings.csv` per offering university, with a
+  README listing what the website does not state (instructors, several
+  assessments and prerequisites, functional contact addresses). Uploaded to
+  the development stack as the first real test of the template: 5 uploads,
+  26 records created, Handbook warnings only.
 
 ## [0.6.0] - 2026-10-15
 
