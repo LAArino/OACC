@@ -98,6 +98,8 @@ docker run --rm \
   -v "$PWD/deploy/compose/observability/alertmanager:/etc/alertmanager/oecp:ro" \
   --entrypoint sh prom/alertmanager:v0.34.1 -c \
   'sh /etc/alertmanager/oecp/entrypoint.sh --render-only /tmp/am.yml && amtool check-config /tmp/am.yml'
+docker run --rm -v "$PWD:/repo:ro" -w /repo koalaman/shellcheck:v0.11.0 -S style \
+  $(find deploy tools -type f \( -name '*.sh' -o -path 'deploy/compose/postgres/bin/*' \) -not -path '*/node_modules/*')
 ```
 
 **Licensing.** `uvx reuse@5 lint` (or any `reuse` 5.x) must pass; CI runs it

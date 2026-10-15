@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   assessments and prerequisites, functional contact addresses). Uploaded to
   the development stack as the first real test of the template: 5 uploads,
   26 records created, Handbook warnings only.
+- CI: shellcheck (`koalaman/shellcheck` 0.11, `-S style`) over every shell
+  script of `deploy/` and `tools/` (entrypoints, pgBackRest wrappers, restore
+  drill, OEAPI mock scripts) in the job "Validate Docker Compose file"; the
+  mock smoke test quotes its curl arguments. Closes the last CI row of the
+  backlog.
 - Docs: every README and documentation page audited against the code,
   Compose and seeds after 0.6.0 and the unreleased work (32 files): module
   and service tables, environment variables, alert tables, counts (138 error

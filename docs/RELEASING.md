@@ -87,7 +87,7 @@ A version is closed, and may be tagged, only when all of the following hold:
 1. **CI is green** on the release commit: lint, format check, type check,
    OpenAPI documents up to date, tests, `reuse lint`, DCO, `docker compose
    config` for every profile, promtool and amtool checks of the alerting
-   configuration, and Trivy (`.github/workflows/ci.yml`).
+   configuration, shellcheck of every shell script, and Trivy (`.github/workflows/ci.yml`).
 2. **Database suites ran with a database.** The integration suites in
    `apps/api/test/integration` are skipped unless `DATABASE_URL_TEST` is set;
    CI sets it to a PostgreSQL 16 service, so a green CI run covers them. If
@@ -228,7 +228,7 @@ Copy this list into the release pull request or issue.
 
 ```markdown
 - [ ] `main` is clean and up to date; `VERSION` and `DATE` set
-- [ ] CI green on the release commit (lint, format, typecheck, OpenAPI check, test, REUSE, DCO, compose config, promtool/amtool, Trivy)
+- [ ] CI green on the release commit (lint, format, typecheck, OpenAPI check, test, REUSE, DCO, compose config, promtool/amtool, shellcheck, Trivy)
 - [ ] `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test` pass locally
 - [ ] API integration suites pass with `DATABASE_URL_TEST` (result recorded)
 - [ ] `uvx reuse@5 lint` passes

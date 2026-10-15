@@ -13,6 +13,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 pids=""
 pass=0
 failed=0
+# shellcheck disable=SC2154  # p is set by the loop when the trap runs
 trap 'for p in $pids; do kill "$p" 2>/dev/null; done' EXIT
 
 start() { # port, then VAR=value ... for the server environment
@@ -42,13 +43,13 @@ json() { # url, then a JS expression over `d` (the parsed body)
 # --- Basic auth instance (the Compose default) ------------------------------
 B=http://127.0.0.1:18091
 start 18091 OEAPI_MOCK_AUTH=basic:oecp:oecp-mock-secret
-U="-u oecp:oecp-mock-secret"
+AUTH=oecp:oecp-mock-secret
 
 expect 'GET / without credentials -> 401' 401 "$(code $B/)"
 expect '401 carries WWW-Authenticate: Basic' 'Basic' "$(curl -s -o /dev/null -D - $B/courses | tr -d '\r' | sed -n 's/^[Ww][Ww][Ww]-[Aa]uthenticate: \([A-Za-z]*\).*/\1/p')"
 expect 'wrong password -> 401' 401 "$(code -u oecp:wrong $B/courses)"
 expect 'GET / service document' 'oeapi-mock@uibk.example' "$(json $B/ 'd.contactEmail')"
-expect 'Content-Type application/json' 'application/json' "$(curl -s -o /dev/null -w '%{content_type}' $U $B/courses)"
+expect 'Content-Type application/json' 'application/json' "$(curl -s -o /dev/null -w '%{content_type}' -u "$AUTH" $B/courses)"
 expect 'organizations?organizationType=root' '1 root UIBK' "$(json "$B/organizations?organizationType=root" 'd.items.length+" "+d.items[0].organizationType+" "+d.items[0].shortName')"
 ORG=$(json "$B/organizations?organizationType=root" 'd.items[0].organizationId')
 expect 'organizations/{id}' 'uibk.ac.at' "$(json "$B/organizations/$ORG" 'd.primaryCode.code')"
@@ -56,7 +57,7 @@ expect 'courses default page (pageSize 10, 25 courses)' '10 true false 3' "$(jso
 expect 'courses page 3 is the last' '5 false true' "$(json "$B/courses?pageNumber=3" 'd.items.length+" "+d.hasNextPage+" "+d.hasPreviousPage')"
 expect 'courses page past the end -> empty' '0 false true' "$(json "$B/courses?pageNumber=4" 'd.items.length+" "+d.hasNextPage+" "+d.hasPreviousPage')"
 expect 'pageSize above 100 is capped' '100 25' "$(json "$B/courses?pageSize=250" 'd.pageSize+" "+d.items.length')"
-expect 'pageSize=0 -> 400' 400 "$(code $U "$B/courses?pageSize=0")"
+expect 'pageSize=0 -> 400' 400 "$(code -u "$AUTH" "$B/courses?pageSize=0")"
 expect 'consumer=eduxchange -> 20 courses' 20 "$(json "$B/courses?consumer=eduxchange&pageSize=100" 'd.items.length')"
 expect 'consumer=eduxchange hides the 5 internal courses' '' "$(json "$B/courses?consumer=eduxchange&pageSize=100" 'd.items.map(c=>c.primaryCode.code).filter(c=>["703900","300900","201900","401999","609999"].includes(c)).join(",")')"
 expect 'consumer=rio -> 0 courses' 0 "$(json "$B/courses?consumer=rio" 'd.items.length')"
@@ -69,20 +70,20 @@ expect 'search=glacier (q alias)' 609010 "$(json "$B/courses?search=glacier" 'd.
 expect 'primaryCode=703015' '703015 7.5' "$(json "$B/courses?primaryCode=703015" 'd.items[0].primaryCode.code+" "+d.items[0].studyLoad.value')"
 C=$(json "$B/courses?primaryCode=401210" 'd.items[0].courseId')
 expect 'courses/{id}' 401210 "$(json "$B/courses/$C" 'd.primaryCode.code')"
-expect 'courses/{unknown} -> 404 problem' '404 application/problem+json' "$(curl -s -o /dev/null -w '%{http_code} %{content_type}' $U $B/courses/00000000-0000-4000-8000-000000000000)"
+expect 'courses/{unknown} -> 404 problem' '404 application/problem+json' "$(curl -s -o /dev/null -w '%{http_code} %{content_type}' -u "$AUTH" $B/courses/00000000-0000-4000-8000-000000000000)"
 expect 'offerings default since=today hides started winter offering' '401210-2027S' "$(json "$B/courses/$C/offerings" 'd.items.map(o=>o.primaryCode.code).join()')"
 expect 'offerings since=2025-10-14 shows both' '401210-2026W,401210-2027S' "$(json "$B/courses/$C/offerings?since=2025-10-14" 'd.items.map(o=>o.primaryCode.code).join()')"
 expect 'offerings until=2027-02-28' '401210-2026W' "$(json "$B/courses/$C/offerings?since=2025-10-14&until=2027-02-28" 'd.items.map(o=>o.primaryCode.code).join()')"
-expect 'since=garbage -> 400' 400 "$(code $U "$B/courses/$C/offerings?since=14.10.2026")"
+expect 'since=garbage -> 400' 400 "$(code -u "$AUTH" "$B/courses/$C/offerings?since=14.10.2026")"
 O=$(json "$B/courses/$C/offerings" 'd.items[0].offeringId')
 expect 'offerings/{id} unexpanded' 'string string' "$(json "$B/offerings/$O" 'typeof d.academicSession+" "+typeof d.course')"
 expect 'offerings/{id}?expand=academicSession,course' '2027S 401210' "$(json "$B/offerings/$O?expand=academicSession,course" 'd.academicSession.primaryCode.code+" "+d.course.primaryCode.code')"
 expect 'academic-sessions' '2026/27,2026W,2027S' "$(json "$B/academic-sessions" 'd.items.map(s=>s.primaryCode.code).join()')"
 AY=$(json "$B/academic-sessions" 'd.items[0].academicSessionId')
 expect 'academic-sessions/{id}?expand=children' '2026W,2027S' "$(json "$B/academic-sessions/$AY?expand=children" 'd.children.map(s=>s.primaryCode.code).join()')"
-expect 'unknown route -> 404' 404 "$(code $U $B/programs)"
-expect 'POST -> 405' 405 "$(code $U -X POST $B/courses)"
-expect 'Accept v6 -> 406' 406 "$(code $U -H 'Accept: application/vnd.oeapi+json;version=6' $B/courses)"
+expect 'unknown route -> 404' 404 "$(code -u "$AUTH" $B/programs)"
+expect 'POST -> 405' 405 "$(code -u "$AUTH" -X POST $B/courses)"
+expect 'Accept v6 -> 406' 406 "$(code -u "$AUTH" -H 'Accept: application/vnd.oeapi+json;version=6' $B/courses)"
 
 # --- Bearer, API key, none ---------------------------------------------------
 start 18092 OEAPI_MOCK_AUTH=bearer:t0ken
