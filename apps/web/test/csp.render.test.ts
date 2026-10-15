@@ -3,7 +3,12 @@
 // Content-Security-Policy with a fresh nonce, and every script, style and link tag
 // the server renders carries that nonce (server/plugins/csp.ts). The public API is
 // answered by the catalogue fixture server (test/fixtures/server.mjs).
+// The same build also serves the deployment branding files (/branding/<name>,
+// server/middleware/branding.ts) from a temporary directory.
 import { type ChildProcess, spawn } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetch, setup } from '@nuxt/test-utils/e2e';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -14,6 +19,14 @@ const AUTH_ORIGIN = 'https://auth.example.eu';
 const COURSE_ID = '6f1d2c3b-0000-4000-8000-000000000001';
 
 let fixture: ChildProcess | undefined;
+
+// Branding directory: a stand-in "image" (the middleware never inspects content),
+// a hidden file and a sub-directory that must not be served.
+const BRANDING_DIR = mkdtempSync(join(tmpdir(), 'oecp-branding-'));
+const HERO_BYTES = 'stand-in image bytes';
+writeFileSync(join(BRANDING_DIR, 'hero.png'), HERO_BYTES);
+writeFileSync(join(BRANDING_DIR, '.secret.png'), 'hidden');
+mkdirSync(join(BRANDING_DIR, 'dir.png'));
 
 beforeAll(async () => {
   fixture = spawn(
@@ -34,6 +47,7 @@ beforeAll(async () => {
 
 afterAll(() => {
   fixture?.kill();
+  rmSync(BRANDING_DIR, { recursive: true, force: true });
 });
 
 await setup({
@@ -44,6 +58,8 @@ await setup({
   env: {
     NUXT_PUBLIC_API_BASE: FIXTURE_ORIGIN,
     NUXT_PUBLIC_OIDC_AUTHORITY: `${AUTH_ORIGIN}/realms/oecp`,
+    NUXT_BRANDING_DIR: BRANDING_DIR,
+    NUXT_PUBLIC_HERO_IMAGE: '/branding/hero.png',
   },
 });
 
@@ -125,5 +141,57 @@ describe('Content-Security-Policy on rendered pages', () => {
     const robots = await fetch('/robots.txt');
     expect(robots.status).toBe(200);
     expect(robots.headers.get('content-security-policy')).toBeNull();
+  });
+});
+
+describe('branding files', () => {
+  it('renders the configured header image on the home page', async () => {
+    const home = await page('/en');
+    expect(home.html).toMatch(
+      /<div class="home__banner"[^>]*><img src="\/branding\/hero\.png" alt=""/,
+    );
+    // Same origin: allowed by the unchanged img-src.
+    expect(home.policy).toContain("img-src 'self' data: https:");
+  });
+
+  it('serves a file of the branding directory with caching headers and no cookie', async () => {
+    const response = await fetch('/branding/hero.png');
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(HERO_BYTES);
+    const headers = response.headers;
+    expect(headers.get('content-type')).toBe('image/png');
+    expect(headers.get('content-length')).toBe(String(HERO_BYTES.length));
+    expect(headers.get('cache-control')).toBe('public, max-age=86400');
+    expect(headers.get('x-content-type-options')).toBe('nosniff');
+    expect(headers.get('last-modified')).toMatch(/ GMT$/);
+    expect(headers.get('etag')).toMatch(/^W\/"[0-9a-f]+-[0-9a-f]+"$/);
+    expect(headers.get('set-cookie')).toBeNull();
+
+    const head = await fetch('/branding/hero.png', { method: 'HEAD' });
+    expect(head.status).toBe(200);
+    expect(head.headers.get('content-length')).toBe(String(HERO_BYTES.length));
+    expect(await head.text()).toBe('');
+
+    const cached = await fetch('/branding/hero.png', {
+      headers: { 'if-none-match': headers.get('etag')! },
+    });
+    expect(cached.status).toBe(304);
+    expect(await cached.text()).toBe('');
+  });
+
+  it('answers 404 to missing, hidden, invalid and non-file names', async () => {
+    for (const path of [
+      '/branding/missing.png',
+      '/branding/.secret.png',
+      '/branding/Hero.png',
+      '/branding/hero.txt',
+      '/branding/dir.png',
+      '/branding/..%2Fpackage.json',
+      '/branding/%2e%2e/nuxt.config.ts',
+    ]) {
+      const response = await fetch(path);
+      expect(response.status, path).toBe(404);
+      expect(response.headers.get('content-type'), path).not.toMatch(/^image\//);
+    }
   });
 });

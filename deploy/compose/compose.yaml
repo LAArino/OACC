@@ -548,11 +548,22 @@ services:
       NUXT_PUBLIC_I18N_BASE_URL: https://${OECP_PORTAL_HOST}
       # Shown on the public portal (home intro, titles).
       NUXT_PUBLIC_ALLIANCE_NAME: ${OECP_ALLIANCE_NAME:-the alliance}
+      # Branding (branding/README.md): the alliance's images, mounted read-only
+      # below and served at /branding/<file>. Header image of the home page and
+      # logo of the site header; empty = none (text brand, no banner).
+      NUXT_BRANDING_DIR: /data/branding
+      NUXT_PUBLIC_HERO_IMAGE: ${OECP_HERO_IMAGE:-}
+      # Empty = decorative header image (alt="").
+      NUXT_PUBLIC_HERO_IMAGE_ALT: ${OECP_HERO_IMAGE_ALT:-}
+      NUXT_PUBLIC_LOGO_IMAGE: ${OECP_LOGO_IMAGE:-}
       # Content-Security-Policy of the portal (spec §10): enforce | report-only | off.
       NUXT_CSP_MODE: ${NUXT_CSP_MODE:-enforce}
       OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
       OTEL_SERVICE_NAME: oecp-web
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    volumes:
+      # Deployment branding (not repository content); readable by uid 1000.
+      - ${OECP_BRANDING_DIR:-./branding}:/data/branding:ro
     depends_on:
       api:
         condition: service_healthy

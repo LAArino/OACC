@@ -3,13 +3,27 @@
 const { t } = useI18n();
 const localePath = useLocalePath();
 const config = useRuntimeConfig();
+// Optional alliance logo of the deployment (NUXT_PUBLIC_LOGO_IMAGE): replaces the
+// text brand; its alt text, the alliance name, stays the link's accessible name.
+const logoImage = computed(() => config.public.logoImage);
+const logoAlt = computed(() => config.public.allianceName || t('site.name'));
 </script>
 
 <template>
   <header class="site-header">
     <div class="site-header__inner">
       <NuxtLink class="site-header__brand" :to="localePath('/')">
-        {{ t('site.name') }}
+        <img
+          v-if="logoImage"
+          class="site-header__logo"
+          :src="logoImage"
+          :alt="logoAlt"
+          height="40"
+          decoding="async"
+        />
+        <template v-else>
+          {{ t('site.name') }}
+        </template>
       </NuxtLink>
       <nav class="site-nav" :aria-label="t('nav.main')">
         <ul>

@@ -3,6 +3,7 @@
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ErrorPage from '../app/error.vue';
+import DefaultLayout from '../app/layouts/default.vue';
 import CoursePage from '../app/pages/(public)/courses/[id].vue';
 import CataloguePage from '../app/pages/(public)/courses/index.vue';
 import HomePage from '../app/pages/(public)/index.vue';
@@ -108,6 +109,96 @@ describe('home page', () => {
   it('has no axe violations', async () => {
     const w = await mountSuspended(HomePage, { route: '/en' });
     expect(await axeViolations(w.html())).toEqual([]);
+  });
+});
+
+describe('home page header image', () => {
+  const hero = () => useRuntimeConfig().public;
+  const headMeta = (selector: string) =>
+    document.head.querySelector(`meta[${selector}]`)?.getAttribute('content');
+  afterEach(() => {
+    hero().heroImage = '';
+    hero().heroImageAlt = '';
+  });
+
+  it('renders a decorative banner above the title and link-preview meta', async () => {
+    hero().heroImage = '/branding/hero.png';
+    const w = await mountSuspended(HomePage, { route: '/en' });
+    const banner = w.find('.home__hero > .home__banner');
+    expect(banner.exists()).toBe(true);
+    expect(banner.element.nextElementSibling?.tagName).toBe('H1');
+    const img = banner.find('img');
+    expect(img.attributes()).toMatchObject({
+      src: '/branding/hero.png',
+      alt: '',
+      loading: 'eager',
+      fetchpriority: 'high',
+      decoding: 'async',
+    });
+    expect(img.html()).toContain('alt=""');
+    await vi.waitFor(() =>
+      expect(headMeta('property="og:image"')).toMatch(/^https?:\/\/[^/]+\/branding\/hero\.png$/),
+    );
+    expect(headMeta('name="twitter:card"')).toBe('summary_large_image');
+    expect(await axeViolations(w.html())).toEqual([]);
+    w.unmount();
+  });
+
+  it('uses the configured alt text and keeps an absolute image URL', async () => {
+    hero().heroImage = 'https://cdn.example.eu/aurora/hero.webp';
+    hero().heroImageAlt = 'Students on the campus lawn';
+    const w = await mountSuspended(HomePage, { route: '/en' });
+    expect(w.find('.home__banner img').attributes()).toMatchObject({
+      src: 'https://cdn.example.eu/aurora/hero.webp',
+      alt: 'Students on the campus lawn',
+    });
+    await vi.waitFor(() =>
+      expect(headMeta('property="og:image"')).toBe('https://cdn.example.eu/aurora/hero.webp'),
+    );
+    w.unmount();
+  });
+
+  it('renders no banner and no image meta when unset', async () => {
+    const w = await mountSuspended(HomePage, { route: '/en' });
+    expect(w.find('.home__banner').exists()).toBe(false);
+    expect(w.find('img').exists()).toBe(false);
+    await vi.waitFor(() =>
+      expect(headMeta('name="description"')).toContain('course catalogue of the alliance'),
+    );
+    // Head entries of the previous (unmounted) mounts are removed asynchronously.
+    await vi.waitFor(() => expect(headMeta('property="og:image"')).toBeUndefined());
+    expect(headMeta('name="twitter:card"')).toBeUndefined();
+    w.unmount();
+  });
+});
+
+describe('site header logo', () => {
+  const pub = () => useRuntimeConfig().public;
+  const slots = { default: () => 'page' };
+  afterEach(() => {
+    pub().logoImage = '';
+  });
+
+  it('shows the text brand when no logo is configured', async () => {
+    const w = await mountSuspended(DefaultLayout, { route: '/en', slots });
+    const brand = w.find('a.site-header__brand');
+    expect(brand.text()).toBe('Open European Campus');
+    expect(brand.find('img').exists()).toBe(false);
+  });
+
+  it('replaces the text brand with the logo, named after the alliance', async () => {
+    pub().logoImage = '/branding/logo.svg';
+    const w = await mountSuspended(DefaultLayout, { route: '/en', slots });
+    const brand = w.find('a.site-header__brand');
+    expect(brand.attributes('href')).toBe('/en');
+    expect(brand.text()).toBe('');
+    expect(brand.find('img.site-header__logo').attributes()).toMatchObject({
+      src: '/branding/logo.svg',
+      alt: pub().allianceName,
+      height: '40',
+      decoding: 'async',
+    });
+    expect(pub().allianceName).not.toBe('');
   });
 });
 

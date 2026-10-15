@@ -37,6 +37,9 @@ blob-report/
 
 # Local deployment data (volumes bound by deploy/compose)
 deploy/compose/data/
+# Deployment branding: the alliance's images (it holds their rights), never committed
+deploy/compose/branding/*
+!deploy/compose/branding/README.md
 
 # IDE and editors
 .idea/

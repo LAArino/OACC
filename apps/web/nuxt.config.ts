@@ -27,9 +27,21 @@ export default defineNuxtConfig({
       // NUXT_CSP_REPORT_URI: optional violation report endpoint (absolute URL or path).
       reportUri: '',
     },
+    // NUXT_BRANDING_DIR: directory of the deployment's branding images (header
+    // image, ...), served at /branding/<name> (server/middleware/branding.ts).
+    // Empty: feature off, every /branding/* request answers 404.
+    brandingDir: '',
     public: {
       // NUXT_PUBLIC_ALLIANCE_NAME: shown in the public portal (e.g. "Aurora").
       allianceName: 'the alliance',
+      // NUXT_PUBLIC_HERO_IMAGE: optional header image of the home page; a path on
+      // the portal origin (e.g. /branding/hero.png) or an absolute https URL.
+      heroImage: '',
+      // NUXT_PUBLIC_HERO_IMAGE_ALT: its text alternative; empty = decorative (alt="").
+      heroImageAlt: '',
+      // NUXT_PUBLIC_LOGO_IMAGE: optional alliance logo in the site header, in place
+      // of the text brand (alt = allianceName); a path or an absolute https URL.
+      logoImage: '',
       // NUXT_PUBLIC_API_BASE: origin serving /api/public, /api/admin and /oeapi/v5.
       apiBase: 'http://localhost:3000',
       // NUXT_PUBLIC_OIDC_AUTHORITY: https://{auth-host}/realms/oecp

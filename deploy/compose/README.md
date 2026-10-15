@@ -159,6 +159,18 @@ certificates **and the local backup repository** `pgbackrest-repo`); there is no
 - **`identity/keycloak/realm-oecp.yaml`**: the realm as code; see
   [`identity/keycloak/README.md`](../../identity/keycloak/README.md).
 
+### Branding
+
+The alliance's own header image (home page) and logo (site header) are
+deployment configuration, never repository content: put the files in
+[`branding/`](branding/README.md) (or the directory named by
+`OECP_BRANDING_DIR`), which `web` mounts read-only and serves at
+`/branding/<file>`. Enable them in `.env` with `OECP_HERO_IMAGE`
+(e.g. `/branding/hero.jpg`), `OECP_HERO_IMAGE_ALT` (empty = decorative) and
+`OECP_LOGO_IMAGE` (e.g. `/branding/logo.svg`, alt text = `OECP_ALLIANCE_NAME`);
+all empty by default. File-name rule, recommended sizes and permissions (uid
+1000): [`branding/README.md`](branding/README.md).
+
 ### Local development profile (`dev`)
 
 The `dev` profile adds Mailpit and the OEAPI mock, in `compose.yaml` itself (like

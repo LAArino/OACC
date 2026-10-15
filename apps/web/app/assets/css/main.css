@@ -127,6 +127,15 @@ h3 {
   color: var(--c-text);
   text-decoration: none;
 }
+/* Deployment logo (NUXT_PUBLIC_LOGO_IMAGE): fixed height, so the header keeps its size. */
+.site-header__logo {
+  display: block;
+  height: 2.5rem;
+  width: auto;
+  max-width: 14rem;
+  object-fit: contain;
+  object-position: left center;
+}
 .site-nav ul {
   display: flex;
   flex-wrap: wrap;

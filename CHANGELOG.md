@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Web: deployment branding. The home page shows an optional header image
+  (`NUXT_PUBLIC_HERO_IMAGE`, with `NUXT_PUBLIC_HERO_IMAGE_ALT`; decorative
+  `alt=""` by default; also the `og:image` link preview) and the site header an
+  optional alliance logo instead of the text brand (`NUXT_PUBLIC_LOGO_IMAGE`,
+  alt text = alliance name). The images are deployment configuration, never
+  repository content: the web app serves the directory `NUXT_BRANDING_DIR` at
+  `/branding/<file>` (lower-case names, image extensions only, GET/HEAD, weak
+  `ETag`, one-day cache, no cookies). Compose mounts
+  `deploy/compose/branding/` (or `OECP_BRANDING_DIR`) read-only and passes
+  `OECP_HERO_IMAGE`, `OECP_HERO_IMAGE_ALT` and `OECP_LOGO_IMAGE`; see
+  `deploy/compose/branding/README.md`. The CSP is unchanged.
 - Docs: decision 22 in the decisions log: the sign-in mode is chosen per
   organization by `keycloak_idp_alias` (local Keycloak accounts with password
   and TOTP for the alliance organization and for universities outside eduGAIN
