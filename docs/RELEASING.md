@@ -236,6 +236,7 @@ Copy this list into the release pull request or issue.
 - [ ] No released migration edited (`git diff vPREVIOUS -- apps/api/db/migrations` shows only new files)
 - [ ] No error code in `errors.json` renamed or removed; `/api/public/v1` changes are additive
 - [ ] CSV template version bumped if CSV authors see a change; previous version still accepted
+- [ ] After bumping the package versions, run `pnpm openapi:generate` and commit `docs/api/*.openapi.json` (`info.version` follows the root package.json; CI runs `pnpm openapi:check` and fails on drift)
 - [ ] `BREAKING:` items and new environment variables or secrets documented
 - [ ] CHANGELOG: `Unreleased` moved to `[X.Y.Z] - YYYY-MM-DD`, new empty `Unreleased`, links updated
 - [ ] Specification, ADR index and `docs/README.md` in sync with the code
