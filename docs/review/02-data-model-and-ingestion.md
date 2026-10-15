@@ -1,106 +1,111 @@
-# Revisión crítica OECP v3.0: ingesta (§3), modelo de datos (§4) y su impacto en §5.1
+<!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
+<!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-## 1. Comprobaciones factuales
+# Critical review of OECP v3.0: ingestion (§3), data model (§4) and their impact on §5.1
 
-- **OEAPI y OOAPI no son una errata.** Son el mismo estándar, la *Open Education API* de SURF (antes "Open Onderwijs API"). La documentación actual (oeapi.eu y la v6) usa "OEAPI". Conviene escribir "OEAPI (antes OOAPI)" una sola vez.
-- **Versiones a octubre de 2026.** La versión estable es la **v5.0** (etiquetada en enero de 2026 y en uso desde mucho antes). La **v6.0 sigue en release candidate**: `v6.0-rc.3`, publicada el 30-09-2026. La v4 es *legacy*. El "Ingestor v4/v5" debería planificarse como **v5 + v6**, con la v4 opcional.
-- **Modelo de recursos.**
-  - **v5:** `organizations`, `educationSpecifications`, `programs`, `courses`, `components`, `offerings` (de programa, curso y componente), `academicSessions`, `persons`, `associations` (inscripciones), `groups`, `buildings`/`rooms` y `news`.
-  - **v6-rc.3 rompe la compatibilidad:** elimina `educationSpecifications`, pasa a la grafía británica (`organisations`, `programmes`), separa los componentes en `learning-components` y `test-components`, da a cada tipo de oferta su propio endpoint (`/course-offerings`…), añade `offeringState` (`concept`/`active`/`inactive`/`cancelled`), `learning-outcomes` como recurso propio y `validFrom`/`validTo` en el curso.
-  - Esto justifica tener una ACL, pero el canónico debería seguir la estructura **curso → oferta → sesión académica**.
-- **Es una API de tipo pull.** OEAPI la sirve cada universidad mediante GET paginados.
-  - La v5 solo permite escribir `persons` y `associations`. La v6 añade PUT/PATCH sobre las ofertas.
-  - No hay **webhooks, callbacks ni parámetro de delta** (tipo `modifiedSince`).
-  - El parámetro `since` filtra por la fecha de inicio de la sesión y **por defecto devuelve solo ofertas futuras**.
-- **Idiomas.** En la v5, `teachingLanguage` es un código **ISO 639-2 de 3 letras** (`nld`). Los textos son arrays `LanguageTypedString {language:"en-GB", value}`. El spec usa ISO 639-1, así que hace falta un mapeo explícito.
-- **Modalidad.**
+> Translated from the Spanish original on 2026-10-15; the Spanish text is in the Git history of this file. Quotations of specification v3.0 are translated from its Spanish original ([archived](../archive/spec-v3.0-original.es.md)).
+
+## 1. Factual checks
+
+- **OEAPI and OOAPI are not a typo.** They are the same standard, SURF's *Open Education API* (formerly "Open Onderwijs API"). The current documentation (oeapi.eu and v6) uses "OEAPI". It is advisable to write "OEAPI (formerly OOAPI)" once.
+- **Versions as of October 2026.** The stable version is **v5.0** (tagged in January 2026 and in use since long before). **v6.0 is still a release candidate**: `v6.0-rc.3`, published on 2026-09-30. v4 is *legacy*. The "Ingestor v4/v5" should be planned as **v5 + v6**, with v4 optional.
+- **Resource model.**
+  - **v5:** `organizations`, `educationSpecifications`, `programs`, `courses`, `components`, `offerings` (of programme, course and component), `academicSessions`, `persons`, `associations` (enrolments), `groups`, `buildings`/`rooms` and `news`.
+  - **v6-rc.3 breaks compatibility:** it removes `educationSpecifications`, switches to British spelling (`organisations`, `programmes`), splits components into `learning-components` and `test-components`, gives each type of offering its own endpoint (`/course-offerings`…), adds `offeringState` (`concept`/`active`/`inactive`/`cancelled`), `learning-outcomes` as a resource of its own and `validFrom`/`validTo` on the course.
+  - This justifies having an ACL, but the canonical model should keep the structure **course → offering → academic session**.
+- **It is a pull API.** Each university serves OEAPI through paginated GETs.
+  - v5 only allows writing `persons` and `associations`. v6 adds PUT/PATCH on offerings.
+  - There are no **webhooks, callbacks or delta parameter** (such as `modifiedSince`).
+  - The `since` parameter filters by the start date of the session and **by default returns only future offerings**.
+- **Languages.** In v5, `teachingLanguage` is a **three-letter ISO 639-2** code (`nld`). Texts are arrays of `LanguageTypedString {language:"en-GB", value}`. The spec uses ISO 639-1, so an explicit mapping is needed.
+- **Delivery mode.**
   - **v5:** `distance-learning`, `on campus`, `online`, `hybrid`, `situated`.
-  - **v6:** `blended`, `coil`, `hybrid`, `joint_delivery`, `online`, `presential`… y es extensible con `x-`.
-  - El ENUM del spec (`online-sync`/`online-async`…) **no coincide con ninguna de las dos**. Ninguna fuente distingue síncrono de asíncrono, así que el filtro de §5.1 no tiene datos de origen. Además, un ENUM de PostgreSQL no encaja con enumeraciones extensibles.
-- **eduXchange, EWP y ESCI.**
-  - **eduXchange** es una plataforma de SURF que *consume* OEAPI (la spec incluye un perfil de consumidor `EDUXCHANGE`) y la usan alianzas como EuroTeQ. Independizarse de eduXchange es viable, pero el portal sigue dependiendo de OEAPI. Los socios que ya exponen OEAPI para eduXchange son los candidatos naturales al Canal A.
-  - **EWP** forma parte de la *European Student Card Initiative*, junto con ESI, MyAcademicID y la Erasmus+ App. Ofrece una **Courses API** y una **Simple Course Replication API**: es un canal de catálogo que el spec ignora, y muchos socios tienen nodo EWP pero no OEAPI.
-- **ELM.** El planteamiento de que ELM solo modela credenciales es inexacto. ELM v3 cubre también oportunidades de aprendizaje y cualificaciones mediante el perfil de aplicación **LOQ** (*Learning Opportunities and Qualifications*) que usa Europass. Aun así, la "alineación semántica" solo tiene sentido si se define y valida un mapeo o export a LOQ (`LearningOpportunity` / `LearningAchievementSpecification`). Un comentario en el SQL no la acredita.
+  - **v6:** `blended`, `coil`, `hybrid`, `joint_delivery`, `online`, `presential`… and it is extensible with `x-`.
+  - The spec's ENUM (`online-sync`/`online-async`…) **matches neither of the two**. No source distinguishes synchronous from asynchronous, so the filter of §5.1 has no source data. Moreover, a PostgreSQL ENUM does not suit extensible enumerations.
+- **eduXchange, EWP and ESCI.**
+  - **eduXchange** is a SURF platform that *consumes* OEAPI (the spec includes an `EDUXCHANGE` consumer profile) and is used by alliances such as EuroTeQ. Becoming independent of eduXchange is feasible, but the portal still depends on OEAPI. The partners that already expose OEAPI for eduXchange are the natural candidates for Channel A.
+  - **EWP** is part of the *European Student Card Initiative*, together with ESI, MyAcademicID and the Erasmus+ App. It offers a **Courses API** and a **Simple Course Replication API**: it is a catalogue channel that the spec ignores, and many partners have an EWP node but no OEAPI.
+- **ELM.** The claim that ELM only models credentials is inaccurate. ELM v3 also covers learning opportunities and qualifications through the **LOQ** (*Learning Opportunities and Qualifications*) application profile used by Europass. Even so, the "semantic alignment" only makes sense if a mapping or export to LOQ (`LearningOpportunity` / `LearningAchievementSpecification`) is defined and validated. A comment in the SQL does not establish it.
 - **ISCED-F 2013.**
-  - Son códigos de 2, 3 o 4 dígitos (amplio, estrecho, detallado) con cero inicial (`0613`), así que deben guardarse como texto. `VARCHAR(10)` cabe pero no valida nada.
-  - OEAPI v5 limita el código a 4 caracteres; la v6 admite hasta 6 (extensión neerlandesa SOI 2021).
-  - Faltan tres cosas:
-    - un `CHECK (isced_code ~ '^\d{2,6}$')`;
-    - una tabla de referencia con etiquetas multilingües (el filtro "Humanidades, TIC…" corresponde al nivel de 2 dígitos);
-    - soporte de varios códigos por curso para la oferta interdisciplinar.
+  - The codes have 2, 3 or 4 digits (broad, narrow, detailed) with a leading zero (`0613`), so they must be stored as text. `VARCHAR(10)` fits but validates nothing.
+  - OEAPI v5 limits the code to 4 characters; v6 allows up to 6 (Dutch SOI 2021 extension).
+  - Three things are missing:
+    - a `CHECK (isced_code ~ '^\d{2,6}$')`;
+    - a reference table with multilingual labels (the "Humanities, ICT…" filter corresponds to the 2-digit level);
+    - support for several codes per course, for interdisciplinary provision.
 
-## 2. Defectos del modelo de datos
+## 2. Defects of the data model
 
-**Bloqueantes**
+**Blocking**
 
-1. **No hay tabla `organizations`.** `organization_id` es NOT NULL sin FK, y §5.2-B3 gestiona universidades, facultades y campus, lo que implica una jerarquía (`parent_id`). Sin esa tabla no tienen ancla ni el filtro "Por Partner" ni el RBAC. Debe incluir identificadores SCHAC, código Erasmus y PIC, y un nombre multilingüe.
-2. **Faltan las claves naturales únicas.** No hay `UNIQUE (organization_id, ext_id)` en `courses` ni `UNIQUE (course_id, ext_offering_id)` en `course_offerings`. Sin ellas no hay upsert idempotente y cada reingesta duplica registros.
-3. **No hay estrategia para generar las PK.** `course_id`/`offering_id` son `VARCHAR(100)` sin regla de generación. Conviene usar UUID (la v6 usa `uuid`) o `bigint identity` y dejar `ext_id` como clave natural.
-4. **No hay ciclo de vida.** Sin `status` (draft/published/withdrawn/cancelled) ni `deleted_at`, un socio no puede despublicar un curso. Además, `ON DELETE CASCADE` borra en silencio ofertas e historial lógico. Recomiendo borrado lógico y `ON DELETE RESTRICT`.
-5. **El multilingüismo es rígido.** `title_en NOT NULL` excluye a los socios sin inglés o les empuja a usar traducción automática. Tampoco admite más de dos idiomas (catalán/castellano, regiones belgas). OEAPI usa arrays por idioma. Las opciones son una tabla `course_texts(course_id, field, lang BCP47, value)` o JSONB `{lang: text}`, más una política de *fallback* documentada.
+1. **There is no `organizations` table.** `organization_id` is NOT NULL without an FK, and §5.2-B3 manages universities, faculties and campuses, which implies a hierarchy (`parent_id`). Without that table, neither the "By Partner" filter nor the RBAC has an anchor. It must include SCHAC identifiers, the Erasmus code and the PIC, and a multilingual name.
+2. **The unique natural keys are missing.** There is no `UNIQUE (organization_id, ext_id)` on `courses` nor `UNIQUE (course_id, ext_offering_id)` on `course_offerings`. Without them there is no idempotent upsert and every re-ingestion duplicates records.
+3. **There is no strategy for generating the PKs.** `course_id`/`offering_id` are `VARCHAR(100)` with no generation rule. It is better to use UUIDs (v6 uses `uuid`) or `bigint identity` and leave `ext_id` as the natural key.
+4. **There is no lifecycle.** Without a `status` (draft/published/withdrawn/cancelled) or `deleted_at`, a partner cannot unpublish a course. In addition, `ON DELETE CASCADE` silently deletes offerings and the logical history. I recommend soft deletion and `ON DELETE RESTRICT`.
+5. **Multilingualism is rigid.** `title_en NOT NULL` excludes partners without English or pushes them to machine translation. Nor does it allow more than two languages (Catalan/Spanish, Belgian regions). OEAPI uses arrays per language. The options are a `course_texts(course_id, field, lang BCP47, value)` table or JSONB `{lang: text}`, plus a documented *fallback* policy.
 
-**Importantes**
+**Important**
 
-6. **Calendario.** `semester INT` no modela trimestres, cuatrimestres, bloques ni cursos intensivos o de verano, y `academic_year VARCHAR(9)` no tiene CHECK. Propongo una tabla `academic_sessions` (tipo, padre, fechas) como la de OEAPI. Faltan también estos CHECK: `end_date >= start_date`, `ects_credits > 0` y `alliance_seats <= max_students`.
-7. **`language_of_instruction VARCHAR(10)[]`.** Sirve con un índice GIN, pero no valida los códigos. La ACL debe normalizar entre ISO 639-1 y 639-2.
-8. **Plazas remanentes.** §5.1 las muestra, pero no existe inscripción ni contador. OEAPI ofrece `enrolledNumberStudents` y `pendingNumberStudents`: hay que añadirlos con un timestamp de frescura o retirar la promesa.
-9. **Faltan campos que necesita §5.1:**
-   - URL de solicitud (`link` en OEAPI);
-   - palabras clave (el buscador indexa "palabras clave" que no existen);
-   - nivel bachelor/master/doctorado (`level`) y nivel EQF;
-   - evaluación (`assessment`);
-   - horas lectivas;
-   - coordinador o contacto;
-   - coste;
-   - campus o ubicación;
+6. **Calendar.** `semester INT` does not model three-month terms, four-month terms, blocks or intensive or summer courses, and `academic_year VARCHAR(9)` has no CHECK. I propose an `academic_sessions` table (type, parent, dates) like the one in OEAPI. These CHECKs are also missing: `end_date >= start_date`, `ects_credits > 0` and `alliance_seats <= max_students`.
+7. **`language_of_instruction VARCHAR(10)[]`.** It works with a GIN index, but it does not validate the codes. The ACL must normalise between ISO 639-1 and 639-2.
+8. **Remaining seats.** §5.1 shows them, but there is no enrolment or counter. OEAPI offers `enrolledNumberStudents` and `pendingNumberStudents`: they must be added with a freshness timestamp, or the promise withdrawn.
+9. **Fields that §5.1 needs are missing:**
+   - application URL (`link` in OEAPI);
+   - keywords (the search engine indexes "keywords" that do not exist);
+   - bachelor/master/doctorate level (`level`) and EQF level;
+   - assessment (`assessment`);
+   - teaching hours;
+   - coordinator or contact;
+   - cost;
+   - campus or location;
    - `enrollStartDate`;
-   - zona horaria, necesaria para las modalidades síncronas.
-10. **`ext_metadata_history` está incompleta.** `entity_id` no tiene FK y `entity_type` es texto libre. Faltan `organization_id`, `sync_run_id`, un hash del payload (para deduplicar), la versión del esquema de origen y el resultado de validación. Crecerá sin límite, así que necesita retención y particionado mensual. Si guarda `persons` o coordinadores, aplica el RGPD.
-11. **No existen las tablas que la UI de §5.2 presupone:**
-    - `partner_integrations`: canal activo, endpoint, versión OEAPI, parámetro `consumer`, frecuencia y referencia a credenciales en un vault, nunca en claro.
-    - `sync_runs`: estado y contadores de creados, actualizados, sin cambios, rechazados y retirados.
-    - `sync_errors`: fila o JSON Pointer, código y mensaje.
+   - time zone, needed for the synchronous delivery modes.
+10. **`ext_metadata_history` is incomplete.** `entity_id` has no FK and `entity_type` is free text. Missing: `organization_id`, `sync_run_id`, a hash of the payload (for deduplication), the version of the source schema and the validation result. It will grow without limit, so it needs retention and monthly partitioning. If it stores `persons` or coordinators, the GDPR applies.
+11. **The tables that the UI of §5.2 presupposes do not exist:**
+    - `partner_integrations`: active channel, endpoint, OEAPI version, `consumer` parameter, frequency and a reference to credentials in a vault, never in clear.
+    - `sync_runs`: status and counters of created, updated, unchanged, rejected and withdrawn records.
+    - `sync_errors`: row or JSON Pointer, code and message.
 
-    Sin ellas no hay "Monitor de Historial", ni "Configuración de Sincronización", ni semáforo de conectividad, ni deprecación por versión (§5.2-B2).
-12. **No hay versionado ni auditoría de los registros canónicos** (quién cambió qué), algo imprescindible si el CRUD corrige datos ingeridos. Además, `updated_at` no tiene trigger y `course_offerings` no tiene `updated_at`.
+    Without them there is no "History Monitor", no "Synchronisation Configuration", no connectivity traffic light and no deprecation by version (§5.2-B2).
+12. **There is no versioning or auditing of the canonical records** (who changed what), which is indispensable if the CRUD corrects ingested data. In addition, `updated_at` has no trigger and `course_offerings` has no `updated_at`.
 
-**Búsqueda (§5.1).** El autocompletado multilingüe requiere una decisión explícita entre dos opciones:
+**Search (§5.1).** Multilingual autocompletion requires an explicit choice between two options:
 
-- **PostgreSQL:** `tsvector` por idioma, con una configuración de *stemming* por lengua (algunas, como el catalán, no vienen de serie), más `pg_trgm` para prefijos y errores tipográficos, y `unaccent`. Basta para decenas de miles de cursos.
-- **OpenSearch/Meilisearch:** mejora las facetas y la relevancia, pero añade un servicio y su sincronización.
+- **PostgreSQL:** a `tsvector` per language, with a *stemming* configuration per language (some, such as Catalan, are not included out of the box), plus `pg_trgm` for prefixes and typos, and `unaccent`. Enough for tens of thousands of courses.
+- **OpenSearch/Meilisearch:** improves facets and relevance, but adds a service and its synchronisation.
 
-El esquema actual, con dos columnas de texto fijas, condiciona ambas opciones.
+The current schema, with two fixed text columns, constrains both options.
 
-## 3. Huecos en el diseño de ingesta
+## 3. Gaps in the ingestion design
 
-- **¿Push o pull?** OEAPI se cosecha (pull). Una ruta `/api/v1/ingest/ooapi/v5` implica que *alguien* envía payloads al portal, pero ¿quién: el SIS, un middleware del socio? Eso sería un contrato propio "con forma de OEAPI" que habría que especificar: lote o entidad, autenticación, verbos. Recomiendo que el Canal A sea un *harvester* programado y que el push quede, como mucho, como notificación que dispara un harvest.
-- **Idempotencia.** La clave natural (organización + `primaryCode`/`ext_id`) más un hash de contenido evita escrituras sin cambios. En el push hace falta una cabecera `Idempotency-Key`.
-- **Bajas.** Sin delta ni webhooks, solo se detectan por ausencia en un harvest completo. Recomiendo marcar `withdrawn` tras N ausencias y nunca cuando el harvest ha fallado o vino vacío. Hay que tener en cuenta el `since` por defecto (solo ofertas futuras).
-- **Fallos parciales.** Hay que decidir si cada run es atómico o se procesa entidad a entidad. Recomiendo entidad a entidad con estado `partial`; una oferta cuyo curso se rechaza también se rechaza.
-- **CSV.** Falta una plantilla versionada que fije:
-  - las columnas y su mapeo al canónico;
-  - UTF-8, el separador y el formato ISO 8601;
-  - la codificación de multivalores e idiomas;
-  - si se usa un fichero o dos (curso y oferta).
+- **Push or pull?** OEAPI is harvested (pull). A `/api/v1/ingest/ooapi/v5` route implies that *someone* sends payloads to the portal, but who: the SIS, a partner middleware? That would be a contract of its own "shaped like OEAPI" that would have to be specified: batch or entity, authentication, verbs. I recommend that Channel A be a scheduled *harvester* and that push remain, at most, a notification that triggers a harvest.
+- **Idempotency.** The natural key (organization + `primaryCode`/`ext_id`) plus a content hash avoids writes without changes. For push, an `Idempotency-Key` header is needed.
+- **Withdrawals.** Without delta or webhooks, they can only be detected by absence in a complete harvest. I recommend marking `withdrawn` after N absences, and never when the harvest has failed or came back empty. The default `since` (future offerings only) must be taken into account.
+- **Partial failures.** It must be decided whether each run is atomic or processed entity by entity. I recommend entity by entity with a `partial` status; an offering whose course is rejected is rejected too.
+- **CSV.** A versioned template is missing that sets:
+  - the columns and their mapping to the canonical model;
+  - UTF-8, the separator and the ISO 8601 format;
+  - the encoding of multi-values and languages;
+  - whether one file or two (course and offering) are used.
 
-  El validador del navegador y el del servidor deben compartir **un único JSON Schema**, y el servidor revalida siempre.
-- **Cambio de canal o canales mixtos.** Hace falta registrar `source_channel` por registro, tener un canal autoritativo por organización y fijar reglas para las ediciones manuales sobre datos de API: se sobrescriben, se bloquean o se marcan como *overrides*. Al migrar de canal hay que conservar los `ext_id`.
-- **Contrato de errores.** Propongo RFC 9457 (`problem+json`) con ubicación (fila/columna o JSON Pointer), severidad y código estable.
-- **Límites.** Hay que fijar el tamaño de CSV y payload, el máximo de filas, el *rate limit* **hacia** el SIS del socio, timeouts y reintentos con *backoff*.
-- **Seguridad.** Los endpoints configurables por los socios abren riesgo de SSRF: hace falta una lista de destinos permitidos.
+  The browser validator and the server validator must share **a single JSON Schema**, and the server always revalidates.
+- **Change of channel or mixed channels.** A `source_channel` must be recorded per record, there must be one authoritative channel per organization, and rules must be set for manual edits to API data: they are overwritten, locked or marked as *overrides*. When migrating between channels the `ext_id` values must be kept.
+- **Error contract.** I propose RFC 9457 (`problem+json`) with location (row/column or JSON Pointer), severity and a stable code.
+- **Limits.** Set the CSV and payload size, the maximum number of rows, the *rate limit* **towards** the partner's SIS, timeouts and retries with *backoff*.
+- **Security.** Endpoints configurable by the partners open an SSRF risk: an allowlist of destinations is needed.
 
-## 4. Preguntas que el owner debe responder antes de programar
+## 4. Questions the owner must answer before programming
 
-1. ¿El Canal A es pull (harvest de la OEAPI de cada socio) o push, y en ese caso quién envía y con qué contrato?
-2. ¿El MVP soporta v5 y v6 (todavía en RC) y descarta la v4?
-3. ¿Cuál es la clave natural única de curso y de oferta por organización, y es estable entre cursos académicos?
-4. ¿El inglés es obligatorio o se publican cursos solo en el idioma local, y con qué *fallback*?
-5. ¿Qué estados de ciclo de vida existen y cómo despublica o cancela un socio desde cada canal?
-6. ¿Puede una organización combinar canales y qué prevalece cuando se edita a mano un dato ingerido?
-7. ¿Las plazas remanentes salen del SIS, las gestiona el portal o quedan fuera del alcance?
-8. ¿Qué vocabulario de modalidad se adopta (el de OEAPI v6 o uno propio) y de dónde sale la distinción síncrono/asíncrono?
-9. ¿EWP Courses API será un cuarto canal o queda explícitamente fuera?
-10. ¿La búsqueda se hace en PostgreSQL o con un motor dedicado, y en qué idiomas debe funcionar el *stemming*?
+1. Is Channel A pull (harvest of each partner's OEAPI) or push, and in that case who sends and with what contract?
+2. Does the MVP support v5 and v6 (still in RC) and drop v4?
+3. What is the unique natural key of a course and an offering per organization, and is it stable across academic years?
+4. Is English mandatory, or are courses published in the local language only, and with what *fallback*?
+5. What lifecycle states exist, and how does a partner unpublish or cancel from each channel?
+6. Can an organization combine channels, and what prevails when an ingested value is edited by hand?
+7. Do the remaining seats come from the SIS, are they managed by the portal, or are they out of scope?
+8. Which delivery-mode vocabulary is adopted (that of OEAPI v6 or one of our own), and where does the synchronous/asynchronous distinction come from?
+9. Will the EWP Courses API be a fourth channel, or is it explicitly out of scope?
+10. Is search done in PostgreSQL or with a dedicated engine, and in which languages must *stemming* work?
 
 ---
-Fuentes: [OEAPI spec (GitHub)](https://github.com/open-education-api/specification) · [releases](https://api.github.com/repos/open-education-api/specification/releases) · [OEAPI v6 docs](https://oeapi.eu/specification/v6.0/index.html) · [EuroTeQ/eduXchange](https://euroteq.eurotech-universities.eu/news/euroteq-course-catalogue-making-studying-abroad-easier-with-myacademicid-and-eduxchange/) · [EWP APIs overview](https://esci-sd.atlassian.net/wiki/spaces/ITSC/pages/111509524/APIs+-+overview) · [ELM v3 launch](https://europass.europa.eu/en/news/launch-european-learning-model-new-step-interoperability-learning) · [QDR/LOQ docs](https://europass.europa.eu/en/stakeholders/qdr/documentlibrary)
+Sources: [OEAPI spec (GitHub)](https://github.com/open-education-api/specification) · [releases](https://api.github.com/repos/open-education-api/specification/releases) · [OEAPI v6 docs](https://oeapi.eu/specification/v6.0/index.html) · [EuroTeQ/eduXchange](https://euroteq.eurotech-universities.eu/news/euroteq-course-catalogue-making-studying-abroad-easier-with-myacademicid-and-eduxchange/) · [EWP APIs overview](https://esci-sd.atlassian.net/wiki/spaces/ITSC/pages/111509524/APIs+-+overview) · [ELM v3 launch](https://europass.europa.eu/en/news/launch-european-learning-model-new-step-interoperability-learning) · [QDR/LOQ docs](https://europass.europa.eu/en/stakeholders/qdr/documentlibrary)

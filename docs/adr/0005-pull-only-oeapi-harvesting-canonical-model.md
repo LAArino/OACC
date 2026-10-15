@@ -6,7 +6,7 @@
 - Status: Accepted
 - Date: 2026-10-14
 - Deciders: Lluís Alfons Ariño
-- Consulted: [R00] `docs/review/00-consolidado-decisiones-pendientes.md`, [R02] `docs/review/02-modelo-datos-ingesta.md`, [RP] `docs/research/partner-oeapi-endpoints.md`, [DL] `docs/decisions-log.md`, `docs/spec-v4.0.md`
+- Consulted: [R00] `docs/review/00-consolidated-pending-decisions.md`, [R02] `docs/review/02-data-model-and-ingestion.md`, [RP] `docs/research/partner-oeapi-endpoints.md`, [DL] `docs/decisions-log.md`, `docs/spec-v4.0.md`
 
 ## Context and problem statement
 

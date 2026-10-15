@@ -10,7 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- Docs: every document is now in English. The owner decisions log
+  (`docs/decisions-log.md`) is translated in place; the Spanish original is
+  frozen at row 26 in `docs/archive/decisions-log.es.md`. The four reviews
+  [R00]–[R03] are translated and renamed (`docs/review/00-consolidated-pending-decisions.md`,
+  `01-identity.md`, `02-data-model-and-ingestion.md`,
+  `03-architecture-stack-licences.md`). The original specification v3.0 moves
+  untranslated to `docs/archive/spec-v3.0-original.es.md`; archived documents
+  are never updated. References in the ADRs, the specifications and the
+  documentation index follow the new paths; the index drops its "Language"
+  column, and CONTRIBUTING states the rule.
 
 ## [0.7.0] - 2026-10-15
 

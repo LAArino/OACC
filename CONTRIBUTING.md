@@ -9,8 +9,12 @@ participating you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Ground rules
 
-- **Language.** English is used throughout: code, comments, commit messages,
-  issues, pull requests, documentation and ADRs.
+- **Language.** English is used throughout: code, identifiers, comments,
+  commit messages, issues, pull requests, documentation and ADRs.
+- **Original Spanish documents.** The owner's original documents in Spanish
+  (specification v3.0 and the decisions log up to row 26) live in
+  [docs/archive/](docs/archive/README.md) and are never updated; the English
+  documents are authoritative.
 - **Licence: inbound = outbound.** Every contribution is accepted under the same
   licence the project is distributed under, the
   [European Union Public Licence v. 1.2](LICENSE) (EUPL-1.2). Trivial

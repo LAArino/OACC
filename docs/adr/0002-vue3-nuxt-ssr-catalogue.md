@@ -6,7 +6,7 @@
 - Status: Accepted
 - Date: 2026-10-14
 - Deciders: Lluís Alfons Ariño
-- Consulted: [R03] `docs/review/03-arquitectura-stack-licencias.md`, [DL] `docs/decisions-log.md`, `docs/spec-v4.0.md`
+- Consulted: [R03] `docs/review/03-architecture-stack-licences.md`, [DL] `docs/decisions-log.md`, `docs/spec-v4.0.md`
 
 ## Context and problem statement
 

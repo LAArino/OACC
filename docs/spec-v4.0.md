@@ -1,6 +1,6 @@
 # Open European Campus Portal (OECP) — Specification v4.0
 
-Status: implementation baseline · Date: 2026-10-14 · Supersedes `docs/spec-v3.0-original.md` · Licence: EUPL-1.2
+Status: implementation baseline · Date: 2026-10-14 · Supersedes `docs/archive/spec-v3.0-original.es.md` · Licence: EUPL-1.2
 
 **Sources.** [R00]–[R03] = `docs/review/00…03-*.md`; [RP] = `docs/research/partner-oeapi-endpoints.md`; [DL n] = row *n* of `docs/decisions-log.md`, which prevails over the reviews. RFC 2119 keywords apply.
 

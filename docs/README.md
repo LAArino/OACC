@@ -3,21 +3,21 @@
 
 # OECP documentation
 
-| Document | Description | Language |
-|---|---|---|
-| [spec-v4.1.md](spec-v4.1.md) | **Specification v4.1**, v4.0 synchronised with the implementation; updated through release 0.7.0. Start here. | English |
-| [spec-v4.0.md](spec-v4.0.md) | Specification v4.0, the implementation baseline (2026-10-14), superseded by v4.1; cited by ADR-0001 to ADR-0015. | English |
-| [spec-v3.0-original.md](spec-v3.0-original.md) | Original specification v3.0, superseded by v4.0; kept for reference. | Spanish |
-| [review/](review/) | Critical reviews of specification v3.0 that led to v4.0, cited as [R00]–[R03]. | Spanish |
-| [research/](research/) | Background research, cited as [RP]. | English |
-| [decisions-log.md](decisions-log.md) | Owner decisions answering the open questions of the reviews, cited as [DL n]; prevails over the reviews. | Spanish |
-| [adr/](adr/) | Architecture decision records (MADR). | English |
-| [backlog.md](backlog.md) | Owner-requested items not yet scheduled, with their trigger. | English |
-| [RELEASING.md](RELEASING.md) | Versioning, contract and migration policy, release procedure and checklist. | English |
-| [api/](api/README.md) | OpenAPI 3.1 documents of the public catalogue API (`/api/public/v1`) and the admin API (`/api/admin/v1`), generated from the Zod contracts; how to regenerate, view and version them. | English |
-| [data/](data/aurora-virtual-campus-2026-27/README.md) | Real course data transcribed into CSV template 1.2: the 13 courses of the Aurora Virtual Campus 2026–27 (a snapshot for the first upload, not a maintained dataset). | English |
-| [images/](images/README.md) | Annotated screenshots of the public portal, the administration panel and the operations stack, used by the guides. | English |
-| [screenshots/](screenshots/) | Screenshots of the development stack taken while verifying features (identity, catalogue, admin console, course wizard). Illustrative only: not kept in sync with every change. | — |
+| Document | Description |
+|---|---|
+| [spec-v4.1.md](spec-v4.1.md) | **Specification v4.1**, v4.0 synchronised with the implementation; updated through release 0.7.0. Start here. |
+| [spec-v4.0.md](spec-v4.0.md) | Specification v4.0, the implementation baseline (2026-10-14), superseded by v4.1; cited by ADR-0001 to ADR-0015. |
+| [review/](review/) | Critical reviews of specification v3.0 that led to v4.0, cited as [R00]–[R03]; translated from Spanish on 2026-10-15. |
+| [research/](research/) | Background research, cited as [RP]. |
+| [decisions-log.md](decisions-log.md) | Owner decisions answering the open questions of the reviews, cited as [DL n]; prevails over the reviews. |
+| [archive/](archive/README.md) | The owner's original Spanish documents, never updated: specification v3.0 (superseded by v4.0) and the decisions log as it stood on 2026-10-15 (row 26). |
+| [adr/](adr/) | Architecture decision records (MADR). |
+| [backlog.md](backlog.md) | Owner-requested items not yet scheduled, with their trigger. |
+| [RELEASING.md](RELEASING.md) | Versioning, contract and migration policy, release procedure and checklist. |
+| [api/](api/README.md) | OpenAPI 3.1 documents of the public catalogue API (`/api/public/v1`) and the admin API (`/api/admin/v1`), generated from the Zod contracts; how to regenerate, view and version them. |
+| [data/](data/aurora-virtual-campus-2026-27/README.md) | Real course data transcribed into CSV template 1.2: the 13 courses of the Aurora Virtual Campus 2026–27 (a snapshot for the first upload, not a maintained dataset). |
+| [images/](images/README.md) | Annotated screenshots of the public portal, the administration panel and the operations stack, used by the guides. |
+| [screenshots/](screenshots/) | Screenshots of the development stack taken while verifying features (identity, catalogue, admin console, course wizard). Illustrative only: not kept in sync with every change. |
 
 ## Onboarding
 
@@ -53,10 +53,12 @@ Templates and drafts for the alliance's legal and operations staff before go-liv
 
 ## Reviews
 
-- [00-consolidado-decisiones-pendientes.md](review/00-consolidado-decisiones-pendientes.md) — [R00] consolidated review and pending decisions.
-- [01-identidad.md](review/01-identidad.md) — [R01] identity layer.
-- [02-modelo-datos-ingesta.md](review/02-modelo-datos-ingesta.md) — [R02] data model and ingestion.
-- [03-arquitectura-stack-licencias.md](review/03-arquitectura-stack-licencias.md) — [R03] architecture, stack and licences.
+Critical reviews of specification v3.0 (2026-10-14), translated into English on 2026-10-15; the Spanish originals are in the Git history of each file.
+
+- [00-consolidated-pending-decisions.md](review/00-consolidated-pending-decisions.md) — [R00] consolidated review and pending decisions.
+- [01-identity.md](review/01-identity.md) — [R01] identity layer.
+- [02-data-model-and-ingestion.md](review/02-data-model-and-ingestion.md) — [R02] data model and ingestion.
+- [03-architecture-stack-licences.md](review/03-architecture-stack-licences.md) — [R03] architecture, stack and licences.
 
 ## Research
 

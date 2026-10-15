@@ -6,7 +6,7 @@
 - Status: Accepted
 - Date: 2026-10-14
 - Deciders: Lluís Alfons Ariño
-- Consulted: [R01] `docs/review/01-identidad.md`, `docs/spec-v4.0.md` §4, [ADR-0004](0004-keycloak-only-identity-one-saml-idp-per-partner.md), `identity/keycloak/README.md`
+- Consulted: [R01] `docs/review/01-identity.md`, `docs/spec-v4.0.md` §4, [ADR-0004](0004-keycloak-only-identity-one-saml-idp-per-partner.md), `identity/keycloak/README.md`
 
 ## Context and problem statement
 

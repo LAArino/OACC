@@ -6,7 +6,7 @@
 - Status: Accepted
 - Date: 2026-10-14
 - Deciders: Lluís Alfons Ariño
-- Consulted: [R02] `docs/review/02-modelo-datos-ingesta.md`, [R03] `docs/review/03-arquitectura-stack-licencias.md`, [RP] `docs/research/partner-oeapi-endpoints.md`, [DL] `docs/decisions-log.md`, `docs/spec-v4.0.md`
+- Consulted: [R02] `docs/review/02-data-model-and-ingestion.md`, [R03] `docs/review/03-architecture-stack-licences.md`, [RP] `docs/research/partner-oeapi-endpoints.md`, [DL] `docs/decisions-log.md`, `docs/spec-v4.0.md`
 
 ## Context and problem statement
 

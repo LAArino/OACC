@@ -1,3 +1,8 @@
+<!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
+<!-- SPDX-License-Identifier: EUPL-1.2 -->
+
+> **Archived.** The owner's original specification v3.0, in Spanish (2026-10-14). It is superseded by [specification v4.0](../spec-v4.0.md) and [specification v4.1](../spec-v4.1.md) and kept unchanged as the starting point that the reviews [R00]–[R03] in [`docs/review/`](../review/) examined. The English specifications and the [decisions log](../decisions-log.md) are authoritative.
+
 # Open European Campus Portal (OECP) — Documento Unificado de Especificación Técnica y Funcional (v3.0)
 
 El Open European Campus Portal (OECP) es una solución de software modular, soberana y de código abierto concebida bajo la licencia European Union Public Licence (EUPL v1.2). Su propósito es la federación, gestión y publicación del catálogo formativo global de una alianza de universidades europeas.

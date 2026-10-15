@@ -1,76 +1,81 @@
-# OECP v3.0: revisión consolidada y decisiones pendientes
+<!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
+<!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-Fecha: 14-10-2026. Fuente: tres revisiones independientes (identidad, modelo de datos e ingesta, arquitectura/stack/licencias) en esta carpeta, validadas desde la sesión principal. Donde una afirmación la he comprobado yo directamente se indica con **[verificado]**; el resto procede de los informes parciales con sus fuentes.
+# OECP v3.0: consolidated review and pending decisions
 
-## 1. Veredicto corto
+> Translated from the Spanish original on 2026-10-15; the Spanish text is in the Git history of this file. Quotations of specification v3.0 are translated from its Spanish original ([archived](../archive/spec-v3.0-original.es.md)).
 
-La idea es sólida y el alcance es el correcto para una alianza. Pero la especificación v3.0 todavía no se puede programar: tiene decisiones "A o B" abiertas, una capa de identidad más ambiciosa de lo que el MVP necesita, un modelo de datos al que le faltan las tablas de las que depende la propia interfaz descrita, y varias afirmaciones técnicas que no se sostienen tal como están escritas.
+Date: 2026-10-14. Source: three independent reviews (identity, data model and ingestion, architecture/stack/licences) in this folder, validated from the main session. Where I have checked a statement directly myself it is marked **[verified]**; the rest comes from the partial reports with their sources.
 
-Recomendación: fijar las decisiones del apartado 4, reescribir la spec como v4.0 (en inglés) y empezar por un MVP sin wallet y solo con OEAPI v5 harvest + CSV + formulario.
+## 1. Short verdict
 
-## 2. Hallazgos que cambian la especificación
+The idea is sound and the scope is the right one for an alliance. But specification v3.0 cannot be programmed yet: it has open "A or B" decisions, an identity layer more ambitious than the MVP needs, a data model that lacks the tables on which the interface it describes depends, and several technical statements that do not hold as written.
 
-### 2.1 Identidad
+Recommendation: settle the decisions of section 4, rewrite the spec as v4.0 (in English) and start with an MVP without a wallet and with only OEAPI v5 harvest + CSV + form.
 
-- **El módulo `simplesamlphp-module-oid4vp` es tuyo** (LAArino, EUPL-1.2, v1.0.0 de septiembre 2026, último push 08-10-2026) **[verificado]**. La spec lo presenta como un componente externo "open-source"; conviene decir que es parte del proyecto, porque cambia la lectura del riesgo de mantenimiento (un solo mantenedor) y de auditoría (ninguna externa).
-- **Dos fallos de seguridad en `PresentationVerifier.php` [verificado leyendo `main`]:**
-  1. La clave del emisor se resuelve desde el `kid` de la cabecera del VC (cualquier `did:key` vale) y la confianza se comprueba después sobre el claim `iss`. Nada obliga a que el DID del `kid` sea el de `iss`. Un atacante puede firmar un VC con una clave propia y poner como `iss` el DID de una universidad de confianza.
-  2. No hay vinculación del titular: no se comprueba que el firmante del VP coincida con `credentialSubject.id`, así que un VC robado se puede presentar desde otra wallet.
-  Además solo se procesa el primer VC, `exp` del VP es opcional, la resolución `did:web` y el Universal Resolver hacen peticiones salientes a URLs que controla quien presenta (SSRF), y sin lista de confianza el módulo acepta cualquier emisor en "modo desarrollo".
-- **La spec describe algo que el módulo no hace.** Solo acepta W3C VC en JWT (ES256, DIDs); SD-JWT VC, DCQL y `direct_post.jwt` figuran como planificados. Las wallets nacionales EUDI (ARF/HAIP) exigen SD-JWT VC o mdoc, cliente identificado por X.509 y certificado de registro del RP. Hoy el módulo encaja con el ecosistema EBSI/BLUE, no con "la EUDI Wallet". El texto "W3C VC (SD-JWT / JWT)" mezcla dos formatos distintos.
-- **Keycloak 26.8 (01-10-2026) ya trae un verificador OID4VP experimental** con SD-JWT VC y DCQL. No está listo para producción, pero cambia la justificación de la sección 2.
-- **Ninguna credencial académica prueba "admin de la Universidad X".** EducationalID, AllianceID y MyAcademicID acreditan identidad o afiliación. Los roles de administración deben asignarse localmente, y el modelo `uni_valencia_admin` (un rol por universidad) no escala: mejor un rol `partner_admin` más un claim `organization_id`.
-- **MyAcademicID** es sobre todo el proxy IAM de GÉANT para Erasmus+/ESCI, no un "marco de credencial de DC4EU". El ESI solo se libera para estudiantes activos, así que no sirve para el personal del panel.
-- **Para el MVP sobra simpleSAMLphp.** El panel lo usan los gestores de 9 o 10 socios, no toda eduGAIN. Keycloak solo, con un IdP SAML por socio y MFA local, basta. El contrato con el backend es el JWT de Keycloak, así que el proxy con OID4VP (o el verificador nativo de Keycloak cuando madure) se añade después como un IdP más.
-- **Faltan:** registro del SP en la federación nacional con entity categories (REFEDS Personalized + CoCo v2 + Sirtfi), identificador estable (`subject-id`/`pairwise-id`, no ePPN), flujo de alta/baja de administradores y bootstrap del primer admin global, política de MFA, tiempos de sesión y logout propagado, DPIA y acuerdo de corresponsabilidad (art. 26 RGPD), y la declaración explícita de que el portal público no pasa por Keycloak.
+## 2. Findings that change the specification
 
-### 2.2 Modelo de datos e ingesta
+### 2.1 Identity
 
-- **Nombre y versiones.** OEAPI y OOAPI son el mismo estándar de SURF; el nombre actual es OEAPI. La versión estable es la v5.0; la v6.0 está en release candidate (`v6.0-rc.3`, 30-09-2026) y rompe compatibilidad con v5 (elimina `educationSpecifications`, renombra recursos, añade `offeringState`). La v4 es legacy. El ingestor debe plantearse como **v5 + v6**, no v4 + v5. Unificar el nombre en todo el documento, incluido el enum y las rutas.
-- **OEAPI es pull.** La sirve cada universidad con GET paginados, sin webhooks ni parámetro de delta. Una ruta "push" `/api/v1/ingest/ooapi/v5` necesita un contrato propio que la spec no define. Recomendación: el Canal A es un harvester programado; el push, como mucho, una notificación que dispara un harvest. Las bajas solo se detectan por ausencia en un harvest completo.
-- **El ENUM de modalidad no coincide con OEAPI** (v5: `distance-learning`, `on campus`, `online`, `hybrid`, `situated`; v6: `blended`, `coil`, `hybrid`, `online`, `presential`, extensible). Ninguna fuente distingue síncrono de asíncrono, así que ese filtro no tendría datos.
-- **Idiomas:** OEAPI v5 usa ISO 639-2 de tres letras y textos como arrays tipados por idioma BCP 47; la spec usa ISO 639-1 y dos columnas fijas. Hace falta mapeo explícito y una estructura multilingüe real (tabla `course_texts` o JSONB por idioma). `title_en NOT NULL` excluye socios sin inglés.
-- **Bloqueantes del SQL:** no hay tabla `organizations` (con jerarquía, SCHAC, código Erasmus, PIC); no hay `UNIQUE (organization_id, ext_id)` ni `UNIQUE (course_id, ext_offering_id)`, así que cada reingesta duplica; las PK son VARCHAR sin regla de generación; no hay estado de ciclo de vida ni borrado lógico, así que un socio no puede despublicar; `ON DELETE CASCADE` borra ofertas en silencio.
-- **Tablas que la UI presupone y no existen:** `partner_integrations` (canal, endpoint, versión, credenciales en vault), `sync_runs`, `sync_errors`, `academic_sessions`. Sin ellas no hay monitor de historial, ni configuración de sincronización, ni semáforo, ni deprecación por versión.
-- **Campos que la ficha pública necesita y faltan:** URL de solicitud, palabras clave, nivel (bachelor/master, EQF), evaluación, horas, contacto, campus, `enrollStartDate`, zona horaria. Las "plazas remanentes" no tienen origen: OEAPI ofrece `enrolledNumberStudents`; hay que traerlo con timestamp de frescura o retirar la promesa.
-- **ELM** no se limita a credenciales: el perfil LOQ cubre oportunidades de aprendizaje. La "alineación" solo vale si se define un export a LOQ. **ISCED-F** necesita CHECK, tabla de referencia multilingüe y soporte multivalor.
-- **EWP Courses API** es un canal de catálogo que muchos socios tienen aunque no tengan OEAPI; la spec lo ignora.
-- **Búsqueda:** decidir PostgreSQL (tsvector por idioma + pg_trgm + unaccent; el catalán no trae stemmer de serie) o motor dedicado. El esquema actual condiciona ambas opciones.
+- **The `simplesamlphp-module-oid4vp` module is yours** (LAArino, EUPL-1.2, v1.0.0 of September 2026, last push 2026-10-08) **[verified]**. The spec presents it as an external "open-source" component; it should say that it is part of the project, because that changes how the maintenance risk (a single maintainer) and the audit risk (no external audit) are read.
+- **Two security flaws in `PresentationVerifier.php` [verified by reading `main`]:**
+  1. The issuer key is resolved from the `kid` in the VC header (any `did:key` will do) and trust is then checked against the `iss` claim. Nothing requires the DID of the `kid` to be that of `iss`. An attacker can sign a VC with their own key and put the DID of a trusted university as `iss`.
+  2. There is no holder binding: nothing checks that the signer of the VP matches `credentialSubject.id`, so a stolen VC can be presented from another wallet.
+  In addition, only the first VC is processed, `exp` of the VP is optional, `did:web` resolution and the Universal Resolver make outgoing requests to URLs controlled by whoever presents (SSRF), and without a trust list the module accepts any issuer in "development mode".
+- **The spec describes something the module does not do.** It accepts only W3C VCs in JWT (ES256, DIDs); SD-JWT VC, DCQL and `direct_post.jwt` are listed as planned. The national EUDI wallets (ARF/HAIP) require SD-JWT VC or mdoc, a client identified by X.509 and an RP registration certificate. Today the module fits the EBSI/BLUE ecosystem, not "the EUDI Wallet". The text "W3C VC (SD-JWT / JWT)" mixes two different formats.
+- **Keycloak 26.8 (2026-10-01) already ships an experimental OID4VP verifier** with SD-JWT VC and DCQL. It is not production-ready, but it changes the justification of section 2.
+- **No academic credential proves "admin of University X".** EducationalID, AllianceID and MyAcademicID attest identity or affiliation. Administration roles must be assigned locally, and the `uni_valencia_admin` model (one role per university) does not scale: a `partner_admin` role plus an `organization_id` claim is better.
+- **MyAcademicID** is above all GÉANT's IAM proxy for Erasmus+/ESCI, not a "DC4EU credential framework". The ESI is released only for active students, so it is of no use for the staff of the panel.
+- **simpleSAMLphp is unnecessary for the MVP.** The panel is used by the managers of 9 or 10 partners, not by the whole of eduGAIN. Keycloak alone, with one SAML IdP per partner and local MFA, is enough. The contract with the backend is the Keycloak JWT, so the proxy with OID4VP (or Keycloak's native verifier when it matures) can be added later as one more IdP.
+- **Missing:** registration of the SP in the national federation with entity categories (REFEDS Personalized + CoCo v2 + Sirtfi), a stable identifier (`subject-id`/`pairwise-id`, not ePPN), the flow for adding and removing administrators and the bootstrap of the first global admin, an MFA policy, session times and propagated logout, a DPIA and a joint-controllership agreement (GDPR art. 26), and the explicit statement that the public portal does not go through Keycloak.
 
-### 2.3 Arquitectura, stack y licencias
+### 2.2 Data model and ingestion
 
-- **Kong ya no cumple la promesa de la sección 6:** el código sigue en Apache 2.0, pero desde la 3.10 (marzo 2025) no hay imágenes OSS ni free mode, y plugins como OIDC son de pago. Recomendación: **Traefik**.
-- **Decisiones A/B recomendadas:** NestJS (TypeScript de punta a punta, mismo esquema Zod en navegador y servidor para el validador CSV), Vue 3 + Nuxt (SSR para SEO del catálogo, curva de entrada baja), Traefik. FastAPI es válido si el equipo es Python; lo importante es cerrar.
-- **La tabla de licencias mezcla dos cosas:** desplegar Keycloak, Traefik o PostgreSQL sin modificarlos no crea obra derivada; solo lo modificado (temas, SPI, forks) importa. simpleSAMLphp es LGPL-2.1-or-later. EUPL tiene cláusula de red: quien despliegue una versión modificada debe publicar su código. Al ampliar el stack: Valkey en vez de Redis, OpenBao en vez de Vault.
-- **Gobernanza:** DCO (no CLA), Contributor Covenant, SECURITY.md, GOVERNANCE.md, `publiccode.yml`, REUSE/SPDX. Titularidad del repositorio y la marca: entidad jurídica de la alianza o universidad coordinadora con acuerdo firmado. Comprobar que el grant agreement Erasmus+ permite EUPL.
-- **Requisitos no funcionales ausentes:** hosting y operación, SLO/RPO/RTO, backups con PITR, observabilidad, RGPD (responsable/encargado, retención del JSONB, registro de actividades), accesibilidad (Directiva 2016/2102 obliga a EN 301 549 = WCAG 2.1 AA; apuntar a 2.2), i18n de la interfaz (no solo del contenido), API pública de lectura OEAPI v5 para que otros cosechen el catálogo, JSON-LD schema.org/Course, seguridad (OWASP ASVS L2, claves de partners cifradas, inyección CSV, rate limiting, lista de destinos permitidos para evitar SSRF), tests de contrato contra el OpenAPI de OEAPI.
-- **Arquitectura:** faltan motor de búsqueda, cola de trabajos, planificador de harvest, almacenamiento de ficheros y correo. "Contenedores independientes" y "ACL dentro del Backend Core" se contradicen: mejor un monolito modular. No hay autenticación máquina a máquina para el canal push.
+- **Name and versions.** OEAPI and OOAPI are the same SURF standard; the current name is OEAPI. The stable version is v5.0; v6.0 is a release candidate (`v6.0-rc.3`, 2026-09-30) and breaks compatibility with v5 (it removes `educationSpecifications`, renames resources, adds `offeringState`). v4 is legacy. The ingestor should be planned as **v5 + v6**, not v4 + v5. Use one name throughout the document, including the enum and the routes.
+- **OEAPI is pull.** Each university serves it with paginated GETs, without webhooks or a delta parameter. A "push" route `/api/v1/ingest/ooapi/v5` needs a contract of its own that the spec does not define. Recommendation: Channel A is a scheduled harvester; push is at most a notification that triggers a harvest. Withdrawals can only be detected by absence in a complete harvest.
+- **The delivery-mode ENUM does not match OEAPI** (v5: `distance-learning`, `on campus`, `online`, `hybrid`, `situated`; v6: `blended`, `coil`, `hybrid`, `online`, `presential`, extensible). No source distinguishes synchronous from asynchronous, so that filter would have no data.
+- **Languages:** OEAPI v5 uses three-letter ISO 639-2 and texts as arrays typed by BCP 47 language; the spec uses ISO 639-1 and two fixed columns. An explicit mapping and a real multilingual structure (a `course_texts` table or JSONB per language) are needed. `title_en NOT NULL` excludes partners without English.
+- **SQL blockers:** there is no `organizations` table (with hierarchy, SCHAC, Erasmus code, PIC); there is no `UNIQUE (organization_id, ext_id)` nor `UNIQUE (course_id, ext_offering_id)`, so every re-ingestion duplicates; the PKs are VARCHAR with no generation rule; there is no lifecycle state or soft delete, so a partner cannot unpublish; `ON DELETE CASCADE` silently deletes offerings.
+- **Tables that the UI presupposes and that do not exist:** `partner_integrations` (channel, endpoint, version, credentials in a vault), `sync_runs`, `sync_errors`, `academic_sessions`. Without them there is no history monitor, no synchronisation configuration, no traffic light and no deprecation by version.
+- **Fields that the public course page needs and that are missing:** application URL, keywords, level (bachelor/master, EQF), assessment, hours, contact, campus, `enrollStartDate`, time zone. The "remaining seats" have no source: OEAPI offers `enrolledNumberStudents`; it has to be brought in with a freshness timestamp, or the promise withdrawn.
+- **ELM** is not limited to credentials: the LOQ profile covers learning opportunities. The "alignment" only counts if an export to LOQ is defined. **ISCED-F** needs a CHECK, a multilingual reference table and multi-value support.
+- **EWP Courses API** is a catalogue channel that many partners have even when they have no OEAPI; the spec ignores it.
+- **Search:** decide on PostgreSQL (tsvector per language + pg_trgm + unaccent; Catalan has no stemmer out of the box) or a dedicated engine. The current schema constrains both options.
 
-## 3. Fases propuestas
+### 2.3 Architecture, stack and licences
 
-| Fase | Incluye | Se aplaza porque |
+- **Kong no longer keeps the promise of section 6:** the code is still Apache 2.0, but since 3.10 (March 2025) there are no OSS images and no free mode, and plugins such as OIDC are paid. Recommendation: **Traefik**.
+- **Recommended A/B decisions:** NestJS (TypeScript end to end, the same Zod schema in browser and server for the CSV validator), Vue 3 + Nuxt (SSR for catalogue SEO, low learning curve), Traefik. FastAPI is valid if the team is a Python team; what matters is to decide.
+- **The licence table mixes two things:** deploying Keycloak, Traefik or PostgreSQL without modifying them does not create a derivative work; only what is modified (themes, SPIs, forks) matters. simpleSAMLphp is LGPL-2.1-or-later. EUPL has a network clause: whoever deploys a modified version must publish its code. When extending the stack: Valkey instead of Redis, OpenBao instead of Vault.
+- **Governance:** DCO (not a CLA), Contributor Covenant, SECURITY.md, GOVERNANCE.md, `publiccode.yml`, REUSE/SPDX. Ownership of the repository and the trademark: the legal entity of the alliance or a coordinating university, with a signed agreement. Check that the Erasmus+ grant agreement allows EUPL.
+- **Missing non-functional requirements:** hosting and operation, SLO/RPO/RTO, backups with PITR, observability, GDPR (controller/processor, retention of the JSONB, record of processing activities), accessibility (Directive 2016/2102 requires EN 301 549 = WCAG 2.1 AA; aim for 2.2), i18n of the interface (not only of the content), a public OEAPI v5 read API so that others can harvest the catalogue, JSON-LD schema.org/Course, security (OWASP ASVS L2, encrypted partner keys, CSV injection, rate limiting, an allowlist of destinations to avoid SSRF), contract tests against the OEAPI OpenAPI.
+- **Architecture:** a search engine, a job queue, a harvest scheduler, file storage and e-mail are missing. "Independent containers" and "ACL inside the Backend Core" contradict each other: a modular monolith is better. There is no machine-to-machine authentication for the push channel.
+
+## 3. Proposed phases
+
+| Phase | Includes | Deferred because |
 |---|---|---|
-| MVP | Catálogo público (PG FTS, filtros, ficha), API pública OEAPI v5 de lectura, panel con formulario y CSV, Keycloak con SAML por socio y RBAC por organización, MFA, Docker Compose, WCAG AA, UI en EN + un idioma | |
-| v1 | Harvester OEAPI v5 (y v6 cuando salga de RC), monitor de sincronización, gestión de organizaciones, observabilidad, Helm, motor de búsqueda dedicado si PG no basta | Depende de qué socios tienen API real |
-| v2 | Wallet (OID4VP vía SSP o Keycloak nativo), EWP Courses API, OEAPI v4 si un socio lo exige, consola de versiones, analítica, export ELM/LOQ | La wallet aporta poco a un panel de staff con IdP institucional, y el módulo necesita las correcciones de 2.1 y SD-JWT VC antes de producción |
+| MVP | Public catalogue (PG FTS, filters, course page), public OEAPI v5 read API, panel with form and CSV, Keycloak with SAML per partner and RBAC per organization, MFA, Docker Compose, WCAG AA, UI in EN + one language | |
+| v1 | OEAPI v5 harvester (and v6 when it leaves RC), synchronisation monitor, organization management, observability, Helm, dedicated search engine if PG is not enough | Depends on which partners have a real API |
+| v2 | Wallet (OID4VP via SSP or native Keycloak), EWP Courses API, OEAPI v4 if a partner requires it, version console, analytics, ELM/LOQ export | The wallet adds little to a staff panel with an institutional IdP, and the module needs the fixes of 2.1 and SD-JWT VC before production |
 
-## 4. Decisiones que debes tomar antes de escribir código
+## 4. Decisions you must take before writing code
 
-Ordenadas por impacto. Cada una bloquea algo concreto.
+Ordered by impact. Each one blocks something specific.
 
-1. **Alcance del MVP:** ¿sin wallet y sin OEAPI v4, con Keycloak solo? Bloquea la arquitectura de identidad entera.
-2. **Titularidad y RGPD:** ¿qué entidad jurídica es dueña del código y la marca, responsable del tratamiento, y RP registrado ante eIDAS2 cuando toque? Bloquea licencias, DPIA y registro del SP en eduGAIN.
-3. **Canal A, pull o push:** ¿harvest programado de la OEAPI de cada socio, o alguien envía payloads? Si push, ¿quién y con qué contrato? Bloquea el diseño de la ACL.
-4. **Inventario de socios:** ¿cuántos tienen OEAPI (v5 o v6), cuántos EWP, cuántos solo CSV o formulario? Bloquea la prioridad de canales y si EWP entra.
-5. **Clave natural y ciclo de vida:** ¿cuál es el identificador estable de curso y oferta por organización, qué estados existen y cómo despublica un socio desde cada canal? Bloquea el esquema.
-6. **Multilingüismo:** ¿inglés obligatorio o se publican cursos solo en idioma local, con qué fallback, y cuántos idiomas por socio? Bloquea el esquema y la búsqueda.
-7. **Vocabulario de modalidad:** ¿se adopta el de OEAPI v6 o uno propio, y de dónde saldría síncrono/asíncrono? Bloquea el filtro público y la plantilla CSV.
-8. **Plazas remanentes:** ¿del SIS vía OEAPI, gestionadas en el portal, o fuera de alcance? Bloquea la ficha pública.
-9. **Roles y altas:** ¿quién asigna y retira administradores de socio y globales, cómo se crea el primero, se exige MFA? Bloquea Keycloak.
-10. **Stack y equipo:** ¿NestJS + Vue/Nuxt + Traefik, o FastAPI porque el equipo es Python? ¿Quién aloja y opera, con qué presupuesto y SLO? Bloquea el scaffolding.
-11. **Idioma y gobernanza del proyecto:** ¿inglés en código, docs e issues, DCO con inbound = outbound EUPL-1.2, monorepo? Bloquea el primer commit.
-12. **Canales mixtos:** ¿puede una organización combinar canales y qué prevalece cuando se edita a mano un dato ingerido? Bloquea el CRUD manual.
+1. **MVP scope:** without a wallet and without OEAPI v4, with Keycloak alone? Blocks the whole identity architecture.
+2. **Ownership and GDPR:** which legal entity owns the code and the trademark, is the controller, and is the RP registered under eIDAS2 when the time comes? Blocks licences, the DPIA and the registration of the SP in eduGAIN.
+3. **Channel A, pull or push:** scheduled harvest of each partner's OEAPI, or does someone send payloads? If push, who, and with what contract? Blocks the design of the ACL.
+4. **Partner inventory:** how many have OEAPI (v5 or v6), how many EWP, how many only CSV or form? Blocks the priority of the channels and whether EWP is included.
+5. **Natural key and lifecycle:** what is the stable identifier of a course and an offering per organization, what states exist, and how does a partner unpublish from each channel? Blocks the schema.
+6. **Multilingualism:** is English mandatory, or are courses published in the local language only, with what fallback, and how many languages per partner? Blocks the schema and search.
+7. **Delivery-mode vocabulary:** is that of OEAPI v6 adopted, or one of our own, and where would synchronous/asynchronous come from? Blocks the public filter and the CSV template.
+8. **Remaining seats:** from the SIS via OEAPI, managed in the portal, or out of scope? Blocks the public course page.
+9. **Roles and account creation:** who assigns and removes partner and global administrators, how is the first one created, is MFA required? Blocks Keycloak.
+10. **Stack and team:** NestJS + Vue/Nuxt + Traefik, or FastAPI because the team is a Python team? Who hosts and operates, with what budget and SLO? Blocks the scaffolding.
+11. **Language and governance of the project:** English in code, docs and issues, DCO with inbound = outbound EUPL-1.2, monorepo? Blocks the first commit.
+12. **Mixed channels:** can an organization combine channels, and what prevails when an ingested value is edited by hand? Blocks the manual CRUD.
 
-## 5. Acción inmediata independiente del portal
+## 5. Immediate action independent of the portal
 
-Corregir en `simplesamlphp-module-oid4vp`, antes de cualquier despliegue: (a) exigir que el DID del `kid` del VC coincida con `iss`, o resolver la clave a partir de `iss` y no del `kid`; (b) comprobar que el DID del firmante del VP coincide con `credentialSubject.id`; (c) bloquear el modo sin lista de confianza fuera de desarrollo; (d) restringir la resolución `did:web` y el Universal Resolver a dominios permitidos; (e) hacer obligatorio `exp` en el VP y procesar o rechazar explícitamente VPs con varios VC.
+Fix in `simplesamlphp-module-oid4vp`, before any deployment: (a) require the DID of the VC's `kid` to match `iss`, or resolve the key from `iss` and not from the `kid`; (b) check that the DID of the VP signer matches `credentialSubject.id`; (c) block the mode without a trust list outside development; (d) restrict `did:web` resolution and the Universal Resolver to allowed domains; (e) make `exp` mandatory in the VP and explicitly process or reject VPs with several VCs.

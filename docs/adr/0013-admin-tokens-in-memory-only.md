@@ -6,7 +6,7 @@
 - Status: Accepted
 - Date: 2026-10-14
 - Deciders: Lluís Alfons Ariño
-- Consulted: [R01] `docs/review/01-identidad.md`, [DL] `docs/decisions-log.md`, `docs/spec-v4.0.md`, [ADR-0002](0002-vue3-nuxt-ssr-catalogue.md), [ADR-0004](0004-keycloak-only-identity-one-saml-idp-per-partner.md)
+- Consulted: [R01] `docs/review/01-identity.md`, [DL] `docs/decisions-log.md`, `docs/spec-v4.0.md`, [ADR-0002](0002-vue3-nuxt-ssr-catalogue.md), [ADR-0004](0004-keycloak-only-identity-one-saml-idp-per-partner.md)
 
 ## Context and problem statement
 

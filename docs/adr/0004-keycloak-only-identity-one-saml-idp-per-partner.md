@@ -6,7 +6,7 @@
 - Status: Accepted
 - Date: 2026-10-14
 - Deciders: Lluís Alfons Ariño
-- Consulted: [R00] `docs/review/00-consolidado-decisiones-pendientes.md`, [R01] `docs/review/01-identidad.md`, [DL] `docs/decisions-log.md`, `docs/spec-v4.0.md`
+- Consulted: [R00] `docs/review/00-consolidated-pending-decisions.md`, [R01] `docs/review/01-identity.md`, [DL] `docs/decisions-log.md`, `docs/spec-v4.0.md`
 
 ## Context and problem statement
 
