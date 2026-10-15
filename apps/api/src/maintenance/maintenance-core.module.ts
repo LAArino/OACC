@@ -24,8 +24,15 @@ import { MaintenanceRunsRepository } from './maintenance-runs.repository.js';
             infer: true,
           }),
           OECP_RETENTION_AUDIT_MONTHS: config.get('OECP_RETENTION_AUDIT_MONTHS', { infer: true }),
+          OECP_RETENTION_SOFT_DELETED_MONTHS: config.get('OECP_RETENTION_SOFT_DELETED_MONTHS', {
+            infer: true,
+          }),
           OECP_DORMANCY_DAYS: config.get('OECP_DORMANCY_DAYS', { infer: true }),
           OECP_DORMANCY_DRY_RUN: config.get('OECP_DORMANCY_DRY_RUN', { infer: true }),
+          OECP_ACCOUNT_DELETE_MONTHS: config.get('OECP_ACCOUNT_DELETE_MONTHS', { infer: true }),
+          OECP_ACCOUNT_CLEANUP_DRY_RUN: config.get('OECP_ACCOUNT_CLEANUP_DRY_RUN', {
+            infer: true,
+          }),
         }),
     },
     MaintenanceRunsRepository,

@@ -249,6 +249,10 @@
       "network": {
         "title": "Network status",
         "description": "Health of every organization's data feed: channel, last run, courses and administrators."
+      },
+      "maintenance": {
+        "title": "Maintenance",
+        "description": "Worker maintenance jobs: run one now, follow the runs and review the dormancy and account clean-up dry runs."
       }
     },
     "org": {
@@ -650,6 +654,16 @@
         "title": "Back to draft?",
         "course": "Move {subject} back to draft? It disappears from the public catalogue.",
         "offering": "Move {subject} back to draft? It disappears from the public course page."
+      },
+      "revert": {
+        "heading": "Status override",
+        "text": "The status {status} is set here as an override. The partner's value is {source}.",
+        "unknownSource": "not known",
+        "button": "Revert status to the partner's value",
+        "title": "Revert the status?",
+        "message": "Remove the status override of {subject}? Its status becomes the partner's value, {source}.",
+        "confirm": "Revert status",
+        "done": "Status reverted to the partner's value ({status})."
       }
     },
     "history": {
@@ -778,6 +792,14 @@
         "status": "Publishing requires the English title.",
         "statusOther": "The course is currently {status}; saving keeps that status unless you choose one here. Use the status actions to change it.",
         "notOverridable": "Not overridable: change it in the partner's system."
+      },
+      "attributeYes": "Yes",
+      "attributeNo": "No",
+      "deleteBlocked": {
+        "harvested": "Harvested records cannot be deleted here: the partner removes them at the source. Withdraw or cancel them with a status action instead.",
+        "overridesMode": "This organization is harvested through OEAPI, so its records cannot be deleted here.",
+        "published": "A published record cannot be deleted. Withdraw or cancel it first.",
+        "publishedOfferings": "The course has published offerings, so it cannot be deleted. Withdraw or cancel them first."
       }
     },
     "completeness": {
@@ -813,7 +835,8 @@
         "learning_outcomes": "Learning outcomes",
         "prerequisites": "Requirements: prerequisites",
         "assessment": "Assessment"
-      }
+      },
+      "missingBadge": "{n} missing"
     },
     "offerings": {
       "heading": "Offerings",
@@ -1164,6 +1187,131 @@
       "historyLink": "Sync history",
       "historyFor": "Sync history of {name}",
       "unknown": "Unknown"
+    },
+    "maintenance": {
+      "title": "Maintenance",
+      "intro": "The worker runs these jobs every day. Every run is recorded below with its counters and details; runs are kept for 12 months.",
+      "jobsHeading": "Jobs",
+      "runNow": "Run now",
+      "queueing": "Queueing…",
+      "queued": "{job}: run queued. It appears in the runs below once the worker starts it.",
+      "alreadyQueued": "{job}: a run requested earlier is still waiting or running, so no second run was added.",
+      "runFailed": "{job} could not be queued",
+      "lastRun": "Latest run listed: {date}, {status}.",
+      "dryRunBadge": "Dry run",
+      "jobs": {
+        "historyPartitions": {
+          "title": "History partitions",
+          "description": "Creates the monthly partitions of the raw-payload history ahead of time and drops those older than the retention period.",
+          "schedule": "Daily at 00:10 UTC and when the worker starts."
+        },
+        "retention": {
+          "title": "Retention",
+          "description": "Deletes expired sync errors, sync runs, audit entries, settled invitations, maintenance runs and idle activity records, and fails runs left running for 6 hours.",
+          "schedule": "Daily at 04:45 UTC."
+        },
+        "dormancy": {
+          "title": "Dormancy",
+          "description": "Revokes the roles of administrators inactive for more than 180 days; the last alliance administrator is always kept.",
+          "schedule": "Daily at 05:00 UTC."
+        },
+        "accountCleanup": {
+          "title": "Account clean-up",
+          "description": "Deletes the login accounts of former administrators whose roles were removed (revocation or dormancy) at least 12 months ago, unless they are still in use.",
+          "schedule": "Daily at 05:15 UTC."
+        },
+        "csvRetention": {
+          "title": "CSV upload retention",
+          "description": "Deletes uploaded CSV files after 90 days.",
+          "schedule": "Daily at 04:30 UTC."
+        },
+        "idpMetadataRefresh": {
+          "title": "IdP metadata refresh",
+          "description": "Refreshes the SAML metadata of the partner identity providers from the signed federation aggregate.",
+          "schedule": "Daily at 04:15 UTC and shortly after the worker starts."
+        }
+      },
+      "trigger": {
+        "schedule": "Scheduled",
+        "startup": "Worker start",
+        "manual": "Run now"
+      },
+      "status": {
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "skipped": "Skipped (already running)"
+      },
+      "dryRun": {
+        "heading": "Dry run",
+        "text": "Dormancy and account clean-up remove access. Until the hosting operator enables them they run in dry run: they change nothing and list the administrators they would revoke or delete, so that the alliance can review each run below before they are enabled.",
+        "mode": {
+          "dryRun": "dry run (latest run {date}).",
+          "enforced": "enabled: the latest run ({date}) applied its changes.",
+          "unknown": "no run listed yet; dry run unless the operator enabled it."
+        },
+        "switch": "Enabled by setting {variable}=false in the worker environment.",
+        "runNotice": "Dry run: nothing was changed. The administrators below would be affected once {variable}=false is set in the worker environment."
+      },
+      "runs": {
+        "heading": "Runs",
+        "intro": "Newest first. Open a run to see its details.",
+        "job": "Job",
+        "allJobs": "All jobs",
+        "limit": "Show",
+        "latest": "Latest {n} runs",
+        "refresh": "Refresh",
+        "loading": "Loading the runs…",
+        "empty": "No runs recorded yet.",
+        "updated": "No runs listed | 1 run listed | {n} runs listed",
+        "caption": "No runs | 1 run | {n} runs, newest first",
+        "showDetails": "Show details",
+        "hideDetails": "Hide details",
+        "detailsOf": "of the {job} run started {date}",
+        "columns": {
+          "started": "Started",
+          "job": "Job",
+          "trigger": "Trigger",
+          "status": "Status",
+          "duration": "Duration",
+          "counters": "Counters",
+          "error": "Error",
+          "details": "Details"
+        }
+      },
+      "details": {
+        "id": "Run id",
+        "triggeredBy": "Requested by",
+        "system": "The worker (scheduled)",
+        "finished": "Finished",
+        "notFinished": "Not finished",
+        "error": "Error",
+        "empty": "This run recorded no details."
+      },
+      "candidates": {
+        "caption": "1 administrator listed | {n} administrators listed",
+        "captionDryRun": "1 administrator who would be affected | {n} administrators who would be affected",
+        "empty": "No administrator is listed by this run.",
+        "sub": "Account (sub)",
+        "roles": "Roles",
+        "organization": "Organization",
+        "lastActivity": "Last activity",
+        "inactiveDays": "Days inactive",
+        "action": "Action",
+        "rolesRemoved": "None: removed {date} ({how})",
+        "removal": {
+          "revoke": "revoked by an alliance administrator",
+          "dormant_revoke": "dormancy"
+        }
+      },
+      "candidateAction": {
+        "would_revoke": "Would be revoked",
+        "revoked": "Revoked",
+        "kept_last_alliance_admin": "Kept: last alliance administrator",
+        "failed": "Failed",
+        "would_delete": "Would be deleted",
+        "deleted": "Deleted"
+      }
     }
   },
   "accept": {
@@ -1237,6 +1385,10 @@
     "validationFailed": "Some values were not accepted. Check the form and try again.",
     "duplicateIdentifier": "Another organization already uses one of these identifiers (SCHAC home organization, Erasmus code, PIC or identity provider alias).",
     "notLocalAccount": "This account signs in through a university: there is no set-up e-mail to send.",
-    "setupComplete": "This account has already completed its set-up: there is nothing to resend."
+    "setupComplete": "This account has already completed its set-up: there is nothing to resend.",
+    "invitationMismatchEmail": "The account you signed in with does not have the e-mail address this invitation was sent to. Sign out, then sign in with the invited address.",
+    "invitationMismatchIdp": "You did not sign in through your university, and this organization's administrators must. Sign out, then sign in through your university with the invited address.",
+    "invitationMismatchHomeOrganization": "Your university's sign-in did not confirm that you belong to the invited organization. Ask an alliance administrator to check the invitation, or your university's IT service to check the attributes it sends.",
+    "invitationMismatchOrganization": "Your account already administers another organization, and an account can administer only one. Ask an alliance administrator for help."
   }
 }

@@ -24,6 +24,7 @@ import type { Database, HistoryEntityType } from '../db/database.js';
 import { type Db, KYSELY } from '../db/db.module.js';
 import { loadCompleteness } from './handbook-completeness.js';
 import { jcsSha256 } from './jcs.js';
+import { minimiseRawPayload } from './oeapi/raw-payload.js';
 import {
   clearOverrides,
   hasOverrides,
@@ -382,13 +383,17 @@ export class CanonicalWriter {
     const contentHash = jcsSha256(course);
     return this.run(async (trx) => {
       await this.checkAttributes(trx, course);
-      const existing = await trx
+      const found = await trx
         .selectFrom('courses')
-        .select(['id', 'status', 'content_hash', 'overrides', 'absent_count'])
+        .select(['id', 'status', 'content_hash', 'overrides', 'absent_count', 'deleted_at'])
         .where('organization_id', '=', ctx.organizationId)
         .where('ext_id', '=', course.ext_id)
         .forUpdate()
         .executeTakeFirst();
+      const revived = found?.deleted_at
+        ? await this.reviveCourse(trx, ctx, found, course.ext_id)
+        : false;
+      const existing = found && revived ? { ...found, overrides: {}, content_hash: null } : found;
 
       const source = {
         status: course.status as LifecycleStatus,
@@ -472,7 +477,7 @@ export class CanonicalWriter {
           if (existing.status !== status) {
             await this.auditStatus(trx, ctx, 'course', entityId, existing, status);
           }
-          outcome = 'updated';
+          outcome = revived ? 'created' : 'updated';
         } else {
           entityId = (
             await trx
@@ -526,7 +531,7 @@ export class CanonicalWriter {
           )?.id ?? null;
         if (!sessionId) {
           issues.push({
-            code: 'oecp.content.unknown_session',
+            code: 'oecp.content.session_ignored',
             severity: 'warning',
             message: `Unknown academic session ${offering.academic_session_ext_id}; offering stored without it`,
             pointer: '/academicSession',
@@ -535,13 +540,17 @@ export class CanonicalWriter {
         }
       }
 
-      const existing = await trx
+      const found = await trx
         .selectFrom('course_offerings')
-        .select(['id', 'status', 'content_hash', 'overrides', 'absent_count'])
+        .select(['id', 'status', 'content_hash', 'overrides', 'absent_count', 'deleted_at'])
         .where('course_id', '=', course.id)
         .where('ext_offering_id', '=', offering.ext_offering_id)
         .forUpdate()
         .executeTakeFirst();
+      const revived = found?.deleted_at
+        ? await this.reviveOffering(trx, ctx, found, historyId)
+        : false;
+      const existing = found && revived ? { ...found, overrides: {}, content_hash: null } : found;
 
       const source = {
         status: offering.status as LifecycleStatus,
@@ -630,7 +639,7 @@ export class CanonicalWriter {
               effective.status,
             );
           }
-          outcome = 'updated';
+          outcome = revived ? 'created' : 'updated';
         } else {
           entityId = (
             await trx
@@ -1370,6 +1379,88 @@ export class CanonicalWriter {
       .execute();
   }
 
+  /**
+   * A write to a soft-deleted course brings it back (spec §8.2: a code deleted in
+   * error comes back when it is written again, from any channel): `deleted_at`
+   * cleared, overrides dropped, hash reset so the write applies; audited
+   * `course.revive`. Its deleted offerings stay deleted until written again.
+   */
+  private async reviveCourse(
+    trx: Trx,
+    ctx: WriteContext,
+    course: { id: string; overrides: Record<string, unknown> | null },
+    extId: string,
+  ): Promise<true> {
+    await trx
+      .updateTable('courses')
+      .set({ deleted_at: null, overrides: {}, content_hash: null })
+      .where('id', '=', course.id)
+      .execute();
+    await trx
+      .updateTable('course_texts')
+      .set({ overrides: {} })
+      .where('course_id', '=', course.id)
+      .execute();
+    await this.auditRevive(
+      trx,
+      ctx,
+      'course',
+      course.id,
+      Object.keys(course.overrides ?? {}),
+      extId,
+    );
+    return true;
+  }
+
+  private async reviveOffering(
+    trx: Trx,
+    ctx: WriteContext,
+    offering: { id: string; overrides: Record<string, unknown> | null },
+    historyId: string,
+  ): Promise<true> {
+    await trx
+      .updateTable('course_offerings')
+      .set({ deleted_at: null, overrides: {}, content_hash: null })
+      .where('id', '=', offering.id)
+      .execute();
+    await this.auditRevive(
+      trx,
+      ctx,
+      'course_offering',
+      offering.id,
+      Object.keys(offering.overrides ?? {}),
+      historyId,
+    );
+    return true;
+  }
+
+  private async auditRevive(
+    trx: Trx,
+    ctx: WriteContext,
+    entityType: 'course' | 'course_offering',
+    entityId: string,
+    droppedOverrides: string[],
+    extId?: string,
+  ): Promise<void> {
+    await trx
+      .insertInto('audit_log')
+      .values({
+        actor_sub: ctx.actor,
+        actor_org_id: null,
+        action: `${entityType}.revive`,
+        entity_type: entityType,
+        entity_id: entityId,
+        changes: {
+          ...(extId ? { ext_id: extId } : {}),
+          channel: ctx.channel,
+          deleted: { from: true, to: false },
+          ...(droppedOverrides.length ? { overrides_dropped: droppedOverrides } : {}),
+          sync_run_id: ctx.syncRunId,
+        },
+      })
+      .execute();
+  }
+
   private async auditStatus(
     trx: Trx,
     ctx: WriteContext,
@@ -1396,16 +1487,21 @@ export class CanonicalWriter {
       .execute();
   }
 
-  /** Stores the raw payload unless it equals the latest one of the same entity (spec §5 "History"). */
+  /**
+   * Stores the raw payload unless it equals the latest one of the same entity
+   * (spec §5 "History"); harvested payloads are minimised first.
+   */
   private async history(
     trx: Trx,
     ctx: WriteContext,
     entityType: HistoryEntityType,
     entityId: string | null,
     extId: string,
-    raw: unknown,
+    source: unknown,
     result: 'accepted' | 'rejected',
   ): Promise<void> {
+    // Harvested payloads lose their person data before they are kept (spec §5.2).
+    const raw = ctx.channel === 'oeapi' ? minimiseRawPayload(source) : source;
     const payloadSha = jcsSha256(raw ?? null);
     const latest = await trx
       .selectFrom('ext_metadata_history')

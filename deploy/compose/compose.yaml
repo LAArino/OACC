@@ -57,6 +57,13 @@ x-oecp-backend-env: &oecp-backend-env
   # Maintenance (spec §10): dormancy stays a dry run until the alliance enables it.
   OECP_DORMANCY_DRY_RUN: ${OECP_DORMANCY_DRY_RUN:-true}
   OECP_DORMANCY_DAYS: ${OECP_DORMANCY_DAYS:-180}
+  # Keycloak accounts without OECP role, 12 months after the role removal (spec
+  # §2.2, §10): a dry run until the alliance enables it.
+  OECP_ACCOUNT_CLEANUP_DRY_RUN: ${OECP_ACCOUNT_CLEANUP_DRY_RUN:-true}
+  OECP_ACCOUNT_DELETE_MONTHS: ${OECP_ACCOUNT_DELETE_MONTHS:-12}
+  OECP_RETENTION_SOFT_DELETED_MONTHS: ${OECP_RETENTION_SOFT_DELETED_MONTHS:-12}
+  # Request logs carry no client address or User-Agent; true adds a salted hash.
+  OECP_LOG_CLIENT_ADDRESSES: ${OECP_LOG_CLIENT_ADDRESSES:-false}
   # IdP metadata refresh (spec §4): empty URL = job disabled. The eduGAIN aggregate
   # is ~94 MB, hence the raised size limit; mount the pinned signing certificate.
   OECP_IDP_METADATA_URL: ${OECP_IDP_METADATA_URL:-}
@@ -73,6 +80,14 @@ x-oecp-backend-env: &oecp-backend-env
   SMTP_HOST: ${OECP_SMTP_HOST:-}
   SMTP_PORT: ${OECP_SMTP_PORT:-25}
   SMTP_FROM: ${OECP_SMTP_FROM:-no-reply@example.org}
+  SMTP_STARTTLS: ${OECP_SMTP_STARTTLS:-true}
+  # Optional SMTP AUTH: user here, password as a Docker secret (uncomment the
+  # `smtp_password` secret of api and worker and in `secrets:` below).
+  SMTP_USER: ${OECP_SMTP_USER:-}
+  SMTP_PASSWORD_FILE: ${OECP_SMTP_PASSWORD_FILE:-}
+  # NODE_ENV=production refuses to start with an empty SMTP host (invitation links
+  # would only be logged) unless this is true. Development without Mailpit only.
+  OECP_MAIL_LOG_LINKS: ${OECP_MAIL_LOG_LINKS:-false}
   # Standard OpenTelemetry SDK variables (spec §10 Observability). The SDK is
   # disabled unless the `observability` profile is running.
   OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
@@ -84,12 +99,28 @@ x-oecp-backend-secrets: &oecp-backend-secrets
   - oecp_db_password
   - oecp_master_key
   - oecp_backend_client_secret
+  # With SMTP AUTH (OECP_SMTP_USER, OECP_SMTP_PASSWORD_FILE=/run/secrets/smtp_password):
+  # - smtp_password
 
+# Log retention (spec §10; README "Log retention"). Every service logs to Docker's
+# json-file driver with rotation. The limits are SIZE-based: a container keeps at
+# most max-file × max-size of logs, so the age reached depends on its volume.
+# Size them for ~90 days of application logs (README explains how), or ship the
+# logs to Loki (profile `observability`, observability/loki.yaml), whose retention
+# is time-based (90 days).
 x-logging: &default-logging
   driver: json-file
   options:
-    max-size: 10m
-    max-file: "5"
+    max-size: ${OECP_LOG_MAX_SIZE:-10m}
+    max-file: "${OECP_LOG_MAX_FILE:-5}"
+
+# Traefik: its own logs plus, when enabled, the access log (client addresses:
+# personal data, 30 days at most). Size max-file × max-size for ~30 days.
+x-logging-traefik: &traefik-logging
+  driver: json-file
+  options:
+    max-size: ${OECP_TRAEFIK_LOG_MAX_SIZE:-20m}
+    max-file: "${OECP_TRAEFIK_LOG_MAX_FILE:-10}"
 
 services:
   # -------------------------------------------------------------------------
@@ -102,8 +133,20 @@ services:
       - --global.checknewversion=false
       - --global.sendanonymoususage=false
       - --log.level=${TRAEFIK_LOG_LEVEL:-INFO}
-      - --accesslog=true
+      # Access log (spec §10: kept 30 days at most): OFF by default. Set
+      # OECP_TRAEFIK_ACCESS_LOG=true in .env to write one JSON line per request to
+      # stdout, i.e. into this container's json-file log (x-logging-traefik:
+      # size it for ~30 days). Request headers (User-Agent, cookies, Authorization)
+      # are never logged; client addresses are. To pseudonymise or drop them, or to
+      # write to a rotated file instead, uncomment and adapt:
+      # - --accesslog.fields.names.ClientAddr=drop
+      # - --accesslog.fields.names.ClientHost=drop
+      # - --accesslog.fields.names.ClientPort=drop
+      # - --accesslog.fields.names.RequestPath=keep
+      # - --accesslog.filepath=/var/log/traefik/access.log   (rotate with logrotate + USR1)
+      - --accesslog=${OECP_TRAEFIK_ACCESS_LOG:-false}
       - --accesslog.format=json
+      - --accesslog.fields.headers.defaultmode=drop
       - --ping=true
       # Providers: Docker labels for routers, a file for shared middlewares and TLS options.
       - --providers.docker=true
@@ -152,7 +195,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-    logging: *default-logging
+    logging: *traefik-logging
 
   # -------------------------------------------------------------------------
   # Data stores
@@ -649,8 +692,10 @@ services:
     image: grafana/loki:3.7.8
     profiles: ["observability"]
     restart: unless-stopped
-    command: ["-config.file=/etc/loki/local-config.yaml"]
+    # Time-based retention: 90 days (spec §10), compactor-enforced.
+    command: ["-config.file=/etc/loki/oecp.yaml"]
     volumes:
+      - ./observability/loki.yaml:/etc/loki/oecp.yaml:ro
       - loki_data:/loki
     networks:
       - backend
@@ -722,3 +767,5 @@ secrets:
     file: ./secrets/oecp_master_key
   grafana_admin_password:
     file: ./secrets/grafana_admin_password
+  # smtp_password:
+  #   file: ./secrets/smtp_password

@@ -226,6 +226,8 @@ describe('validateCsvRows: courses', () => {
       [{ ects: '7,5' }, 'oecp.csv.invalid_number', 'ects'],
       [{ ects: '0' }, 'oecp.csv.invalid_number', 'ects'],
       [{ title_en: '' }, 'oecp.csv.missing_value', 'title_en'],
+      // Too long is a value error, not a missing English title.
+      [{ title_en: 'x'.repeat(501) }, 'oecp.content.invalid_value', 'title_en'],
       [{ info_url: 'http://x.org' }, 'oecp.csv.invalid_url', 'info_url'],
       [{ contact_email: 'nobody' }, 'oecp.csv.invalid_email', 'contact_email'],
       [{ course_code: '-bad' }, 'oecp.csv.invalid_code', 'course_code'],

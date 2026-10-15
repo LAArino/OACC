@@ -45,17 +45,27 @@ class AbortRun extends Error {
   }
 }
 
+/** Issue with the catalogue severity of `code` (never overridden, spec §6.6). */
 function problem(
   code: ErrorCode,
   detail?: string,
-  extra: Partial<ProblemError> = {},
+  extra: Omit<Partial<ProblemError>, 'severity' | 'code'> = {},
 ): ProblemError {
   const message = detail ? `${ERROR_CODES[code].message}: ${detail}` : ERROR_CODES[code].message;
   return { code, severity: ERROR_CODES[code].severity, message, ...extra };
 }
 
-function fromOeapiError(error: OeapiError, extra: Partial<ProblemError> = {}): ProblemError {
-  return { code: error.code, severity: 'error', message: error.message, ...extra };
+/** Issue of a failed request; the severity is the catalogue's (spec §6.6). */
+function fromOeapiError(
+  error: OeapiError,
+  extra: Omit<Partial<ProblemError>, 'severity'> = {},
+): ProblemError {
+  return {
+    code: error.code,
+    severity: ERROR_CODES[error.code].severity,
+    message: error.message,
+    ...extra,
+  };
 }
 
 function isoDate(date: Date): string {
@@ -309,13 +319,7 @@ export class HarvestService {
     await this.writer.recordOrganization(ctx, extId, roots[0]);
     if (roots.length > 1) {
       await this.safeRecord(ctx, [
-        {
-          ...problem(
-            'oecp.oeapi.root_not_matched',
-            `${roots.length} root organizations; the first was used`,
-          ),
-          severity: 'warning',
-        },
+        problem('oecp.oeapi.multiple_roots', `${roots.length} root organizations`),
       ]);
     }
   }
@@ -336,12 +340,21 @@ export class HarvestService {
     if (sourceRef && state.sourceCourseIds.has(sourceRef)) return; // repeated across pages
     if (sourceRef) state.sourceCourseIds.add(sourceRef);
     if (extId && state.seenCourses.has(extId)) {
-      state.count('rejected');
-      await this.safeReject(
+      // The first item with the code was processed; this one is ignored (a warning,
+      // as the catalogue says), not rejected.
+      await this.safeRecord(
         ctx,
-        { entityType: 'course', extId: `${extId}@${sourceRef ?? index}` },
-        raw,
-        [problem('oecp.oeapi.duplicate_entity', `primaryCode ${extId}`, { ext_id: extId })],
+        [
+          problem(
+            'oecp.oeapi.duplicate_entity',
+            `primaryCode ${extId} (item ${sourceRef ?? index})`,
+            {
+              ext_id: extId,
+              pointer: '/primaryCode/code',
+            },
+          ),
+        ],
+        'course',
       );
       return;
     }
@@ -444,7 +457,13 @@ export class HarvestService {
       });
       if (error.fatal) throw new AbortRun(issue);
       state.notes.push(`offering listing of ${courseExtId ?? courseId} failed: ${error.code}`);
-      await this.safeRecord(ctx, [{ ...issue, code: 'oecp.oeapi.listing_failed' }], 'course');
+      // The page cap is reported as itself (a warning); any other cause as
+      // listing_failed (an error) carrying the cause.
+      const recorded =
+        error.code === 'oecp.oeapi.page_cap_reached'
+          ? issue
+          : { ...issue, code: 'oecp.oeapi.listing_failed', severity: 'error' as const };
+      await this.safeRecord(ctx, [recorded], 'course');
     }
   }
 
@@ -496,7 +515,6 @@ export class HarvestService {
         if (error.fatal) throw new AbortRun(fromOeapiError(error));
         warnings.push(
           problem('oecp.oeapi.detail_unavailable', `${error.code}: ${error.message}`, {
-            severity: 'warning',
             pointer: '/offeringId',
           }),
         );
@@ -509,10 +527,11 @@ export class HarvestService {
     if (extId) {
       const key = offeringKey(course.course.ext_id, extId);
       if (seenHere.has(key)) {
-        state.count('rejected');
-        await this.safeReject(ctx, { entityType: 'course_offering', extId: historyId }, raw, [
-          problem('oecp.oeapi.duplicate_entity', `offering ${extId}`),
-        ]);
+        await this.safeRecord(
+          ctx,
+          [problem('oecp.oeapi.duplicate_entity', `offering ${extId}`, { ext_id: historyId })],
+          'course_offering',
+        );
         return;
       }
       seenHere.add(key);

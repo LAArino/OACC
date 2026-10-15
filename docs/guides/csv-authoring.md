@@ -42,7 +42,7 @@ A row must declare at least the version of every column in the header (filled or
 | `status` | yes | `draft`, `published`, `withdrawn`, `cancelled` | `published` | see [Status](#status-and-omission) |
 | `ects` | yes | ≤ 3 digits, ≤ 2 decimals, 0 < x ≤ 120 | `7.5` | |
 | `isced_codes` | yes | 2–6 digits, `\|`-separated | `0532\|0312` | first is primary; no duplicates; known broad field |
-| `title_en` | yes | 1–500 characters | `BIP: AI & Ethics` | required on every row, any status |
+| `title_en` | yes | 1–500 characters | `BIP: AI & Ethics` | required on every row, any status; empty: `oecp.csv.missing_value`, longer: `oecp.content.invalid_value` |
 | `kind` | 1.1 | `course`, `bip`, `lecture_series`, `other` | `bip` | empty → `course` |
 | `levels` | 1.1 | `short_cycle`, `bachelor`, `master`, `doctoral`, `other`, `\|`-separated | `master\|bachelor` | primary first; duplicates dropped; lower case |
 | `level` | no | one level | `master` | 1.0 style; not with `levels` |
@@ -102,7 +102,9 @@ Aurora's definitions (`apps/api/db/seed/attribute-definitions.aurora.json`, stil
 
 ## Status and omission
 
-`status` is set per row and may be any of the four values; publishing a course needs the English title, which `courses.csv` always has. **Omission never withdraws:** a course or offering missing from a file is left as it is. To take something down, upload its row with `status` `withdrawn` (or `cancelled` for an offering). Course and offering statuses are independent: withdrawing a course hides its offerings with it but does not change their status. CSV rows never delete records; deleting is done in the web form, and a code deleted there is not brought back by a CSV row (re-create it in the web form). Overrides left from a period when the organization was harvested are not removed by CSV and keep masking the uploaded value (spec §6.5).
+`status` is set per row and may be any of the four values; publishing a course needs the English title, which `courses.csv` always has. **Omission never withdraws:** a course or offering missing from a file is left as it is. To take something down, upload its row with `status` `withdrawn` (or `cancelled` for an offering). Course and offering statuses are independent: withdrawing a course hides its offerings with it but does not change their status. Overrides left from a period when the organization was harvested are not removed by CSV and keep masking the uploaded value (spec §6.5).
+
+**Deleted codes come back.** CSV rows never delete records; deleting is done in the web form (only for records that are not published, [web form guide](web-form.md#status-actions)). A row whose `course_code` (or course and offering code) was deleted **revives** the record, as re-creating it in the web form does: it is written as new from the row (counted in `n_created`), its old overrides are dropped and the audit log records `course.revive` or `course_offering.revive`. The offerings of a revived course stay deleted unless `offerings.csv` has rows for them. Deleted records are purged for good 12 months after their deletion (`OECP_RETENTION_SOFT_DELETED_MONTHS`); after that the same code simply creates a new record.
 
 ### Publication rule (handbook completeness)
 
@@ -133,7 +135,7 @@ curl -sS -X POST "$API/organizations/$ORG/uploads" -H "Authorization: Bearer $TO
   -F courses=@courses.csv -F offerings=@offerings.csv
 ```
 
-Multipart fields `courses` and `offerings`, one file each, nothing else. Uploads with **at most 500 data rows** (both files together) are processed **inline**; larger ones are **queued** for the worker. Responses 201, 202 and 422 carry `Location: /api/admin/v1/sync-runs/{id}`.
+Multipart fields `courses` and `offerings`, one file each, nothing else. Uploads with **at most 500 data rows** (both files together) are processed **inline**; larger ones are **queued** for the worker. Every response that has a run carries `Location: /api/admin/v1/sync-runs/{id}`: 201, 202, 422 and 503. Responses 400, 409, 413 and 429 create no run and have no `Location`.
 
 | Outcome | HTTP | Body |
 |---|---|---|
@@ -142,7 +144,7 @@ Multipart fields `courses` and `offerings`, one file each, nothing else. Uploads
 | Inline, failed | 422 | problem+json with `errors[]` (errors then warnings, ≤ 1,000), `sync_run_id`, `run_status`, `error_count`, `warning_count` |
 | No file / other part | 400 | `oecp.csv.no_files` / `oecp.csv.unexpected_file` |
 | Channel `oeapi` | 409 | `oecp.sync.channel_disabled` |
-| Queue down | 503 | `oecp.internal` (run cancelled) |
+| Queue down | 503 | `oecp.internal` (run cancelled; `Location` names the cancelled run) |
 
 **All or nothing.** The server always revalidates against the database. Any error fails the run and writes nothing except the error list (`n_rejected` = rows with errors); otherwise sessions, courses and offerings are written in one transaction. Warnings never block. A CSV run is `succeeded` or `failed`, never `partial`. Re-uploading an unchanged file counts every row as `n_unchanged`. Upload files are kept 90 days.
 
@@ -156,61 +158,62 @@ The browser cannot check everything: it checks ISCED broad fields and delivery m
 
 ## Codes
 
-All `oecp.csv.*` and `oecp.content.*` codes of `errors.json`. "W" = warning; all others are errors.
+Every `oecp.csv.*` and `oecp.content.*` code of `packages/schemas/errors.json` (137 codes in all; spec [Appendix A](../spec-v4.1.md#appendix-a-error-codes)), in its order. **Sev.** is the catalogue's severity, which is the one every channel reports (spec §6.6): E = error (the upload fails, nothing is written), W = warning (reported, never blocks). Codes that CSV cannot raise are listed with the channel that does.
 
-| Code | Cause | Fix |
-|---|---|---|
-| `oecp.csv.missing_column` | required column absent; or `title_<lang>` absent while other `_<lang>` columns exist | add the column |
-| `oecp.csv.unknown_column` | column not in the template: typo, wrong case, unnamed column, invalid `attr_` key | rename or remove |
-| `oecp.csv.duplicate_column` | column twice in the header | remove one |
-| `oecp.csv.missing_value` | required cell empty | fill it |
-| `oecp.csv.invalid_template_version` | not `1.0`/`1.1`/`1.2`, or a version older than a column of the header (`1.0` with 1.1 or 1.2 columns, `1.1` with 1.2 columns) | write `1.2` |
-| `oecp.csv.conflicting_columns` | both `level` and `levels` | keep `levels` |
-| `oecp.csv.invalid_code` | `course_code`, `offering_code`, `teaching_unit_code` or `academic_session_code` breaks the code pattern | letters, digits, `. _ / -`, ≤ 200, starting with a letter or digit |
-| `oecp.csv.invalid_status` | not one of the four statuses | lower case value |
-| `oecp.csv.invalid_date` | not `YYYY-MM-DD`, or not a real date | format the cell as text `YYYY-MM-DD` |
-| `oecp.csv.invalid_number` | `ects` (format, ≤ 0, > 120, comma), `teaching_hours`, `max_students` (< 1), `alliance_seats`, `seats_available` | digits with a decimal point |
-| `oecp.csv.invalid_url` | not `https://…` or > 2,048 characters | use https |
-| `oecp.csv.invalid_email` | not an address or > 320 characters | correct it |
-| `oecp.csv.invalid_language` | `teaching_languages` tag not BCP 47 with a lower-case primary subtag | `en`, `de-AT` |
-| `oecp.csv.invalid_isced` | `isced_codes` not 2–6 digits separated by `\|` | e.g. `0532\|0312` |
-| `oecp.csv.invalid_delivery_mode` | mode not lower-case letters, digits, `_`, `-` | use a listed code |
-| `oecp.csv.invalid_level` | level value not listed (case-sensitive), or `eqf_level` not 1–8 | lower case value |
-| `oecp.csv.invalid_kind` | not `course`, `bip`, `lecture_series`, `other` | |
-| `oecp.csv.invalid_timezone` | unknown IANA zone | e.g. `Europe/Madrid` |
-| `oecp.csv.cell_too_long` | cell over 20,000 characters | shorten |
-| `oecp.csv.duplicate_row` | course code (or course + offering code) repeated in the file | one row per record |
-| `oecp.csv.file_too_large` | file over 5 MiB | split into several uploads |
-| `oecp.csv.too_many_rows` | more than 5,000 data rows | split |
-| `oecp.csv.too_many_columns` | more than 300 columns | drop unused language columns |
-| `oecp.csv.encoding` | not valid UTF-8 | save as "CSV UTF-8" |
-| `oecp.csv.malformed` | unclosed quote, or text after a closing quote | fix quoting |
-| `oecp.csv.field_count` | row with more or fewer cells than the header | usually an unquoted separator in a cell |
-| `oecp.csv.empty_file` | no header row | use the template |
-| `oecp.csv.no_data_rows` (W) | header only | nothing is written for that file |
-| `oecp.csv.text_without_title` | texts in a language without `title_<lang>` on that row | add the title or empty the row's texts |
-| `oecp.csv.language_deleted` (W) | every cell of a language empty: the language is deleted | intended? otherwise fill the cells |
-| `oecp.csv.english_delete` | defined but not raised in 0.2.0 (`title_en` is always required) | |
-| `oecp.csv.rate_limited` | 11th upload within an hour | wait `Retry-After` seconds |
-| `oecp.csv.no_files` | no `courses` or `offerings` file part | attach a file |
-| `oecp.csv.unexpected_file` | other multipart field or a second file in a field | only the two fields |
-| `oecp.csv.write_failed` | the database refused the write; nothing saved | report the run id |
-| `oecp.content.english_missing` | `title_en` longer than 500 characters | shorten |
-| `oecp.content.invalid_value` | `title_<lang>` > 500, `campus` > 200, `instructors` (an entry over 200 characters, more than 50 entries, or an empty entry between separators), or another canonical rule (message tells) | correct the value |
-| `oecp.content.date_order` | end before start, deadline after end, enrolment start after deadline | fix the dates |
-| `oecp.content.seats_exceed_capacity` | `alliance_seats` or `seats_available` > `max_students` | lower them |
-| `oecp.content.seats_without_timestamp` | not raised by CSV (the upload time is stamped) | |
-| `oecp.content.duplicate_isced` | the same code twice in `isced_codes` | remove one |
-| `oecp.content.unknown_isced_field` | first two digits not an ISCED-F broad field | correct the code |
-| `oecp.content.unknown_delivery_mode` | not an active delivery mode of the deployment | use a listed code |
-| `oecp.content.unknown_teaching_unit` | `teaching_unit_code` is not a sub-unit of your organization | ask the alliance to register the unit, or leave empty |
-| `oecp.content.unknown_session` | not raised by CSV (unknown codes create a session) | |
-| `oecp.content.unknown_course` | offering's `course_code` neither in the catalogue nor in the uploaded `courses.csv` | upload the course too |
-| `oecp.content.unknown_attribute` | `attr_<key>` column without a definition | remove the column |
-| `oecp.content.invalid_attribute_value` | boolean not `true/false/yes/no/1/0`, two values in an `enum`, text > 500 | per definition |
-| `oecp.content.unknown_attribute_option` | value not among the definition's options | use an option value (lower case) |
-| `oecp.content.handbook_incomplete` (W) | a `published` course misses fields the Aurora IT Handbook requires; in `enforce` mode it is stored as `draft` | fill the listed fields ([publication rule](#publication-rule-handbook-completeness)) |
-| `oecp.content.invalid_code` · `unsupported_language` · `duplicate_ext_id` · `ext_id_immutable` · `override_not_allowed` · `has_published_offerings` · `published_not_deletable` · `harvested_not_deletable` | web form and admin API only, see [Web form](web-form.md#errors) | |
+| Code | Sev. | Cause | Fix |
+|---|---|---|---|
+| `oecp.csv.missing_column` | E | required column absent; or `title_<lang>` absent while other `_<lang>` columns exist | add the column |
+| `oecp.csv.unknown_column` | E | column not in the template: typo, wrong case, unnamed column, invalid `attr_` key | rename or remove |
+| `oecp.csv.missing_value` | E | required cell empty (also an empty `title_en`) | fill it |
+| `oecp.csv.invalid_template_version` | E | not `1.0`/`1.1`/`1.2`, or a version older than a column of the header (`1.0` with 1.1 or 1.2 columns, `1.1` with 1.2 columns) | write `1.2` |
+| `oecp.csv.conflicting_columns` | E | both `level` and `levels` | keep `levels` |
+| `oecp.csv.invalid_code` | E | `course_code`, `offering_code`, `teaching_unit_code` or `academic_session_code` breaks the code pattern | letters, digits, `. _ / -`, ≤ 200, starting with a letter or digit |
+| `oecp.csv.invalid_status` | E | not one of the four statuses | lower case value |
+| `oecp.csv.invalid_date` | E | not `YYYY-MM-DD`, or not a real date | format the cell as text `YYYY-MM-DD` |
+| `oecp.csv.invalid_number` | E | `ects` (format, ≤ 0, > 120, comma), `teaching_hours`, `max_students` (< 1), `alliance_seats`, `seats_available` | digits with a decimal point |
+| `oecp.csv.invalid_url` | E | not `https://…` or > 2,048 characters | use https |
+| `oecp.csv.invalid_email` | E | not an address or > 320 characters | correct it |
+| `oecp.csv.invalid_language` | E | `teaching_languages` tag not BCP 47 with a lower-case primary subtag | `en`, `de-AT` |
+| `oecp.csv.invalid_isced` | E | `isced_codes` not 2–6 digits separated by `\|` | e.g. `0532\|0312` |
+| `oecp.csv.invalid_delivery_mode` | E | mode not lower-case letters, digits, `_`, `-` | use a listed code |
+| `oecp.csv.invalid_level` | E | level value not listed (case-sensitive), or `eqf_level` not 1–8 | lower case value |
+| `oecp.csv.invalid_kind` | E | not `course`, `bip`, `lecture_series`, `other` | |
+| `oecp.csv.invalid_timezone` | E | unknown IANA zone | e.g. `Europe/Madrid` |
+| `oecp.csv.cell_too_long` | E | cell over 20,000 characters | shorten |
+| `oecp.csv.duplicate_row` | E | course code (or course + offering code) repeated in the file | one row per record |
+| `oecp.csv.file_too_large` | E | file over 5 MiB (HTTP 413) | split into several uploads |
+| `oecp.csv.too_many_rows` | E | more than 5,000 data rows | split |
+| `oecp.csv.too_many_columns` | E | more than 300 columns | drop unused language columns |
+| `oecp.csv.encoding` | E | not valid UTF-8 | save as "CSV UTF-8" |
+| `oecp.csv.malformed` | E | unclosed quote, or text after a closing quote | fix quoting |
+| `oecp.csv.rate_limited` | E | 11th upload within an hour (HTTP 429) | wait `Retry-After` seconds |
+| `oecp.csv.duplicate_column` | E | column twice in the header | remove one |
+| `oecp.csv.field_count` | E | row with more or fewer cells than the header | usually an unquoted separator in a cell |
+| `oecp.csv.empty_file` | E | no header row | use the template |
+| `oecp.csv.text_without_title` | E | texts in a language without `title_<lang>` on that row | add the title or empty the row's texts |
+| `oecp.csv.language_deleted` | W | every cell of a language empty: the language is deleted from the course (never English) | intended? otherwise fill the cells |
+| `oecp.csv.no_data_rows` | W | header only | nothing is written for that file |
+| `oecp.csv.no_files` | E | no `courses` or `offerings` file part (HTTP 400) | attach a file |
+| `oecp.csv.unexpected_file` | E | other multipart field or a second file in a field (HTTP 400) | only the two fields |
+| `oecp.csv.write_failed` | E | the database refused the write; nothing saved | report the run id |
+| `oecp.content.english_missing` | E | not raised by CSV (`title_en` is required on every row); web form and admin API: publishing without an English title | |
+| `oecp.content.invalid_value` | E | `title_en` or `title_<lang>` > 500, `campus` > 200, `instructors` (an entry over 200 characters, more than 50 entries, or an empty entry between separators), or another canonical rule (message tells) | correct the value |
+| `oecp.content.date_order` | E | end before start, deadline after end, enrolment start after deadline | fix the dates |
+| `oecp.content.seats_exceed_capacity` | E | `alliance_seats` or `seats_available` > `max_students` | lower them |
+| `oecp.content.seats_without_timestamp` | E | not raised by CSV (the upload time is stamped) | |
+| `oecp.content.duplicate_isced` | E | the same code twice in `isced_codes` | remove one |
+| `oecp.content.unknown_isced_field` | E | first two digits not an ISCED-F broad field | correct the code |
+| `oecp.content.unknown_delivery_mode` | E | not an active delivery mode of the deployment | use a listed code |
+| `oecp.content.unknown_teaching_unit` | E | `teaching_unit_code` is not a sub-unit of your organization | ask the alliance to register the unit, or leave empty |
+| `oecp.content.unknown_session` | E | not raised by CSV (unknown codes create a session) nor by any other channel in this release | |
+| `oecp.content.session_ignored` | W | not raised by CSV; the harvester stores an offering without an unknown or invalid academic session ([API integration](api-integration.md#warning-and-rejection-codes)) | |
+| `oecp.content.unknown_course` | E | offering's `course_code` neither in the catalogue nor in the uploaded `courses.csv` | upload the course too |
+| `oecp.content.unknown_attribute` | E | `attr_<key>` column without a definition | remove the column |
+| `oecp.content.invalid_attribute_value` | E | boolean not `true/false/yes/no/1/0`, two values in an `enum`, text > 500 | per definition |
+| `oecp.content.unknown_attribute_option` | E | value not among the definition's options | use an option value (lower case) |
+| `oecp.content.invalid_code` · `unsupported_language` · `duplicate_ext_id` · `ext_id_immutable` · `override_not_allowed` · `has_published_offerings` · `published_not_deletable` · `harvested_not_deletable` | E | web form and admin API only, see [Web form](web-form.md#errors) | |
+| `oecp.content.duplicate_slug` · `duplicate_identifier` · `slug_immutable` · `invalid_parent` · `organization_in_use` | E | *Organizations* page and admin API only (alliance administrators) | |
+| `oecp.content.handbook_incomplete` | W | a `published` course misses fields the Aurora IT Handbook requires; in `enforce` mode it is stored as `draft` | fill the listed fields ([publication rule](#publication-rule-handbook-completeness)) |
 
 ## CSV injection
 

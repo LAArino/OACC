@@ -63,6 +63,8 @@ const declares = (schema: unknown, key: string) =>
   key in ((schema as { shape?: Json }).shape ?? {});
 const declaresDl21 = declares(adminCourse, 'instructors');
 const declaresListDl21 = declares(adminCourseListItem, 'complete');
+/** `missing_count` on list items (0.4 consistency fixes). */
+const declaresMissingCount = declares(adminCourseListItem, 'missing_count');
 const declaresInputDl21 = declares(courseInput, 'instructors');
 /** A body without the DL 21 members, as an API without them accepts it. */
 function withoutDl21<T>(body: T): T {
@@ -407,7 +409,10 @@ describe('contract (@oecp/schemas admin-courses)', () => {
     // Fixtures with the DL 21 members once the installed schemas declare them.
     expect(adminCourse.safeParse(declaresDl21 ? handbookCourse() : course()).error).toBeUndefined();
     const items = declaresListDl21
-      ? [listItem(1, { complete: true }), listItem(2, { complete: false })]
+      ? [
+          listItem(1, { complete: true, ...(declaresMissingCount ? { missing_count: 0 } : {}) }),
+          listItem(2, { complete: false, ...(declaresMissingCount ? { missing_count: 2 } : {}) }),
+        ]
       : [listItem(1), listItem(2)];
     expect(adminCourseList.safeParse(courseList(items)).error).toBeUndefined();
     expect(() => adminCourseHistory.parse(history())).not.toThrow();

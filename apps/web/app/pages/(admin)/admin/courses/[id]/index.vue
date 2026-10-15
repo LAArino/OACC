@@ -50,6 +50,14 @@ watch(courseId, (value, previous) => {
 
 const overridesMode = computed(() => reference.value?.form_mode === 'overrides');
 const subject = computed(() => t('admin.courses.subject', { code: course.value?.ext_id ?? '' }));
+/** Why the course cannot be deleted (the API's rule), or null. */
+const blocker = computed(() =>
+  course.value ? deleteBlocker(course.value, overridesMode.value) : null,
+);
+/** The status override of a harvested course, with the partner's status. */
+const overriddenStatus = computed(() =>
+  overridesMode.value && course.value ? statusOverride(course.value) : null,
+);
 
 function say(message: string) {
   notice.value = message;
@@ -70,6 +78,23 @@ async function changeStatus(status: AdminLifecycleStatus) {
     course.value = await coursesApi.setStatus(c.id, status);
     historyVersion.value++;
     say(t('admin.status.changed', { status: t(`admin.lifecycle.${status}`) }));
+  } catch (error) {
+    actionFailure.value = asAdminApiError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+/** Removes the status override (`PATCH …/overrides {clear: ["status"]}`). */
+async function revertStatus() {
+  const c = course.value;
+  if (!c) return;
+  busy.value = true;
+  actionFailure.value = null;
+  try {
+    course.value = await coursesApi.patchOverrides(c.id, { clear: ['status'] });
+    historyVersion.value++;
+    say(t('admin.status.revert.done', { status: t(`admin.lifecycle.${course.value.status}`) }));
   } catch (error) {
     actionFailure.value = asAdminApiError(error);
   } finally {
@@ -187,7 +212,15 @@ const kindLabel = (code: string) => (te(`kind.${code}`) ? t(`kind.${code}`) : co
                 :busy="busy"
                 @change="changeStatus"
               />
-              <p v-if="!overridesMode && course.status !== 'published'" class="admin-actions">
+              <AdminStatusRevert
+                v-if="overriddenStatus"
+                :status="course.status"
+                :source="overriddenStatus.source"
+                :subject="subject"
+                :busy="busy"
+                @revert="revertStatus"
+              />
+              <p v-if="!blocker" class="admin-actions">
                 <button
                   type="button"
                   class="button button--secondary button--danger-text"
@@ -196,6 +229,9 @@ const kindLabel = (code: string) => (te(`kind.${code}`) ? t(`kind.${code}`) : co
                 >
                   {{ t('admin.courses.delete') }}
                 </button>
+              </p>
+              <p v-else class="admin-hint admin-delete-blocked">
+                {{ t(`admin.courses.deleteBlocked.${blocker}`) }}
               </p>
             </section>
 

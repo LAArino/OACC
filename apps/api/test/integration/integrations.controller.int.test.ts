@@ -24,7 +24,7 @@ import { KYSELY } from '../../src/db/db.module.js';
 import { HarvestQueue } from '../../src/ingestion/harvest.queue.js';
 import { OeapiClientFactory } from '../../src/ingestion/oeapi/oeapi-client.factory.js';
 import { SyncRunsRepository } from '../../src/ingestion/sync-runs.repository.js';
-import { SecretsService } from '../../src/secrets/secrets.service.js';
+import { SecretError, SecretsService } from '../../src/secrets/secrets.service.js';
 import { BASE_CLAIMS, createTestTokens, type TestTokens } from '../support/admin-tokens.js';
 import { configStub } from '../support/config-stub.js';
 import { createFakeOeapi, MOCK_BASE_URL, MOCK_HOST } from '../support/fake-oeapi.js';
@@ -65,12 +65,19 @@ describe.runIf(describeWithDatabase === 'run')('Integration admin API (PostgreSQ
     enabled: true,
   };
 
+  let masterKeyReadable = true;
+
   beforeAll(async () => {
     Logger.overrideLogger(['error']);
     tdb = await createTestDatabase();
     tokens = await createTestTokens();
     const key = randomBytes(32);
-    const secrets = new SecretsService(tdb.db, { masterKeys: () => new Map([[1, key]]) });
+    const secrets = new SecretsService(tdb.db, {
+      masterKeys: () => {
+        if (!masterKeyReadable) throw new SecretError('Master key file cannot be read');
+        return new Map([[1, key]]);
+      },
+    });
     const fake = createFakeOeapi();
     const clients = new OeapiClientFactory(
       configStub({
@@ -294,6 +301,38 @@ describe.runIf(describeWithDatabase === 'run')('Integration admin API (PostgreSQ
       .set('Authorization', auth.partner)
       .send(mockSettings)
       .expect(200);
+  });
+
+  it('answers 503 oecp.secrets.unavailable when the master key is missing', async () => {
+    masterKeyReadable = false;
+    try {
+      const put = await http()
+        .put(`${base}/integration`)
+        .set('Authorization', auth.partner)
+        .send({ ...mockSettings, secret: 'oecp:new-secret' })
+        .expect(503);
+      expect(put.headers['content-type']).toMatch(/application\/problem\+json/);
+      expect(put.body.errors[0].code).toBe('oecp.secrets.unavailable');
+      // Settings without a new credential do not need the key.
+      await http()
+        .put(`${base}/integration`)
+        .set('Authorization', auth.partner)
+        .send({ ...mockSettings, secret: undefined })
+        .expect(200);
+      const test = await http()
+        .post(`${base}/integration/test-connection`)
+        .set('Authorization', auth.partner)
+        .expect(503);
+      expect(test.body.errors[0].code).toBe('oecp.secrets.unavailable');
+    } finally {
+      masterKeyReadable = true;
+    }
+    // The stored credential is unchanged.
+    await http()
+      .post(`${base}/integration/test-connection`)
+      .set('Authorization', auth.partner)
+      .expect(200)
+      .expect((r) => expect(r.body.ok).toBe(true));
   });
 
   it('sync-now queues a manual run, then refuses while it is active and for 15 minutes', async () => {

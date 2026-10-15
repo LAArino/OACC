@@ -433,10 +433,15 @@ describe('new course wizard', () => {
     );
     await byId(w, 'course-attributes-hub').setValue('health');
     await byId(w, 'course-attributes-sdgs-1').setValue(true);
-    await byId(w, 'course-attributes-micro_credential').setValue(true);
-    expect(byId(w, 'course-attributes-micro_credential').attributes('aria-describedby')).toBe(
-      'course-attributes-micro_credential-hint',
-    );
+    const micro = byId(w, 'course-attributes-micro_credential');
+    expect(micro.element.tagName).toBe('FIELDSET');
+    expect(micro.find('legend').text()).toBe('Micro-credential');
+    expect(micro.attributes('aria-describedby')).toBe('course-attributes-micro_credential-hint');
+    expect(micro.findAll('label').map((l) => l.text())).toEqual(['Not set', 'Yes', 'No']);
+    expect(
+      (byId(w, 'course-attributes-micro_credential-unset').element as HTMLInputElement).checked,
+    ).toBe(true);
+    await byId(w, 'course-attributes-micro_credential-yes').setValue(true);
     expect(await axeViolations(w.html())).toEqual([]);
     await click(w, 'Next');
 
@@ -1275,5 +1280,225 @@ describe('IT Handbook alignment [DL 21]', () => {
       },
       clear: [],
     });
+  });
+});
+
+describe('consistency with the API rules', () => {
+  /** A harvested course whose status is overridden (withdrawn here, published at the partner). */
+  function statusOverridden() {
+    return course({
+      source_channel: 'oeapi',
+      source_ref: 'oeapi-course-1',
+      status: 'withdrawn',
+      overrides: { status: 'withdrawn' },
+      override_meta: { status: { by: 'user-1', at: '2026-10-12T08:00:00.000Z' } },
+      source_values: { status: 'published' },
+    });
+  }
+
+  it('stores a boolean attribute as yes, no or not set', async () => {
+    serve({
+      [COURSE]: ok(course({ attributes: { hub: 'digital', micro_credential: true } })),
+      [PUT]: ok(course()),
+    });
+    const w = await mountPage(CoursePage, `/en/admin/courses/${COURSE_ID}`);
+    await stepButtons(w)[2]!.trigger('click');
+    await flushPromises();
+    const choice = (c: string) =>
+      byId(w, `course-attributes-micro_credential-${c}`).element as HTMLInputElement;
+    expect(choice('yes').checked).toBe(true);
+    expect(await axeViolations(w.html())).toEqual([]);
+
+    await byId(w, 'course-attributes-micro_credential-no').setValue(true);
+    expect(choice('no').checked).toBe(true);
+    await click(w, 'Save');
+    expect((callsTo(PUT)[0]!.body as { attributes: unknown }).attributes).toEqual({
+      hub: 'digital',
+      micro_credential: false,
+    });
+
+    await byId(w, 'course-attributes-micro_credential-unset').setValue(true);
+    await click(w, 'Save');
+    expect((callsTo(PUT)[1]!.body as { attributes: unknown }).attributes).toEqual({
+      hub: 'digital',
+    });
+  });
+
+  it('shows a stored `false` as No and reviews it', async () => {
+    serve({ [COURSE]: ok(course({ attributes: { micro_credential: false } })) });
+    const w = await mountPage(CoursePage, `/en/admin/courses/${COURSE_ID}`);
+    await stepButtons(w)[2]!.trigger('click');
+    await flushPromises();
+    expect(
+      (byId(w, 'course-attributes-micro_credential-no').element as HTMLInputElement).checked,
+    ).toBe(true);
+    await stepButtons(w)[3]!.trigger('click');
+    await flushPromises();
+    expect(w.find('.admin-review').text()).toContain('Micro-credential: No');
+  });
+
+  it('reverts an overridden course status to the partner value with PATCH clear', async () => {
+    const reverted = course({ ...statusOverridden(), status: 'published', overrides: {} });
+    serve({
+      [REFERENCE]: ok(reference({ form_mode: 'overrides', authoritative_channel: 'oeapi' })),
+      [COURSE]: ok(statusOverridden()),
+      [PATCH]: ok({ ...reverted, override_meta: {}, source_values: {} }),
+    });
+    const w = await mountPage(CoursePage, `/en/admin/courses/${COURSE_ID}`);
+    const revert = w.find('.admin-status-revert');
+    expect(revert.attributes('role')).toBe('group');
+    expect(revert.find('h3').text()).toBe('Status override');
+    expect(revert.text()).toContain(
+      "The status Withdrawn is set here as an override. The partner's value is Published.",
+    );
+    expect(await axeViolations(w.html())).toEqual([]);
+
+    await revert.find('button').trigger('click');
+    await flushPromises();
+    expect(w.find('dialog h2').text()).toBe('Revert the status?');
+    expect(w.find('dialog p').text()).toContain('course TEST-101');
+    expect(w.find('dialog p').text()).toContain('Published');
+    await w.find('dialog [data-confirm="yes"]').trigger('click');
+    await flushPromises();
+    expect(callsTo(PATCH)[0]!.body).toEqual({ clear: ['status'] });
+    expect(w.text()).toContain("Status reverted to the partner's value (Published).");
+    expect(w.find('.admin-status-revert').exists()).toBe(false);
+    expect(w.find('.admin-status-actions .admin-badge').text()).toBe('Published');
+  });
+
+  it('offers no revert without a status override or outside overrides mode', async () => {
+    serve({
+      [REFERENCE]: ok(reference({ form_mode: 'overrides', authoritative_channel: 'oeapi' })),
+      [COURSE]: ok(harvested()),
+    });
+    const w = await mountPage(CoursePage, `/en/admin/courses/${COURSE_ID}`);
+    expect(w.find('.admin-status-revert').exists()).toBe(false);
+
+    auth.token = `token-${++auth.count}`; // the reference data are cached per token
+    serve({ [COURSE]: ok(statusOverridden()) });
+    const w2 = await mountPage(CoursePage, `/en/admin/courses/${COURSE_ID}`);
+    expect(w2.find('.admin-status-revert').exists()).toBe(false);
+  });
+
+  it('says when the partner status is not known, and reports a refused revert', async () => {
+    serve({
+      [REFERENCE]: ok(reference({ form_mode: 'overrides', authoritative_channel: 'oeapi' })),
+      [COURSE]: ok({ ...statusOverridden(), source_values: {} }),
+      [PATCH]: fail(400, validationProblem([{ code: 'oecp.content.override_not_allowed' }])),
+    });
+    const w = await mountPage(CoursePage, `/en/admin/courses/${COURSE_ID}`);
+    expect(w.find('.admin-status-revert').text()).toContain("The partner's value is not known.");
+    await w.find('.admin-status-revert button').trigger('click');
+    await flushPromises();
+    await w.find('dialog [data-confirm="yes"]').trigger('click');
+    await flushPromises();
+    expect(w.find('[role="alert"]').text()).toContain('This field cannot be overridden.');
+  });
+
+  it('reverts an overridden offering status', async () => {
+    const overridden = offering({
+      source_channel: 'oeapi',
+      status: 'cancelled',
+      overrides: { status: 'cancelled' },
+      override_meta: { status: { by: 'user-1', at: '2026-10-12T08:00:00.000Z' } },
+      source_values: { status: 'published' },
+    });
+    serve({
+      [REFERENCE]: ok(reference({ form_mode: 'overrides' })),
+      [COURSE]: ok(course({ source_channel: 'oeapi', offerings: [overridden] })),
+      [PATCH_OFFERING]: ok({ ...overridden, status: 'published', overrides: {} }),
+    });
+    const w = await mountPage(
+      OfferingPage,
+      `/en/admin/courses/${COURSE_ID}/offerings/${OFFERING_ID}`,
+    );
+    expect(w.find('.admin-status-revert').text()).toContain(
+      "The status Cancelled is set here as an override. The partner's value is Published.",
+    );
+    expect(w.find('.admin-delete-blocked').text()).toContain(
+      'Harvested records cannot be deleted here',
+    );
+    expect(await axeViolations(w.html())).toEqual([]);
+    await click(w, "Revert status to the partner's value");
+    expect(w.find('dialog p').text()).toContain('offering 2027S');
+    await w.find('dialog [data-confirm="yes"]').trigger('click');
+    await flushPromises();
+    expect(callsTo(PATCH_OFFERING)[0]!.body).toEqual({ clear: ['status'] });
+    expect(w.find('.admin-status-actions .admin-badge').text()).toBe('Published');
+    expect(w.find('.admin-status-revert').exists()).toBe(false);
+  });
+
+  it('hides Delete course with the reason the API would give', async () => {
+    const cases: [ReturnType<typeof course>, string, boolean][] = [
+      [course({ status: 'published' }), 'A published record cannot be deleted', false],
+      [
+        course({ offerings: [offering({ status: 'published' })] }),
+        'The course has published offerings',
+        false,
+      ],
+      [course({ source_channel: 'oeapi' }), 'Harvested records cannot be deleted here', false],
+      [course({ offerings: [offering({ status: 'cancelled' })] }), '', true],
+    ];
+    for (const [record, reason, deletable] of cases) {
+      serve({ [COURSE]: ok(record) });
+      const w = await mountPage(CoursePage, `/en/admin/courses/${COURSE_ID}`);
+      const card = w.find('[aria-labelledby="course-summary-heading"]');
+      expect(card.text().includes('Delete course')).toBe(deletable);
+      if (reason) expect(card.find('.admin-delete-blocked').text()).toContain(reason);
+      else expect(card.find('.admin-delete-blocked').exists()).toBe(false);
+    }
+
+    auth.token = `token-${++auth.count}`; // the reference data are cached per token
+    serve({
+      [REFERENCE]: ok(reference({ form_mode: 'overrides', authoritative_channel: 'oeapi' })),
+      [COURSE]: ok(course({ source_channel: 'csv' })),
+    });
+    const w = await mountPage(CoursePage, `/en/admin/courses/${COURSE_ID}`);
+    expect(w.find('.admin-delete-blocked').text()).toBe(
+      'This organization is harvested through OEAPI, so its records cannot be deleted here.',
+    );
+  });
+
+  it('hides Delete offering for published offerings with the reason', async () => {
+    serve({ [COURSE]: ok(course({ offerings: [offering({ status: 'published' })] })) });
+    const w = await mountPage(
+      OfferingPage,
+      `/en/admin/courses/${COURSE_ID}/offerings/${OFFERING_ID}`,
+    );
+    expect(w.text()).not.toContain('Delete offering');
+    expect(w.find('.admin-delete-blocked').text()).toBe(
+      'A published record cannot be deleted. Withdraw or cancel it first.',
+    );
+
+    serve({ [COURSE]: ok(course()) });
+    const w2 = await mountPage(
+      OfferingPage,
+      `/en/admin/courses/${COURSE_ID}/offerings/${OFFERING_ID}`,
+    );
+    expect(w2.text()).toContain('Delete offering');
+    expect(w2.find('.admin-delete-blocked').exists()).toBe(false);
+  });
+
+  it('shows "n missing" from `missing_count`, else the Incomplete badge', async () => {
+    serve({
+      [LIST]: ok(
+        courseList([
+          listItem(1, { complete: false, missing_count: 3 }),
+          listItem(2, { complete: false }),
+          listItem(3, { missing_count: 0 }),
+          listItem(4, { missing_count: 1 }),
+          listItem(5),
+        ]),
+      ),
+    });
+    const w = await mountPage(CoursesPage, '/en/admin/courses');
+    const cells = w.findAll('tbody tr').map((r) => r.findAll('td').at(-1)!);
+    expect(cells[0]!.find('.admin-badge').text()).toBe('3 missing');
+    expect(cells[0]!.find('.admin-badge').classes()).toContain('admin-badge--warn');
+    expect(cells[1]!.find('.admin-badge').text()).toBe('Incomplete');
+    expect(cells[2]!.find('.visually-hidden').text()).toBe('Complete');
+    expect(cells[3]!.find('.admin-badge').text()).toBe('1 missing');
+    expect(cells[4]!.text()).toBe('Not available');
+    expect(await axeViolations(w.html())).toEqual([]);
   });
 });

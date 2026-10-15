@@ -73,7 +73,9 @@ export class UploadsController {
    * 201 processed inline · 202 queued (≤ 500 rows run inline) · 422 inline run
    * failed validation (problem+json, nothing written) · 400 `oecp.csv.no_files` /
    * `oecp.csv.unexpected_file` · 409 `oecp.sync.channel_disabled` · 413
-   * `oecp.csv.file_too_large` · 429 `oecp.csv.rate_limited` with Retry-After.
+   * `oecp.csv.file_too_large` · 429 `oecp.csv.rate_limited` with Retry-After ·
+   * 503 queue unavailable (run cancelled). `Location: /api/admin/v1/sync-runs/{id}`
+   * on every response that has a run (201, 202, 422, 503).
    */
   @Post('organizations/:orgId/uploads')
   @UseInterceptors(CsvUploadInterceptor)
@@ -86,10 +88,14 @@ export class UploadsController {
     await this.access.assert(admin, orgId);
     let result;
     try {
-      result = await this.uploads.create(admin, orgId, {
-        courses: files?.courses?.[0],
-        offerings: files?.offerings?.[0],
-      });
+      // Every response that has a run carries its Location, failures included
+      // (503 when the queue is unavailable); 400/409/413/429 create no run.
+      result = await this.uploads.create(
+        admin,
+        orgId,
+        { courses: files?.courses?.[0], offerings: files?.offerings?.[0] },
+        (id) => response.setHeader('Location', `/api/admin/v1/sync-runs/${id}`),
+      );
     } catch (error) {
       if (error instanceof UploadRateLimited) {
         response.setHeader('Retry-After', String(error.retryAfterSeconds));
@@ -97,7 +103,6 @@ export class UploadsController {
       throw error;
     }
     const instance = `/api/admin/v1/sync-runs/${result.syncRunId}`;
-    response.setHeader('Location', instance);
     if (!result.processedInline) {
       response.status(202);
       return { sync_run_id: result.syncRunId, status: 'queued', processed_inline: false };

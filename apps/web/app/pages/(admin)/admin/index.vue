@@ -30,6 +30,7 @@ const modules = computed(() => {
 const allianceModules = computed(() => [
   { key: 'network', to: localePath('/admin/network') },
   { key: 'organizations', to: localePath('/admin/organizations') },
+  { key: 'maintenance', to: localePath('/admin/maintenance') },
 ]);
 </script>
 

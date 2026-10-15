@@ -10,7 +10,7 @@ name: Open European Campus Portal
 url: "https://github.com/LAArino/AURORA-OECP"
 
 # Updated at every release (docs/RELEASING.md).
-softwareVersion: "0.3.0"
+softwareVersion: "0.4.0"
 releaseDate: "2026-10-14"
 
 platforms:

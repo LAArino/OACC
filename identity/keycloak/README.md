@@ -226,17 +226,18 @@ authenticator; it is not part of the MVP.
 
 Keycloak cannot consume federation aggregates (spec §4, [R01 §1]), so the
 worker job **`idp-metadata-refresh`** (`apps/api/src/identity/metadata-refresh/`)
-keeps the partner IdPs current. It runs daily at 04:15 UTC (BullMQ job
-scheduler `idp-metadata-refresh` on queue `idp-metadata-refresh`) and, unless
-`OECP_IDP_METADATA_REFRESH_ON_START=false`, about a minute after every worker
-start (reusing an aggregate downloaded in the last 24 h; only when
+keeps the partner IdPs current. It runs on the worker's `maintenance` queue
+daily at 04:15 UTC (job scheduler `maintenance-idp-metadata-refresh-daily`)
+and, unless `OECP_IDP_METADATA_REFRESH_ON_START=false`, about a minute after
+every worker start (reusing an aggregate downloaded in the last 24 h; only when
 `OECP_IDP_METADATA_URL` is set), so certificates reset by a keycloak-config-cli
 re-import are restored within minutes. An `alliance_admin` can also start a run
-with `POST /api/admin/v1/maintenance/jobs/idp-metadata-refresh/run` (spec §8.2):
-that run goes through the worker's `maintenance` queue and is recorded in
-`maintenance_runs` (`GET /api/admin/v1/maintenance/runs?job=idp-metadata-refresh`);
-the daily and start-up runs are reported only in the worker log and the audit
-log.
+with `POST /api/admin/v1/maintenance/jobs/idp-metadata-refresh/run` (spec §8.2).
+Every run (trigger `schedule`, `startup` or `manual`) holds the maintenance
+advisory lock and is recorded in `maintenance_runs` with counts per status and
+one line per IdP (`GET /api/admin/v1/maintenance/runs?job=idp-metadata-refresh`);
+applied changes are also audited (`idp.metadata_refresh`). Before 0.4 the
+scheduled runs used a queue of their own, which the worker removes at start.
 
 | Variable | Default | Meaning |
 |---|---|---|

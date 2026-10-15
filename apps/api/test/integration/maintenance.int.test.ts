@@ -18,6 +18,7 @@ import {
 } from '../../src/admin/auth/organization-directory.js';
 import { ProblemDetailsFilter } from '../../src/common/problem-details.filter.js';
 import { KYSELY } from '../../src/db/db.module.js';
+import { AccountCleanupService } from '../../src/maintenance/account-cleanup.service.js';
 import { DormancyService } from '../../src/maintenance/dormancy.service.js';
 import { HistoryPartitionsService } from '../../src/maintenance/history-partitions.service.js';
 import {
@@ -47,8 +48,11 @@ const options: MaintenanceOptions = maintenanceOptions({
   OECP_RETENTION_SYNC_ERRORS_MONTHS: 12,
   OECP_RETENTION_SYNC_RUNS_MONTHS: 24,
   OECP_RETENTION_AUDIT_MONTHS: 36,
+  OECP_RETENTION_SOFT_DELETED_MONTHS: 12,
   OECP_DORMANCY_DAYS: 180,
   OECP_DORMANCY_DRY_RUN: true,
+  OECP_ACCOUNT_DELETE_MONTHS: 12,
+  OECP_ACCOUNT_CLEANUP_DRY_RUN: true,
 });
 
 describe.runIf(describeWithDatabase === 'run')('Maintenance jobs (PostgreSQL)', () => {
@@ -299,6 +303,10 @@ describe.runIf(describeWithDatabase === 'run')('Maintenance jobs (PostgreSQL)', 
         admin_invitations: 3,
         maintenance_runs: 1,
         admin_activity: 1,
+        soft_deleted_offerings: 0,
+        soft_deleted_courses: 0,
+        soft_deleted_organizations: 0,
+        soft_deleted_organizations_kept: 0,
         stale_maintenance_runs: 1,
       });
       expect(outcome.details).toMatchObject({
@@ -334,6 +342,83 @@ describe.runIf(describeWithDatabase === 'run')('Maintenance jobs (PostgreSQL)', 
       ).toEqual(['busy']);
 
       expect((await service.purge()).counters['sync_errors']).toBe(0);
+    });
+
+    it('purges records soft-deleted more than 12 months ago', async () => {
+      const now = new Date('2029-01-15T04:45:00Z');
+      const org = async (slug: string, deletedAt: string) =>
+        (
+          await sql<{ id: string }>`
+            INSERT INTO organizations (org_type, slug, name, parent_id, partner_id, deleted_at)
+            VALUES ('faculty', ${slug}, '{"en": "Unit"}', ${ORG.uibk}, ${ORG.uibk}, ${deletedAt})
+            RETURNING id`.execute(tdb.db)
+        ).rows[0]!.id;
+      const gone = await org('gone-unit', '2027-06-01T00:00:00Z');
+      const kept = await org('kept-unit', '2027-06-01T00:00:00Z');
+      const recent = await org('recent-unit', '2028-12-01T00:00:00Z');
+      await sql`INSERT INTO academic_sessions
+          (organization_id, ext_id, session_type, name, start_date, end_date, source_channel)
+        VALUES (${gone}, 'Y2027', 'academic_year', '{"en": "2027"}', '2027-01-01', '2027-12-31', 'csv')`.execute(
+        tdb.db,
+      );
+      await insertRun('2028-12-01T00:00:00Z', { organization_id: kept });
+
+      const course = async (extId: string, deletedAt: string | null) =>
+        (
+          await sql<{ id: string }>`
+            INSERT INTO courses (organization_id, ext_id, source_channel, ects, deleted_at)
+            VALUES (${ORG.urv}, ${extId}, 'form', 3, ${deletedAt}) RETURNING id`.execute(tdb.db)
+        ).rows[0]!.id;
+      const offering = async (courseId: string, extId: string, deletedAt: string | null) =>
+        sql`INSERT INTO course_offerings (course_id, ext_offering_id, source_channel, start_date,
+              end_date, timezone, teaching_languages, deleted_at)
+            VALUES (${courseId}, ${extId}, 'form', '2027-03-01', '2027-06-30', 'Europe/Madrid',
+              '{en}', ${deletedAt})`.execute(tdb.db);
+      const old = await course('SOFT-OLD', '2027-12-01T00:00:00Z');
+      await sql`INSERT INTO course_texts (course_id, lang, title) VALUES (${old}, 'en', 'Old')`.execute(
+        tdb.db,
+      );
+      await offering(old, 'O1', '2027-12-01T00:00:00Z');
+      const newer = await course('SOFT-NEW', '2028-06-01T00:00:00Z');
+      const live = await course('SOFT-LIVE', null);
+      await offering(live, 'GONE', '2027-01-01T00:00:00Z');
+      await offering(live, 'KEPT', null);
+
+      const outcome = await new RetentionService(tdb.db, options, () => now).purge();
+      expect(outcome.counters).toMatchObject({
+        soft_deleted_offerings: 2,
+        soft_deleted_courses: 1,
+        soft_deleted_organizations: 1,
+        soft_deleted_organizations_kept: 1,
+      });
+      const courses = await tdb.db
+        .selectFrom('courses')
+        .select('id')
+        .where('id', 'in', [old, newer, live])
+        .execute();
+      expect(courses.map((c) => c.id).sort()).toEqual([newer, live].sort());
+      expect(
+        await tdb.db
+          .selectFrom('course_texts')
+          .select('lang')
+          .where('course_id', '=', old)
+          .execute(),
+      ).toEqual([]);
+      const offerings = await tdb.db
+        .selectFrom('course_offerings')
+        .select('ext_offering_id')
+        .where('course_id', 'in', [old, live])
+        .execute();
+      expect(offerings.map((o) => o.ext_offering_id)).toEqual(['KEPT']);
+      const orgs = await tdb.db
+        .selectFrom('organizations')
+        .select('id')
+        .where('id', 'in', [gone, kept, recent])
+        .execute();
+      expect(orgs.map((o) => o.id).sort()).toEqual([kept, recent].sort());
+      expect(outcome.details?.['cutoffs']).toMatchObject({
+        soft_deleted: '2028-01-15T04:45:00.000Z',
+      });
     });
   });
 
@@ -611,6 +696,232 @@ describe.runIf(describeWithDatabase === 'run')('Maintenance jobs (PostgreSQL)', 
     });
   });
 
+  describe('account cleanup', () => {
+    const NOW = new Date('2028-06-01T05:15:00Z');
+    let keycloak: FakeKeycloak;
+
+    const removal = (sub: string, at: string, action = 'admin.revoke', org: string = ORG.uibk) =>
+      tdb.db
+        .insertInto('audit_log')
+        .values({
+          occurred_at: at,
+          actor_sub: action === 'admin.revoke' ? 'admin-1' : 'system:dormancy',
+          actor_org_id: null,
+          action,
+          entity_type: 'organization',
+          entity_id: org,
+          changes: { keycloak_user_id: sub, roles_removed: ['partner_admin'] },
+        })
+        .execute();
+
+    beforeEach(async () => {
+      await sql`TRUNCATE audit_log, admin_activity, admin_invitations`.execute(tdb.db);
+      keycloak = new FakeKeycloak();
+      keycloak.eventsReadable = true;
+      const add = (id: string, patch: Partial<Parameters<FakeKeycloak['addUser']>[0]> = {}) =>
+        keycloak.addUser({
+          id,
+          email: `${id}@x.example`,
+          createdTimestamp: Date.parse('2026-01-01T00:00:00Z'),
+          ...patch,
+        });
+      add('gone-old');
+      add('dormant-old');
+      add('recent-removal');
+      add('reinvited', { roles: new Set(['partner_admin', 'default-roles-oecp']) });
+      add('active-after');
+      add('login-after', { lastLogin: Date.parse('2028-01-01T00:00:00Z') });
+      add('pending');
+      add('service', { username: 'service-account-oecp-backend', serviceAccountClientId: 'x' });
+      add('young', { createdTimestamp: Date.parse('2027-07-01T00:00:00Z') });
+      add('holder', { roles: new Set(['partner_admin', 'default-roles-oecp']) });
+
+      await removal('gone-old', '2027-03-01T10:00:00Z');
+      // An older revocation does not count: the latest removal is the evidence.
+      await removal('dormant-old', '2026-11-01T10:00:00Z');
+      await removal('dormant-old', '2027-04-01T05:00:00Z', 'admin.dormant_revoke', ORG.urv);
+      await removal('recent-removal', '2027-12-01T10:00:00Z');
+      for (const sub of ['reinvited', 'active-after', 'login-after', 'pending', 'service', 'young'])
+        await removal(sub, '2027-01-01T10:00:00Z');
+      await removal('absent', '2027-01-01T10:00:00Z');
+      await tdb.db
+        .insertInto('admin_activity')
+        .values([
+          { sub: 'gone-old', organization_id: ORG.uibk, last_seen_at: '2027-02-01T09:00:00Z' },
+          { sub: 'active-after', organization_id: null, last_seen_at: '2027-08-01T09:00:00Z' },
+          { sub: 'stranger', organization_id: null, last_seen_at: '2027-01-01T09:00:00Z' },
+          { sub: 'holder', organization_id: ORG.uibk, last_seen_at: '2027-01-01T09:00:00Z' },
+        ])
+        .execute();
+      await tdb.db
+        .insertInto('admin_invitations')
+        .values({
+          email: 'pending@x.example',
+          role: 'partner_admin',
+          organization_id: ORG.urv,
+          token_sha256: createHash('sha256').update('pending').digest(),
+          invited_by: 'admin-1',
+          expires_at: '2028-06-05T00:00:00Z',
+        })
+        .execute();
+    });
+
+    const service = (dryRun: boolean) =>
+      new AccountCleanupService(
+        tdb.db,
+        keycloak.service(),
+        { ...options, accountCleanupDryRun: dryRun },
+        () => NOW,
+      );
+    const deletions = () =>
+      tdb.db
+        .selectFrom('audit_log')
+        .selectAll()
+        .where('action', '=', 'admin.account_deleted')
+        .orderBy('entity_id')
+        .execute();
+    const activitySubs = async () =>
+      (await tdb.db.selectFrom('admin_activity').select('sub').orderBy('sub').execute()).map(
+        (r) => r.sub,
+      );
+
+    it('dry run lists the accounts it would delete and changes nothing', async () => {
+      const outcome = await service(true).run();
+      expect(outcome.counters).toEqual({
+        removed_accounts: 10,
+        within_period: 1,
+        checked: 9,
+        deleted: 0,
+        would_delete: 2,
+        already_absent: 1,
+        kept: 6,
+        failed: 0,
+        activity_rows_deleted: 0,
+        activity_rows_would_delete: 1,
+        dry_run: 1,
+        login_events_readable: 1,
+      });
+      expect(outcome.details).toMatchObject({
+        dry_run: true,
+        months: 12,
+        cutoff: '2027-06-01T05:15:00.000Z',
+        candidates: [
+          {
+            sub: 'gone-old',
+            organization_id: ORG.uibk,
+            last_role_removal_at: '2027-03-01T10:00:00.000Z',
+            removal_action: 'admin.revoke',
+            created_at: '2026-01-01T00:00:00.000Z',
+            last_activity_at: '2027-02-01T09:00:00.000Z',
+            action: 'would_delete',
+          },
+          {
+            sub: 'dormant-old',
+            organization_id: ORG.urv,
+            last_role_removal_at: '2027-04-01T05:00:00.000Z',
+            removal_action: 'admin.dormant_revoke',
+            action: 'would_delete',
+          },
+        ],
+        kept_by_reason: {
+          has_role: 1,
+          recent_activity: 1,
+          recent_login: 1,
+          pending_invitation: 1,
+          service_account: 1,
+          recent_creation: 1,
+        },
+      });
+      const kept = (outcome.details?.['kept'] ?? []) as { sub: string; reason: string }[];
+      expect(Object.fromEntries(kept.map((k) => [k.sub, k.reason]))).toEqual({
+        reinvited: 'has_role',
+        'active-after': 'recent_activity',
+        'login-after': 'recent_login',
+        pending: 'pending_invitation',
+        service: 'service_account',
+        young: 'recent_creation',
+      });
+      expect(keycloak.deleted).toEqual([]);
+      expect(keycloak.users.has('gone-old')).toBe(true);
+      expect(await deletions()).toEqual([]);
+      expect(await activitySubs()).toEqual(['active-after', 'gone-old', 'holder', 'stranger']);
+    });
+
+    it('deletes the accounts, audits them and removes their activity rows', async () => {
+      const outcome = await service(false).run();
+      expect(outcome.counters).toMatchObject({
+        deleted: 2,
+        would_delete: 0,
+        kept: 6,
+        activity_rows_deleted: 1,
+        dry_run: 0,
+      });
+      expect(keycloak.deleted.sort()).toEqual(['dormant-old', 'gone-old']);
+      for (const sub of ['recent-removal', 'reinvited', 'active-after', 'young', 'service'])
+        expect(keycloak.users.has(sub)).toBe(true);
+      const rows = await deletions();
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toMatchObject({
+        actor_sub: 'system:account-cleanup',
+        actor_org_id: null,
+        entity_type: 'organization',
+        entity_id: ORG.uibk,
+        changes: {
+          keycloak_user_id: 'gone-old',
+          last_role_removal_at: '2027-03-01T10:00:00.000Z',
+          removal_action: 'admin.revoke',
+          account_created_at: '2026-01-01T00:00:00.000Z',
+          last_activity_at: '2027-02-01T09:00:00.000Z',
+          last_login_at: null,
+          threshold_months: 12,
+        },
+      });
+      // gone-old (deleted) and stranger (no account) go; holder keeps a role.
+      expect(await activitySubs()).toEqual(['active-after', 'holder']);
+
+      // Idempotent: deleted accounts are no longer candidates.
+      expect((await service(false).run()).counters).toMatchObject({
+        removed_accounts: 8,
+        deleted: 0,
+        activity_rows_deleted: 0,
+      });
+    });
+
+    it('keeps an account whose role was granted again after the removal', async () => {
+      await tdb.db
+        .insertInto('admin_invitations')
+        .values({
+          email: 'gone-old@x.example',
+          role: 'partner_admin',
+          organization_id: ORG.uibk,
+          token_sha256: createHash('sha256').update('regranted').digest(),
+          invited_by: 'admin-1',
+          expires_at: '2027-04-08T00:00:00Z',
+          accepted_at: '2027-04-02T00:00:00Z',
+          accepted_sub: 'gone-old',
+        })
+        .execute();
+      const outcome = await service(false).run();
+      expect(outcome.details?.['kept_by_reason']).toMatchObject({ granted_after_removal: 1 });
+      expect(keycloak.users.has('gone-old')).toBe(true);
+    });
+
+    it('records Keycloak failures and fails the run', async () => {
+      keycloak.failWith = 503;
+      const failure = await service(false)
+        .run()
+        .catch((e: unknown) => e);
+      expect(failure).toBeInstanceOf(MaintenanceJobError);
+      expect((failure as MaintenanceJobError).outcome.counters).toMatchObject({
+        checked: 9,
+        // 9 accounts and 3 idle activity rows (gone-old, holder, stranger).
+        failed: 12,
+        deleted: 0,
+      });
+      expect(await deletions()).toEqual([]);
+    });
+  });
+
   describe('admin API', () => {
     let app: INestApplication;
     const requested: { job: string; data: unknown; jobId: string }[] = [];
@@ -720,6 +1031,16 @@ describe.runIf(describeWithDatabase === 'run')('Maintenance jobs (PostgreSQL)', 
         .where('action', '=', 'maintenance.run_requested')
         .orderBy('id')
         .execute();
+      queueAnswer = 'queued';
+      const cleanup = await http()
+        .post('/api/admin/v1/maintenance/jobs/account-cleanup/run')
+        .set('Authorization', auth.alliance)
+        .expect(202);
+      expect(cleanup.body).toEqual({ job: 'account-cleanup', status: 'queued' });
+      expect(requested.at(-1)).toMatchObject({
+        job: 'account-cleanup',
+        jobId: 'manual-account-cleanup',
+      });
       expect(audit.map((a) => [a.actor_sub, a.changes])).toEqual([
         [ALLIANCE_SUB, { job: 'history-partitions', status: 'queued' }],
         [ALLIANCE_SUB, { job: 'csv-retention', status: 'already_queued' }],

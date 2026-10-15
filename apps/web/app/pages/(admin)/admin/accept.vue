@@ -34,6 +34,24 @@ function setToken(value: string | null) {
   hasToken.value = value !== null;
 }
 
+/**
+ * The cause of `oecp.invitation.mismatch` (the problem's `reason` member):
+ * `email`, `idp`, `home_organization` or `organization`; null when absent (older
+ * API) or unknown, which keeps the generic message.
+ */
+const mismatchReason = computed(() =>
+  failure.value ? invitationMismatchReason(failure.value) : null,
+);
+const MISMATCH_MESSAGES = {
+  email: 'problem.invitationMismatchEmail',
+  idp: 'problem.invitationMismatchIdp',
+  home_organization: 'problem.invitationMismatchHomeOrganization',
+  organization: 'problem.invitationMismatchOrganization',
+} as const;
+const failureMessageKey = computed(() =>
+  mismatchReason.value ? MISMATCH_MESSAGES[mismatchReason.value] : undefined,
+);
+
 const needsSignIn = computed(() => {
   if (!failure.value) return false;
   const key = problemMessageKey(failure.value);
@@ -107,6 +125,21 @@ function onFederatedFailed() {
   takeParkedInvitation(window.sessionStorage);
 }
 
+/**
+ * Not signed in through the organization's IdP: the Keycloak session must end
+ * first (an existing session ignores `kc_idp_hint`). The invitation is parked,
+ * the page comes back signed out and offers "Sign in through your university".
+ */
+async function switchToUniversity() {
+  park();
+  try {
+    await auth.logout({ returnTo: localePath('/admin/accept') });
+  } catch {
+    takeParkedInvitation(window.sessionStorage);
+    signInFailed.value = true;
+  }
+}
+
 function signOut(returnTo?: string) {
   setToken(null);
   return auth.logout(returnTo ? { returnTo } : {});
@@ -163,10 +196,20 @@ function signOut(returnTo?: string) {
     </template>
 
     <template v-else-if="phase === 'failed' && failure">
-      <AdminProblem :error="failure" :heading="t('accept.failed')" />
+      <AdminProblem
+        :error="failure"
+        :heading="t('accept.failed')"
+        :message-key="failureMessageKey"
+      />
       <button v-if="needsSignIn && hasToken" type="button" @click="signIn">
         {{ t('accept.signIn') }}
       </button>
+      <button v-if="mismatchReason === 'idp' && hasToken" type="button" @click="switchToUniversity">
+        {{ t('accept.signInFederated') }}
+      </button>
+      <AdminMessage v-if="signInFailed" kind="alert">
+        <p>{{ t('admin.signInFailed') }}</p>
+      </AdminMessage>
       <button type="button" @click="signOut()">
         {{ t('accept.signOut') }}
       </button>

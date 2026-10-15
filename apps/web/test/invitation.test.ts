@@ -4,6 +4,7 @@ import {
   extractInvitation,
   extractInvitationToken,
   IDP_ALIAS_PATTERN,
+  invitationMismatchReason,
   isIdpAlias,
   LAST_IDP_KEY,
   PENDING_INVITATION_IDP_KEY,
@@ -196,5 +197,41 @@ describe('remembered IdP alias (localStorage convenience)', () => {
     });
     expect(recallIdpAlias()).toBeNull();
     expect(() => rememberIdpAlias('uibk')).not.toThrow();
+  });
+});
+
+describe('invitationMismatchReason', () => {
+  const mismatch = (problem: unknown) => ({ codes: ['oecp.invitation.mismatch'], problem });
+
+  it('reads the top-level reason, then the matching errors[] item', () => {
+    expect(invitationMismatchReason(mismatch({ reason: 'email' }))).toBe('email');
+    expect(invitationMismatchReason(mismatch({ reason: 'idp' }))).toBe('idp');
+    expect(invitationMismatchReason(mismatch({ reason: 'home_organization' }))).toBe(
+      'home_organization',
+    );
+    expect(invitationMismatchReason(mismatch({ reason: 'organization' }))).toBe('organization');
+    expect(
+      invitationMismatchReason(
+        mismatch({
+          errors: [
+            { code: 'oecp.other', reason: 'email' },
+            { code: 'oecp.invitation.mismatch', reason: 'idp' },
+          ],
+        }),
+      ),
+    ).toBe('idp');
+  });
+
+  it('is null for other errors and for missing or unknown reasons', () => {
+    expect(
+      invitationMismatchReason({
+        codes: ['oecp.invitation.expired'],
+        problem: { reason: 'email' },
+      }),
+    ).toBeNull();
+    expect(invitationMismatchReason(mismatch(undefined))).toBeNull();
+    expect(invitationMismatchReason(mismatch({}))).toBeNull();
+    expect(invitationMismatchReason(mismatch({ reason: 'EMAIL' }))).toBeNull();
+    expect(invitationMismatchReason(mismatch({ reason: 42, errors: 'x' }))).toBeNull();
   });
 });

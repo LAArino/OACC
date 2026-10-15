@@ -24,6 +24,7 @@ import { attributeDefinition, courseAttributes } from './attributes.js';
 import { instructorList } from './canonical.js';
 import type { CsvReferenceData } from './csv-validate.js';
 import { courseKind, courseLevel, lifecycleStatus, sessionType, sourceChannel } from './enums.js';
+import type { ErrorCode } from './error-codes.js';
 import { courseCompleteness } from './handbook.js';
 import {
   CODE_PATTERN,
@@ -223,6 +224,20 @@ const levelsInput = z
   .min(1)
   .max(5)
   .refine((l) => new Set(l).size === l.length, { error: 'oecp.content.invalid_value' });
+
+/**
+ * Codes of the content rules of the course and offering bodies (English title to
+ * publish, date order, seats, ISCED list). A body that is well formed and breaks
+ * only these rules is answered 422 (content), not 400 (request shape), spec §6.6.
+ */
+export const CONTENT_RULE_CODES = [
+  'oecp.content.english_missing',
+  'oecp.content.date_order',
+  'oecp.content.seats_exceed_capacity',
+  'oecp.content.seats_without_timestamp',
+  'oecp.content.duplicate_isced',
+  'oecp.content.unknown_isced_field',
+] as const satisfies readonly ErrorCode[];
 
 /** Statuses a create or replace may set; `withdrawn`/`cancelled` via `…/status`. */
 export const formWriteStatus = z.enum(['draft', 'published']);
@@ -725,6 +740,8 @@ export const adminCourseListItem = z.strictObject({
   has_overrides: z.boolean(),
   /** `completeness.complete` of the course (IT Handbook publication rule, decision 21c). */
   complete: z.boolean(),
+  /** Number of entries of `completeness.missing`; 0 exactly when `complete`. */
+  missing_count: z.int().min(0),
   /** Earliest start date today or later of a draft or published offering. */
   next_start_date: isoDate.nullable(),
 });

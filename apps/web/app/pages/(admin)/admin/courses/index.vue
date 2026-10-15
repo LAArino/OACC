@@ -157,10 +157,25 @@ const pages = computed(() =>
   data.value ? Math.max(1, Math.ceil(data.value.total / data.value.page_size)) : 1,
 );
 const overridesMode = computed(() => reference.value?.form_mode === 'overrides');
-/** An older API sends no `complete`: the column is left out. */
+/** An older API sends neither `complete` nor `missing_count`: the column is left out. */
 const showCompleteness = computed(
-  () => data.value?.items.some((c) => typeof c.complete === 'boolean') ?? false,
+  () =>
+    data.value?.items.some(
+      (c) => typeof c.complete === 'boolean' || typeof c.missing_count === 'number',
+    ) ?? false,
 );
+/** `complete`, else derived from `missing_count`; undefined when the API sends neither. */
+const completeOf = (c: AdminCourseListItem): boolean | undefined =>
+  typeof c.complete === 'boolean'
+    ? c.complete
+    : typeof c.missing_count === 'number'
+      ? c.missing_count === 0
+      : undefined;
+/** "n missing" when the API counts the missing fields, else the plain "Incomplete" badge. */
+const incompleteLabel = (c: AdminCourseListItem) =>
+  typeof c.missing_count === 'number' && c.missing_count > 0
+    ? t('admin.completeness.missingBadge', { n: c.missing_count })
+    : t('admin.completeness.incomplete');
 
 const statusOptions = computed(() =>
   STATUSES.map((s) => ({ value: s, label: t(`admin.lifecycle.${s}`) })),
@@ -351,16 +366,16 @@ function onRowClick(course: AdminCourseListItem, event: MouseEvent) {
                           <span v-else class="visually-hidden">{{ t('admin.no') }}</span>
                         </td>
                         <td v-if="showCompleteness">
-                          <template v-if="course.complete === true">
+                          <template v-if="completeOf(course) === true">
                             <span aria-hidden="true">✓</span>
                             <span class="visually-hidden">{{
                               t('admin.completeness.complete')
                             }}</span>
                           </template>
                           <AdminBadge
-                            v-else-if="course.complete === false"
+                            v-else-if="completeOf(course) === false"
                             tone="warn"
-                            :label="t('admin.completeness.incomplete')"
+                            :label="incompleteLabel(course)"
                           />
                           <span v-else class="visually-hidden">{{
                             t('admin.completeness.unknown')

@@ -5,6 +5,7 @@ import { DiscoveryModule } from '@nestjs/core';
 import { IdentityModule } from '../identity/identity.module.js';
 import { IdpMetadataRefreshModule } from '../identity/metadata-refresh/idp-metadata-refresh.module.js';
 import { CsvWorkerModule } from '../ingestion/csv/csv-worker.module.js';
+import { AccountCleanupService } from './account-cleanup.service.js';
 import { DormancyService } from './dormancy.service.js';
 import { HistoryPartitionsService } from './history-partitions.service.js';
 import { MAINTENANCE_QUEUE } from './maintenance.constants.js';
@@ -17,7 +18,8 @@ import { WorkerHealthServer } from './worker-health.server.js';
 
 /**
  * Worker process only: the maintenance jobs (history partitions, retention,
- * dormancy; spec §2.2, §5.4, §10), their daily schedules and the worker's
+ * dormancy, account cleanup, upload retention, IdP metadata refresh; spec §2.2,
+ * §4, §5.4, §10), their daily schedules and start-up runs, and the worker's
  * `/health` and `/ready` endpoints. Needs BullModule.forRoot (IngestionModule).
  */
 @Module({
@@ -34,6 +36,7 @@ import { WorkerHealthServer } from './worker-health.server.js';
     HistoryPartitionsService,
     RetentionService,
     DormancyService,
+    AccountCleanupService,
     MaintenanceProcessor,
     MaintenanceScheduler,
     WorkerHealthServer,

@@ -293,6 +293,7 @@ export class CoursesRepository {
         offerings_count: Number(r.offerings_count),
         has_overrides: r.has_overrides,
         complete: completeness.get(r.id)?.complete ?? false,
+        missing_count: completeness.get(r.id)?.missing.length ?? 0,
         next_start_date: r.next_start_date,
       })),
       page: query.page,

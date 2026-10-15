@@ -16,7 +16,11 @@ export interface ProblemBody {
   title?: string;
   detail?: string;
   errors?: ProblemError[];
+  /** RFC 9457 extension members; never override the standard members. */
+  extensions?: Record<string, unknown>;
 }
+
+const STANDARD_MEMBERS = new Set(['type', 'title', 'status', 'detail', 'instance', 'errors']);
 
 /** Renders every error as RFC 9457 `application/problem+json` (spec §6.6). */
 @Catch()
@@ -47,6 +51,9 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     };
     if (body.detail) problem.detail = body.detail;
     if (body.errors?.length) problem.errors = body.errors;
+    for (const [name, value] of Object.entries(body.extensions ?? {})) {
+      if (!STANDARD_MEMBERS.has(name)) problem[name] = value;
+    }
 
     httpAdapter.setHeader(response, 'Content-Type', PROBLEM_CONTENT_TYPE);
     httpAdapter.reply(response, problem, status);

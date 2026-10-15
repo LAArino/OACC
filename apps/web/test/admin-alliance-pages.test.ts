@@ -51,6 +51,7 @@ const auth = vi.hoisted(() => ({
   count: 0,
   restoring: false,
   login: vi.fn(async (..._args: unknown[]) => undefined),
+  logout: vi.fn(async (..._args: unknown[]) => undefined),
   restoreSession: vi.fn(async () => false),
   handleSilentCallback: vi.fn(async () => undefined),
 }));
@@ -72,7 +73,7 @@ mockNuxtImport('useAuth', () => () => ({
     },
   },
   login: auth.login,
-  logout: async () => undefined,
+  logout: auth.logout,
   handleCallback: async () => '/en/admin',
   restoreSession: auth.restoreSession,
   handleSilentCallback: auth.handleSilentCallback,
@@ -123,6 +124,7 @@ beforeEach(() => {
   auth.token = `token-${++auth.count}`;
   auth.restoring = false;
   auth.login.mockClear();
+  auth.logout.mockClear();
   auth.restoreSession.mockReset();
   auth.restoreSession.mockResolvedValue(false);
   auth.handleSilentCallback.mockClear();
@@ -287,6 +289,101 @@ describe('invitation acceptance with an IdP alias', () => {
     expect(window.sessionStorage.getItem('oecp.admin.pendingInvitation')).toBe(TOKEN);
     expect(window.sessionStorage.getItem('oecp.admin.pendingInvitationIdp')).toBe('univie');
     expect(auth.login).toHaveBeenCalledWith('/en/admin/accept', { idpHint: 'univie' });
+  });
+});
+
+describe('invitation mismatch causes', () => {
+  const ACCEPT = `POST ${API}/invitations/accept`;
+  const mismatch = (extra: Record<string, unknown>) => () => ({
+    status: 403,
+    body: problem(403, 'oecp.invitation.mismatch', extra),
+  });
+  /** Signed in and back from Keycloak with a parked invitation of a brokered organization. */
+  async function acceptWith(route: Route, idp: string | null = 'vu-amsterdam') {
+    window.sessionStorage.setItem('oecp.admin.pendingInvitation', TOKEN);
+    if (idp) window.sessionStorage.setItem('oecp.admin.pendingInvitationIdp', idp);
+    serve({ [ACCEPT]: route });
+    const w = await mountPage(AcceptPage, '/en/admin/accept');
+    expect(callsTo(ACCEPT)).toHaveLength(1);
+    return w;
+  }
+  const buttons = (w: Wrapper) => w.findAll('button').map((b) => b.text());
+
+  it('explains an e-mail mismatch', async () => {
+    const w = await acceptWith(mismatch({ reason: 'email' }));
+    const alert = w.find('[role="alert"]');
+    expect(alert.text()).toContain('The invitation could not be accepted');
+    expect(alert.text()).toContain('does not have the e-mail address this invitation was sent to');
+    expect(alert.text()).not.toContain('issued for another account');
+    expect(buttons(w)).toEqual(['Sign out']);
+    expect(await axeViolations(w.html(), 'div')).toEqual([]);
+  });
+
+  it('explains an IdP mismatch and signs out to sign in through the university', async () => {
+    const w = await acceptWith(mismatch({ reason: 'idp' }));
+    expect(w.find('[role="alert"]').text()).toContain(
+      'You did not sign in through your university',
+    );
+    expect(buttons(w)).toEqual(['Sign in through your university', 'Sign out']);
+    expect(await axeViolations(w.html(), 'div')).toEqual([]);
+    await button(w, 'Sign in through your university').trigger('click');
+    await flushPromises();
+    expect(window.sessionStorage.getItem('oecp.admin.pendingInvitation')).toBe(TOKEN);
+    expect(window.sessionStorage.getItem('oecp.admin.pendingInvitationIdp')).toBe('vu-amsterdam');
+    expect(auth.logout).toHaveBeenCalledWith({ returnTo: '/en/admin/accept' });
+    expect(auth.login).not.toHaveBeenCalled();
+    expect(w.html()).not.toContain(TOKEN);
+  });
+
+  it('offers the university switch without a known IdP alias too, and reports a failed sign-out', async () => {
+    auth.logout.mockRejectedValueOnce(new Error('offline'));
+    const w = await acceptWith(mismatch({ reason: 'idp' }), null);
+    await button(w, 'Sign in through your university').trigger('click');
+    await flushPromises();
+    expect(auth.logout).toHaveBeenCalledTimes(1);
+    expect(window.sessionStorage.getItem('oecp.admin.pendingInvitation')).toBeNull();
+    expect(w.text()).toContain('Sign-in could not be started');
+  });
+
+  it('explains a home organization mismatch', async () => {
+    const w = await acceptWith(mismatch({ reason: 'home_organization' }));
+    expect(w.find('[role="alert"]').text()).toContain(
+      'did not confirm that you belong to the invited organization',
+    );
+    expect(buttons(w)).toEqual(['Sign out']);
+  });
+
+  it('explains an account that administers another organization (409)', async () => {
+    const w = await acceptWith(() => ({
+      status: 409,
+      body: problem(409, 'oecp.invitation.mismatch', { reason: 'organization' }),
+    }));
+    expect(w.find('[role="alert"]').text()).toContain('already administers another organization');
+  });
+
+  it('reads the reason from the errors[] item as well', async () => {
+    const w = await acceptWith(() => ({
+      status: 403,
+      body: {
+        ...problem(403, 'oecp.invitation.mismatch'),
+        errors: [
+          { code: 'oecp.invitation.mismatch', severity: 'error', message: 'x', reason: 'email' },
+        ],
+      },
+    }));
+    expect(w.find('[role="alert"]').text()).toContain('does not have the e-mail address');
+  });
+
+  it('keeps the generic text without a reason (or with an unknown one)', async () => {
+    const w = await acceptWith(mismatch({}));
+    expect(w.find('[role="alert"]').text()).toContain(
+      'This invitation was issued for another account',
+    );
+    const w2 = await acceptWith(mismatch({ reason: 'something_new' }));
+    expect(w2.find('[role="alert"]').text()).toContain(
+      'This invitation was issued for another account',
+    );
+    expect(w2.findAll('button').map((b) => b.text())).toEqual(['Sign out']);
   });
 });
 
@@ -1268,14 +1365,15 @@ describe('network status', () => {
 });
 
 describe('dashboard modules', () => {
-  it('adds Invitations for partners and Network status and Organizations for the alliance', async () => {
+  it('adds Invitations for partners and Network status, Organizations and Maintenance for the alliance', async () => {
     asAlliance();
     const w = await mountPage(DashboardPage, `/en/admin?org=${ORG_ID}`);
     const links = w.findAll('.admin-modules a').map((a) => [a.text(), a.attributes('href')]);
     expect(links).toContainEqual(['Invitations', `/en/admin/invitations?org=${ORG_ID}`]);
-    expect(links.slice(-2)).toEqual([
+    expect(links.slice(-3)).toEqual([
       ['Network status', '/en/admin/network'],
       ['Organizations', '/en/admin/organizations'],
+      ['Maintenance', '/en/admin/maintenance'],
     ]);
     expect(await axeViolations(w.html())).toEqual([]);
   });

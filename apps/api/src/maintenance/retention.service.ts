@@ -22,6 +22,7 @@ export interface RetentionCutoffs {
   admin_invitations: Date;
   maintenance_runs: Date;
   admin_activity: Date;
+  soft_deleted: Date;
 }
 
 /** Cut-offs of spec §10 for a given instant: rows strictly older are deleted. */
@@ -33,6 +34,7 @@ export function retentionCutoffs(now: Date, options: MaintenanceOptions): Retent
     admin_invitations: subtractMonths(now, options.invitationsRetentionMonths),
     maintenance_runs: subtractMonths(now, options.maintenanceRunsRetentionMonths),
     admin_activity: subtractMonths(now, options.adminActivityRetentionMonths),
+    soft_deleted: subtractMonths(now, options.softDeletedRetentionMonths),
   };
 }
 
@@ -49,7 +51,11 @@ export function retentionCutoffs(now: Date, options: MaintenanceOptions): Retent
  * - `admin_invitations` accepted, revoked or expired more than 12 months ago;
  * - `maintenance_runs` started more than 12 months ago;
  * - `admin_activity` rows not refreshed for 12 months (the administrator is
- *   dormant by then anyway).
+ *   dormant by then anyway);
+ * - records soft-deleted (`deleted_at`) more than 12 months ago
+ *   (`OECP_RETENTION_SOFT_DELETED_MONTHS`): offerings; courses with their
+ *   texts, ISCED codes and offerings; organizations nothing refers to any more
+ *   (see {@link RetentionService.purgeOrganizations}).
  *
  * Batched deletes of {@link RETENTION_BATCH} rows. Also fails maintenance runs
  * left `running` for {@link STALE_RUN_HOURS} hours. The history partitions have
@@ -113,6 +119,8 @@ export class RetentionService {
       'sub',
     );
 
+    Object.assign(counters, await this.purgeSoftDeleted(cut.soft_deleted));
+
     const stale = await this.db
       .updateTable('maintenance_runs')
       .set({
@@ -137,6 +145,115 @@ export class RetentionService {
         cutoffs: Object.fromEntries(Object.entries(cut).map(([k, d]) => [k, d.toISOString()])),
       },
     };
+  }
+
+  /**
+   * Hard delete of records soft-deleted before `cutoff` (spec §5: `deleted_at`
+   * marks records created in error). Offerings first, then courses with their
+   * remaining offerings (texts, ISCED codes and delivery modes cascade), then
+   * organizations. Batches of {@link RETENTION_BATCH}, one transaction each.
+   */
+  private async purgeSoftDeleted(cutoff: Date): Promise<Record<string, number>> {
+    let offerings = 0;
+    for (;;) {
+      const result = await sql`
+        DELETE FROM course_offerings WHERE id IN (
+          SELECT id FROM course_offerings WHERE deleted_at < ${cutoff}
+          ORDER BY id LIMIT ${sql.lit(RETENTION_BATCH)})`.execute(this.db);
+      const n = Number(result.numAffectedRows ?? 0);
+      offerings += n;
+      if (n < RETENTION_BATCH) break;
+    }
+    let courses = 0;
+    for (;;) {
+      const n = await this.db.transaction().execute(async (trx) => {
+        const ids = (
+          await trx
+            .selectFrom('courses')
+            .select('id')
+            .where('deleted_at', '<', cutoff)
+            .orderBy('id')
+            .limit(RETENTION_BATCH)
+            .forUpdate()
+            .execute()
+        ).map((r) => r.id);
+        if (ids.length === 0) return 0;
+        const cascaded = await trx
+          .deleteFrom('course_offerings')
+          .where('course_id', 'in', ids)
+          .executeTakeFirst();
+        offerings += Number(cascaded.numDeletedRows);
+        await trx.deleteFrom('courses').where('id', 'in', ids).execute();
+        return ids.length;
+      });
+      courses += n;
+      if (n < RETENTION_BATCH) break;
+    }
+    const organizations = await this.purgeOrganizations(cutoff);
+    return {
+      soft_deleted_offerings: offerings,
+      soft_deleted_courses: courses,
+      soft_deleted_organizations: organizations.deleted,
+      soft_deleted_organizations_kept: organizations.kept,
+    };
+  }
+
+  /**
+   * Organizations soft-deleted before `cutoff` are deleted once nothing refers
+   * to them: no other organization (children, also deleted ones, go first), no
+   * course or teaching unit, no sync run, history row, invitation or audit row
+   * (each kept for its own retention period). Their integration settings, its
+   * stored credential and their academic sessions no offering uses go with
+   * them. Organizations still referred to are counted as `kept` and retried on
+   * the next run.
+   */
+  private async purgeOrganizations(cutoff: Date): Promise<{ deleted: number; kept: number }> {
+    let deleted = 0;
+    for (;;) {
+      const candidates = await sql<{ id: string }>`
+        SELECT o.id FROM organizations o
+        WHERE o.deleted_at < ${cutoff}
+          AND NOT EXISTS (SELECT 1 FROM organizations c
+                          WHERE c.id <> o.id AND (c.parent_id = o.id OR c.partner_id = o.id))
+          AND NOT EXISTS (SELECT 1 FROM courses x
+                          WHERE x.organization_id = o.id OR x.teaching_unit_id = o.id)
+          AND NOT EXISTS (SELECT 1 FROM sync_runs x WHERE x.organization_id = o.id)
+          AND NOT EXISTS (SELECT 1 FROM ext_metadata_history x WHERE x.organization_id = o.id)
+          AND NOT EXISTS (SELECT 1 FROM admin_invitations x WHERE x.organization_id = o.id)
+          AND NOT EXISTS (SELECT 1 FROM audit_log x WHERE x.actor_org_id = o.id)
+          AND NOT EXISTS (SELECT 1 FROM academic_sessions s
+                          JOIN course_offerings co ON co.academic_session_id = s.id
+                          WHERE s.organization_id = o.id)
+        ORDER BY o.id LIMIT ${sql.lit(RETENTION_BATCH)}`.execute(this.db);
+      if (candidates.rows.length === 0) break;
+      for (const { id } of candidates.rows) {
+        await this.db.transaction().execute(async (trx) => {
+          const integration = await trx
+            .deleteFrom('partner_integrations')
+            .where('organization_id', '=', id)
+            .returning('secret_ref')
+            .executeTakeFirst();
+          const secret = /^db:([0-9a-f-]{36})$/.exec(integration?.secret_ref ?? '')?.[1];
+          if (secret) await trx.deleteFrom('secrets').where('id', '=', secret).execute();
+          // Sessions form a tree (parent_id, RESTRICT): leaves first.
+          for (;;) {
+            const removed = await sql`
+              DELETE FROM academic_sessions s
+              WHERE s.organization_id = ${id}
+                AND NOT EXISTS (SELECT 1 FROM academic_sessions c WHERE c.parent_id = s.id)`.execute(
+              trx,
+            );
+            if (Number(removed.numAffectedRows ?? 0) === 0) break;
+          }
+          await trx.deleteFrom('organizations').where('id', '=', id).execute();
+        });
+        deleted += 1;
+      }
+    }
+    const kept = await this.count(
+      sql`SELECT count(*)::int AS n FROM organizations WHERE deleted_at < ${cutoff}`,
+    );
+    return { deleted, kept };
   }
 
   /**

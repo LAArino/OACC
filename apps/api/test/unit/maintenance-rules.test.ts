@@ -100,8 +100,11 @@ describe('retention cut-offs (spec §10)', () => {
       OECP_RETENTION_SYNC_ERRORS_MONTHS: 12,
       OECP_RETENTION_SYNC_RUNS_MONTHS: 24,
       OECP_RETENTION_AUDIT_MONTHS: 36,
+      OECP_RETENTION_SOFT_DELETED_MONTHS: 12,
       OECP_DORMANCY_DAYS: 180,
       OECP_DORMANCY_DRY_RUN: true,
+      OECP_ACCOUNT_DELETE_MONTHS: 12,
+      OECP_ACCOUNT_CLEANUP_DRY_RUN: true,
     });
     const cut = retentionCutoffs(d('2029-05-31T04:45:00Z'), options);
     expect(cut.sync_errors.toISOString()).toBe('2028-05-31T04:45:00.000Z');

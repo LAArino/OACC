@@ -12,6 +12,8 @@ import {
   EMAIL_PATTERN,
   ERROR_CODES,
   type ErrorCode,
+  type ErrorSeverityCode,
+  type WarningSeverityCode,
   HANDBOOK_TEXT_FIELDS,
   type HandbookTextField,
   HTTPS_URL_PATTERN,
@@ -117,11 +119,13 @@ class Issues {
 
   constructor(private readonly extId: () => string | null) {}
 
-  error(code: ErrorCode, pointer: string, detail?: string): void {
+  /** Only codes the catalogue marks as errors (spec §6.6: one severity per code). */
+  error(code: ErrorSeverityCode, pointer: string, detail?: string): void {
     this.errors.push(this.make(code, 'error', pointer, detail));
   }
 
-  warn(code: ErrorCode, pointer: string, detail?: string): void {
+  /** Only codes the catalogue marks as warnings. */
+  warn(code: WarningSeverityCode, pointer: string, detail?: string): void {
     this.warnings.push(this.make(code, 'warning', pointer, detail));
   }
 
@@ -144,9 +148,9 @@ function pointer(path: readonly PropertyKey[]): string {
   return path.map((p) => '/' + String(p).replace(/~/g, '~0').replace(/\//g, '~1')).join('');
 }
 
-function schemaIssues(issues: Issues, error: z.ZodError, primaryCodeCode: ErrorCode): void {
+function schemaIssues(issues: Issues, error: z.ZodError, primaryCodeCode: ErrorSeverityCode): void {
   for (const issue of error.issues) {
-    const code: ErrorCode =
+    const code: ErrorSeverityCode =
       issue.path[0] === 'primaryCode' ? primaryCodeCode : 'oecp.oeapi.invalid_payload';
     issues.error(code, pointer(issue.path), issue.message);
   }
@@ -330,7 +334,7 @@ export class OeapiV5Adapter {
         if (!ISCED_CODE_PATTERN.test(code)) {
           issues.warn('oecp.oeapi.invalid_isced', '/fieldsOfStudy', code);
         } else if (!ctx.iscedBroadFields.has(code.slice(0, 2))) {
-          issues.warn('oecp.content.unknown_isced_field', '/fieldsOfStudy', code);
+          issues.warn('oecp.oeapi.unknown_isced_field', '/fieldsOfStudy', code);
         } else if (!isced.includes(code)) {
           isced.push(code);
         }
@@ -342,7 +346,7 @@ export class OeapiV5Adapter {
     if (link.insecure) issues.warn('oecp.oeapi.insecure_link', '/link', src.link);
 
     const english = texts['en'] !== undefined;
-    if (!english) issues.warn('oecp.content.english_missing', '/name');
+    if (!english) issues.warn('oecp.oeapi.english_missing', '/name');
 
     const contact = ctx.organization.contactEmail;
     const levels = resolveLevels(src.level === undefined ? null : (level?.level ?? 'other'), null);
@@ -447,7 +451,7 @@ export class OeapiV5Adapter {
     if (modes.length === 0) {
       issues.error('oecp.oeapi.unmappable_delivery_mode', '/modeOfDelivery', modesDetail);
     } else if (unmapped.length > 0) {
-      issues.warn('oecp.oeapi.unmappable_delivery_mode', '/modeOfDelivery', unmapped.join(', '));
+      issues.warn('oecp.oeapi.delivery_mode_dropped', '/modeOfDelivery', unmapped.join(', '));
     }
 
     // Seats [DL 8]: only when max and enrolled are present.
@@ -586,7 +590,7 @@ export class OeapiV5Adapter {
     const checked = academicSessionSchema.safeParse(candidate);
     if (!checked.success) {
       issues.warn(
-        'oecp.content.unknown_session',
+        'oecp.content.session_ignored',
         '/academicSession',
         checked.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
       );
@@ -652,7 +656,7 @@ function cleanInstructors(names: readonly string[], pointer: string, issues: Iss
 function coordinators(value: unknown, issues: Issues): string[] | undefined {
   if (value === undefined || value === null) return undefined;
   if (!Array.isArray(value)) {
-    issues.warn('oecp.oeapi.invalid_payload', '/coordinators', 'expected an array');
+    issues.warn('oecp.oeapi.invalid_coordinators', '/coordinators', 'expected an array');
     return undefined;
   }
   const names = value.map(personName).filter((n): n is string => n !== null);

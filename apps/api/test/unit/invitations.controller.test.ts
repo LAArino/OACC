@@ -219,6 +219,7 @@ describe('InvitationsController', () => {
       expect(response.status).toBe(403);
       expect(response.headers['content-type']).toMatch(/^application\/problem\+json/);
       expect(errorCode(response.body)).toBe('oecp.invitation.mismatch');
+      expect(response.body.reason).toBe('home_organization');
       expect((await accept(roleless)).status).toBe(403); // no claim, no attribute
       expect(keycloak.addRealmRole).not.toHaveBeenCalled();
       expect(writes()).toEqual([]);
@@ -249,18 +250,22 @@ describe('InvitationsController', () => {
         { ...roleless, email: 'other@urv.cat' },
         403,
         'oecp.invitation.mismatch',
+        'email',
       ],
-      ['an IdP mismatch', { ...roleless, idp: 'uibk' }, 403, 'oecp.invitation.mismatch'],
+      ['an IdP mismatch', { ...roleless, idp: 'uibk' }, 403, 'oecp.invitation.mismatch', 'idp'],
       [
         'a local login for a brokered organization',
         { ...roleless, idp: undefined },
         403,
         'oecp.invitation.mismatch',
+        'idp',
       ],
-    ])('rejects %s', async (_label, claims, status, code) => {
+    ])('rejects %s (extension member reason)', async (_label, claims, status, code, reason) => {
       const response = await accept(claims);
       expect(response.status).toBe(status);
       expect(errorCode(response.body)).toBe(code);
+      // RFC 9457 extension member next to the standard ones.
+      expect(response.body).toMatchObject({ status, reason, type: 'about:blank' });
       expect(keycloak.setUserAttribute).not.toHaveBeenCalled();
     });
 
@@ -278,6 +283,7 @@ describe('InvitationsController', () => {
       const response = await accept(roleless);
       expect(response.status).toBe(status);
       expect(errorCode(response.body)).toBe(code);
+      expect(response.body).not.toHaveProperty('reason');
       expect(writes()).toEqual([]);
     });
 

@@ -23,6 +23,7 @@ import {
   adminCourseListQuery,
   type AdminOffering,
   type AdminReference,
+  CONTENT_RULE_CODES,
   type CourseInputValue,
   courseInput,
   courseOverridesPatch,
@@ -33,6 +34,7 @@ import {
   type StatusChangeRequest,
   statusChangeRequest,
 } from '@oecp/schemas';
+import type { z } from 'zod';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe.js';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard.js';
 import type { AdminPrincipal } from '../auth/claims.js';
@@ -45,6 +47,9 @@ interface HeaderResponse {
 }
 
 const uuid = new ParseUUIDPipe();
+/** Content rules (English to publish, dates, seats, ISCED list) answer 422, spec §6.6. */
+const validBody = <T extends z.ZodType>(schema: T) =>
+  new ZodValidationPipe(schema, { contentRules: CONTENT_RULE_CODES });
 const BASE = '/api/admin/v1';
 
 /**
@@ -55,7 +60,9 @@ const BASE = '/api/admin/v1';
  * 400 request shape, 404, 403 scope, 409 `oecp.sync.channel_disabled` /
  * `oecp.content.override_not_allowed` / `duplicate_ext_id` / `ext_id_immutable` /
  * `has_published_offerings` / `published_not_deletable` / `harvested_not_deletable`,
- * 422 content and reference checks (JSON pointers into the body).
+ * 422 content rules of the body (`CONTENT_RULE_CODES`: English title to publish,
+ * date order, seats, ISCED list) and content and reference checks (JSON pointers
+ * into the body).
  */
 @Controller('api/admin/v1')
 @UseGuards(AdminJwtGuard)
@@ -90,7 +97,7 @@ export class CoursesController {
   async create(
     @CurrentAdmin() admin: AdminPrincipal,
     @Param('orgId', uuid) orgId: string,
-    @Body(new ZodValidationPipe(courseInput)) body: CourseInputValue,
+    @Body(validBody(courseInput)) body: CourseInputValue,
     @Res({ passthrough: true }) response: HeaderResponse,
   ): Promise<AdminCourse> {
     await this.access.assert(admin, orgId);
@@ -112,7 +119,7 @@ export class CoursesController {
   async replace(
     @CurrentAdmin() admin: AdminPrincipal,
     @Param('id', uuid) id: string,
-    @Body(new ZodValidationPipe(courseInput)) body: CourseInputValue,
+    @Body(validBody(courseInput)) body: CourseInputValue,
   ): Promise<AdminCourse> {
     await this.access.assert(admin, await this.courses.courseOrganization(id));
     return this.courses.replaceCourse(admin, id, body);
@@ -122,7 +129,7 @@ export class CoursesController {
   async patchOverrides(
     @CurrentAdmin() admin: AdminPrincipal,
     @Param('id', uuid) id: string,
-    @Body(new ZodValidationPipe(courseOverridesPatch)) body: ParsedOverridesPatch,
+    @Body(validBody(courseOverridesPatch)) body: ParsedOverridesPatch,
   ): Promise<AdminCourse> {
     await this.access.assert(admin, await this.courses.courseOrganization(id));
     return this.courses.patchCourseOverrides(admin, id, body);
@@ -163,7 +170,7 @@ export class CoursesController {
   async createOffering(
     @CurrentAdmin() admin: AdminPrincipal,
     @Param('id', uuid) id: string,
-    @Body(new ZodValidationPipe(offeringInput)) body: OfferingInputValue,
+    @Body(validBody(offeringInput)) body: OfferingInputValue,
     @Res({ passthrough: true }) response: HeaderResponse,
   ): Promise<AdminOffering> {
     await this.access.assert(admin, await this.courses.courseOrganization(id));
@@ -185,7 +192,7 @@ export class CoursesController {
   async replaceOffering(
     @CurrentAdmin() admin: AdminPrincipal,
     @Param('id', uuid) id: string,
-    @Body(new ZodValidationPipe(offeringInput)) body: OfferingInputValue,
+    @Body(validBody(offeringInput)) body: OfferingInputValue,
   ): Promise<AdminOffering> {
     await this.access.assert(admin, await this.courses.offeringOrganization(id));
     return this.courses.replaceOffering(admin, id, body);
@@ -195,7 +202,7 @@ export class CoursesController {
   async patchOfferingOverrides(
     @CurrentAdmin() admin: AdminPrincipal,
     @Param('id', uuid) id: string,
-    @Body(new ZodValidationPipe(offeringOverridesPatch)) body: ParsedOverridesPatch,
+    @Body(validBody(offeringOverridesPatch)) body: ParsedOverridesPatch,
   ): Promise<AdminOffering> {
     await this.access.assert(admin, await this.courses.offeringOrganization(id));
     return this.courses.patchOfferingOverrides(admin, id, body);

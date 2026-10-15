@@ -3,9 +3,9 @@
 
 # API integration: exposing an OEAPI v5 endpoint to OECP
 
-For partner IT teams. OECP **pulls** course data from your Open Education API (OEAPI, formerly OOAPI) **v5.0** endpoint on a schedule (Channel A, spec §6.2); it never receives pushes. This guide states what OECP 0.2.0 requests, how it maps your data and how to read the outcome. Getting an administrator account, agreeing to the data reuse and choosing this channel are covered in the onboarding guide [B. Partner with an OEAPI endpoint](../onboarding/partner-with-oeapi.md). Common data rules: [guides README](README.md#common-data-quality-rules).
+For partner IT teams. OECP **pulls** course data from your Open Education API (OEAPI, formerly OOAPI) **v5.0** endpoint on a schedule (Channel A, spec §6.2); it never receives pushes. This guide states what OECP requests (as built after release 0.3.0, spec v4.1), how it maps your data and how to read the outcome. Getting an administrator account, agreeing to the data reuse and choosing this channel are covered in the onboarding guide [B. Partner with an OEAPI endpoint](../onboarding/partner-with-oeapi.md). Common data rules: [guides README](README.md#common-data-quality-rules).
 
-> **Status in 0.2.0.** The harvester is verified only against the bundled mock partner (`tools/oeapi-mock`); no real partner endpoint has been harvested yet. Integration settings are entered on the **Integration settings** page of the admin console (settings form, host approval, "Test connection", "Sync now"; walkthrough in [Guide B, steps 5–8](../onboarding/partner-with-oeapi.md#5-enter-the-integration-settings)); the admin API calls below do the same for scripting.
+> **Status.** The harvester is verified only against the bundled mock partner (`tools/oeapi-mock`); no real partner endpoint has been harvested yet. Integration settings are entered on the **Integration settings** page of the admin console (settings form, host approval, "Test connection", "Sync now"; walkthrough in [Guide B, steps 5–8](../onboarding/partner-with-oeapi.md#5-enter-the-integration-settings)); the admin API calls below do the same for scripting.
 
 ## What OECP requests
 
@@ -28,7 +28,7 @@ Every request carries the query parameter **`consumer={consumer_profile}`** (def
 | 4 | `GET https://oeapi.example.edu/v5/offerings/{offeringId}?expand=academicSession&consumer=eduxchange` | each offering of an accepted course; on failure the listing item is used |
 
 - **`since`** = run date (UTC) minus 365 days. OECP asks only for offerings starting on or after it; offerings that start earlier are never counted as absent.
-- **Paging:** `pageSize` = the integration's `page_size` (10–250, default 100), `pageNumber` from 1. The envelope must have `pageSize`, `pageNumber`, `hasPreviousPage`, `hasNextPage` and `items`; `totalPages` is ignored. Listing stops at 1,000 pages. A `courseId` repeated across pages is skipped.
+- **Paging:** `pageSize` = the integration's `page_size` (10–250, default 100), `pageNumber` from 1. The envelope must have `pageSize`, `pageNumber`, `hasPreviousPage`, `hasNextPage` and `items`; `totalPages` is ignored. Listing stops at 1,000 pages with the warning `oecp.oeapi.page_cap_reached`: the items read are processed and the run counts as incomplete (no absence is counted). A `courseId` repeated across pages is skipped silently.
 - `courseId` and `offeringId` are URL-encoded into the path. OECP does not call `/academic-sessions`, `/courses/{courseId}` or any other path.
 - **Pace:** a token bucket at `max_requests_per_second` (default 2) holding at most max(1, rate) tokens, so there are no larger bursts.
 - **Timeouts and retries:** 30 s per request, body included; 429, 5xx, timeouts and connection errors (not DNS failures) are retried up to 5 times (exponential backoff from 1 s, capped at 60 s, with jitter; `Retry-After` in seconds or as an HTTP date is honoured up to 300 s). 401 and 403 are never retried; other 4xx are not retried. Bodies over 20 MB are refused. A run is stopped after 2 hours.
@@ -77,9 +77,9 @@ Defaults: `authoritative_channel` `form`, `access_mode` null (required for `oeap
 
 ## Mapping OEAPI v5 to OECP
 
-Implemented in `apps/api/src/ingestion/oeapi/oeapi-v5.adapter.ts`. "Required" means the entity is rejected without it. Unknown members are kept in the stored raw payload and otherwise ignored.
+Implemented in `apps/api/src/ingestion/oeapi/oeapi-v5.adapter.ts`. "Required" means the entity is rejected without it. Unknown members are kept in the stored raw payload and otherwise ignored, except person data: every `coordinators` and `persons` member, and every member of an `ext` object whose name contains "person", is removed before the payload is stored (spec §5.2).
 
-**Root organization** (`organizationId`, `organizationType`, `name[]` required): the first item with `organizationType: "root"` is **matched**, never created or updated. If the alliance has recorded your organization's `ext_id`, the root's `primaryCode.code` or `organizationId` must equal it.
+**Root organization** (`organizationId`, `organizationType`, `name[]` required): the first item with `organizationType: "root"` is **matched**, never created or updated. If the alliance has recorded your organization's `ext_id`, the root's `primaryCode.code` or `organizationId` must equal it. With several roots the first is used and the run records the warning `oecp.oeapi.multiple_roots`.
 
 **Course**
 
@@ -91,14 +91,14 @@ Implemented in `apps/api/src/ingestion/oeapi/oeapi-v5.adapter.ts`. "Required" me
 | `abstract[]`, `description[]`, `admissionRequirements[]`, `assessment[]` | no | `abstract`, `description`, `prerequisites`, `assessment` | only in languages that have a `name` |
 | `learningOutcomes[][]` | no | `learning_outcomes` | one array per outcome; a language's outcomes joined by a blank line |
 | `studyLoad` | yes | `ects` | `studyLoadUnit` `ects`, 0 < `value` ≤ 120, rounded to 2 decimals |
-| `fieldsOfStudy` | no | ISCED codes | split on spaces, `,`, `;`, `\|`; 2–6 digits with a known broad field; first valid is primary |
+| `fieldsOfStudy` | no | ISCED codes | split on spaces, `,`, `;`, `\|`; 2–6 digits with a known broad field; first valid is primary; a token that is not 2–6 digits is ignored with `oecp.oeapi.invalid_isced`, one with an unknown broad field with `oecp.oeapi.unknown_isced_field` |
 | `level` | no | `levels`, `level`, `eqf_level` | table below |
 | `link` | no | `info_url` | https only, ≤ 2,048 |
-| `coordinators[]` | no | `instructors` | only persons already **expanded** in the course item, with `displayName`, else `givenName` (+ `surnamePrefix`) + `surname` (`surName` accepted); bare `personId`s are ignored; trimmed, repeats dropped, ≤ 200 characters each and ≤ 50 entries (cut with `oecp.oeapi.value_truncated`); not an array: warning `oecp.oeapi.invalid_payload`, course kept |
+| `coordinators[]` | no | `instructors` | only persons already **expanded** in the course item, with `displayName`, else `givenName` (+ `surnamePrefix`) + `surname` (`surName` accepted); bare `personId`s are ignored; trimmed, repeats dropped, ≤ 200 characters each and ≤ 50 entries (cut with `oecp.oeapi.value_truncated`); not an array: warning `oecp.oeapi.invalid_coordinators`, course kept; the person objects are not kept in the raw payload |
 | `ext.oecp.instructors` | no | `instructors` | OECP extension, `[string]`; used only when no coordinator has a name; same limits |
 | `ext.oecp.texts.{modeOfRepetition, methods, literature, privacyNotice, remarks}` | no | `mode_of_repetition`, `methods`, `literature`, `privacy_notice`, `remarks` | OECP extension; each member `[{language, value}]` or `{"en": "…"}`; only in languages that have a `name`; ≤ 20,000 per language |
 | `teachingLanguage`, `modeOfDelivery[]` | no | — | fallback for offerings without their own |
-| — | | `status` | `published` with an English `name`, else `draft` |
+| — | | `status` | `published` with an English `name`, else `draft` with the warning `oecp.oeapi.english_missing` |
 | — | | `contact_email` | the organization's contact address |
 
 **Offering**
@@ -118,7 +118,7 @@ Implemented in `apps/api/src/ingestion/oeapi/oeapi-v5.adapter.ts`. "Required" me
 | `ext.oecp.applicationInstructions` | no | `application_instructions` | `[{language, value}]` or `{"en": "…"}`; ≤ 20,000 per language |
 | — | | `status`, `timezone` | `published`; the organization's default time zone |
 
-**Academic session:** `academicSessionId` becomes its key; `academicSessionType` `academic year`, `semester`, `trimester`, `quarter`, `testing period`, `period` map one-to-one, anything else becomes `period`; `name[]` (English copied from the first language if missing); `startDate`, `endDate`; `parent` is linked only if OECP already knows that session. An unexpanded id links only to a session OECP already has; otherwise the offering is stored without a session (warning).
+**Academic session:** `academicSessionId` becomes its key; `academicSessionType` `academic year`, `semester`, `trimester`, `quarter`, `testing period`, `period` map one-to-one, anything else becomes `period`; `name[]` (English copied from the first language if missing); `startDate`, `endDate`; `parent` is linked only if OECP already knows that session. An unexpanded id links only to a session OECP already has. An expanded session that is invalid, or an id OECP does not know, leaves the offering without a session, with the warning `oecp.content.session_ignored`.
 
 | `level` (case-insensitive) | `levels` | EQF |
 |---|---|---|
@@ -132,13 +132,13 @@ Implemented in `apps/api/src/ingestion/oeapi/oeapi-v5.adapter.ts`. "Required" me
 | `online`, `distance-learning` | `online` |
 | `on campus`, `situated` | `presential` |
 | `hybrid` | `hybrid` |
-| anything else | not mapped (warning; rejection if nothing maps) |
+| anything else | not mapped: warning `oecp.oeapi.delivery_mode_dropped`; if nothing on the offering or its course maps, the offering is rejected (`oecp.oeapi.unmappable_delivery_mode`) |
 
 **Languages.** The primary subtag is taken (`en-GB` → `en`); ISO 639-2 B and T codes become ISO 639-1 where one exists (`ger`/`deu` → `de`, `fre`/`fra` → `fr`, `dut`/`nld` → `nl`, `cze`/`ces` → `cs`, `ice`/`isl` → `is`, `cat` → `ca`, …); unlisted three-letter codes stay as they are; `mul`, `und`, `zxx`, `mis` are dropped; anything that is not 2–3 letters is invalid.
 
 ### What is not read
 
-- **Person data:** OECP never asks for `expand=coordinators`, never calls `/persons` and never looks anyone up. From `coordinators` it keeps only the **names** of persons your endpoint already returns expanded in the course item (decision 21a): no e-mail, phone, affiliation or identifier. Those names are republished on the public course page as the course's instructors, so return only names your university already publishes for the course; role descriptions ("Course team, Faculty of Law") work too, through `ext.oecp.instructors`.
+- **Person data:** OECP never asks for `expand=coordinators`, never calls `/persons` and never looks anyone up. From `coordinators` it keeps only the **names** of persons your endpoint already returns expanded in the course item (decision 21a): no e-mail, phone, affiliation or identifier, and the person objects are removed from the raw payload before it is stored. Those names are republished on the public course page as the course's instructors, so return only names your university already publishes for the course; role descriptions ("Course team, Faculty of Law") work too, through `ext.oecp.instructors`.
 - **Alliance data:** OEAPI v5 has no course kind or alliance attributes. Every harvested course gets `kind` `course` and no attributes, even if you send `ext.oecp.kind` or `ext.oecp.attributes`; administrators add them as overrides, which survive harvests. The extensions read are the course's `ext.oecp.instructors` and `ext.oecp.texts` and the offering's `ext.oecp.applicationInstructions`; they have the shape the OECP read API (`/oeapi/v5`) emits under `ext.oecp`, so an OECP catalogue can be harvested without loss of these fields.
 - `consumers` (including eduXchange `enrollmentUrl`, `theme`, `selection`), offering `name`, `description`, `offeringType`, `resultExpected`, `minNumberStudents`, course `abbreviation`, `duration`, `qualificationRequirements`, `validFrom`, `validTo`, `otherCodes`, `addresses`.
 - Not set by the harvester: teaching hours, campus, alliance seats, teaching unit.
@@ -171,7 +171,7 @@ Because OECP never expands `coordinators`, most endpoints will give no instructo
 
 ## Warning and rejection codes
 
-From `packages/schemas/errors.json`; "W" is a warning, "E" an error. **Run** = the run stops (status `failed`, or `partial` if something was already processed); **listing** = the listing is incomplete, nothing is withdrawn; **entity** = that course or offering is rejected and the rest continues. A transport failure stops the run on the root listing or before any course was processed, makes the listing incomplete later, and on request 4 becomes `oecp.oeapi.detail_unavailable`.
+Every `oecp.oeapi.*` code of `packages/schemas/errors.json`, plus the `oecp.content.*` codes and `oecp.internal` a harvest can record. **Sev.** is the catalogue's severity, the same in every channel (spec §6.6): where the harvester is more lenient than CSV or the form it uses a code of its own (for example `oecp.oeapi.english_missing`, a warning, next to `oecp.content.english_missing`, an error of the other channels). **Effect:** **run** = the run stops (status `failed`, or `partial` if something was already processed); **listing** = the listing is incomplete, nothing is withdrawn; **entity** = that course or offering is rejected (counted in `n_rejected`) and the rest continues; **—** = recorded only. A transport failure stops the run on the root listing or before any course was processed, makes the listing incomplete later, and on request 4 becomes `oecp.oeapi.detail_unavailable`.
 
 | Code | Sev. | Effect | Cause | Fix |
 |---|---|---|---|---|
@@ -182,43 +182,44 @@ From `packages/schemas/errors.json`; "W" is a warning, "E" an error. **Run** = t
 | `oecp.oeapi.insecure_url` | E | run | not https on port 443 | Serve https on 443 |
 | `oecp.oeapi.run_timeout` | E | run | run longer than 2 h (or worker stopped) | Faster responses, larger `page_size`, higher `max_requests_per_second` if you allow it |
 | `oecp.oeapi.secret_unavailable` | E | run | credential missing or undecryptable, Basic without `:`, characters not allowed in an HTTP header | Store the credential again with `PUT …/integration` |
-| `oecp.oeapi.root_not_matched` | E/W | run | no root returned, or its code differs from the organization's `ext_id`; W: more than one root (first used) | Support `organizationType=root`; agree the root code with the alliance |
+| `oecp.oeapi.root_not_matched` | E | run | no root returned, or its code differs from the organization's `ext_id` | Support `organizationType=root`; agree the root code with the alliance |
 | `oecp.oeapi.http_error` | E | run or listing | other status (404, 400, 406…), or 429/5xx after 5 retries | Support each request as listed above |
 | `oecp.oeapi.timeout` | E | run or listing | no response within 30 s after retries | Faster responses or smaller pages |
 | `oecp.oeapi.redirect_refused` | E | run or listing | redirect to another host or scheme, more than 3 hops, bad `Location` | Answer at `base_url` itself |
 | `oecp.oeapi.body_too_large` | E | run or listing | response over 20 MB | Lower `page_size` |
 | `oecp.oeapi.invalid_payload` | E | run, listing or entity | response not JSON or not a v5 page envelope; or an item lacks a required member or has the wrong type (pointer given) | Follow the v5 schema |
-| `oecp.oeapi.page_cap_reached` | W¹ | listing | more than 1,000 pages | Raise `page_size`; make `hasNextPage` false on the last page |
 | `oecp.oeapi.listing_failed` | E | listing | an offering listing failed; the message carries the cause | Fix that cause; no absence is counted for the run |
+| `oecp.oeapi.page_cap_reached` | W | listing | more than 1,000 pages; the items read are processed | Raise `page_size`; make `hasNextPage` false on the last page |
 | `oecp.oeapi.empty_listing` | W | listing | `/courses` returned no items | Check the `consumer` filter (are courses tagged for it?) |
-| `oecp.oeapi.mass_absence` | W | — | ≥ 30% of published courses missing; no absence counted | Restore the courses, or have them withdrawn in OECP by status override |
 | `oecp.oeapi.missing_primary_code` | E | entity | course without `primaryCode.code` | Send `primaryCode` |
 | `oecp.oeapi.study_load_unit` | E | entity | `studyLoad` missing, unit not `ects`, value ≤ 0 or > 120 | Send ECTS |
-| `oecp.oeapi.unmappable_delivery_mode` | E/W | entity | E: no mappable `modeOfDelivery` on offering or course; W: some values ignored | Use v5 values |
+| `oecp.oeapi.unmappable_delivery_mode` | E | entity | no mappable `modeOfDelivery` on offering or course | Use v5 values |
 | `oecp.oeapi.missing_teaching_language` | E | entity | no usable `teachingLanguage` on offering or course (`mul`, `und`, missing, invalid) | Send a real language code |
 | `oecp.oeapi.parent_rejected` | E | entity | offering of a rejected course (no detail requested) | Fix the course |
-| `oecp.oeapi.duplicate_entity` | W² | entity | course `primaryCode.code` repeated in the run, or offering code repeated within a course | Make codes unique |
 | `oecp.oeapi.write_failed` | E | entity | the database refused the record | Report to the alliance operator with the run id |
+| `oecp.oeapi.mass_absence` | W | — | ≥ 30% of published courses missing; no absence counted | Restore the courses, or have them withdrawn in OECP by status override |
+| `oecp.oeapi.multiple_roots` | W | — | more than one root organization returned; the first is used | Return only your own root for `organizationType=root` |
+| `oecp.oeapi.duplicate_entity` | W | — | course `primaryCode.code` repeated in the run, or offering code repeated within a course; the first item is processed, the repeat is ignored (not written, not counted as rejected) | Make codes unique |
 | `oecp.oeapi.detail_unavailable` | W | — | request 4 failed (cause in the message); listing item used | Support `GET /offerings/{id}?expand=academicSession` |
-| `oecp.oeapi.invalid_isced` | W | — | `fieldsOfStudy` token not 2–6 digits | Send ISCED-F 2013 codes |
+| `oecp.oeapi.english_missing` | W | — | no English `name`; the course is stored as `draft` (not public) | Add `en` to `name` |
+| `oecp.oeapi.invalid_isced` | W | — | `fieldsOfStudy` token not 2–6 digits; ignored | Send ISCED-F 2013 codes |
+| `oecp.oeapi.unknown_isced_field` | W | — | `fieldsOfStudy` code whose first two digits are not an ISCED-F broad field; ignored | Use ISCED-F 2013 |
+| `oecp.oeapi.delivery_mode_dropped` | W | — | some `modeOfDelivery` values have no mapping and are ignored (at least one maps) | Use v5 values |
 | `oecp.oeapi.language_dropped` | W | — | `mul`, `und`, `zxx` or `mis` | Use real language codes |
 | `oecp.oeapi.invalid_language` | W | — | language not 2–3 letters | Use ISO 639 / BCP 47 |
 | `oecp.oeapi.insecure_link` | W | — | `link` not an https URL; dropped | Use https links |
 | `oecp.oeapi.text_without_title` | W | — | a text in a language without a `name` in it; ignored | Add the `name` in that language |
 | `oecp.oeapi.value_truncated` | W | — | title > 500, instructions or handbook texts > 20,000 characters, an instructor name > 200 characters or more than 50 instructors | Shorten |
 | `oecp.oeapi.invalid_student_counts` | W | — | `maxNumberStudents` 0; seats ignored | Omit it when there is no limit |
+| `oecp.oeapi.invalid_coordinators` | W | — | `coordinators` is not an array; ignored, course kept | Send an array of `Person` objects (or ids) |
 | `oecp.oeapi.invalid_extension` | W | — | `ext.oecp.applicationInstructions`, `ext.oecp.texts` (or one of its members) or `ext.oecp.instructors` of another shape; ignored | Use `[{language, value}]` (texts, instructions) or `[string]` (instructors) |
-| `oecp.content.english_missing` | W³ | — | no English `name`; course stored as `draft` | Add `en` to `name` |
-| `oecp.content.unknown_isced_field` | W³ | — | ISCED code with an unknown broad field; ignored | Use ISCED-F 2013 |
-| `oecp.content.unknown_session` | W³ | — | session invalid or unknown; offering stored without it | Support `expand=academicSession` |
+| `oecp.content.session_ignored` | W | — | expanded academic session invalid, or an id OECP does not know; offering stored without it | Support `expand=academicSession` |
 | `oecp.content.handbook_incomplete` | W | — | a course stored as `published` misses fields the Aurora IT Handbook requires; the message lists them. In `enforce` mode the course is stored as `draft` | See [Handbook completeness](#handbook-completeness) |
 | `oecp.content.date_order` | E | entity | end before start, deadline after end, enrolment start after deadline | Fix the dates |
 | `oecp.content.invalid_value` | E | entity | code longer than 200, or another canonical rule | Per message and pointer |
 | `oecp.internal` | E | run | unexpected server error | Report with the run id |
 
-¹ Recorded with severity error when it interrupts the course listing. ² Counted in `n_rejected`. ³ Errors in other channels, downgraded by the harvester.
-
-Setup errors (HTTP problem+json, `errors[0].code`): `oecp.integration.not_configured` (404 before the first `PUT`); `access_mode_required`, `base_url_required`, `endpoint_id_required`, `header_name_required`, `basic_secret_format`, `secret_required`, `secret_not_expected` (400 on `PUT`, and `secret_required` 422 when no credential is stored; the first three also 409 on test and sync, `base_url_required` 409 on approve-host); `oecp.sync.channel_disabled` (400 on `PUT` with `enabled: true` and another channel); `oecp.integration.insecure_url` and `surfeduhub_unavailable` (422 on `PUT`, 409 on test and sync); `oecp.oeapi.host_not_approved` (409 on test and sync); `oecp.sync.channel_disabled`, `oecp.sync.already_running` (409) and `oecp.sync.rate_limited` (429 with `Retry-After`) on "Sync now".
+Setup errors (HTTP problem+json, `errors[0].code`): `oecp.integration.not_configured` (404 before the first `PUT`); `access_mode_required`, `base_url_required`, `endpoint_id_required`, `header_name_required`, `basic_secret_format`, `secret_required`, `secret_not_expected` (400 on `PUT`, and `secret_required` 422 when no credential is stored; the first three also 409 on test and sync, `base_url_required` 409 on approve-host); `oecp.sync.channel_disabled` (400 on `PUT` with `enabled: true` and another channel); `oecp.integration.insecure_url` and `surfeduhub_unavailable` (422 on `PUT`, 409 on test and sync); `oecp.oeapi.host_not_approved` (409 on test and sync); `oecp.sync.channel_disabled`, `oecp.sync.already_running` (409) and `oecp.sync.rate_limited` (429 with `Retry-After`) on "Sync now"; `oecp.secrets.unavailable` (503 on a `PUT` with a new credential and on test, when the deployment's master key is missing or invalid: an operator problem, nothing is written).
 
 ## Run statuses and completeness
 
@@ -231,7 +232,7 @@ Setup errors (HTTP problem+json, `errors[0].code`): `oecp.integration.not_config
 | `failed` | stopped before anything was processed |
 | `cancelled` | a queued run that could not start (another run in progress, channel no longer `oeapi`) |
 
-A run is **complete** when every listing page answered 2xx, nothing stopped the run and at least one course came back. Counters: `n_created`, `n_updated`, `n_unchanged`, `n_rejected` (courses and offerings together), `n_withdrawn`. An unchanged payload (same SHA-256 of its canonical form) only refreshes `last_seen_at`.
+A run is **complete** when every listing page answered 2xx, nothing stopped the run and at least one course came back. Counters: `n_created` (a deleted record that comes back counts here, [below](#deleted-records-come-back)), `n_updated`, `n_unchanged`, `n_rejected` (courses and offerings together; a code repeated in the run is ignored with a warning, not counted), `n_withdrawn`. An unchanged payload (same SHA-256 of its canonical form) only refreshes `last_seen_at`.
 
 ## Withdrawal by absence
 
@@ -242,7 +243,11 @@ OEAPI has no "withdrawn" state, so OECP withdraws what disappears from your list
 3. Otherwise every `draft` or `published` course not seen, and every such offering not seen whose start date is on or after `since`, gets `absent_count + 1`. At `withdraw_after_absences` (default 3) it becomes `withdrawn`, audited as `system:harvester` with reason `absence`, unless an administrator has set a `status` override.
 4. A seen entity, even a rejected one, resets `absent_count`. A withdrawn entity that comes back valid is republished (audit reason `seen_again`); a rejected one stays withdrawn until a valid payload arrives.
 
-To retire a course: remove it from the listing for your `consumer` and let three complete runs pass, or ask your OECP administrator to withdraw it immediately with a status action.
+To retire a course: remove it from the listing for your `consumer` and let three complete runs pass, or ask your OECP administrator to withdraw it immediately with a status action. A status override set that way wins over every harvest until the administrator removes it ("Revert status to the partner's value", [web form guide](web-form.md#overrides-mode-harvested-organizations)).
+
+### Deleted records come back
+
+Harvested records cannot be deleted in OECP, but records written while your organization used CSV or the web form may have been. When a harvest returns the code of such a deleted course or offering, the record **comes back**, as in every channel: it is written as new from your payload (counted in `n_created`), overrides left on it are dropped and the audit log records `course.revive` or `course_offering.revive`. Deleted records are purged for good after 12 months; after that the code simply creates a new record.
 
 ## Testing
 
@@ -271,6 +276,6 @@ curl -s "$M/courses/d40cca47-99fc-5acb-ad1c-11778e6efc48/offerings?since=2025-10
 curl -s "$M/offerings/a026dc34-c3ba-5a96-87d6-3e4abec3429d?expand=academicSession&consumer=eduxchange"
 ```
 
-Compare your responses with these, member by member. To see how OECP maps the mock, run the Compose stack with profile `dev` and `OECP_ALLOW_INSECURE_PARTNER_HTTP=true` for `api` and `worker` (development only), then configure the integration with `access_mode` `direct`, `base_url` `http://oeapi-mock:8090`, `auth_scheme` `basic`, `secret` `oecp:oecp-mock-secret`, approve the host and "Sync now" (spec Appendix D). Expect course `610200` as `draft` (`english_missing`), warnings for `816010` (`insecure_link`) and `660010` (`invalid_isced`), and offering `620050-2027S` rejected (`missing_teaching_language`), so a `partial` run. `OEAPI_MOCK_DATASET=…/uibk-next-run.json` then removes two courses (under 30%) to exercise withdrawal.
+Compare your responses with these, member by member. To see how OECP maps the mock, run the Compose stack with profile `dev` and `OECP_ALLOW_INSECURE_PARTNER_HTTP=true` for `api` and `worker` (development only), then configure the integration with `access_mode` `direct`, `base_url` `http://oeapi-mock:8090`, `auth_scheme` `basic`, `secret` `oecp:oecp-mock-secret`, approve the host and "Sync now" (spec Appendix D). Expect course `610200` as `draft` (`oecp.oeapi.english_missing`), warnings for `816010` (`insecure_link`) and `660010` (`invalid_isced`), and offering `620050-2027S` rejected (`missing_teaching_language`), so a `partial` run. `OEAPI_MOCK_DATASET=…/uibk-next-run.json` then removes two courses (under 30%) to exercise withdrawal.
 
 `node tools/oeapi-mock/scripts/validate.mjs --base-url <url> --basic user:pass` (or `--bearer`) validates responses against the vendored v5.0 OpenAPI document with Ajv (installed from npm on first run). It also asserts counts specific to the mock dataset (one root, three sessions, `pageSize` capped at 100), so against your endpoint only its schema findings are meaningful.

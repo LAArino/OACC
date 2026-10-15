@@ -395,7 +395,11 @@ describe.runIf(describeWithDatabase === 'run')('CanonicalWriter (PostgreSQL)', (
     );
     expect(result.outcome).toBe('created');
     expect(result.warnings).toEqual([
-      expect.objectContaining({ code: 'oecp.content.unknown_session', ext_id: 'C1#C1-X' }),
+      expect.objectContaining({
+        code: 'oecp.content.session_ignored',
+        severity: 'warning',
+        ext_id: 'C1#C1-X',
+      }),
     ]);
   });
 
