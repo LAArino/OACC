@@ -14,6 +14,7 @@
 | [adr/](adr/) | Architecture decision records (MADR). | English |
 | [backlog.md](backlog.md) | Owner-requested items not yet scheduled, with their trigger. | English |
 | [RELEASING.md](RELEASING.md) | Versioning, contract and migration policy, release procedure and checklist. | English |
+| [api/](api/README.md) | OpenAPI 3.1 documents of the public catalogue API (`/api/public/v1`) and the admin API (`/api/admin/v1`), generated from the Zod contracts; how to regenerate, view and version them. | English |
 | [screenshots/](screenshots/) | Screenshots of the development stack taken while verifying features (identity, catalogue, admin console, course wizard). Illustrative only: not kept in sync with every change. | — |
 
 ## Onboarding

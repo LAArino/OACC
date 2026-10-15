@@ -107,6 +107,9 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
+      - name: OpenAPI documents up to date (docs/api)
+        run: pnpm openapi:check
+
       - name: Test
         run: pnpm test
 

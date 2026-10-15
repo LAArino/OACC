@@ -50,3 +50,11 @@ path = ["tools/oeapi-mock/spec/oeapi-v5.0.bundled.json", "tools/oeapi-mock/spec/
 precedence = "override"
 SPDX-FileCopyrightText = "2017 SURF U.A. Cooperative, Utrecht, The Netherlands"
 SPDX-License-Identifier = "BSD-3-Clause"
+
+# OpenAPI documents generated from the project's own code (pnpm openapi:generate);
+# JSON cannot carry an SPDX header.
+[[annotations]]
+path = "docs/api/*.json"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Lluís Alfons Ariño"
+SPDX-License-Identifier = "EUPL-1.2"

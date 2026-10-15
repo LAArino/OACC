@@ -1,0 +1,2223 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "OECP public catalogue API",
+    "version": "0.4.0",
+    "description": "Anonymous, read-only catalogue API used by the portal (spec §7). No cookies, no authentication.\n\n**Caching.** Successful responses carry `Cache-Control` (`public, max-age=60` for search and suggest, `public, max-age=300` for course pages, reference data and the sitemap) and a weak `ETag`; a matching `If-None-Match` answers 304. Errors are not cached.\n\n**Rate limits.** Per client address at the edge proxy (spec §10): search 20 requests/s (burst 40), suggest 10/s (burst 20); other paths are not limited. Excess requests get 429 in plain text.\n\n**Versioning.** Additive only: new endpoints, optional parameters and response members may be added; nothing is removed, renamed or given a new meaning. A breaking change means `/api/public/v2`, served alongside v1 for at least one minor release (`docs/RELEASING.md`).\n\n**Conventions.** JSON members are snake_case (as the database); multilingual short labels are objects `{en, <lang>…}` that always contain `en`; dates are `YYYY-MM-DD` local to the offering `timezone`, timestamps ISO 8601 UTC; absent values are `null`, never omitted. Every error is RFC 9457 `application/problem+json` (`ProblemDetails`) with stable codes in `errors[].code` (spec §6.6, Appendix A).\n\nThe schemas are generated from the Zod contracts of `@oecp/schemas`, the single source of truth the API validates with. The OEAPI v5-compatible read API under `/oeapi/v5` (spec §9) is not described here: it follows the OEAPI v5.0 standard and its own OpenAPI document.",
+    "license": {
+      "name": "EUPL-1.2",
+      "identifier": "EUPL-1.2"
+    },
+    "x-oecp-spec": "https://github.com/LAArino/AURORA-OECP/blob/main/docs/spec-v4.1.md#71-routes-and-api"
+  },
+  "externalDocs": {
+    "description": "OECP specification v4.1",
+    "url": "https://github.com/LAArino/AURORA-OECP/blob/main/docs/spec-v4.1.md"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "The portal origin (e.g. `https://campus.example.org`)."
+    }
+  ],
+  "security": [],
+  "tags": [
+    {
+      "name": "Catalogue",
+      "description": "Search, course pages, suggestions, reference data and the sitemap (spec §7.1)."
+    },
+    {
+      "name": "API description",
+      "description": "This OpenAPI document."
+    }
+  ],
+  "paths": {
+    "/api/public/v1/courses": {
+      "get": {
+        "operationId": "publicSearchCourses",
+        "tags": [
+          "Catalogue"
+        ],
+        "summary": "Search courses",
+        "description": "Published, non-deleted courses with facet counts (spec §7.1). Repeated parameters (`partner=a&partner=b`) are OR-ed within a filter and AND-ed across filters; facets are disjunctive (each ignores its own filter).\n\n**Alliance attributes:** `attr_<key>=<value>` (repeatable, at most 20 distinct keys) filters by an alliance attribute: values OR-ed within a key, keys AND-ed. Booleans take `true` or `false`; `enum`/`multi_enum` an option value. Keys without a definition are ignored; the filterable keys are listed by `GET /reference` (`attribute_definitions[].filterable`).\n\n**Ranking:** `sort=relevance` (default with `q`) ranks by `ts_rank_cd` plus title trigram similarity; without `q` the default is `start_date`.\n\nPer-client rate limit at the edge: 20 requests/s (burst 40).",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Full-text query (title, abstract, description, keywords…); one word also matches as a prefix and, from 3 characters, by trigram similarity.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "partner",
+            "in": "query",
+            "required": false,
+            "description": "Organization slug (repeatable).",
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9-]{2,40}$"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "description": "Delivery mode code (repeatable), see `GET /reference`.",
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(x-)?[a-z][a-z0-9_-]*$"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "ectsMin",
+            "in": "query",
+            "required": false,
+            "description": "Minimum ECTS, inclusive.",
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 120
+            }
+          },
+          {
+            "name": "ectsMax",
+            "in": "query",
+            "required": false,
+            "description": "Maximum ECTS, inclusive.",
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 120
+            }
+          },
+          {
+            "name": "ects_min",
+            "in": "query",
+            "required": false,
+            "description": "Alias of `ectsMin`.",
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 120
+            }
+          },
+          {
+            "name": "ects_max",
+            "in": "query",
+            "required": false,
+            "description": "Alias of `ectsMax`.",
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 120
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "description": "**Teaching** language: primary subtag of an offering `teaching_languages` (repeatable). The display language is `locale`.",
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z]{2,3}$"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "isced",
+            "in": "query",
+            "required": false,
+            "description": "ISCED-F broad field, two digits (repeatable).",
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^\\d{2}$"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "description": "Study cycle, matches any of a course `levels` (repeatable).",
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "short_cycle",
+                  "bachelor",
+                  "master",
+                  "doctoral",
+                  "other"
+                ]
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "description": "Course kind (repeatable).",
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "course",
+                  "bip",
+                  "lecture_series",
+                  "other"
+                ]
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "`relevance` (default with `q`), `title`, `start_date` (default otherwise), `deadline` (next open application deadline first, courses without one last).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "relevance",
+                "title",
+                "start_date",
+                "deadline"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number, 1-based.",
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "description": "Results per page (default 20).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "description": "Alias of `pageSize`.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          {
+            "name": "includeUnscheduled",
+            "in": "query",
+            "required": false,
+            "description": "Older spelling of `upcoming=false`: `true` lists every published course. `upcoming` wins when both are given.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "upcoming",
+            "in": "query",
+            "required": false,
+            "description": "Default `true`: only courses with a published offering whose `end_date` is today (UTC) or later. `false` lists every published course.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "description": "**Display** language of resolved texts (`title`, `abstract`), primary subtag; English fallback. The `*_lang` members say which language was used.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z]{2,3}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IfNoneMatch"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of results with facets.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseSearchResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          },
+          "400": {
+            "description": "Invalid query parameter: `oecp.request.validation_failed`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/public/v1/courses/{courseId}": {
+      "get": {
+        "operationId": "publicGetCourse",
+        "tags": [
+          "Catalogue"
+        ],
+        "summary": "Get a course page",
+        "description": "The course with its texts in every language (each with the optional IT Handbook texts), `instructors`, every attribute, published offerings (past ones included) and cancelled offerings not yet started, and the contact (course, else organization).",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PublicCourseId"
+          },
+          {
+            "$ref": "#/components/parameters/IfNoneMatch"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The course.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCourseDetail"
+                }
+              }
+            }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          },
+          "404": {
+            "description": "Malformed, unknown, unpublished or deleted id: `oecp.request.not_found`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/public/v1/openapi.json": {
+      "get": {
+        "operationId": "publicGetOpenApiDocument",
+        "tags": [
+          "API description"
+        ],
+        "summary": "Get this OpenAPI document",
+        "description": "This document, generated at start-up from the Zod contracts of `@oecp/schemas`; the copy in the repository is `docs/api/`. Anonymous and cacheable for an hour.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IfNoneMatch"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 document of `/api/public/v1`.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          }
+        }
+      }
+    },
+    "/api/public/v1/reference": {
+      "get": {
+        "operationId": "publicGetReference",
+        "tags": [
+          "Catalogue"
+        ],
+        "summary": "Get reference data for filters",
+        "description": "Organizations (with `idp_alias` for \"Sign in through your university\": the organization `keycloak_idp_alias` when it names an IdP enabled in the realm, else null), active delivery modes with their schema.org mode, ISCED broad fields, teaching languages in use, levels, kinds and alliance attribute definitions.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IfNoneMatch"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reference data.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenceResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          }
+        }
+      }
+    },
+    "/api/public/v1/sitemap.xml": {
+      "get": {
+        "operationId": "publicGetSitemap",
+        "tags": [
+          "Catalogue"
+        ],
+        "summary": "Get the sitemap",
+        "description": "sitemaps.org `urlset` of the published courses as `{OECP_PUBLIC_BASE_URL}/en/courses/{id}` with `lastmod` (at most 50,000 URLs, built on request). The portal serves it as `/sitemap.xml`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IfNoneMatch"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The sitemap.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            },
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          }
+        }
+      }
+    },
+    "/api/public/v1/suggest": {
+      "get": {
+        "operationId": "publicSuggest",
+        "tags": [
+          "Catalogue"
+        ],
+        "summary": "Suggest course titles",
+        "description": "Up to `limit` title suggestions for `q`. Of each course the title in `locale` is suggested when it matches, else the English one, else the best match. Per-client rate limit at the edge: 10 requests/s (burst 20).",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Text typed so far, 2–100 characters.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of suggestions.",
+            "schema": {
+              "default": 10,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "description": "Preferred title language, primary subtag.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z]{2,3}$"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "description": "Alias of `locale` (this endpoint has no teaching-language filter).",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z]{2,3}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IfNoneMatch"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Suggestions, best first.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          },
+          "400": {
+            "description": "Missing or invalid `q`, invalid `limit`: `oecp.request.validation_failed`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AttributeValueType": {
+        "type": "string",
+        "enum": [
+          "enum",
+          "multi_enum",
+          "boolean",
+          "text"
+        ]
+      },
+      "CourseKind": {
+        "type": "string",
+        "enum": [
+          "course",
+          "bip",
+          "lecture_series",
+          "other"
+        ]
+      },
+      "CourseLevel": {
+        "type": "string",
+        "enum": [
+          "short_cycle",
+          "bachelor",
+          "master",
+          "doctoral",
+          "other"
+        ],
+        "description": "Study cycle (`levels[0]` is the primary one)."
+      },
+      "CourseSearchFacets": {
+        "type": "object",
+        "properties": {
+          "partner": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "value",
+                "count"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "mode": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "value",
+                "count"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "lang": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "value",
+                "count"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "isced": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "value",
+                "count"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "level": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "value",
+                "count"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "kind": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "value",
+                "count"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "attributes": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "string"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "label": {
+                    "$ref": "#/components/schemas/LocalizedLabel"
+                  }
+                },
+                "required": [
+                  "value",
+                  "count",
+                  "label"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "required": [
+          "partner",
+          "mode",
+          "lang",
+          "isced",
+          "level",
+          "kind",
+          "attributes"
+        ],
+        "additionalProperties": false,
+        "description": "Disjunctive facet counts: each facet ignores its own filter. Keys are the query parameter names; `attributes` is keyed by attribute key (parameter `attr_<key>`)."
+      },
+      "CourseSearchResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicCourseCard"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "facets": {
+            "$ref": "#/components/schemas/CourseSearchFacets"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total",
+          "facets"
+        ],
+        "additionalProperties": false,
+        "description": "`GET /api/public/v1/courses`."
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "oecp.request.validation_failed",
+          "oecp.request.not_found",
+          "oecp.request.not_implemented",
+          "oecp.internal",
+          "oecp.auth.missing_token",
+          "oecp.auth.invalid_token",
+          "oecp.auth.insufficient_acr",
+          "oecp.auth.no_role",
+          "oecp.auth.unknown_organization",
+          "oecp.auth.idp_mismatch",
+          "oecp.auth.forbidden_organization",
+          "oecp.auth.forbidden_role",
+          "oecp.invitation.invalid",
+          "oecp.invitation.expired",
+          "oecp.invitation.mismatch",
+          "oecp.identity.unavailable",
+          "oecp.identity.conflict",
+          "oecp.mail.unavailable",
+          "oecp.content.english_missing",
+          "oecp.content.invalid_value",
+          "oecp.content.date_order",
+          "oecp.content.seats_exceed_capacity",
+          "oecp.content.seats_without_timestamp",
+          "oecp.content.duplicate_isced",
+          "oecp.content.unknown_isced_field",
+          "oecp.content.unknown_delivery_mode",
+          "oecp.content.unknown_teaching_unit",
+          "oecp.content.unknown_session",
+          "oecp.content.session_ignored",
+          "oecp.content.unknown_course",
+          "oecp.content.unknown_attribute",
+          "oecp.content.invalid_attribute_value",
+          "oecp.content.unknown_attribute_option",
+          "oecp.content.invalid_code",
+          "oecp.content.unsupported_language",
+          "oecp.content.duplicate_ext_id",
+          "oecp.content.ext_id_immutable",
+          "oecp.content.override_not_allowed",
+          "oecp.content.has_published_offerings",
+          "oecp.content.published_not_deletable",
+          "oecp.content.harvested_not_deletable",
+          "oecp.content.duplicate_slug",
+          "oecp.content.duplicate_identifier",
+          "oecp.content.slug_immutable",
+          "oecp.content.invalid_parent",
+          "oecp.content.organization_in_use",
+          "oecp.content.handbook_incomplete",
+          "oecp.admin.cannot_remove_self",
+          "oecp.admin.last_alliance_admin",
+          "oecp.admin.not_local_account",
+          "oecp.admin.setup_complete",
+          "oecp.csv.missing_column",
+          "oecp.csv.unknown_column",
+          "oecp.csv.missing_value",
+          "oecp.csv.invalid_template_version",
+          "oecp.csv.conflicting_columns",
+          "oecp.csv.invalid_code",
+          "oecp.csv.invalid_status",
+          "oecp.csv.invalid_date",
+          "oecp.csv.invalid_number",
+          "oecp.csv.invalid_url",
+          "oecp.csv.invalid_email",
+          "oecp.csv.invalid_language",
+          "oecp.csv.invalid_isced",
+          "oecp.csv.invalid_delivery_mode",
+          "oecp.csv.invalid_level",
+          "oecp.csv.invalid_kind",
+          "oecp.csv.invalid_timezone",
+          "oecp.csv.cell_too_long",
+          "oecp.csv.duplicate_row",
+          "oecp.csv.file_too_large",
+          "oecp.csv.too_many_rows",
+          "oecp.csv.too_many_columns",
+          "oecp.csv.encoding",
+          "oecp.csv.malformed",
+          "oecp.csv.rate_limited",
+          "oecp.csv.duplicate_column",
+          "oecp.csv.field_count",
+          "oecp.csv.empty_file",
+          "oecp.csv.text_without_title",
+          "oecp.csv.language_deleted",
+          "oecp.csv.no_data_rows",
+          "oecp.csv.no_files",
+          "oecp.csv.unexpected_file",
+          "oecp.csv.write_failed",
+          "oecp.oeapi.mass_absence",
+          "oecp.oeapi.unauthorized",
+          "oecp.oeapi.unreachable",
+          "oecp.oeapi.http_error",
+          "oecp.oeapi.host_not_approved",
+          "oecp.oeapi.address_refused",
+          "oecp.oeapi.body_too_large",
+          "oecp.oeapi.page_cap_reached",
+          "oecp.oeapi.invalid_payload",
+          "oecp.oeapi.missing_primary_code",
+          "oecp.oeapi.study_load_unit",
+          "oecp.oeapi.invalid_isced",
+          "oecp.oeapi.language_dropped",
+          "oecp.oeapi.unmappable_delivery_mode",
+          "oecp.oeapi.parent_rejected",
+          "oecp.oeapi.root_not_matched",
+          "oecp.oeapi.insecure_url",
+          "oecp.oeapi.redirect_refused",
+          "oecp.oeapi.timeout",
+          "oecp.oeapi.run_timeout",
+          "oecp.oeapi.listing_failed",
+          "oecp.oeapi.empty_listing",
+          "oecp.oeapi.detail_unavailable",
+          "oecp.oeapi.duplicate_entity",
+          "oecp.oeapi.insecure_link",
+          "oecp.oeapi.invalid_language",
+          "oecp.oeapi.missing_teaching_language",
+          "oecp.oeapi.text_without_title",
+          "oecp.oeapi.value_truncated",
+          "oecp.oeapi.invalid_student_counts",
+          "oecp.oeapi.invalid_extension",
+          "oecp.oeapi.write_failed",
+          "oecp.oeapi.secret_unavailable",
+          "oecp.oeapi.multiple_roots",
+          "oecp.oeapi.english_missing",
+          "oecp.oeapi.unknown_isced_field",
+          "oecp.oeapi.delivery_mode_dropped",
+          "oecp.oeapi.invalid_coordinators",
+          "oecp.integration.not_configured",
+          "oecp.integration.access_mode_required",
+          "oecp.integration.base_url_required",
+          "oecp.integration.endpoint_id_required",
+          "oecp.integration.header_name_required",
+          "oecp.integration.basic_secret_format",
+          "oecp.integration.secret_required",
+          "oecp.integration.secret_not_expected",
+          "oecp.integration.insecure_url",
+          "oecp.integration.surfeduhub_unavailable",
+          "oecp.secrets.unavailable",
+          "oecp.sync.already_running",
+          "oecp.sync.rate_limited",
+          "oecp.sync.channel_disabled"
+        ],
+        "description": "Stable error code (spec §6.6, Appendix A; `packages/schemas/errors.json`). Codes are never renamed, reused or repurposed; new codes may be added in any release, so clients must tolerate unknown values.\n\n**Request** (`oecp.request.*`, 3)\n\n- `oecp.request.validation_failed`: Request validation failed\n- `oecp.request.not_found`: Resource not found\n- `oecp.request.not_implemented`: Not implemented\n\n**Internal** (`oecp.internal`, 1)\n\n- `oecp.internal`: Internal error\n\n**Authentication and authorization (`/api/admin`)** (`oecp.auth.*`, 8)\n\n- `oecp.auth.missing_token`: Bearer token required\n- `oecp.auth.invalid_token`: Token is invalid or expired\n- `oecp.auth.insufficient_acr`: Multi-factor authentication required\n- `oecp.auth.no_role`: No OECP role assigned\n- `oecp.auth.unknown_organization`: Organization does not exist\n- `oecp.auth.idp_mismatch`: Identity provider does not match the organization\n- `oecp.auth.forbidden_organization`: Organization outside your scope\n- `oecp.auth.forbidden_role`: Your role does not permit this operation\n\n**Invitations** (`oecp.invitation.*`, 3)\n\n- `oecp.invitation.invalid`: Invitation is invalid or already used\n- `oecp.invitation.expired`: Invitation has expired\n- `oecp.invitation.mismatch`: Signed-in identity does not match the invitation\n\n**Identity service (Keycloak)** (`oecp.identity.*`, 2)\n\n- `oecp.identity.unavailable`: Identity service request failed\n- `oecp.identity.conflict`: Conflicting account in the identity service\n\n**Mail** (`oecp.mail.*`, 1)\n\n- `oecp.mail.unavailable`: E-mail could not be sent\n\n**Content rules (every channel)** (`oecp.content.*`, 29)\n\n- `oecp.content.english_missing`: English title is required to publish\n- `oecp.content.invalid_value`: Invalid value\n- `oecp.content.date_order`: Dates are out of order\n- `oecp.content.seats_exceed_capacity`: Seats exceed max_students\n- `oecp.content.seats_without_timestamp`: seats_available requires seats_updated_at\n- `oecp.content.duplicate_isced`: Duplicate ISCED code\n- `oecp.content.unknown_isced_field`: Unknown ISCED broad field\n- `oecp.content.unknown_delivery_mode`: Unknown delivery mode\n- `oecp.content.unknown_teaching_unit`: Unknown teaching unit\n- `oecp.content.unknown_session`: Unknown academic session\n- `oecp.content.session_ignored` *(warning)*: Academic session unknown or invalid; the offering was stored without it\n- `oecp.content.unknown_course`: Unknown course code\n- `oecp.content.unknown_attribute`: Unknown attribute (not defined by the alliance)\n- `oecp.content.invalid_attribute_value`: Attribute value does not match its definition\n- `oecp.content.unknown_attribute_option`: Attribute value is not one of the defined options\n- `oecp.content.invalid_code`: Codes start with a letter or digit and use letters, digits, . _ / - (≤ 200)\n- `oecp.content.unsupported_language`: Language is not in the list of supported languages\n- `oecp.content.duplicate_ext_id`: A record with this code already exists\n- `oecp.content.ext_id_immutable`: The code of an existing record cannot be changed\n- `oecp.content.override_not_allowed`: Overrides apply only to harvested records (organizations whose authoritative channel is oeapi)\n- `oecp.content.has_published_offerings`: The course has published offerings; withdraw or cancel them first\n- `oecp.content.published_not_deletable`: A published record cannot be deleted; withdraw or cancel it instead\n- `oecp.content.harvested_not_deletable`: Harvested records cannot be deleted; withdraw them with a status override\n- `oecp.content.duplicate_slug`: Another organization already uses this slug\n- `oecp.content.duplicate_identifier`: Another organization already uses this identifier (SCHAC home organization, Erasmus code, PIC, IdP alias or code)\n- `oecp.content.slug_immutable`: The slug of an existing organization cannot be changed\n- `oecp.content.invalid_parent`: The parent organization does not exist, is deleted or would create a cycle\n- `oecp.content.organization_in_use`: The organization still has courses, sub-units, administrators, pending invitations or an enabled harvest\n- `oecp.content.handbook_incomplete` *(warning)*: Course is missing fields the Aurora IT Handbook requires to publish\n\n**Administrators** (`oecp.admin.*`, 4)\n\n- `oecp.admin.cannot_remove_self`: You cannot revoke your own administrator access\n- `oecp.admin.last_alliance_admin`: At least one alliance_admin must remain\n- `oecp.admin.not_local_account`: The account signs in through an institutional identity provider; it has no local setup\n- `oecp.admin.setup_complete`: The account has no pending password or authenticator setup\n\n**CSV uploads (Channel B)** (`oecp.csv.*`, 34)\n\n- `oecp.csv.missing_column`: Required column is missing\n- `oecp.csv.unknown_column`: Unknown column\n- `oecp.csv.missing_value`: Required value is empty\n- `oecp.csv.invalid_template_version`: Expected template_version 1.0, 1.1 or 1.2 (1.1 for kind, levels, attr_* and application_instructions_* columns; 1.2 for instructors and the handbook texts)\n- `oecp.csv.conflicting_columns`: Use either level or levels, not both\n- `oecp.csv.invalid_code`: Invalid course or offering code\n- `oecp.csv.invalid_status`: Expected draft, published, withdrawn or cancelled\n- `oecp.csv.invalid_date`: Expected YYYY-MM-DD\n- `oecp.csv.invalid_number`: Invalid number\n- `oecp.csv.invalid_url`: Expected an https:// URL\n- `oecp.csv.invalid_email`: Invalid email address\n- `oecp.csv.invalid_language`: Invalid BCP 47 language tag\n- `oecp.csv.invalid_isced`: Invalid ISCED-F code\n- `oecp.csv.invalid_delivery_mode`: Invalid delivery mode code\n- `oecp.csv.invalid_level`: Invalid level\n- `oecp.csv.invalid_kind`: Expected course, bip, lecture_series or other\n- `oecp.csv.invalid_timezone`: Invalid IANA time zone\n- `oecp.csv.cell_too_long`: Cell exceeds 20,000 characters\n- `oecp.csv.duplicate_row`: Duplicate natural key in file\n- `oecp.csv.file_too_large`: File exceeds 5 MB\n- `oecp.csv.too_many_rows`: File exceeds 5,000 rows\n- `oecp.csv.too_many_columns`: File exceeds 300 columns\n- `oecp.csv.encoding`: File is not valid UTF-8\n- `oecp.csv.malformed`: File is not valid RFC 4180 CSV\n- `oecp.csv.rate_limited`: Upload limit reached (10 per hour)\n- `oecp.csv.duplicate_column`: Column appears more than once in the header\n- `oecp.csv.field_count`: Row has a different number of cells than the header\n- `oecp.csv.empty_file`: File has no header row\n- `oecp.csv.text_without_title`: Texts in a language need the title in that language\n- `oecp.csv.language_deleted` *(warning)*: Every text of this language is empty; the language will be deleted\n- `oecp.csv.no_data_rows` *(warning)*: File has a header but no rows\n- `oecp.csv.no_files`: Upload a courses file, an offerings file or both\n- `oecp.csv.unexpected_file`: Only the multipart fields courses and offerings (one file each) are accepted\n- `oecp.csv.write_failed`: The upload could not be written; nothing was saved\n\n**OEAPI harvester (Channel A; reported in sync runs)** (`oecp.oeapi.*`, 38)\n\n- `oecp.oeapi.mass_absence` *(warning)*: 30% or more of published courses missing; absences not counted\n- `oecp.oeapi.unauthorized`: Partner endpoint rejected the credentials\n- `oecp.oeapi.unreachable`: Partner endpoint unreachable\n- `oecp.oeapi.http_error`: Unexpected HTTP status from partner endpoint\n- `oecp.oeapi.host_not_approved`: Harvest host not approved\n- `oecp.oeapi.address_refused`: Resolved address is not public\n- `oecp.oeapi.body_too_large`: Response body exceeds 20 MB\n- `oecp.oeapi.page_cap_reached` *(warning)*: Listing stopped at 1,000 pages\n- `oecp.oeapi.invalid_payload`: Payload does not match OEAPI v5\n- `oecp.oeapi.missing_primary_code`: Course has no primaryCode\n- `oecp.oeapi.study_load_unit`: studyLoad must be in ECTS and greater than 0\n- `oecp.oeapi.invalid_isced` *(warning)*: fieldsOfStudy is not a valid ISCED-F code\n- `oecp.oeapi.language_dropped` *(warning)*: Language code mul/und/zxx/mis dropped\n- `oecp.oeapi.unmappable_delivery_mode`: No mappable modeOfDelivery\n- `oecp.oeapi.parent_rejected`: Offering rejected because its course was rejected\n- `oecp.oeapi.root_not_matched`: Root organization does not match the partner\n- `oecp.oeapi.insecure_url`: Partner endpoint must use https on port 443\n- `oecp.oeapi.redirect_refused`: Redirect to another host, another scheme or more than 3 hops refused\n- `oecp.oeapi.timeout`: Partner endpoint did not answer in 30 s\n- `oecp.oeapi.run_timeout`: Harvest exceeded 2 hours\n- `oecp.oeapi.listing_failed`: A listing page failed; the harvest is incomplete\n- `oecp.oeapi.empty_listing` *(warning)*: The course listing returned no courses\n- `oecp.oeapi.detail_unavailable` *(warning)*: Offering detail unavailable; the listing item was used\n- `oecp.oeapi.duplicate_entity` *(warning)*: Natural key already harvested in this run; duplicate ignored\n- `oecp.oeapi.insecure_link` *(warning)*: Link is not an https URL and was dropped\n- `oecp.oeapi.invalid_language` *(warning)*: Language code is not valid and was ignored\n- `oecp.oeapi.missing_teaching_language`: No usable teachingLanguage on the offering or its course\n- `oecp.oeapi.text_without_title` *(warning)*: Texts in a language without a name in that language were ignored\n- `oecp.oeapi.value_truncated` *(warning)*: Value truncated to the maximum length\n- `oecp.oeapi.invalid_student_counts` *(warning)*: Student numbers ignored (maxNumberStudents must be greater than 0)\n- `oecp.oeapi.invalid_extension` *(warning)*: An ext.oecp member has an invalid shape and was ignored\n- `oecp.oeapi.write_failed`: The canonical record could not be written\n- `oecp.oeapi.secret_unavailable`: The partner credential could not be read\n- `oecp.oeapi.multiple_roots` *(warning)*: Several root organizations returned; the first was used\n- `oecp.oeapi.english_missing` *(warning)*: No English name; the course is stored as draft\n- `oecp.oeapi.unknown_isced_field` *(warning)*: fieldsOfStudy code with an unknown ISCED broad field was ignored\n- `oecp.oeapi.delivery_mode_dropped` *(warning)*: modeOfDelivery values without a mapping were ignored\n- `oecp.oeapi.invalid_coordinators` *(warning)*: coordinators is not an array and was ignored\n\n**Integration settings** (`oecp.integration.*`, 10)\n\n- `oecp.integration.not_configured`: No integration is configured for this organization\n- `oecp.integration.access_mode_required`: access_mode is required when the authoritative channel is oeapi\n- `oecp.integration.base_url_required`: base_url is required in direct access mode\n- `oecp.integration.endpoint_id_required`: surfeduhub_endpoint_id is required in surfeduhub access mode\n- `oecp.integration.header_name_required`: api_key_header_name is required for api_key_header authentication\n- `oecp.integration.basic_secret_format`: A basic credential must be username:password\n- `oecp.integration.secret_required`: A credential is required for this authentication scheme\n- `oecp.integration.secret_not_expected`: auth_scheme none takes no credential\n- `oecp.integration.insecure_url`: base_url must be an https URL on port 443\n- `oecp.integration.surfeduhub_unavailable`: SURFeduhub access is not configured in this deployment (SURFEDUHUB_SECRET_REF)\n\n**Secrets** (`oecp.secrets.*`, 1)\n\n- `oecp.secrets.unavailable`: Secret storage is unavailable (master key missing or invalid)\n\n**Sync runs** (`oecp.sync.*`, 3)\n\n- `oecp.sync.already_running`: A run for this organization is in progress\n- `oecp.sync.rate_limited`: Sync now is limited to once per 15 minutes\n- `oecp.sync.channel_disabled`: Channel is not authoritative for this organization"
+      },
+      "InvitationMismatchReason": {
+        "type": "string",
+        "enum": [
+          "email",
+          "idp",
+          "home_organization",
+          "organization"
+        ],
+        "description": "Which check of `POST /invitations/accept` failed (problem member `reason` of `oecp.invitation.mismatch`): `email` (signed-in e-mail is not the invited address, 403), `idp` (not signed in through the organization IdP, 403), `home_organization` (the IdP did not assert the schacHomeOrganization, 403), `organization` (the account already administers another organization, 409)."
+      },
+      "LocalizedLabel": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "en"
+        ],
+        "additionalProperties": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": "Short label keyed by BCP 47 language tag; always contains `en`. Clients show `label[locale] ?? label.en`."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "default": "about:blank",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProblemError"
+            }
+          },
+          "reason": {
+            "$ref": "#/components/schemas/InvitationMismatchReason"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "additionalProperties": {},
+        "description": "RFC 9457 `application/problem+json`, the body of every error response. `errors[]` lists stable codes; `instance` is the request path. Extension members: `reason` on `oecp.invitation.mismatch` (see `InvitationMismatchReason`), `sync_run_id`/`run_status`/`error_count`/`warning_count`/`processed_inline` on failed inline uploads. Problems raised by the framework itself (e.g. a malformed UUID in the path) carry `title` and `status` without `errors`."
+      },
+      "ProblemError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string",
+            "enum": [
+              "courses",
+              "offerings"
+            ]
+          },
+          "row": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "column": {
+            "type": "string"
+          },
+          "pointer": {
+            "type": "string"
+          },
+          "ext_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ],
+        "additionalProperties": false,
+        "description": "One error or warning: CSV problems carry `file`, `row` (1-based, header = 1) and `column`; JSON bodies an RFC 6901 `pointer`."
+      },
+      "PublicAttribute": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "$ref": "#/components/schemas/LocalizedLabel"
+          },
+          "values": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicAttributeValue"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "values"
+        ],
+        "additionalProperties": false,
+        "description": "An alliance attribute of a course, resolved with its definition; ordered by the definition `sort_order`, then key."
+      },
+      "PublicAttributeDefinition": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value_type": {
+            "$ref": "#/components/schemas/AttributeValueType"
+          },
+          "label": {
+            "$ref": "#/components/schemas/LocalizedLabel"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocalizedLabel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicAttributeValue"
+            }
+          },
+          "filterable": {
+            "type": "boolean"
+          },
+          "show_as_tag": {
+            "type": "boolean"
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "key",
+          "value_type",
+          "label",
+          "description",
+          "options",
+          "filterable",
+          "show_as_tag",
+          "sort_order"
+        ],
+        "additionalProperties": false
+      },
+      "PublicAttributeValue": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "$ref": "#/components/schemas/LocalizedLabel"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "additionalProperties": false
+      },
+      "PublicCourseCard": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "ext_id": {
+            "type": "string"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/PublicOrganizationRef"
+          },
+          "title": {
+            "type": "string"
+          },
+          "title_lang": {
+            "type": "string"
+          },
+          "abstract": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "abstract_lang": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ects": {
+            "type": "number"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CourseKind"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CourseLevel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "levels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourseLevel"
+            }
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicAttribute"
+            }
+          },
+          "isced_broad_fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "label": {
+                  "$ref": "#/components/schemas/LocalizedLabel"
+                }
+              },
+              "required": [
+                "code",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "delivery_modes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "teaching_languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "next_offering": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicNextOffering"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offerings_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "ext_id",
+          "organization",
+          "title",
+          "title_lang",
+          "abstract",
+          "abstract_lang",
+          "ects",
+          "kind",
+          "level",
+          "levels",
+          "attributes",
+          "isced_broad_fields",
+          "delivery_modes",
+          "teaching_languages",
+          "next_offering",
+          "offerings_count"
+        ],
+        "additionalProperties": false,
+        "description": "One search result."
+      },
+      "PublicCourseDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "ext_id": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "$ref": "#/components/schemas/LocalizedLabel"
+              },
+              "country_code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "logo_url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "website_url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "slug",
+              "name",
+              "country_code",
+              "logo_url",
+              "website_url"
+            ],
+            "additionalProperties": false
+          },
+          "teaching_unit": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "$ref": "#/components/schemas/LocalizedLabel"
+                  }
+                },
+                "required": [
+                  "id",
+                  "slug",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ects": {
+            "type": "number"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CourseKind"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CourseLevel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "levels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourseLevel"
+            }
+          },
+          "eqf_level": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "teaching_hours": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "info_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contact_email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "instructors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "texts": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PublicCourseText"
+            }
+          },
+          "isced_codes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "broad_code": {
+                  "type": "string"
+                },
+                "is_primary": {
+                  "type": "boolean"
+                },
+                "label": {
+                  "$ref": "#/components/schemas/LocalizedLabel"
+                }
+              },
+              "required": [
+                "code",
+                "broad_code",
+                "is_primary",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicAttribute"
+            }
+          },
+          "offerings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicOffering"
+            }
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "id",
+          "ext_id",
+          "organization",
+          "teaching_unit",
+          "ects",
+          "kind",
+          "level",
+          "levels",
+          "eqf_level",
+          "teaching_hours",
+          "info_url",
+          "contact_email",
+          "instructors",
+          "texts",
+          "isced_codes",
+          "attributes",
+          "offerings",
+          "updated_at"
+        ],
+        "additionalProperties": false,
+        "description": "`GET /api/public/v1/courses/{courseId}`."
+      },
+      "PublicCourseText": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "abstract": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "learning_outcomes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "prerequisites": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assessment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mode_of_repetition": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "methods": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "literature": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "privacy_notice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "remarks": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "is_machine_translated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "title",
+          "abstract",
+          "description",
+          "learning_outcomes",
+          "prerequisites",
+          "assessment",
+          "mode_of_repetition",
+          "methods",
+          "literature",
+          "privacy_notice",
+          "remarks",
+          "keywords",
+          "is_machine_translated"
+        ],
+        "additionalProperties": false
+      },
+      "PublicNextOffering": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "application_deadline": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enrol_start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "seats_available": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alliance_seats": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seats_updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "application_instructions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "start_date",
+          "end_date",
+          "application_deadline",
+          "enrol_start_date",
+          "timezone",
+          "seats_available",
+          "alliance_seats",
+          "seats_updated_at",
+          "application_instructions"
+        ],
+        "additionalProperties": false
+      },
+      "PublicOffering": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "ext_offering_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "published",
+              "cancelled"
+            ]
+          },
+          "academic_session": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "name": {
+                    "$ref": "#/components/schemas/LocalizedLabel"
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "start_date",
+                  "end_date"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "enrol_start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "application_deadline": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "teaching_languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "delivery_modes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "campus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_students": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alliance_seats": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seats_available": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seats_updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "application_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "application_instructions": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "ext_offering_id",
+          "status",
+          "academic_session",
+          "start_date",
+          "end_date",
+          "enrol_start_date",
+          "application_deadline",
+          "timezone",
+          "teaching_languages",
+          "delivery_modes",
+          "campus",
+          "max_students",
+          "alliance_seats",
+          "seats_available",
+          "seats_updated_at",
+          "application_url",
+          "application_instructions"
+        ],
+        "additionalProperties": false,
+        "description": "Seats (DL 8): show `alliance_seats` when set and `seats_available` \"as of `seats_updated_at`\" when set; never compute remaining alliance seats."
+      },
+      "PublicOrganizationRef": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "$ref": "#/components/schemas/LocalizedLabel"
+          },
+          "country_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "country_code"
+        ],
+        "additionalProperties": false
+      },
+      "ReferenceResponse": {
+        "type": "object",
+        "properties": {
+          "organizations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "name": {
+                  "$ref": "#/components/schemas/LocalizedLabel"
+                },
+                "country_code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "logo_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "website_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "org_type": {
+                  "type": "string"
+                },
+                "is_partner": {
+                  "type": "boolean"
+                },
+                "parent_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "idp_alias": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{1,99}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "slug",
+                "name",
+                "country_code",
+                "logo_url",
+                "website_url",
+                "org_type",
+                "is_partner",
+                "parent_id",
+                "idp_alias"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "delivery_modes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "label": {
+                  "$ref": "#/components/schemas/LocalizedLabel"
+                },
+                "schema_org": {
+                  "type": "string",
+                  "enum": [
+                    "Onsite",
+                    "Online",
+                    "Blended"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "schema_org"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "isced_broad_fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "label": {
+                  "$ref": "#/components/schemas/LocalizedLabel"
+                }
+              },
+              "required": [
+                "code",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "teaching_languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "levels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourseLevel"
+            }
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "$ref": "#/components/schemas/CourseKind"
+                },
+                "label": {
+                  "$ref": "#/components/schemas/LocalizedLabel"
+                }
+              },
+              "required": [
+                "code",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "attribute_definitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicAttributeDefinition"
+            }
+          }
+        },
+        "required": [
+          "organizations",
+          "delivery_modes",
+          "isced_broad_fields",
+          "teaching_languages",
+          "levels",
+          "kinds",
+          "attribute_definitions"
+        ],
+        "additionalProperties": false
+      },
+      "SuggestResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "lang": {
+                  "type": "string"
+                },
+                "organization_slug": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "lang",
+                "organization_slug"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "parameters": {
+      "PublicCourseId": {
+        "name": "courseId",
+        "in": "path",
+        "required": true,
+        "description": "Course id (UUID). Malformed, unknown, unpublished or deleted ids answer 404.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "IfNoneMatch": {
+        "name": "If-None-Match",
+        "in": "header",
+        "required": false,
+        "description": "Entity tag of a cached copy; a match answers 304 without a body.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "headers": {
+      "Cache-Control": {
+        "description": "Set on successful responses only: `public, max-age=60` (search, suggest), `public, max-age=300` (course, reference, sitemap), `public, max-age=3600` (OpenAPI documents). Errors are never cached.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "ETag": {
+        "description": "Weak entity tag of the body; send it back in `If-None-Match` to get a 304.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "NotModified": {
+        "description": "The `If-None-Match` entity tag matches: no body.",
+        "headers": {
+          "ETag": {
+            "$ref": "#/components/headers/ETag"
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "Per-client rate limit of the edge proxy (Traefik); plain text, not problem+json. Retry later.",
+        "content": {
+          "text/plain": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}
