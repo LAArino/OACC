@@ -38,6 +38,7 @@ Are you setting up OECP for the whole alliance (governance, server, identity)?
 | [B. Partner with an OEAPI endpoint](partner-with-oeapi.md) | Partner admin and partner IT | Universität Innsbruck, which already serves eduXchange |
 | [C. Partner with integration capacity](partner-with-integration-capacity.md) | Partner IT, partner admin | A university with an SIS export team but no OEAPI endpoint |
 | [D. Partner without integration capacity](partner-manual.md) | Partner admin | A small international office maintaining a handful of courses |
+| [Administrator lifecycle](administrator-lifecycle.md) | Alliance office, hosting operator | Invitation, sign-in mode, removal, dormancy, account clean-up and recertification: defaults and choices [DL 26] |
 
 The technical companions, written for the people who prepare the data, are:
 

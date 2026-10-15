@@ -175,7 +175,7 @@ Worker ≥ **2 GB** RAM when the IdP metadata refresh uses the eduGAIN aggregate
 **Weekly:** no alert left firing or silenced without a reason (Grafana, *OECP overview*); `pgbackrest info` shows the Sunday full; worker log errors.
 **Monthly:** test alert delivered (section 7); uploads archives copied to the second site; certificate expiry (row *Certificates* of *OECP overview*; the auth host's certificate from outside); review `Administrators` panels; on the *Maintenance* page, review the latest `account-cleanup` run (dry run: the accounts it would delete and the kept ones with their reason; enabled: the deleted accounts); check the log volumes against the rotation sizes (section 10); apply OS and image security updates; check for a new OECP patch release.
 **Quarterly:** restore drill (section 4, `scripts/restore-drill.sh`, report filed); review the dormancy dry run on the *Maintenance* page until it is switched on; secrets offline copy current.
-**Yearly:** rotate database and client secrets; review this runbook, the RoPA and the DPIA; recertify administrators with the Foundation.
+**Yearly:** rotate database and client secrets; review this runbook, the RoPA and the DPIA; recertify administrators with the Foundation (manual review of every *Administrators* panel, [administrator lifecycle](../onboarding/administrator-lifecycle.md), [DL 26]).
 
 ## 12. Contacts
 

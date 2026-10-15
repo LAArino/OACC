@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   assessments and prerequisites, functional contact addresses). Uploaded to
   the development stack as the first real test of the template: 5 uploads,
   26 records created, Handbook warnings only.
+- Docs: `docs/onboarding/administrator-lifecycle.md`, the administrator
+  lifecycle on one page (invitation, sign-in mode, removal, dormancy, account
+  clean-up, recertification) with the defaults as shipped and the choices;
+  decision 26: both jobs stay in dry run during the pilot, recertification is
+  a manual yearly review.
 - CI: shellcheck (`koalaman/shellcheck` 0.11, `-S style`) over every shell
   script of `deploy/` and `tools/` (entrypoints, pgBackRest wrappers, restore
   drill, OEAPI mock scripts) in the job "Validate Docker Compose file"; the
