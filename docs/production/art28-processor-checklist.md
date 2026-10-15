@@ -75,7 +75,7 @@ As built, OECP itself uses **no sub-processor**: every service runs in the Compo
 
 For UIBK, UICE, VUA and UDE, and any later partner harvested through OEAPI [DL 13, DL 14]. Process: [Guide B, step 2](../onboarding/partner-with-oeapi.md#2-sign-the-access-agreement). One agreement per partner; sign it before the partner's host is approved.
 
-- [ ] **Parties**: the partner university and the Aurora Foundation (controller of the catalogue); the role of each for the republished data `[TO COMPLETE: independent controllers or joint controllers (art. 26), with the arrangement if joint]`.
+- [ ] **Parties**: the partner university and the Aurora Foundation (controller of the catalogue); the role of each for the republished data **independent controllers** (each university for the data it supplies, the Foundation for the published catalogue; no art. 26 joint-controller arrangement) [DL 24].
 - [ ] **Consent to republish eduXchange-tagged data**: the partner agrees that data it exposes under its eduXchange consumer profile is reused in the OECP catalogue and served through the anonymous `/oeapi/v5` read API (spec §10 "eduXchange data reuse").
 - [ ] **No onward serving to eduXchange**: OECP answers `consumer=eduxchange` with an empty page [DL 19]; eduXchange keeps harvesting the partner directly.
 - [ ] **Scope**: consumer profile used (default `eduxchange`), which courses (all tagged, or a subset), harvest schedule (default daily).

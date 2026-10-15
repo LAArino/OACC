@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.6.0] - 2026-10-15
+
+Deployment branding (header images and alliance logo served from a branding directory), invitations refused when the organization's identity provider is not enabled, the sign-in mode per organization recorded as decision 22, the Aurora attribute seed aligned with the Aurora website, guides and index synchronised with the implementation, a developer guide in CONTRIBUTING.md.
+
 ### Added
 
 - API and admin panel: invitations to an organization whose identity provider
@@ -37,6 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or not yet connected; the university's IdP plus TOTP otherwise), with the
   migration path from local to federated; a mixed mode within one
   organization is not supported (backlog row, revisited only on a real case).
+- Docs: decisions 23 to 25 in the decisions log: administrators' e-mail
+  addresses stay in the audit log for 36 months as implemented; partner
+  universities and the Aurora Foundation are independent controllers (art. 28
+  checklist, section B); the portal's branding images are the deployment's own
+  (own generated photographs, the Aurora logo with the Foundation's permission).
 - Docs: "Development environment" section in `CONTRIBUTING.md`: prerequisites,
   the `dev` Compose stack, lint, type check and tests (including the database
   suites with `DATABASE_URL_TEST`), OpenAPI generation, the identity E2E
@@ -872,7 +883,8 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/AURORA-OECP/compare/v0.5.0...main
+[Unreleased]: https://github.com/LAArino/AURORA-OECP/compare/v0.6.0...main
+[0.6.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.6.0
 [0.5.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.5.0
 [0.4.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.4.0
 [0.3.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.3.0

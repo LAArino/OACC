@@ -3,7 +3,7 @@
 
 # Open European Campus Portal (OECP)
 
-Status: 0.5.0, pre-production (no real partner data yet); specification v4.1 (as built)
+Status: 0.6.0, pre-production (no real partner data yet); specification v4.1 (as built)
 
 OECP is a sovereign, open-source course-catalogue portal for European
 University alliances. It collects the courses that the partner universities of

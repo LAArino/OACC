@@ -3,7 +3,7 @@
 
 # Onboarding to OECP
 
-These guides take an alliance and its universities from "we want a shared course catalogue" to "our courses are published and stay current". They describe **release 0.5.0** as it is. Where something is planned but not built, they say so ("not yet available in 0.5.0"). The as-built specification is [spec v4.1](../spec-v4.1.md); the decisions behind these guides are rows 2, 3, 4, 12, 13, 14, 15, 17 and 22 of the [decisions log](../decisions-log.md).
+These guides take an alliance and its universities from "we want a shared course catalogue" to "our courses are published and stay current". They describe **release 0.6.0** as it is. Where something is planned but not built, they say so ("not yet available in 0.6.0"). The as-built specification is [spec v4.1](../spec-v4.1.md); the decisions behind these guides are rows 2, 3, 4, 12, 13, 14, 15, 17 and 22 of the [decisions log](../decisions-log.md).
 
 > **Before you start**
 >
@@ -78,7 +78,7 @@ All three end in the same canonical model, so the public catalogue cannot tell t
 
 **Lifecycle.** Courses and offerings are `draft`, `published`, `withdrawn` or `cancelled`. Publishing needs an English title. A course appears in the catalogue's default listing when it is published and has a published offering that has not ended. Harvested courses that disappear from the endpoint for three complete harvests in a row are withdrawn automatically; a CSV upload never withdraws by omission.
 
-## What 0.5.0 does not have yet
+## What 0.6.0 does not have yet
 
 Plan around these gaps; each guide repeats the ones that affect it. Every administration task of these guides has a screen ([Guide A, step 7](alliance.md#7-the-administration-screens)); the admin API remains available for scripting.
 

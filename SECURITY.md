@@ -10,8 +10,8 @@ the `main` branch only.
 
 | Version | Supported |
 |---|---|
-| 0.5.x | Yes, latest minor only (pre-production) |
-| 0.1.x to 0.4.x | No |
+| 0.6.x | Yes, latest minor only (pre-production) |
+| 0.1.x to 0.5.x | No |
 
 This table will list the supported release lines once the first version is
 published.
