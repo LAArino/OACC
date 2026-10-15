@@ -11,6 +11,7 @@
     "start": "node dist/main.js",
     "start:worker": "node dist/worker.js",
     "cli": "node dist/cli.js",
+    "openapi": "node scripts/openapi.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "db:migrate": "node-pg-migrate up --migrations-dir db/migrations --migrations-table pgmigrations --check-order",
@@ -45,6 +46,7 @@
   "devDependencies": {
     "@nestjs/cli": "12.0.8",
     "@nestjs/testing": "12.1.3",
+    "@seriousme/openapi-schema-validator": "2.11.0",
     "@swc/core": "1.16.18",
     "@types/node": "22.20.5",
     "@types/pg": "8.23.1",

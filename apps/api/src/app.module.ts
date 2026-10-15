@@ -10,6 +10,7 @@ import { HealthModule } from './health/health.module.js';
 import { IngestionModule } from './ingestion/ingestion.module.js';
 import { AppLoggerModule } from './logging/logger.module.js';
 import { OeapiModule } from './oeapi/oeapi.module.js';
+import { OpenApiModule } from './openapi/openapi.module.js';
 
 /** HTTP process (`api`). */
 @Module({
@@ -22,6 +23,7 @@ import { OeapiModule } from './oeapi/oeapi.module.js';
     CatalogueModule,
     OeapiModule,
     AdminModule,
+    OpenApiModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: ProblemDetailsFilter }],
 })

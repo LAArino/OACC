@@ -10,7 +10,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- API: OpenAPI 3.1 documents of the public catalogue API and the admin API,
+  generated from the Zod contracts of `@oecp/schemas` with Zod 4's native
+  `z.toJSONSchema` and an operation table per route
+  (`apps/api/src/openapi/`). Served anonymously, built once at start-up, at
+  `GET /api/public/v1/openapi.json` and `GET /api/admin/v1/openapi.json`
+  (`Cache-Control: public, max-age=3600`, weak `ETag`); committed as
+  `docs/api/oecp-public-api.openapi.json` (6 operations) and
+  `docs/api/oecp-admin-api.openapi.json` (47 operations) with a README (how to
+  regenerate, view and version them). Every error is `application/problem+json`
+  with a shared `ProblemDetails` whose `errors[].code` lists the 137 stable
+  codes; the admin document has the `bearerAuth` scheme with the required
+  claims and the roles of each operation in `x-oecp-roles`. No HTML viewer:
+  the `/api` Content-Security-Policy forbids it (backlog).
+- Tooling: `pnpm openapi:generate` (writes `docs/api/*.json`) and
+  `pnpm openapi:check` (validates them and fails when the committed files are
+  out of date), run in the CI job "Lint, type check, test". A unit test checks
+  that the documents are valid OpenAPI 3.1 (`@seriousme/openapi-schema-validator`
+  2.11.0, MIT, development dependency) and cover exactly the routes the Nest
+  application registers under `/api/public/v1` and `/api/admin/v1`, with the
+  roles of the guards and the success status of each handler.
 
 ## [0.4.0] - 2026-10-15
 

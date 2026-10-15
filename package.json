@@ -16,7 +16,9 @@
     "typecheck": "pnpm --filter @oecp/schemas build && pnpm -r typecheck",
     "format": "prettier --write \"*.{js,ts,json}\" \"apps/**/*.{ts,vue,js,mjs,json}\" \"packages/*/{src,test,scripts}/**/*.{ts,mjs}\"",
     "format:check": "prettier --check \"*.{js,ts,json}\" \"apps/**/*.{ts,vue,js,mjs,json}\" \"packages/*/{src,test,scripts}/**/*.{ts,mjs}\"",
-    "db:migrate": "pnpm --filter @oecp/api db:migrate"
+    "db:migrate": "pnpm --filter @oecp/api db:migrate",
+    "openapi:generate": "pnpm --filter @oecp/schemas build && pnpm --filter @oecp/api build && pnpm --filter @oecp/api openapi",
+    "openapi:check": "pnpm --filter @oecp/schemas build && pnpm --filter @oecp/api build && pnpm --filter @oecp/api openapi --check"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
