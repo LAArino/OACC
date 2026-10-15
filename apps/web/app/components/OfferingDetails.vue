@@ -167,7 +167,13 @@ const instructions = computed(() =>
 .offering__apply {
   margin: 0.75rem 0 0;
 }
+/* The button's text wraps on narrow screens instead of widening the page (WCAG 1.4.10). */
+.offering__apply .button {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
 .offering__host {
   font-weight: 400;
+  overflow-wrap: anywhere;
 }
 </style>

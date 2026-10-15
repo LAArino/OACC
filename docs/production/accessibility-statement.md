@@ -7,11 +7,12 @@ Template under **Directive (EU) 2016/2102** on the accessibility of the websites
 
 **How to use this template.** The part between the two rules below is the statement to publish (on the alliance website until the portal has an `/accessibility` page, spec §7.1). Fill every `[TO COMPLETE]`, delete the guidance notes in *italics*, and publish it in English and in `[TO COMPLETE: other languages of the portal]`. Before publishing, the controller confirms that the Directive applies: it covers public sector bodies; `[TO COMPLETE: whether the Aurora Foundation is a public sector body, or whether the statement is issued by URV or the partner universities as such]`. Even where it does not strictly apply, publishing the statement is good practice and expected by the partners.
 
-*What has been checked so far (release 0.3.0), for the person who completes the statement:*
+*What has been checked so far (release 0.6.0 and the unreleased work after it), for the person who completes the statement:*
 
-- *Automated checks: the web application's unit tests run **axe-core** on the rendered catalogue and administration components (rule sets WCAG 2.0, 2.1 and 2.2 levels A and AA, and best practices; `apps/web/test/*.test.ts`, helper `axeViolations`). Colour contrast and landmark regions cannot be computed without a layout and are disabled there; contrast of the design tokens is checked by a separate unit test (`apps/web/test/contrast.test.ts`). Fallback texts shown in another language carry a `lang` attribute (spec §10).*
-- *Not done yet: a **manual review** (keyboard only, screen readers, 200 % and 400 % zoom and reflow, text spacing, forms and error messages in context), automated checks of complete pages in a browser, the **Keycloak sign-in and MFA pages** (a separate application with its own theme), and a review by people with disabilities. Spec §10 lists the accessibility audit as an open item before go-live.*
-- *Candidates to examine in the manual review: TOTP as the only second factor offered by the panel (WCAG 2.2 success criterion 3.3.8, Accessible Authentication, if 2.2 is claimed); the privacy notice of a course, shown in small print (spec §7.2); the CSV upload console (file selection and the validation report); the course wizard with its override toggles; long multilingual texts entered by partners as plain text.*
+- *Automated checks in the test suite: the web application's unit tests run **axe-core** on the rendered catalogue and administration components (rule sets WCAG 2.0, 2.1 and 2.2 levels A and AA, and best practices; `apps/web/test/*.test.ts`, helper `axeViolations`); contrast of the design tokens is checked by `apps/web/test/contrast.test.ts`, and the stylesheet rules found in the audit by `apps/web/test/a11y-css.test.ts`.*
+- ***Audit of October 2026** ([accessibility-audit-2026-10.md](accessibility-audit-2026-10.md)): axe-core 4.14 on 39 complete page states of the portal and the panel in Chromium, desktop and mobile (two serious issues, 4 violations over both viewports, before; none after the fixes); scripted keyboard checks (skip link, order, focus visibility, traps, the confirmation dialog, tabs, wizard, error summaries, focus after filtering and paging); an accessibility-tree review (headings, landmarks, labels, errors, tables, live regions, `lang`); reflow at 320 px and 200 % zoom. Seven defects were fixed in the same work (contrast of the danger buttons, `lang` and skip link on error pages, reflow of tables and fact lists, `aria-current` on pagination and filter links, focus lost on *Refresh*, focus ring of date fields).*
+- *Not done yet: a session with **screen readers** (the audit reviewed the accessibility tree, it did not listen; the report gives a 10-step script for NVDA, JAWS and VoiceOver), 400 % zoom and text spacing (1.4.12) by hand, Windows high-contrast mode, the **Keycloak sign-in and MFA pages** (a separate application with its own theme), and a review by people with disabilities.*
+- *Candidates to examine further: TOTP as the only second factor offered by the panel (WCAG 2.2 success criterion 3.3.8, Accessible Authentication, if 2.2 is claimed); the privacy notice of a course, shown in small print (spec §7.2); the CSV upload console after a real upload (validation report); long multilingual texts entered by partners as plain text.*
 
 ---
 
@@ -34,7 +35,7 @@ This accessibility statement applies to:
 - *Partially compliant* with EN 301 549 V3.2.1 / WCAG 2.1 AA, due to the non-compliances and exemptions listed below.
 - *Not compliant*: most requirements are not met.
 
-*Guidance: without a completed manual review, "fully compliant" cannot be claimed. Until the review is done, "partially compliant" with the known limitations below is the honest status.*
+*Guidance: without a completed manual review, "fully compliant" cannot be claimed. The October 2026 audit covered automated, keyboard, structure and reflow checks but not screen readers or the sign-in pages: until those are done, "partially compliant" with the known limitations below is the honest status.*
 
 | Website | Status |
 |---|---|
@@ -47,10 +48,16 @@ The content listed below is not accessible for the following reasons.
 
 **(a) Non-compliance with the accessibility requirements**
 
+*Guidance: the rows below are the open findings of the [October 2026 audit](accessibility-audit-2026-10.md#8-known-limitations-for-the-accessibility-statement) (OECP 0.6.0 and unreleased work). Remove a row once the fix is deployed; add the issues found in the screen-reader session and in the review of the sign-in pages.*
+
 | Issue | Where | WCAG success criterion | Planned fix and date |
 |---|---|---|---|
-| `[TO COMPLETE: issue found in the review]` | `[TO COMPLETE]` | `[TO COMPLETE]` | `[TO COMPLETE]` |
-| `[TO COMPLETE]` | | | |
+| The administration panel has no navigation menu of its own: each module is reached from the dashboard only | Administration panel | 2.4.5 Multiple Ways | `[TO COMPLETE: date]` (OECP backlog) |
+| The sign-in, password and one-time-code pages have not been checked for accessibility yet | Sign-in pages (`[TO COMPLETE: https://auth host/]`) | Not yet assessed | `[TO COMPLETE: date of the review]` |
+| The site has not yet been tested with screen readers; problems may remain that automated and keyboard checks cannot find | Public catalogue and administration panel | Not yet assessed | `[TO COMPLETE: date of the assistive-technology session]` |
+| `[TO COMPLETE: issues found in the screen-reader session or the sign-in review]` | `[TO COMPLETE]` | `[TO COMPLETE]` | `[TO COMPLETE]` |
+
+*Guidance: the audit also lists advisory points that meet WCAG 2.1 AA and need not be declared (repeated "Apply at …" link texts per offering, page titles without the site name, the organization picker applying on change, small checkboxes for WCAG 2.2 2.5.8). If WCAG 2.2 is claimed, add "the only second factor at sign-in is a one-time code from an authenticator app" under 3.3.8 Accessible Authentication (Minimum) unless an alternative is offered.*
 
 **(b) Disproportionate burden**
 
@@ -65,7 +72,7 @@ The content listed below is not accessible for the following reasons.
 - Statement prepared on: `[TO COMPLETE: date]`.
 - Last reviewed on: `[TO COMPLETE: date]` *(review at least once a year and after each major release)*.
 - Software version assessed: OECP `[TO COMPLETE: release]`.
-- Method: `[TO COMPLETE: self-assessment by …, or assessment by a third party (name)]`; automated testing with axe-core in the project's test suite; manual review of a representative sample of pages `[TO COMPLETE: list of pages and templates sampled, e.g. home, search with filters, course page, course page in a fallback language, admin dashboard, course wizard, CSV console, invitations, sign-in and MFA set-up]`; assistive technologies and browsers used `[TO COMPLETE]`.
+- Method: `[TO COMPLETE: self-assessment by …, or assessment by a third party (name)]`; automated testing with axe-core in the project's test suite and on complete pages in a browser, keyboard and reflow checks (OECP audit of October 2026, [accessibility-audit-2026-10.md](accessibility-audit-2026-10.md), for release 0.6.0 and later changes); manual review of a representative sample of pages `[TO COMPLETE: list of pages and templates sampled, e.g. home, search with filters, course page, course page in a fallback language, admin dashboard, course wizard, CSV console, invitations, sign-in and MFA set-up]`; assistive technologies and browsers used `[TO COMPLETE]`.
 
 ### Feedback and contact information
 

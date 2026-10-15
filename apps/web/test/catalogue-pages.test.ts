@@ -683,4 +683,15 @@ describe('error page', () => {
     expect(w.findAll('a').map((a) => a.attributes('href'))).toContain('/en/courses');
     expect(w.text()).toContain(`Error ${statusCode}`);
   });
+
+  it('starts with the skip link, as app.vue does (Nuxt renders it instead of app.vue)', async () => {
+    const w = await mountSuspended(ErrorPage, {
+      props: { error: createError({ statusCode: 404 }) },
+      route: '/en/courses',
+    });
+    const skip = w.find('a.skip-link');
+    expect(skip.attributes('href')).toBe('#main');
+    expect(skip.text()).toBe('Skip to main content');
+    expect(w.find('main#main').exists()).toBe(true);
+  });
 });

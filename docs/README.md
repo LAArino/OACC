@@ -47,6 +47,7 @@ Templates and drafts for the alliance's legal and operations staff before go-liv
 - [production/dpia.md](production/dpia.md) — DPIA outline (art. 35): screening, data flows, necessity, risk register mapped to the implemented controls, sign-off.
 - [production/art28-processor-checklist.md](production/art28-processor-checklist.md) — controller–processor contract checklist (art. 28(3) a–h, sub-processors, breaches) and the partner access-agreement items [DL 14].
 - [production/accessibility-statement.md](production/accessibility-statement.md) — accessibility statement template (Directive (EU) 2016/2102, EN 301 549, WCAG 2.1 AA).
+- [production/accessibility-audit-2026-10.md](production/accessibility-audit-2026-10.md) — accessibility audit of October 2026 (axe-core on complete pages, keyboard, accessibility tree, reflow): findings, fixes and the screen-reader script still to run.
 - [production/runbook.md](production/runbook.md) — production runbook: secrets and rotation, backups and restore drill, upgrades, identity operations, monitoring, incidents, housekeeping.
 
 ## Reviews

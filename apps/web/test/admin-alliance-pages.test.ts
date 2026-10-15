@@ -1423,8 +1423,12 @@ describe('network status', () => {
     expect(await axeViolations(w.html())).toEqual([]);
 
     await button(w, 'Refresh').trigger('click');
+    // Busy, but still focusable: a disabled button would drop the keyboard focus.
+    expect(button(w, 'Refresh').attributes('aria-disabled')).toBe('true');
+    expect(button(w, 'Refresh').attributes('disabled')).toBeUndefined();
     await flushPromises();
     expect(callsTo(NETWORK)).toHaveLength(2);
+    expect(button(w, 'Refresh').attributes('aria-disabled')).toBeUndefined();
     expect(w.find('[role="status"].visually-hidden').text()).toContain('Network status updated');
   });
 

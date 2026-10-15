@@ -45,6 +45,9 @@
 
 .admin-table-wrap {
   overflow-x: auto;
+  /* Containing block of the visually hidden texts in the cells: without it they
+     are positioned against the page and widen it (WCAG 1.4.10 reflow). */
+  position: relative;
   margin: 0.5rem 0 1rem;
 }
 .admin-table {
@@ -482,6 +485,17 @@ button.button[aria-disabled='true'] {
   background: var(--c-bg);
   color: var(--c-text);
 }
+/* Date fields: the focus indicator stays while focus moves between the day,
+   month and year parts and the calendar button (WCAG 2.4.7). */
+.admin-form input[type='date']:focus-within {
+  outline: 3px solid var(--c-focus);
+  outline-offset: 2px;
+}
+/* File inputs keep within narrow screens (WCAG 1.4.10). */
+input[type='file'] {
+  max-width: 100%;
+}
+
 .admin-dialog::backdrop {
   background: rgb(0 0 0 / 0.45);
 }
@@ -493,9 +507,23 @@ button.button.button--danger {
   border-color: var(--c-danger);
   color: var(--c-on-primary);
 }
+/* Secondary button with danger text: its own background, since `button.button`
+   outranks `.button--secondary` (danger text on the primary colour is 1.05:1). */
 button.button.button--danger-text {
+  background: var(--c-bg);
   color: var(--c-danger);
   border-color: var(--c-danger);
+}
+button.button.button--danger-text:hover {
+  background: var(--c-danger-bg);
+  color: var(--c-danger);
+  border-color: var(--c-danger);
+}
+button.button.button--danger-text:disabled,
+button.button.button--danger-text[aria-disabled='true'] {
+  background: var(--c-surface);
+  border-color: var(--c-border);
+  color: var(--c-muted);
 }
 
 .admin-pending {

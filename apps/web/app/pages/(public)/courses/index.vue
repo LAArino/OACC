@@ -199,6 +199,7 @@ const retry = () => refreshNuxtData('catalogue-search');
             <li v-if="activeFilterCount(state) > 0">
               <NuxtLink
                 :to="{ path: listPath, query: toRouteQuery(withoutFilters(state)) }"
+                :aria-current="undefined"
                 @click="onNavigateLink"
               >
                 {{ t('courses.emptyClearFilters') }}
@@ -210,6 +211,7 @@ const retry = () => refreshNuxtData('catalogue-search');
                   path: listPath,
                   query: toRouteQuery({ ...state, includePast: true, page: 1 }),
                 }"
+                :aria-current="undefined"
                 @click="onNavigateLink"
               >
                 {{ t('courses.emptyIncludePast') }}

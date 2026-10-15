@@ -16,13 +16,17 @@ const status = computed(() => props.error.statusCode ?? 500);
 const kind = computed(() =>
   status.value === 404 ? 'notFound' : status.value === 503 ? 'unavailable' : 'generic',
 );
-useHead({
-  title: () => t(`errors.${kind.value}.title`),
+// Nuxt renders this page instead of app.vue: it sets <html lang> itself (WCAG 3.1.1).
+const localeHead = useLocaleHead();
+useHead(() => ({
+  title: t(`errors.${kind.value}.title`),
+  htmlAttrs: { lang: localeHead.value.htmlAttrs.lang, dir: localeHead.value.htmlAttrs.dir },
   meta: [{ name: 'robots', content: 'noindex' }],
-});
+}));
 </script>
 
 <template>
+  <SkipLink />
   <NuxtLayout>
     <div class="error-page">
       <h1>{{ t(`errors.${kind}.title`) }}</h1>

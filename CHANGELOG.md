@@ -12,6 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Accessibility audit (WCAG 2.1 AA), `docs/production/accessibility-audit-2026-10.md`:
+  axe-core 4.14 on 39 page states of the portal and the admin panel in
+  Chromium, desktop and mobile (2 serious issues before, none after),
+  scripted keyboard checks, an accessibility-tree review and reflow at 320 px
+  and 200 % zoom; findings with fixes, the open items, and a 10-step
+  screen-reader script for the session still to run (backlog). The
+  accessibility statement template lists what was checked and the known
+  limitations. `SkipLink` component; `apps/web/test/a11y-css.test.ts` guards
+  the stylesheet rules found in the audit.
 - Data: `docs/data/aurora-virtual-campus-2026-27/`, the 13 courses of the
   Aurora Virtual Campus website (2026-10-15) transcribed into CSV template
   1.2, one `courses.csv` and `offerings.csv` per offering university, with a
@@ -55,6 +64,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   log 30 days (`retention_stream`) and everything else 90 days. New Grafana
   dashboard *OECP logs* (volume by service and level, logs by service, Traefik
   access log). The json-file rotation stays as the local fallback.
+
+### Fixed
+
+- Accessibility defects found in the audit (`apps/web`): danger-text buttons
+  (*Delete organization*, *Remove*, *Revoke*, *Delete course*, *Delete
+  offering*) were dark red on the primary blue (1.05:1); error pages had no
+  `<html lang>` and no skip link; admin tables, the course review step, the
+  CSV file input and the course page's offerings scrolled the whole page
+  sideways at 320 px (visually hidden cell texts positioned against the page,
+  fact lists and the apply button not wrapping); pagination links, filter
+  chips and *Clear all* were all announced as the current page (router
+  `aria-current` ignores the query); *Refresh* buttons on the network,
+  organizations, maintenance and invitations pages dropped the keyboard focus
+  while loading (`disabled` replaced by `aria-disabled`); date fields lost
+  the focus outline on their calendar button.
 
 ## [0.6.0] - 2026-10-15
 

@@ -296,7 +296,13 @@ function when(i: AdminInvitation): string {
         {{ t('admin.invitations.listHeading') }}
       </component>
       <p class="admin-actions">
-        <button type="button" class="button button--secondary" :disabled="loading" @click="load">
+        <!-- aria-disabled, not disabled: disabling the focused button would drop the keyboard focus (WCAG 2.4.3). -->
+        <button
+          type="button"
+          class="button button--secondary"
+          :aria-disabled="loading ? 'true' : undefined"
+          @click="loading || load()"
+        >
           {{ t('admin.invitations.refresh') }}
         </button>
       </p>

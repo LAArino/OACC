@@ -3,6 +3,8 @@
 // Active filters of the catalogue as removable chips. Each chip is a link to the
 // same search without that value, so removal works without JavaScript and every
 // state stays a shareable URL.
+// The links go to the list path, which the router would mark `aria-current="page"`
+// whatever the query: they override it (WCAG 1.3.1, 4.1.2).
 import type { ListFilter, SearchState } from '../types/catalogue';
 import type { MaybeReference } from '../composables/useCatalogueLabels';
 
@@ -132,6 +134,7 @@ const clearAll = computed(() => link(withoutFilters({ ...props.state, q: '' })))
           class="chip"
           :to="chip.to"
           :aria-label="t('chips.remove', { filter: chip.text })"
+          :aria-current="undefined"
           @click="emit('navigate')"
         >
           <span>{{ chip.text }}</span>
@@ -139,7 +142,12 @@ const clearAll = computed(() => link(withoutFilters({ ...props.state, q: '' })))
         </NuxtLink>
       </li>
       <li v-if="chips.length > 1">
-        <NuxtLink class="filter-chips__clear" :to="clearAll" @click="emit('navigate')">
+        <NuxtLink
+          class="filter-chips__clear"
+          :to="clearAll"
+          :aria-current="undefined"
+          @click="emit('navigate')"
+        >
           {{ t('chips.clearAll') }}
         </NuxtLink>
       </li>

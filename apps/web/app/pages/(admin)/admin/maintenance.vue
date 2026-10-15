@@ -246,7 +246,12 @@ function modeOf(name: string): 'dryRun' | 'enforced' | 'unknown' {
                 </div>
               </div>
               <p class="admin-actions">
-                <button type="submit" class="button button--secondary" :disabled="loading">
+                <!-- aria-disabled, not disabled: disabling the focused button would drop the keyboard focus (WCAG 2.4.3). -->
+                <button
+                  type="submit"
+                  class="button button--secondary"
+                  :aria-disabled="loading ? 'true' : undefined"
+                >
                   {{ t('admin.maintenance.runs.refresh') }}
                 </button>
               </p>

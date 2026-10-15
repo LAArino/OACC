@@ -89,6 +89,20 @@ h3 {
   font-size: 1.1rem;
 }
 
+/* "Skip to main content" (SkipLink.vue): off screen until focused. */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -3rem;
+  padding: 0.5rem 1rem;
+  background: #000;
+  color: #fff;
+  z-index: 100;
+}
+.skip-link:focus {
+  top: 0.5rem;
+}
+
 .visually-hidden {
   position: absolute !important;
   width: 1px;
@@ -258,7 +272,9 @@ button.button {
 
 .facts {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  /* Terms take their width up to half the list, then wrap; values shrink and wrap
+     (long URLs included), so the list reflows at 320 px (WCAG 1.4.10). */
+  grid-template-columns: fit-content(50%) minmax(0, 1fr);
   gap: 0.2rem 1rem;
   margin: 0.5rem 0;
 }

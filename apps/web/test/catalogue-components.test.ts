@@ -3,6 +3,7 @@
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime';
 import { flushPromises } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { RouterLink } from 'vue-router';
 import CatalogueFilters from '../app/components/CatalogueFilters.vue';
 import CataloguePagination from '../app/components/CataloguePagination.vue';
 import CourseCard from '../app/components/CourseCard.vue';
@@ -125,6 +126,17 @@ describe('FilterChips', () => {
       const visible = chip.find('span').text();
       expect(chip.attributes('aria-label')).toContain(visible);
     }
+  });
+
+  it('does not mark the remove links as the current page on the list path', async () => {
+    const w = await mountSuspended(FilterChips, {
+      props: { state, reference, listPath: '/en/courses' },
+      route: '/en/courses?q=climate&partner=urv&partner=univie&mode=online',
+      global: { stubs: { NuxtLink: RouterLink } },
+    });
+    expect(w.findAll('a.chip').length).toBeGreaterThan(1);
+    expect(w.findAll('a.router-link-exact-active').length).toBeGreaterThan(0);
+    expect(w.findAll('a[aria-current]')).toHaveLength(0);
   });
 
   it('links to the same search without that value, on page 1', async () => {
@@ -340,6 +352,23 @@ describe('CataloguePagination', () => {
     });
     return w;
   }
+
+  it('marks only the current page as current on the list path itself', async () => {
+    // On /en/courses the router marks every link to it as the current page,
+    // whatever the query. The test router's NuxtLink never marks links active:
+    // the router's own RouterLink stands in for it.
+    const state = { ...parseSearchState({ partner: 'urv' }), page: 2 };
+    const w = await mountSuspended(CataloguePagination, {
+      props: { state, total: 95, pageSize: 20, listPath: '/en/courses' },
+      route: '/en/courses?partner=urv&page=2',
+      global: { stubs: { NuxtLink: RouterLink } },
+    });
+    expect(w.findAll('a.router-link-exact-active').length).toBeGreaterThan(0);
+    const current = w.findAll('[aria-current]');
+    expect(current).toHaveLength(1);
+    expect(current[0]!.element.tagName).toBe('SPAN');
+    expect(current[0]!.text()).toContain('Page 2');
+  });
 
   it('renders nothing for a single page', async () => {
     const w = await pagesOf(20, 1);

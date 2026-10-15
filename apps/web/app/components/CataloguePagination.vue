@@ -1,7 +1,9 @@
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 <script setup lang="ts">
 // Result pages as plain links carrying the whole search in the query string
-// (crawlable, shareable, no JavaScript needed).
+// (crawlable, shareable, no JavaScript needed). The router marks every link to
+// the list path as `aria-current="page"` whatever its query; the links override
+// that, so only the current page (a span) says "current" (WCAG 1.3.1, 4.1.2).
 import type { SearchState } from '../types/catalogue';
 
 const props = defineProps<{
@@ -42,7 +44,12 @@ const pages = computed<(number | null)[]>(() => {
   <nav v-if="pageCount > 1" class="pagination" :aria-label="t('pagination.label')">
     <ul>
       <li v-if="current > 1">
-        <NuxtLink :to="to(current - 1)" rel="prev" @click="emit('navigate')">
+        <NuxtLink
+          :to="to(current - 1)"
+          rel="prev"
+          :aria-current="undefined"
+          @click="emit('navigate')"
+        >
           <span aria-hidden="true">‹ </span>{{ t('pagination.previous') }}
         </NuxtLink>
       </li>
@@ -52,13 +59,18 @@ const pages = computed<(number | null)[]>(() => {
           <span class="visually-hidden">{{ t('pagination.page', { n: page }) }}</span>
           <span aria-hidden="true">{{ page }}</span>
         </span>
-        <NuxtLink v-else :to="to(page)" @click="emit('navigate')">
+        <NuxtLink v-else :to="to(page)" :aria-current="undefined" @click="emit('navigate')">
           <span class="visually-hidden">{{ t('pagination.page', { n: page }) }}</span>
           <span aria-hidden="true">{{ page }}</span>
         </NuxtLink>
       </li>
       <li v-if="current < pageCount">
-        <NuxtLink :to="to(current + 1)" rel="next" @click="emit('navigate')">
+        <NuxtLink
+          :to="to(current + 1)"
+          rel="next"
+          :aria-current="undefined"
+          @click="emit('navigate')"
+        >
           {{ t('pagination.next') }}<span aria-hidden="true"> ›</span>
         </NuxtLink>
       </li>
