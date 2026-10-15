@@ -3,11 +3,11 @@
 
 # Production runbook: OECP at the hosting institution
 
-For the hosting operator (URV for Aurora). It complements [deploy/compose/README.md](../../deploy/compose/README.md) (installation), [Guide A](../onboarding/alliance.md) (alliance set-up), [identity/keycloak/README.md](../../identity/keycloak/README.md) and [RELEASING.md](../RELEASING.md). Commands run in `deploy/compose` on the production host. Written for release 0.3.0 and updated for the unreleased changes after it (maintenance page, account clean-up, log retention; see the CHANGELOG); where something is planned but not built, this runbook says so.
+For the hosting operator (URV for Aurora). It complements [deploy/compose/README.md](../../deploy/compose/README.md) (installation), [Guide A](../onboarding/alliance.md) (alliance set-up), [identity/keycloak/README.md](../../identity/keycloak/README.md) and [RELEASING.md](../RELEASING.md). Commands run in `deploy/compose` on the production host. Written for release 0.3.0 and updated for the changes after it (maintenance page, account clean-up, log retention; pgBackRest backups, restore drill, metrics and alerting; see the CHANGELOG); where something is planned but not built, this runbook says so.
 
 ## 1. Topology and environments
 
-One Docker Compose project on one host (spec §3): `traefik` (TLS, routing, rate limits) → `web` (Nuxt), `api` (NestJS), `keycloak`; `worker` (same image as `api`: harvests, CSV jobs, maintenance, IdP metadata refresh); `postgres` 16 (databases `oecp`, `keycloak`); `valkey` (queues, rebuildable); volumes `postgres_data`, `uploads`, `idp-metadata`, `traefik_acme`, `valkey_data`. Networks: `edge`, `backend`, `egress` (worker → partner OEAPI endpoints only).
+One Docker Compose project on one host (spec §3): `traefik` (TLS, routing, rate limits) → `web` (Nuxt), `api` (NestJS), `keycloak`; `worker` (same image as `api`: harvests, CSV jobs, maintenance, IdP metadata refresh); `postgres` 16 with pgBackRest (databases `oecp`, `keycloak`; WAL archiving); `valkey` (queues, rebuildable); profile `backup`: `backup` (scheduled pgBackRest backups, uploads archive); profile `observability`: OpenTelemetry Collector, Prometheus, Alertmanager, node-exporter, blackbox exporter, Loki, Grafana; volumes `postgres_data`, `pgbackrest-repo` (backup repository repo1), `uploads`, `idp-metadata`, `traefik_acme`, `valkey_data`. Networks: `edge`, `backend`, `egress` (worker → partner OEAPI endpoints only).
 
 | Environment | Hosts | Purpose |
 |---|---|---|
@@ -29,6 +29,8 @@ Files in `deploy/compose/secrets/` (mode 700 directory), mounted as Docker secre
 | `oecp_backend_client_secret` | keycloak-config, api, worker | Update file, `docker compose run --rm keycloak-config`, recreate `api` and `worker`. High impact: the client manages realm users |
 | `oecp_master_key` (`key_version` 1) | api, worker | **Rotation not implemented**: one key version is supported. Never replace the file alone (stored credentials would no longer decrypt). If compromised: get new credentials from every partner, write a new key, recreate `api` and `worker`, re-enter each credential in *Integration settings* and re-run `store-secret` for `SURFEDUHUB_SECRET_REF` |
 | `grafana_admin_password` | grafana (profile `observability`) | Update file and recreate |
+| `pgbackrest_repo2_cipher_pass` (and `pgbackrest_repo2_s3_key_secret` or the SFTP key) | postgres, backup: repo2, the second site (section 3) | **Never rotate the passphrase in place**: repo2 cannot be read without it. Keep it in the offline copy. A new passphrase means a new repo2 (new bucket or path, `stanza-create`, full backup) while the old one expires |
+| `alert_smtp_password`, if used | alertmanager | Update file and recreate `alertmanager` |
 | Federation signing certificate (PEM, public) | worker (`OECP_IDP_METADATA_SIGNING_CERT_FILE`) | Not secret but the only trust anchor of the metadata refresh. Replace before the federation's key rollover, after checking its fingerprint with a second source (Guide A, step 3) |
 | Partner OEAPI credentials | `secrets` table | Per access agreement; replace in *Integration settings* (write-only) |
 | SURFeduhub credential, if used | `secrets` table (`store-secret`) | `[TO COMPLETE: used or not]` |
@@ -37,28 +39,53 @@ Files in `deploy/compose/secrets/` (mode 700 directory), mounted as Docker secre
 
 ## 3. Backups and point-in-time recovery
 
-**Status:** OECP ships **no backup**. pgBackRest (WAL archiving to a second site, weekly full, daily differential, 35 days, PITR) is planned (spec §10, backlog). Until it exists, run this interim procedure daily (`[TO COMPLETE: cron or scheduler, time]`); recovery point objective is then 24 hours.
+**What runs** (spec §10; details in the [Compose README, Backups](../../deploy/compose/README.md#backups-profile-backup)): pgBackRest, stanza `oecp`, covering the whole PostgreSQL cluster (`oecp` and `keycloak` databases, roles). `postgres` archives every WAL segment as it completes (at most 5 minutes later, `archive_timeout`); the `backup` service (profile `backup`) takes a **full backup every Sunday and a differential the other days at 02:00 UTC**, keeps a **35-day recovery window** (time-based retention: about six weekly fulls), archives the `uploads` volume daily (`uploads-YYYY-MM-DD.tar.gz`, 35 days) and publishes the backup metrics used by the alerts (section 7). Recovery point: the last archived WAL segment (≤ 5 minutes, at the second site once repo2 exists); recovery time: measured by the drill (section 4).
+
+Production set-up, once:
 
 ```sh
-TS=$(date -u +%Y%m%dT%H%MZ); DEST=[TO COMPLETE: backup directory]
-docker compose exec -T postgres pg_dumpall -U postgres --globals-only > "$DEST/globals-$TS.sql"
-docker compose exec -T postgres pg_dump -U postgres -Fc oecp     > "$DEST/oecp-$TS.dump"
-docker compose exec -T postgres pg_dump -U postgres -Fc keycloak > "$DEST/keycloak-$TS.dump"
-docker run --rm -v oecp_uploads:/data:ro -v "$DEST":/out alpine tar czf "/out/uploads-$TS.tgz" -C /data .
+docker compose --profile backup up -d --build      # stanza-create, check, first full backup
+docker compose exec backup pgbackrest --stanza=oecp info
+# then OECP_WAL_ARCHIVE=on in .env and `docker compose up -d postgres`: a failing archive keeps WAL and alerts
 ```
 
-The volume name depends on the Compose project name (`docker volume ls`). Then: encrypt the files (they hold personal data, password hashes and TOTP secrets) `[TO COMPLETE: tool, key custody]`, copy them to `[TO COMPLETE: second site]`, delete copies older than `[TO COMPLETE: e.g. 35 days]`. Valkey and `idp-metadata` need no backup (schedules are re-registered at worker start; the aggregate is downloaded again).
+- **Second site:** repo2 `[TO COMPLETE: S3 bucket or SFTP host at the second site, owner]`, configured in `deploy/compose/.env.pgbackrest` from `postgres/pgbackrest-repo2.env.example`: always encrypted (`aes-256-cbc`, passphrase as Docker secret `pgbackrest_repo2_cipher_pass`, kept with the offline secrets copy of section 2). **Until repo2 exists, every backup lives on the production host only** (volume `pgbackrest-repo`): a host loss loses them. pgBackRest does not copy the uploads archives to repo2: `[TO COMPLETE: daily copy of the volume's uploads/ directory to the second site, tool]`.
+- **Encryption:** repo1 is not encrypted (same host and protection as the database volume); repo2 must be. Backups hold personal data, password hashes and TOTP secrets.
+- Valkey and `idp-metadata` need no backup (schedules are re-registered at worker start; the aggregate is downloaded again). Secrets are not in the backups (section 2): keep their offline copy current.
+
+**Check:** the alerts of section 7 (backup older than 26 h, failed attempt, WAL archiving failing). By hand: `docker compose exec backup pgbackrest --stanza=oecp info` lists last night's backup; `docker compose logs --since 24h backup | grep -E 'ERROR|WARN'` is empty.
+
+**Point-in-time recovery** (data deleted or corrupted at a known time; also after a host loss, on the new host from repo2):
+
+1. Choose the target: the last moment before the incident, in UTC (`pgbackrest --stanza=oecp info` shows the available range). Rehearse it with `scripts/restore-drill.sh --target-time '<ts>' --keep` and check the data in the scratch container.
+2. Stop the writers and PostgreSQL: `docker compose stop api worker keycloak backup postgres`.
+3. Restore into the data volume (only differing files are rewritten):
+   ```sh
+   docker compose run --rm --no-deps postgres pgbackrest --stanza=oecp --delta \
+     --type=time --target='<YYYY-MM-DD HH:MM:SS+00>' --target-action=promote restore
+   ```
+   Without `--type`/`--target`: newest backup plus all archived WAL (host loss). From the second site add `--repo=2` (with `.env.pgbackrest` and its secrets in place).
+4. `docker compose up -d --wait` (PostgreSQL replays WAL and promotes to a new timeline); `docker compose run --rm api pnpm db:migrate` reports nothing pending. Uploads, if needed: `docker run --rm -v oecp_pgbackrest-repo:/r:ro -v oecp_uploads:/data alpine tar xzf /r/uploads/uploads-<date>.tar.gz -C /data`.
+5. Take a full backup at once (`docker compose exec backup oecp-backup backup full`) and record the incident (section 8).
+
+Steps 3–4 follow pgBackRest's documented restore; they were not exercised on the live development volume (the drill exercises the same restore into a scratch volume). Rehearse them once on staging.
 
 ## 4. Restore drill
 
-Quarterly and before go-live, on a staging host or a separate Compose project (`docker compose -p oecp-drill …`) with copies of the secrets: start `postgres` on an empty volume (the init script creates roles and databases), then for each database:
+**Quarterly and before go-live** (spec §10), on the production host (it does not touch production) or on staging with a copy of the repository:
 
 ```sh
-docker compose exec -T postgres psql -U postgres -c 'DROP DATABASE oecp' -c 'CREATE DATABASE oecp OWNER oecp TEMPLATE template0'
-docker compose exec -T postgres pg_restore -U postgres -d oecp --exit-on-error < oecp-<TS>.dump
+cd deploy/compose
+scripts/restore-drill.sh | tee "drill-$(date -u +%F).txt"                     # latest backup + all WAL
+scripts/restore-drill.sh --target-time '<yesterday 12:00+00>'                    # PITR, once a year at least
+scripts/restore-drill.sh --repo 2 --env-file .env.pgbackrest                     # from the second site, once repo2 exists
 ```
 
-Same for `keycloak`; restore `uploads`; start everything; `docker compose run --rm api pnpm db:migrate` must report no pending migration; run the smoke test of the Compose README; sign in as an administrator; compare course counts with production. Record date, duration (recovery time) and problems: `[TO COMPLETE: drill log location]`.
+The script restores with `pgbackrest restore --delta` into a scratch container (no network, repository read-only, `archive_mode=off`), waits for WAL replay and promotion, and checks: `oecp` reachable, `keycloak` database and realm `oecp` present, Keycloak user count, latest schema migration, page checksums on and no checksum failure, row counts of `courses`, `organizations`, `maintenance_runs` next to the live counts (live may be higher: rows after the target). It prints the backup set, the last replayed transaction, the restore and recovery times (the database part of the recovery time objective) and PASS/FAIL, and removes the scratch container unless `--keep`. Exit status 0 = every check passed.
+
+Then, at least yearly, complete the application part on staging: start a full stack on the restored data, sign in as an administrator, run the smoke test of the Compose README, compare course counts with production; restore one uploads archive (`tar tzf`). Record date, report, duration and problems: `[TO COMPLETE: drill log location]`.
+
+Reference run on the development stack (2026-10-15, 47 MB cluster): restore 6 s, recovery 3 s, every check PASS.
 
 ## 5. Upgrades
 
@@ -70,7 +97,7 @@ OECP_IMAGE_TAG=X.Y.Z docker compose run --rm api pnpm db:migrate
 OECP_IMAGE_TAG=X.Y.Z docker compose up -d --wait
 ```
 
-Rollback = restore the backup taken before the upgrade (down migrations are a development aid). Only the latest minor is supported. After the upgrade check worker health, `maintenance_runs` and the next harvest.
+Back up = `docker compose exec backup oecp-backup backup full` (or `diff`), and note the time: rollback = restore the backup taken before the upgrade (down migrations are a development aid). Only the latest minor is supported. After the upgrade check worker health, `maintenance_runs` and the next harvest.
 
 ## 6. Identity operations
 
@@ -78,23 +105,38 @@ Rollback = restore the backup taken before the upgrade (down migrations are a de
 
 **Partner IdP onboarding:** procedure in the Keycloak README ("Adding a partner IdP"): organization first, IdP block (alias = slug), principal `subject-id` or `pairwise-id`, apply, regenerate and resubmit SP metadata, test with an invitation. Not yet verified with a real eduGAIN IdP (backlog).
 
-**Certificate expiry.** The refresh drops expired IdP certificates and warns 30 days ahead; an IdP without a valid certificate fails. Watch the worker log (no alerting). Federation signing key: section 2. TLS: Traefik renews; check expiry monthly.
+**Certificate expiry.** The refresh drops expired IdP certificates and warns 30 days ahead; an IdP without a valid certificate fails the run (alert `OecpIdpMetadataRefreshFailed`, section 7); the 30-day warnings are in the worker log only. Federation signing key: section 2. TLS: Traefik renews; check expiry monthly.
 
 ## 7. Monitoring and alerts
 
-There is **no alerting** in 0.3.0 and no OpenTelemetry SDK in the apps (spec §10). Until there is, set up:
+Profile `observability` ([Compose README, Alerting](../../deploy/compose/README.md#alerting)): Prometheus scrapes the api and worker `/metrics` (internal network only), their `/ready` (blackbox exporter), node-exporter (disk of the data volumes, backup metrics), Traefik and Keycloak; `observability/alert-rules.yml` defines the alerts; Alertmanager sends them by e-mail (`OECP_ALERT_EMAIL_TO`, through `OECP_ALERT_SMTP_*` or the application relay) and/or to a webhook (`OECP_ALERT_WEBHOOK_URL`); Grafana shows the dashboard *OECP overview* and the active alerts. Receivers: `[TO COMPLETE: alert mailbox or on-call address, webhook target]`. After set-up and after every change send a test alert (`amtool alert add`, Compose README) and check that it arrives.
+
+| Alert | Severity | First actions |
+|---|---|---|
+| `OecpServiceDown`, `OecpServiceNotReady` (api, worker) | critical | `docker compose ps`; `docker compose logs --since 30m api worker`; `/ready` 503 = PostgreSQL or Valkey unreachable: check `postgres`, `valkey` |
+| `OecpApiHigh5xxRate`, `OecpEdgeHigh5xxRate` (5xx > 1 %) | warning | Dashboard: 5xx by route; api log for the error codes; Traefik 502/503 = backend down or unhealthy |
+| `OecpHarvestFailing` (2 consecutive failed harvests of a partner) | warning | Panel *Network status*, *Sync history* of the partner; contact the partner (endpoint, credential, allowlist of our outbound IP); a disabled partner keeps its last count: silence it in Grafana/Alertmanager |
+| `OecpHarvestStuck` | warning | Worker log; restart the worker if the run is hung |
+| `OecpMaintenanceJobFailed`, `OecpMaintenanceJobStale` | warning | *Maintenance* page: the run's error and details; *Run now* after fixing |
+| `OecpIdpMetadataRefreshFailed`, `…Stale` | warning | *Maintenance* page, job *IdP metadata refresh*: the failing IdP or the aggregate (download, signature, `validUntil`); brokered sign-in keeps the previous certificates meanwhile |
+| `OecpBackupTooOld` (> 26 h), `OecpBackupFailed`, `OecpBackupMissing`, `OecpBackupMetricsStale`, `OecpBackupNoRecentFull` | critical / warning | `docker compose --profile backup ps backup`, `docker compose logs backup`; `docker compose exec backup pgbackrest --stanza=oecp check`; run `oecp-backup backup diff` once fixed |
+| `OecpWalArchivingFailing` | critical | `docker compose logs postgres` (archive-push errors), repository space or repo2 reachability; `pg_wal` grows meanwhile (disk alert next) |
+| `OecpDiskSpaceLow` (> 80 % warning, > 90 % critical) | warning / critical | `docker system df -v`; volumes `postgres_data`, `pgbackrest-repo` (backups, WAL), `uploads`, Docker logs; grow the disk before PostgreSQL stops |
+| `OecpMonitoringTargetDown` | warning | The exporter or Traefik/Keycloak metrics endpoint; the alerts depending on it cannot fire |
+
+Still manual:
 
 | Check | How | Frequency |
 |---|---|---|
-| External availability | HTTPS probe of `/en`, `/oeapi/v5/`, `https://<auth host>/realms/oecp/.well-known/openid-configuration` `[TO COMPLETE: monitoring system]` | 1–5 min |
-| Container health | `docker compose ps`: every service *healthy* (worker healthcheck = internal `/ready`) | Probe or daily |
+| External availability | HTTPS probe of `/en`, `/oeapi/v5/`, `https://<auth host>/realms/oecp/.well-known/openid-configuration` from outside the host `[TO COMPLETE: monitoring system]`: the in-host Prometheus cannot report its own host down | 1–5 min |
+| Monitoring itself | Grafana reachable, *OECP overview* shows current data; a test alert arrives | Monthly |
 | Worker schedules | `docker compose exec worker node -e "fetch('http://127.0.0.1:3001/health').then(r=>r.text()).then(console.log)"` lists jobs and next runs | Weekly |
-| Maintenance runs | Admin panel *Maintenance* (`/en/admin/maintenance`, alliance admins; or `GET /api/admin/v1/maintenance/runs`, Guide A, step 9): latest run of `history-partitions`, `idp-metadata-refresh`, `csv-retention`, `retention`, `dormancy`, `account-cleanup` *Succeeded* | Weekly |
-| Harvest failures | *Network status* and *Sync history* in the panel; `oecp.oeapi.mass_absence` stops withdrawals silently | Weekly |
-| IdP metadata refresh | *Maintenance* page, job *IdP metadata refresh*: every run (daily, start-up, manual) with one line per IdP in its details; a failed IdP fails the run. Expiry warnings also in `docker compose logs --since 24h worker \| grep -i metadata` | Daily once an IdP is connected |
-| Disk | `postgres_data`, `uploads`, Docker logs, backup directory | Weekly |
+| Dry runs | *Maintenance* page: `dormancy` and `account-cleanup` dry-run lists (section 10) | Monthly |
+| Certificates | TLS and IdP certificate expiry (no alert yet) | Monthly |
 
-**Mail:** Mailpit is development only. Production needs `OECP_SMTP_HOST` set to the institutional relay `[TO COMPLETE: relay host and port]`: relay by source address, or SMTP AUTH (`OECP_SMTP_USER` and the Docker secret `smtp_password`, `OECP_SMTP_PASSWORD_FILE=/run/secrets/smtp_password`); `OECP_SMTP_STARTTLS=true` (Compose default) requires TLS. With `NODE_ENV=production` the api **refuses to start** without an SMTP host unless `OECP_MAIL_LOG_LINKS=true`; keep it `false`. Without an SMTP host (development) nothing is sent: one warning line per mail, and the text with the invitation link only at `LOG_LEVEL=debug`; treat any such debug line as a leaked credential and revoke the invitation.
+Disk metrics come from a node-exporter container that sees the filesystems of the mounted volumes; a node-exporter on the host itself (or the institution's monitoring) covers every filesystem and the host's memory and CPU.
+
+**Mail:** Mailpit is development only. Production needs `OECP_SMTP_HOST` set to the institutional relay `[TO COMPLETE: relay host and port]`: relay by source address, or SMTP AUTH (`OECP_SMTP_USER` and the Docker secret `smtp_password`, `OECP_SMTP_PASSWORD_FILE=/run/secrets/smtp_password`); `OECP_SMTP_STARTTLS=true` (Compose default) requires TLS. With `NODE_ENV=production` the api **refuses to start** without an SMTP host unless `OECP_MAIL_LOG_LINKS=true`; keep it `false`. Without an SMTP host (development) nothing is sent: one warning line per mail, and the text with the invitation link only at `LOG_LEVEL=debug`; treat any such debug line as a leaked credential and revoke the invitation. Alert mail uses the same relay unless `OECP_ALERT_SMTP_HOST` is set.
 
 ## 8. Incident response
 
@@ -111,7 +153,7 @@ Record every incident: `[TO COMPLETE: incident register]`.
 
 ## 9. Capacity
 
-Worker ≥ **2 GB** RAM when the IdP metadata refresh uses the eduGAIN aggregate (about 750 MB measured for 75 MB; eduGAIN about 94 MB); Compose sets no limit; if needed `NODE_OPTIONS=--max-old-space-size=3072`. Uploads ≤ 5 MiB per file, 10 per hour per organization, kept 90 days. Raw payload history grows with changes only, 12–13 months kept. Search target p95 < 300 ms at 50 req/s is not measured. `[TO COMPLETE: measured sizes after the first months]`.
+Worker ≥ **2 GB** RAM when the IdP metadata refresh uses the eduGAIN aggregate (about 750 MB measured for 75 MB; eduGAIN about 94 MB); Compose sets no limit; if needed `NODE_OPTIONS=--max-old-space-size=3072`. Uploads ≤ 5 MiB per file, 10 per hour per organization, kept 90 days. Raw payload history grows with changes only, 12–13 months kept. Search target p95 < 300 ms at 50 req/s is not measured. Backup repository (volume `pgbackrest-repo`, and repo2): about six compressed full backups plus differentials and 35 days of compressed WAL (development: 5.5 MB per full of a 47 MB cluster); keep it on a different disk from `postgres_data` if possible. `[TO COMPLETE: measured sizes after the first months]`.
 
 ## 10. Log and data retention
 
@@ -120,15 +162,15 @@ Worker ≥ **2 GB** RAM when the IdP metadata refresh uses the eduGAIN aggregate
 - Every container logs to Docker's `json-file` driver with rotation: `OECP_LOG_MAX_SIZE` × `OECP_LOG_MAX_FILE` (default 10m × 5), Traefik `OECP_TRAEFIK_LOG_MAX_SIZE` × `OECP_TRAEFIK_LOG_MAX_FILE` (20m × 10). The bound is **size-based**: measure each container's daily volume (`docker inspect --format '{{.LogPath}}' <container>`) and size the files for about 90 days (Traefik with access log: 30 days, never more). Chosen values: `[TO COMPLETE: sizes per container, date measured]`.
 - The Traefik access log is **off by default**; `OECP_TRAEFIK_ACCESS_LOG=true` writes one JSON line per request with the client address but no request headers. Enabled: `[TO COMPLETE: yes/no, reason]`.
 - API request logs carry method, URL, status, duration, request id and, for admin requests, the JWT `sub`; never headers, client address or User-Agent. `OECP_LOG_CLIENT_ADDRESSES=true` adds a salted SHA-256 of the address (salt random per process).
-- Loki (profile `observability`) keeps 90 days (`observability/loki.yaml`, compactor), but nothing ships logs to it yet (backlog "Ship container logs to Loki"). Prometheus keeps 30 days. Keycloak events: 90 days (realm).
+- Loki (profile `observability`) keeps 90 days (`observability/loki.yaml`, compactor), but nothing ships logs to it yet (backlog "Ship container logs to Loki"). Prometheus keeps 30 days of metrics (no personal data: partner slugs, routes, job names). Keycloak events: 90 days (realm). Backups: 35 days (section 3).
 
-**Data.** The worker's `retention` job (04:45 UTC) deletes, besides old run errors, runs, audit entries, invitations and maintenance runs, the courses, offerings and organizations soft-deleted more than `OECP_RETENTION_SOFT_DELETED_MONTHS` (12) months ago (an organization only once nothing refers to it; counted `soft_deleted_organizations_kept` otherwise). The `account-cleanup` job (05:15 UTC) deletes the Keycloak accounts of former administrators 12 months after their roles were removed (`OECP_ACCOUNT_DELETE_MONTHS`); it runs in **dry run** until `OECP_ACCOUNT_CLEANUP_DRY_RUN=false`: `[TO COMPLETE: date enabled, after the Foundation reviewed a dry run]`. Harvested raw payloads are stored without person data (`coordinators`, `persons`, person members of `ext`). Data deleted by these jobs survives in backups until they expire (section 3).
+**Data.** The worker's `retention` job (04:45 UTC) deletes, besides old run errors, runs, audit entries, invitations and maintenance runs, the courses, offerings and organizations soft-deleted more than `OECP_RETENTION_SOFT_DELETED_MONTHS` (12) months ago (an organization only once nothing refers to it; counted `soft_deleted_organizations_kept` otherwise). The `account-cleanup` job (05:15 UTC) deletes the Keycloak accounts of former administrators 12 months after their roles were removed (`OECP_ACCOUNT_DELETE_MONTHS`); it runs in **dry run** until `OECP_ACCOUNT_CLEANUP_DRY_RUN=false`: `[TO COMPLETE: date enabled, after the Foundation reviewed a dry run]`. Harvested raw payloads are stored without person data (`coordinators`, `persons`, person members of `ext`). Data deleted by these jobs survives in backups until they expire (35 days, section 3).
 
 ## 11. Housekeeping checklist
 
-**Weekly:** maintenance runs succeeded; network status and failed harvests; worker log errors; disk space; backup files present.
-**Monthly:** restore one backup file (integrity); TLS and IdP certificate expiry; review `Administrators` panels; on the *Maintenance* page, review the latest `account-cleanup` run (dry run: the accounts it would delete and the kept ones with their reason; enabled: the deleted accounts); check the log volumes against the rotation sizes (section 10); apply OS and image security updates; check for a new OECP patch release.
-**Quarterly:** restore drill; review the dormancy dry run on the *Maintenance* page until it is switched on; secrets offline copy current.
+**Weekly:** no alert left firing or silenced without a reason (Grafana, *OECP overview*); `pgbackrest info` shows the Sunday full; worker log errors.
+**Monthly:** test alert delivered (section 7); uploads archives copied to the second site; TLS and IdP certificate expiry; review `Administrators` panels; on the *Maintenance* page, review the latest `account-cleanup` run (dry run: the accounts it would delete and the kept ones with their reason; enabled: the deleted accounts); check the log volumes against the rotation sizes (section 10); apply OS and image security updates; check for a new OECP patch release.
+**Quarterly:** restore drill (section 4, `scripts/restore-drill.sh`, report filed); review the dormancy dry run on the *Maintenance* page until it is switched on; secrets offline copy current.
 **Yearly:** rotate database and client secrets; review this runbook, the RoPA and the DPIA; recertify administrators with the Foundation.
 
 ## 12. Contacts

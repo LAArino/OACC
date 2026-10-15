@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: EUPL-1.2
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { RunMetricsService } from '../../metrics/run-metrics.service.js';
 import {
   type KeycloakIdentityProviderRepresentation,
   KeycloakAdminService,
@@ -98,6 +99,8 @@ export class IdpMetadataRefreshService {
     private readonly keycloak: KeycloakAdminService,
     private readonly source: MetadataAggregateSource,
     @Optional() @Inject(IDP_REFRESH_CLOCK) clock?: () => Date,
+    /** Worker only (spec §10 metrics); absent in the CLI. */
+    @Optional() private readonly metrics?: RunMetricsService,
   ) {
     this.now = clock ?? (() => new Date());
   }
@@ -148,6 +151,7 @@ export class IdpMetadataRefreshService {
 
     outcome.results.sort((a, b) => a.alias.localeCompare(b.alias));
     this.logSummary(outcome);
+    if (!dryRun && !outcomeFailed(outcome)) this.metrics?.idpRefreshSucceeded(this.now());
     return outcome;
   }
 

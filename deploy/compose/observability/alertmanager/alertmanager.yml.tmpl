@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Alertmanager configuration TEMPLATE (profile `observability`), rendered by
+# entrypoint.sh at every start from the OECP_ALERT_* variables of the
+# `alertmanager` service (.env). Alertmanager does not expand environment
+# variables itself.
+#   __NAME__  placeholders, replaced by the (YAML-escaped) value;
+#   # @email     lines kept only when OECP_ALERT_EMAIL_TO and an SMTP host are set;
+#   # @smtpauth  lines kept only when OECP_ALERT_SMTP_USER is also set;
+#   # @webhook   lines kept only when OECP_ALERT_WEBHOOK_URL is set.
+# With no receiver configured, alerts are visible in Alertmanager and Grafana only.
+# Validate the rendered file: see deploy/compose/README.md "Alerting".
+
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: '__SMTP_HOST__:__SMTP_PORT__' # @email
+  smtp_from: '__EMAIL_FROM__' # @email
+  smtp_require_tls: __SMTP_REQUIRE_TLS__ # @email
+  smtp_auth_username: '__SMTP_USER__' # @smtpauth
+  smtp_auth_password_file: '__SMTP_PASSWORD_FILE__' # @smtpauth
+
+route:
+  receiver: oecp-operators
+  group_by: [alertname, severity, component]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+  routes:
+    # Critical alerts (service down, backup too old, WAL archiving, disk > 90%)
+    # are repeated every 2 hours while they last.
+    - receiver: oecp-operators
+      matchers: ['severity="critical"']
+      repeat_interval: 2h
+
+receivers:
+  - name: oecp-operators
+    email_configs: # @email
+      - to: '__EMAIL_TO__' # @email
+        send_resolved: true # @email
+        headers: # @email
+          Subject: '[OECP __ENVIRONMENT__] {{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }} {{ .CommonLabels.alertname }} ({{ .CommonLabels.severity }})' # @email
+    webhook_configs: # @webhook
+      - url: '__WEBHOOK_URL__' # @webhook
+        send_resolved: true # @webhook
+        max_alerts: 50 # @webhook
+
+inhibit_rules:
+  # The critical level of an alert silences its warning level (disk 90% over
+  # 80%, backup age).
+  - source_matchers: ['severity="critical"']
+    target_matchers: ['severity="warning"']
+    equal: [alertname, component, type, device]
+  # A process that is down or not ready explains every alert about its work
+  # (harvests, maintenance jobs, IdP metadata, 5xx ratio).
+  - source_matchers: ['alertname=~"OecpServiceDown|OecpServiceNotReady"']
+    target_matchers: ['alertname!~"OecpServiceDown|OecpServiceNotReady"']
+    equal: [component]
+  # Stale backup metrics (backup service stopped) explain a growing backup age
+  # only as a symptom: keep the age alert, drop the "last attempt failed" one.
+  - source_matchers: ['alertname="OecpBackupMetricsStale"']
+    target_matchers: ['alertname="OecpBackupFailed"']

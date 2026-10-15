@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.5.0] - 2026-10-15
+
+Operations release: pgBackRest backups with WAL archiving, 35-day retention and a restore drill script; Prometheus metrics on the api and the worker with Alertmanager, alert rules and a Grafana dashboard in the observability profile; a strict nonce-based Content-Security-Policy on the portal; OpenAPI 3.1 documents for the public and administration APIs; README rewrite.
+
 ### Added
 
 - API: OpenAPI 3.1 documents of the public catalogue API and the admin API,
@@ -32,6 +38,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   2.11.0, MIT, development dependency) and cover exactly the routes the Nest
   application registers under `/api/public/v1` and `/api/admin/v1`, with the
   roles of the guards and the success status of each handler.
+- API and worker: Prometheus metrics (spec §10) with `@prometheus-io/client`
+  0.16.1, the successor of the deprecated `prom-client` (Apache-2.0, a
+  permissive licence compatible with EUPL-1.2 as ADR 0001 and ADR 0006
+  require). `GET /metrics` (text format, no authentication) on the api
+  (port 3000) and on the worker's internal health server (port 3001), for the
+  internal network only (Traefik routes neither); `OECP_METRICS_ENABLED`
+  (default `true`) turns both off (404). Both processes export the Node.js and
+  process defaults with the `oecp_` prefix and
+  `oecp_build_info{version,commit}` (`OECP_GIT_COMMIT`, else `unknown`). The
+  api adds `oecp_http_requests_total{method,route,status}` and
+  `oecp_http_request_duration_seconds{method,route}`, labelled with the route
+  template (`unmatched` for 404s; `/metrics`, `/health`, `/ready` not
+  measured). The worker adds `oecp_sync_runs_total{channel,status}`,
+  `oecp_sync_run_last_success_timestamp_seconds{organization_slug,channel}`,
+  `oecp_sync_runs_consecutive_failures{organization_slug}`,
+  `oecp_harvest_in_progress`, `oecp_maintenance_runs_total{job,status}`,
+  `oecp_maintenance_run_last_success_timestamp_seconds{job}` and
+  `oecp_idp_metadata_refresh_last_success_timestamp_seconds`; the gauges
+  derived from `sync_runs` and `maintenance_runs` are loaded at worker start
+  (a restart does not blank them), after every sync run and every 5 minutes.
+- Web: strict, nonce-based Content-Security-Policy on every HTML response of
+  the portal (spec §10; backlog item closed), set by a Nitro plugin
+  (`apps/web/server/plugins/csp.ts`) because only the application knows the
+  nonce; Traefik keeps the other headers. Each rendered page (SSR catalogue,
+  client-rendered `/admin` shell, silent-callback, error pages) gets a fresh
+  128-bit nonce on the script, style and link tags Nuxt and unhead generate
+  (never on the rendered body) and `default-src 'self'; script-src
+  'nonce-…' 'strict-dynamic'; style-src 'self' 'nonce-…'; img-src 'self'
+  data: https:; font-src 'self'; connect-src 'self' {auth}; frame-src 'self'
+  {auth}; worker-src 'self'; form-action 'self' {auth}; frame-ancestors
+  'self'; base-uri 'self'; object-src 'none'` (+ `upgrade-insecure-requests`
+  over HTTPS in production builds), `{auth}` being the origin of
+  `NUXT_PUBLIC_OIDC_AUTHORITY` (the silent-restore iframe is first pointed at
+  the authorize endpoint, so `frame-src` needs it). No `'unsafe-inline'`,
+  `'unsafe-eval'` or `blob:`. `NUXT_CSP_MODE` = `enforce` | `report-only` |
+  `off` and optional `NUXT_CSP_REPORT_URI` (`report-uri`, `report-to`,
+  `Reporting-Endpoints`). Zod runs `jitless` in the browser (client plugin;
+  `zod` 4.6.7 is now a direct dependency of `@oecp/web`), because its eval
+  probe was reported as a violation. Tests: policy builder and tag rewriting
+  (21), and a production build rendering `/en`, the catalogue, a course page
+  (JSON-LD), `/en/admin` and the silent-callback page with the nonce on every
+  tag (5, `test/csp.render.test.ts`, run after the unit tests by `pnpm test`).
+  Verified with Playwright on the dev stack: public pages, filters and
+  suggestions, course page, sign-in, silent restore after reload, CSV console
+  (worker validation, template and report downloads) and course editor save,
+  without a single violation.
+- Deploy: pgBackRest backups (spec §10). The `postgres` service now runs
+  `oecp/postgres`, built from `postgres:16.15` plus pgBackRest 2.59.3 and jq
+  (`deploy/compose/dockerfiles/postgres.Dockerfile`, non-root uid 999, same
+  PostgreSQL minor and data volume), with continuous WAL archiving
+  (`archive_mode=on`, `archive_command` → `pgbackrest archive-push`,
+  `archive_timeout=300`; `OECP_WAL_ARCHIVE` = `auto`, `on`, `off`). New service
+  `backup` (profile `backup`, `postgres/bin/oecp-backup`): one stanza for the
+  whole cluster (`oecp` and `keycloak`), full backup on Sundays and
+  differential on the other days at 02:00 UTC, catch-up at start, 35-day
+  time-based retention, daily `uploads-YYYY-MM-DD.tar.gz` of the uploads volume
+  (35 days), repository repo1 on the new volume `pgbackrest-repo`, optional
+  encrypted repo2 (second site, S3/MinIO or SFTP) from `.env.pgbackrest`
+  (`postgres/pgbackrest-repo2.env.example`) and Docker secrets
+  `pgbackrest_repo2_*`. Backup metrics for alerting through node-exporter's
+  textfile collector (`oecp_backup_last_success_timestamp_seconds{type}`,
+  `oecp_backup_last_duration_seconds{type}`, `oecp_wal_archive_*`, …).
+- Deploy: restore drill `deploy/compose/scripts/restore-drill.sh`: restores
+  the latest backup, a point in time (`--target-time`) or one set into a
+  scratch container (no network, read-only repository, no archiving), waits
+  for recovery, checks both databases and prints a report with the restore
+  and recovery times; quarterly (runbook §4).
+- Deploy: alerting in the `observability` profile. Prometheus scrapes the api
+  and worker `/metrics`, their `/ready` (new `blackbox-exporter`
+  v0.29.0) and the new `node-exporter` v1.12.1 (disk of the data volumes,
+  backup metrics); rules `observability/alert-rules.yml` with promtool unit
+  tests (`alert-rules.test.yml`) for the alerts of spec §10 (two consecutive
+  failed harvests, backup older than 26 h, disk > 80 %, IdP metadata refresh
+  failure, 5xx > 1 %) plus service down or not ready, WAL archiving, maintenance
+  jobs and backup health; new `alertmanager` v0.34.1 with e-mail
+  (`OECP_ALERT_EMAIL_TO`, `OECP_ALERT_EMAIL_FROM`, `OECP_ALERT_SMTP_HOST`,
+  `_PORT`, `_REQUIRE_TLS`, `_USER`, `_PASSWORD_FILE`, defaulting to the
+  application relay) and webhook (`OECP_ALERT_WEBHOOK_URL`) receivers and
+  inhibition rules; Grafana dashboard "OECP overview" and an Alertmanager data
+  source, provisioned. Compose passes `OECP_METRICS_ENABLED` and
+  `OECP_GIT_COMMIT` to api and worker.
+
+### Changed
+
+- Deploy: the `postgres` service is built locally (`docker compose build
+  postgres`, or `docker compose up -d --build`); an existing data volume is
+  used as is. `docker compose down -v` now also deletes the local backup
+  repository (`pgbackrest-repo`). Runbook §3, §4 and §7 describe the backups,
+  the restore drill and the alerts that now exist (no more interim
+  `pg_dump`).
 
 ## [0.4.0] - 2026-10-15
 
@@ -711,7 +807,8 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/AURORA-OECP/compare/v0.4.0...main
+[Unreleased]: https://github.com/LAArino/AURORA-OECP/compare/v0.5.0...main
+[0.5.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.5.0
 [0.4.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.4.0
 [0.3.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.3.0
 [0.2.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.2.0

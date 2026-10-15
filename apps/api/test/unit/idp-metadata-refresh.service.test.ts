@@ -31,6 +31,7 @@ import {
   MaintenanceJobError,
   type MaintenanceRunner,
 } from '../../src/maintenance/maintenance-runner.js';
+import type { RunMetricsService } from '../../src/metrics/run-metrics.service.js';
 import { FakeKeycloakIdps } from '../support/fake-keycloak-idps.js';
 import { aggregateXml, type FixtureEntity, signXml } from '../support/saml-aggregate.js';
 import { createTestCertificate, daysFromNow, type TestCertificate } from '../support/x509.js';
@@ -119,12 +120,18 @@ function aggregateFetch(respond: () => Response | Promise<Response>) {
 let keycloak: FakeKeycloakIdps;
 let store: MemoryStore;
 
-function service(s: IdpMetadataSettings, fetchImpl: typeof fetch) {
+function service(
+  s: IdpMetadataSettings,
+  fetchImpl: typeof fetch,
+  metrics?: Pick<RunMetricsService, 'idpRefreshSucceeded'>,
+) {
   return new IdpMetadataRefreshService(
     s,
     store,
     keycloak.service(),
     new MetadataAggregateSource(s, fetchImpl),
+    undefined,
+    metrics as RunMetricsService | undefined,
   );
 }
 
@@ -292,6 +299,21 @@ describe('idp-metadata-refresh against a fake Keycloak', () => {
     await expect(service(settings(), fetchImpl).runOnce({ verify: false })).rejects.toThrow(
       /only be skipped for a local file/,
     );
+  });
+});
+
+describe('metrics hook', () => {
+  it('reports a success only for a completed refresh without failures, not a dry run', async () => {
+    const metrics = { idpRefreshSucceeded: vi.fn() };
+    await service(settings(), okFetch(), metrics).runOnce({ aliases: ['same'] });
+    expect(metrics.idpRefreshSucceeded).toHaveBeenCalledTimes(1);
+    expect(metrics.idpRefreshSucceeded.mock.calls[0]![0]).toBeInstanceOf(Date);
+
+    metrics.idpRefreshSucceeded.mockClear();
+    await service(settings(), okFetch(), metrics).runOnce(); // beta and epsilon fail
+    await service(settings(), okFetch(), metrics).runOnce({ dryRun: true, aliases: ['same'] });
+    await service(settings({ url: undefined }), okFetch(), metrics).runOnce(); // not configured
+    expect(metrics.idpRefreshSucceeded).not.toHaveBeenCalled();
   });
 });
 

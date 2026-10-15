@@ -2,6 +2,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ERROR_CODES, type ErrorCode, type ProblemError } from '@oecp/schemas';
 import { type Db, KYSELY } from '../db/db.module.js';
+import { RunMetricsService } from '../metrics/run-metrics.service.js';
 import {
   CanonicalContentRejected,
   CanonicalWriter,
@@ -117,6 +118,8 @@ export class HarvestService {
     private readonly writer: CanonicalWriter,
     private readonly runs: SyncRunsRepository,
     @Optional() @Inject(HARVEST_CLOCK) clock?: () => Date,
+    /** Worker only (spec §10 metrics); absent in the api and the CLI. */
+    @Optional() private readonly metrics?: RunMetricsService,
   ) {
     this.now = clock ?? (() => new Date());
   }
@@ -173,65 +176,76 @@ export class HarvestService {
     });
     if (!run) return skipped('another run of the organization is in progress');
 
-    const ctx: WriteContext = {
-      syncRunId: run.id,
-      organizationId: job.organizationId,
-      channel: 'oeapi',
-      schemaVersion: OEAPI_V5_SCHEMA_VERSION,
-      actor: HARVESTER_ACTOR,
-      now,
-    };
-    const state = new RunState();
-    const timeout = AbortSignal.timeout(RUN_MAX_DURATION_MS);
-    const runSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
-
+    this.metrics?.harvestStarted();
     try {
-      const mapping: MappingContext = {
-        organization: {
-          id: organization.id,
-          extId: organization.ext_id,
-          defaultTimezone: organization.default_timezone,
-          contactEmail: organization.contact_email,
-        },
-        iscedBroadFields: new Set(
-          (await this.db.selectFrom('isced_broad_fields').select('code').execute()).map(
-            (r) => r.code,
-          ),
-        ),
-        fetchedAt: now,
+      const ctx: WriteContext = {
+        syncRunId: run.id,
+        organizationId: job.organizationId,
+        channel: 'oeapi',
+        schemaVersion: OEAPI_V5_SCHEMA_VERSION,
+        actor: HARVESTER_ACTOR,
+        now,
       };
-      await this.harvest(integration, ctx, mapping, state, runSignal);
-    } catch (error) {
-      if (error instanceof AbortRun) {
-        state.fatal = error.issue;
-      } else {
-        this.logger.error(error);
-        state.fatal = problem('oecp.internal', (error as Error).message);
-      }
-      state.listingComplete = false;
-      await this.safeRecord(ctx, [state.fatal]);
-    }
+      const state = new RunState();
+      const timeout = AbortSignal.timeout(RUN_MAX_DURATION_MS);
+      const runSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
 
-    const finished = await this.finish(integration, ctx, state);
-    this.logger.log(
-      `Harvest ${run.id} of ${job.organizationId}: ${finished.status}` +
-        `${finished.is_complete ? '' : ' (incomplete)'}, created ${finished.n_created}, ` +
-        `updated ${finished.n_updated}, unchanged ${finished.n_unchanged}, ` +
-        `rejected ${finished.n_rejected}, withdrawn ${finished.n_withdrawn}`,
-    );
-    return {
-      syncRunId: run.id,
-      status: finished.status,
-      isComplete: finished.is_complete,
-      counters: {
-        n_created: finished.n_created,
-        n_updated: finished.n_updated,
-        n_unchanged: finished.n_unchanged,
-        n_rejected: finished.n_rejected,
-        n_withdrawn: finished.n_withdrawn,
-      },
-      errorSummary: finished.error_summary,
-    };
+      try {
+        const mapping: MappingContext = {
+          organization: {
+            id: organization.id,
+            extId: organization.ext_id,
+            defaultTimezone: organization.default_timezone,
+            contactEmail: organization.contact_email,
+          },
+          iscedBroadFields: new Set(
+            (await this.db.selectFrom('isced_broad_fields').select('code').execute()).map(
+              (r) => r.code,
+            ),
+          ),
+          fetchedAt: now,
+        };
+        await this.harvest(integration, ctx, mapping, state, runSignal);
+      } catch (error) {
+        if (error instanceof AbortRun) {
+          state.fatal = error.issue;
+        } else {
+          this.logger.error(error);
+          state.fatal = problem('oecp.internal', (error as Error).message);
+        }
+        state.listingComplete = false;
+        await this.safeRecord(ctx, [state.fatal]);
+      }
+
+      const finished = await this.finish(integration, ctx, state);
+      await this.metrics?.syncRunFinished({
+        organizationId: job.organizationId,
+        channel: 'oeapi',
+        status: finished.status,
+        finishedAt: this.now(),
+      });
+      this.logger.log(
+        `Harvest ${run.id} of ${job.organizationId}: ${finished.status}` +
+          `${finished.is_complete ? '' : ' (incomplete)'}, created ${finished.n_created}, ` +
+          `updated ${finished.n_updated}, unchanged ${finished.n_unchanged}, ` +
+          `rejected ${finished.n_rejected}, withdrawn ${finished.n_withdrawn}`,
+      );
+      return {
+        syncRunId: run.id,
+        status: finished.status,
+        isComplete: finished.is_complete,
+        counters: {
+          n_created: finished.n_created,
+          n_updated: finished.n_updated,
+          n_unchanged: finished.n_unchanged,
+          n_rejected: finished.n_rejected,
+          n_withdrawn: finished.n_withdrawn,
+        },
+        errorSummary: finished.error_summary,
+      };
+    } finally {
+      this.metrics?.harvestEnded();
+    }
   }
 
   private async harvest(

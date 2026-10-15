@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Blackbox exporter (profile `observability`): probes of the internal
+# readiness endpoints of api (:3000/ready) and worker (:3001/ready), which
+# answer 503 when PostgreSQL or Valkey is unreachable (spec §10 "Worker
+# health"). Targets are listed in prometheus.yaml (job `ready`).
+
+modules:
+  http_ready:
+    prober: http
+    timeout: 5s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      preferred_ip_protocol: ip4
+      no_follow_redirects: true

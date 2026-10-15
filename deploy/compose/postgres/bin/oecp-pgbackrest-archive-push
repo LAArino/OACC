@@ -1,0 +1,37 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# archive_command of the `postgres` service:
+#   archive_command = 'oecp-pgbackrest-archive-push %p'
+# (pgBackRest requires the command to contain "pgbackrest").
+#
+# OECP_WAL_ARCHIVE selects what happens to each completed WAL segment:
+#   on    always `pgbackrest --stanza=oecp archive-push`; a failure (no stanza,
+#         repository unreachable) keeps the segment in pg_wal and PostgreSQL
+#         retries, so pg_wal grows until archiving works again. Production.
+#   auto  (default) the same once the stanza exists in repo1 (created by the
+#         `backup` service at its first start); before that the segment is
+#         dropped, which loses nothing: no base backup exists that it could
+#         complement. Keeps `docker compose up` without the `backup` profile
+#         from filling pg_wal. Use `on` when repo1 is not a local path.
+#   off   drop every segment (no point-in-time recovery).
+set -eu
+wal_path=${1:?usage: oecp-pgbackrest-archive-push <wal path>}
+stanza=${OECP_PGBACKREST_STANZA:-oecp}
+repo1=${PGBACKREST_REPO1_PATH:-/var/lib/pgbackrest}
+
+case "${OECP_WAL_ARCHIVE:-auto}" in
+  on) ;;
+  auto)
+    if [ ! -f "$repo1/archive/$stanza/archive.info" ]; then
+      exit 0
+    fi
+    ;;
+  off) exit 0 ;;
+  *)
+    echo "oecp-pgbackrest-archive-push: invalid OECP_WAL_ARCHIVE='${OECP_WAL_ARCHIVE}' (on, auto, off)" >&2
+    exit 1
+    ;;
+esac
+exec pgbackrest --stanza="$stanza" archive-push "$wal_path"
