@@ -112,3 +112,42 @@ export function rememberIdpAlias(alias: string): void {
     // Only a convenience.
   }
 }
+
+/**
+ * Causes of `oecp.invitation.mismatch` the API names in the problem's `reason`
+ * (`invitationMismatchReason` of @oecp/schemas): 403 `email`, `idp`,
+ * `home_organization`; 409 `organization` (already administers another one).
+ */
+export type InvitationMismatchReason = 'email' | 'idp' | 'home_organization' | 'organization';
+const MISMATCH_REASONS: readonly InvitationMismatchReason[] = [
+  'email',
+  'idp',
+  'home_organization',
+  'organization',
+];
+
+/**
+ * The `reason` of an `oecp.invitation.mismatch` problem: the top-level extension
+ * member, else the same member on the matching `errors[]` item. Null for other
+ * errors, a missing or an unknown reason (the generic message is kept then).
+ */
+export function invitationMismatchReason(error: {
+  codes: readonly string[];
+  problem?: unknown;
+}): InvitationMismatchReason | null {
+  if (!error.codes.includes('oecp.invitation.mismatch')) return null;
+  const problem = error.problem as
+    { reason?: unknown; errors?: { code?: unknown; reason?: unknown }[] } | undefined;
+  const candidates = [
+    problem?.reason,
+    ...(Array.isArray(problem?.errors)
+      ? problem.errors.filter((e) => e?.code === 'oecp.invitation.mismatch').map((e) => e?.reason)
+      : []),
+  ];
+  for (const value of candidates) {
+    if (MISMATCH_REASONS.includes(value as InvitationMismatchReason)) {
+      return value as InvitationMismatchReason;
+    }
+  }
+  return null;
+}

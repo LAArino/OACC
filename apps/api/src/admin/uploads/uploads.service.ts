@@ -65,10 +65,15 @@ export class UploadsService {
     return loadAttributeDefinitions(this.db);
   }
 
+  /**
+   * `onRun` is called with the run id as soon as the `sync_runs` row is
+   * committed, also when a later step fails (the controller sets `Location`).
+   */
   async create(
     admin: AdminPrincipal,
     organizationId: string,
     files: Partial<Record<CsvFileKind, UploadedCsvFile>>,
+    onRun: (syncRunId: string) => void = () => undefined,
   ): Promise<UploadResult> {
     const present = (['courses', 'offerings'] as const).flatMap((kind) => {
       const file = files[kind];
@@ -168,6 +173,8 @@ export class UploadsService {
         throw error;
       }
     });
+
+    onRun(id);
 
     if (inline) {
       const outcome = await this.ingestion.process(id);

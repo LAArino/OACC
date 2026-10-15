@@ -4,10 +4,15 @@ import { ERROR_CODES, type ErrorCode } from '@oecp/schemas';
 import type { ProblemBody } from './problem-details.filter.js';
 
 /** Problem body with one stable error code (spec §6.6). */
-export function problemBody(code: ErrorCode, detail?: string): ProblemBody {
+export function problemBody(
+  code: ErrorCode,
+  detail?: string,
+  extensions?: Record<string, unknown>,
+): ProblemBody {
   const { message, severity } = ERROR_CODES[code];
   const body: ProblemBody = { title: message, errors: [{ code, severity, message }] };
   if (detail) body.detail = detail;
+  if (extensions) body.extensions = extensions;
   return body;
 }
 
@@ -17,8 +22,10 @@ export class ProblemException extends HttpException {
     status: number,
     readonly code: ErrorCode,
     detail?: string,
+    /** RFC 9457 extension members (e.g. `reason`), rendered at the top level. */
+    extensions?: Record<string, unknown>,
   ) {
-    super(problemBody(code, detail), status);
+    super(problemBody(code, detail, extensions), status);
     this.message = detail ?? ERROR_CODES[code].message;
   }
 }

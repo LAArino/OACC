@@ -8,10 +8,8 @@ import type { KeycloakIdentityProviderRepresentation } from '../../src/identity/
 import {
   IDP_METADATA_REFRESH_CRON,
   IDP_METADATA_REFRESH_JOB,
-  IDP_METADATA_REFRESH_SCHEDULER_ID,
+  STARTUP_CACHE_REUSE_MS,
 } from '../../src/identity/metadata-refresh/idp-metadata-refresh.constants.js';
-import { IdpMetadataRefreshProcessor } from '../../src/identity/metadata-refresh/idp-metadata-refresh.processor.js';
-import { registerIdpMetadataRefreshJob } from '../../src/identity/metadata-refresh/idp-metadata-refresh.schedule.js';
 import {
   IdpMetadataRefreshService,
   type IdpRefreshResult,
@@ -23,6 +21,16 @@ import type {
   PartnerIdp,
 } from '../../src/identity/metadata-refresh/idp-refresh.store.js';
 import { MetadataAggregateSource } from '../../src/identity/metadata-refresh/metadata-aggregate.source.js';
+import {
+  MAINTENANCE_SCHEDULES,
+  ON_DEMAND_JOBS,
+} from '../../src/maintenance/maintenance.constants.js';
+import { MaintenanceProcessor } from '../../src/maintenance/maintenance.processor.js';
+import {
+  type JobOutcome,
+  MaintenanceJobError,
+  type MaintenanceRunner,
+} from '../../src/maintenance/maintenance-runner.js';
 import { FakeKeycloakIdps } from '../support/fake-keycloak-idps.js';
 import { aggregateXml, type FixtureEntity, signXml } from '../support/saml-aggregate.js';
 import { createTestCertificate, daysFromNow, type TestCertificate } from '../support/x509.js';
@@ -365,41 +373,59 @@ describe('aggregate download, last good copy and staleness', () => {
   });
 });
 
-describe('BullMQ registration', () => {
-  it('upserts the daily job scheduler idp-metadata-refresh at 04:15 UTC', async () => {
-    const queue = { upsertJobScheduler: vi.fn().mockResolvedValue(undefined) };
-    await registerIdpMetadataRefreshJob(queue as never);
-    expect(queue.upsertJobScheduler).toHaveBeenCalledWith(
-      IDP_METADATA_REFRESH_SCHEDULER_ID,
-      { pattern: IDP_METADATA_REFRESH_CRON, tz: 'UTC' },
-      expect.objectContaining({ name: IDP_METADATA_REFRESH_JOB }),
-    );
-    expect([
-      IDP_METADATA_REFRESH_SCHEDULER_ID,
-      IDP_METADATA_REFRESH_JOB,
-      IDP_METADATA_REFRESH_CRON,
-    ]).toEqual(['idp-metadata-refresh', 'idp-metadata-refresh', '15 4 * * *']);
+describe('maintenance queue', () => {
+  it('schedules idp-metadata-refresh daily at 04:15 UTC on the maintenance queue', () => {
+    expect(MAINTENANCE_SCHEDULES).toContainEqual({
+      job: IDP_METADATA_REFRESH_JOB,
+      pattern: IDP_METADATA_REFRESH_CRON,
+    });
+    expect(IDP_METADATA_REFRESH_CRON).toBe('15 4 * * *');
+    expect(ON_DEMAND_JOBS).toContain(IDP_METADATA_REFRESH_JOB);
   });
-});
 
-describe('BullMQ processor', () => {
-  it('fails the job when an IdP failed, returns the aliases by status otherwise', async () => {
-    const processor = new IdpMetadataRefreshProcessor(service(settings(), okFetch()));
+  /** A processor whose runner records the trigger and runs the job directly. */
+  const processorWith = (refresh: IdpMetadataRefreshService) => {
+    const calls: { job: string; trigger: string }[] = [];
+    const runner = {
+      run: async (job: string, trigger: string, _by: unknown, fn: () => Promise<JobOutcome>) => {
+        calls.push({ job, trigger });
+        return { runId: 'run', status: 'succeeded', ...(await fn()) };
+      },
+    } as unknown as MaintenanceRunner;
+    const none = undefined as never;
+    const processor = new MaintenanceProcessor(runner, none, none, none, none, none, refresh);
+    return { processor, calls };
+  };
+
+  it('records the run (counters, details) and fails it when an IdP failed', async () => {
+    const { processor, calls } = processorWith(service(settings(), okFetch()));
     const job = (data = {}) => ({ name: IDP_METADATA_REFRESH_JOB, data }) as never;
-    await expect(processor.process(job())).rejects.toThrow(
+    const failure = await processor.process(job({ trigger: 'schedule' })).catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(MaintenanceJobError);
+    expect((failure as Error).message).toMatch(
       /idp-metadata-refresh failed: beta: Metadata has no currently valid signing certificate/,
     );
+    expect((failure as MaintenanceJobError).outcome.counters).toMatchObject({ failed: 2 });
+    expect(calls).toEqual([{ job: IDP_METADATA_REFRESH_JOB, trigger: 'schedule' }]);
+
     store.partners.splice(0, store.partners.length, {
       organizationId: ORG(5),
       slug: 'same',
       alias: 'same',
     });
-    await expect(processor.process(job())).resolves.toMatchObject({
-      status: 'completed',
-      source: 'url',
-      unchanged: ['same'],
-      failed: [],
+    const ok = await processor.process(
+      job({ trigger: 'startup', reuseCacheMaxAgeMs: STARTUP_CACHE_REUSE_MS }),
+    );
+    expect(ok).toMatchObject({
+      status: 'succeeded',
+      counters: { updated: 0, unchanged: 1, skipped: 0, failed: 0 },
+      details: {
+        status: 'completed',
+        aggregate: { source: 'cache', verified: true },
+        results: [{ alias: 'same', status: 'unchanged', changes: [] }],
+      },
     });
+    expect(calls[1]).toEqual({ job: IDP_METADATA_REFRESH_JOB, trigger: 'startup' });
     await expect(processor.process({ name: 'other', data: {} } as never)).resolves.toBeNull();
   });
 });

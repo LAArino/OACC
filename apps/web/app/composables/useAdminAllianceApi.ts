@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 // Client of the administration endpoints of `/api/admin/v1` (spec §2.1, §8):
-// invitations, integration settings and actions, organizations, administrators
-// and the alliance network status. Every call carries the in-memory bearer token
+// invitations, integration settings and actions, organizations, administrators,
+// the alliance network status and the maintenance jobs. Every call carries the in-memory bearer token
 // (useAdminApi) and fails with AdminApiError.
 import type {
   AdminAccountList,
@@ -10,6 +10,8 @@ import type {
   AdminInvitation,
   AdminInvitationInput,
   AdminInvitationList,
+  AdminMaintenanceJobRunResponse,
+  AdminMaintenanceRunList,
   AdminNetworkStatus,
   AdminOrganizationInput,
   AdminOrganizationList,
@@ -114,6 +116,23 @@ export function useAdminAllianceApi() {
     // Network -------------------------------------------------------------------
     networkStatus(): Promise<AdminNetworkStatus> {
       return api<AdminNetworkStatus>(`${BASE}/network-status`);
+    },
+
+    // Maintenance ---------------------------------------------------------------
+    /** Runs newest first; `limit` 1–200 (API default 50), optional `job` filter. */
+    maintenanceRuns(
+      query: { limit?: number; job?: string } = {},
+    ): Promise<AdminMaintenanceRunList> {
+      const q: Record<string, string | number> = {};
+      if (query.limit) q.limit = query.limit;
+      if (query.job) q.job = query.job;
+      return api<AdminMaintenanceRunList>(`${BASE}/maintenance/runs`, { query: q });
+    },
+    /** 202 `{job, status: "queued" | "already_queued"}`. */
+    runMaintenanceJob(name: string): Promise<AdminRawResponse<AdminMaintenanceJobRunResponse>> {
+      return api.raw<AdminMaintenanceJobRunResponse>(`${BASE}/maintenance/jobs/${seg(name)}/run`, {
+        method: 'POST',
+      });
     },
   };
 }

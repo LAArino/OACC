@@ -111,6 +111,10 @@
     "severity": "error",
     "message": "Unknown academic session"
   },
+  "oecp.content.session_ignored": {
+    "severity": "warning",
+    "message": "Academic session unknown or invalid; the offering was stored without it"
+  },
   "oecp.content.unknown_course": {
     "severity": "error",
     "message": "Unknown course code"
@@ -213,7 +217,7 @@
   },
   "oecp.csv.invalid_template_version": {
     "severity": "error",
-    "message": "Expected template_version 1.0 or 1.1 (1.1 for kind, levels, attr_* and application_instructions_* columns)"
+    "message": "Expected template_version 1.0, 1.1 or 1.2 (1.1 for kind, levels, attr_* and application_instructions_* columns; 1.2 for instructors and the handbook texts)"
   },
   "oecp.csv.conflicting_columns": {
     "severity": "error",
@@ -298,10 +302,6 @@
   "oecp.csv.rate_limited": {
     "severity": "error",
     "message": "Upload limit reached (10 per hour)"
-  },
-  "oecp.csv.english_delete": {
-    "severity": "error",
-    "message": "English texts cannot be deleted"
   },
   "oecp.csv.duplicate_column": {
     "severity": "error",
@@ -470,6 +470,26 @@
   "oecp.oeapi.secret_unavailable": {
     "severity": "error",
     "message": "The partner credential could not be read"
+  },
+  "oecp.oeapi.multiple_roots": {
+    "severity": "warning",
+    "message": "Several root organizations returned; the first was used"
+  },
+  "oecp.oeapi.english_missing": {
+    "severity": "warning",
+    "message": "No English name; the course is stored as draft"
+  },
+  "oecp.oeapi.unknown_isced_field": {
+    "severity": "warning",
+    "message": "fieldsOfStudy code with an unknown ISCED broad field was ignored"
+  },
+  "oecp.oeapi.delivery_mode_dropped": {
+    "severity": "warning",
+    "message": "modeOfDelivery values without a mapping were ignored"
+  },
+  "oecp.oeapi.invalid_coordinators": {
+    "severity": "warning",
+    "message": "coordinators is not an array and was ignored"
   },
   "oecp.integration.not_configured": {
     "severity": "error",

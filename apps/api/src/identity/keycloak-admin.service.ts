@@ -22,6 +22,8 @@ export interface KeycloakUser {
   createdTimestamp?: number;
   requiredActions?: string[];
   attributes?: Record<string, string[]>;
+  /** Set on the service-account user of a confidential client. */
+  serviceAccountClientId?: string;
   [key: string]: unknown;
 }
 
@@ -353,6 +355,18 @@ export class KeycloakAdminService {
     for (const role of roles) await this.removeRealmRole(userId, role);
     await this.setUserAttribute(userId, OECP_ORG_ID_ATTRIBUTE, null);
     await this.logoutUser(userId);
+  }
+
+  /**
+   * Deletes the user (`manage-users`): account, credentials, sessions, IdP links.
+   * Returns false when the user no longer exists (404).
+   */
+  async deleteUser(userId: string): Promise<boolean> {
+    const response = await this.request('delete user', 'DELETE', `/users/${enc(userId)}`, {
+      accept: [404],
+    });
+    await response.body?.cancel();
+    return response.status !== 404;
   }
 
   /** Ends every session of the user (spec §2.2 revocation). */

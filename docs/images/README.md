@@ -6,7 +6,8 @@
 Taken on 2026-10-14 from the reference Docker Compose stack (release 0.3.0) with
 simulated data: a mock OEAPI partner (Universität Innsbruck slice) and the Aurora
 Virtual Campus CSV fixture. They illustrate the documentation; the product may
-change. None contains credentials.
+change. None contains credentials. `admin-maintenance.png` comes from the
+unreleased work after 0.3.0 (Maintenance page).
 
 ## Public portal
 
@@ -29,6 +30,7 @@ change. None contains credentials.
 | `admin-organizations.png` | Organizations list. |
 | `admin-organization-detail.png` | Organization detail with administrators (incl. last login) and invitations. |
 | `admin-network-status.png` | Network status: health per organization and last run. |
+| `admin-maintenance.png` | Maintenance page: job cards with Run now, runs table with a dormancy dry-run review. |
 | `admin-csv-console-validated.png` | CSV console after the browser-side validation (template 1.2). |
 | `admin-csv-console-uploaded.png` | CSV console after an upload processed inline. |
 | `admin-courses-list.png` | Courses list with the completeness column (IT Handbook rule). |

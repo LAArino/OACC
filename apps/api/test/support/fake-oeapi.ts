@@ -29,6 +29,8 @@ export interface FakeOeapiOptions {
   failures?: Map<string, number>;
   /** Paths whose requests fail with a network error. */
   networkFailures?: Set<string>;
+  /** Further `root` organizations listed after the partner's own. */
+  extraRoots?: Record<string, unknown>[];
 }
 
 export interface FakeOeapi {
@@ -63,6 +65,7 @@ export function createFakeOeapi(options: FakeOeapiOptions = {}): FakeOeapi {
   const state = {
     courses: options.courses ?? COURSES,
     failures: options.failures ?? new Map<string, number>(),
+    extraRoots: options.extraRoots ?? [],
     networkFailures: options.networkFailures ?? new Set<string>(),
   };
   const requests: PinnedRequest[] = [];
@@ -87,7 +90,7 @@ export function createFakeOeapi(options: FakeOeapiOptions = {}): FakeOeapi {
       });
     }
     if (path === '/organizations') {
-      const all = [ROOT_ORGANIZATION, SUB_UNIT];
+      const all: Record<string, unknown>[] = [ROOT_ORGANIZATION, ...state.extraRoots, SUB_UNIT];
       const type = url.searchParams.get('organizationType');
       return page(
         all.filter((o) => !type || o.organizationType === type),

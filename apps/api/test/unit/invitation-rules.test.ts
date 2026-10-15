@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: EUPL-1.2
-import { invitation } from '@oecp/schemas';
+import { invitation, invitationMismatchReason } from '@oecp/schemas';
 import { describe, expect, it } from 'vitest';
 import {
+  ACCEPTANCE_FAILURES,
   type AcceptingIdentity,
   checkAcceptance,
   type InvitationOrganization,
@@ -147,5 +148,29 @@ describe('toApiInvitation', () => {
         'status',
       ].sort(),
     );
+  });
+});
+
+describe('oecp.invitation.mismatch reasons (spec §2.1)', () => {
+  it('names the failed check in every mismatch, and only there', () => {
+    const reasons = Object.fromEntries(
+      Object.entries(ACCEPTANCE_FAILURES).map(([failure, f]) => [failure, f.reason ?? null]),
+    );
+    expect(reasons).toEqual({
+      not_found: null,
+      revoked: null,
+      accepted: null,
+      expired: null,
+      organization_unavailable: null,
+      email_mismatch: 'email',
+      idp_mismatch: 'idp',
+      schac_mismatch: 'home_organization',
+      organization_conflict: 'organization',
+    });
+    for (const failure of Object.values(ACCEPTANCE_FAILURES)) {
+      expect(failure.reason !== undefined).toBe(failure.code === 'oecp.invitation.mismatch');
+      if (failure.reason)
+        expect(invitationMismatchReason.parse(failure.reason)).toBe(failure.reason);
+    }
   });
 });

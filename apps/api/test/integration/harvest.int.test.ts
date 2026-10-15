@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 import { randomBytes } from 'node:crypto';
 import { Logger } from '@nestjs/common';
+import { ERROR_CODES, type ErrorCode } from '@oecp/schemas';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { CanonicalWriter } from '../../src/ingestion/canonical-writer.service.js';
 import { HarvestService } from '../../src/ingestion/harvest.service.js';
@@ -15,7 +16,7 @@ import {
   MOCK_BASE_URL,
   MOCK_HOST,
 } from '../support/fake-oeapi.js';
-import { COURSES } from '../support/oeapi-fixtures.js';
+import { COURSES, ROOT_ORGANIZATION } from '../support/oeapi-fixtures.js';
 import {
   createTestDatabase,
   describeWithDatabase,
@@ -98,6 +99,7 @@ describe.runIf(describeWithDatabase === 'run')('HarvestService (PostgreSQL, fake
   beforeEach(() => {
     fake.options.courses = [...COURSES];
     fake.options.failures.clear();
+    fake.options.extraRoots = [];
     fake.requests.length = 0;
   });
 
@@ -214,22 +216,21 @@ describe.runIf(describeWithDatabase === 'run')('HarvestService (PostgreSQL, fake
     ]);
     expect(issues).toEqual(
       expect.arrayContaining([
-        ['warning', 'oecp.content.english_missing', '608100', '/name'],
+        ['warning', 'oecp.oeapi.english_missing', '608100', '/name'],
         ['warning', 'oecp.oeapi.language_dropped', '402300#402300-2026W', '/teachingLanguage'],
         ['warning', 'oecp.oeapi.invalid_isced', '510010', '/fieldsOfStudy'],
         ['warning', 'oecp.oeapi.insecure_link', '510010', '/link'],
-        [
-          'warning',
-          'oecp.oeapi.unmappable_delivery_mode',
-          '510010#510010-2026S',
-          '/modeOfDelivery',
-        ],
+        ['warning', 'oecp.oeapi.delivery_mode_dropped', '510010#510010-2026S', '/modeOfDelivery'],
         ['error', 'oecp.oeapi.study_load_unit', '999001', '/studyLoad/studyLoadUnit'],
         ['error', 'oecp.oeapi.parent_rejected', '999001#999001-2026S', null],
         ['error', 'oecp.oeapi.missing_primary_code', 'c-0006', '/primaryCode'],
         ['error', 'oecp.oeapi.unmappable_delivery_mode', '120500#120500-X', '/modeOfDelivery'],
       ]),
     );
+    // Spec §6.6: every issue has the severity of its code in the catalogue.
+    for (const e of await errors(outcome.syncRunId)) {
+      expect([e.code, e.severity]).toEqual([e.code, ERROR_CODES[e.code as ErrorCode].severity]);
+    }
     const history = await tdb.db
       .selectFrom('ext_metadata_history')
       .select(['entity_type', 'validation_result'])
@@ -271,6 +272,56 @@ describe.runIf(describeWithDatabase === 'run')('HarvestService (PostgreSQL, fake
       .where('sync_run_id', '=', outcome.syncRunId ?? '')
       .execute();
     expect(history).toHaveLength(0);
+  });
+
+  it('ignores a repeated course code with a warning, not a rejection', async () => {
+    const first = COURSES[0]!;
+    fake.options.courses = [...COURSES, { ...first, courseId: 'c-dup', offerings: [] }];
+    const outcome = await run();
+    expect(outcome.counters).toMatchObject({ n_rejected: 4, n_unchanged: 11 });
+    const issues = await errors(outcome.syncRunId);
+    expect(issues).toContainEqual({
+      severity: 'warning',
+      code: 'oecp.oeapi.duplicate_entity',
+      ext_id: '703001',
+      json_pointer: '/primaryCode/code',
+      entity_type: 'course',
+    });
+  });
+
+  it('uses the first of several roots with the warning oecp.oeapi.multiple_roots', async () => {
+    fake.options.extraRoots = [
+      { ...ROOT_ORGANIZATION, organizationId: 'other-root', primaryCode: { code: 'other' } },
+    ];
+    const outcome = await run();
+    expect(outcome.status).not.toBe('failed');
+    expect(await errors(outcome.syncRunId)).toContainEqual(
+      expect.objectContaining({ severity: 'warning', code: 'oecp.oeapi.multiple_roots' }),
+    );
+  });
+
+  it('keeps instructor names but no person data in the raw history', async () => {
+    const first = COURSES[0]!;
+    fake.options.courses = [
+      {
+        ...first,
+        coordinators: [{ personId: 'p-1', displayName: 'Ana Pérez', mail: 'ana@uibk.example' }],
+      },
+      ...COURSES.slice(1),
+    ];
+    await run();
+    expect((await course('703001'))?.instructors).toEqual(['Ana Pérez']);
+    const latest = await tdb.db
+      .selectFrom('ext_metadata_history')
+      .select('raw_payload')
+      .where('organization_id', '=', ORG.uibk)
+      .where('entity_type', '=', 'course')
+      .where('ext_id', '=', '703001')
+      .orderBy('received_at', 'desc')
+      .executeTakeFirstOrThrow();
+    expect(latest.raw_payload).toMatchObject({ courseId: 'c-0001' });
+    expect(latest.raw_payload).not.toHaveProperty('coordinators');
+    expect(JSON.stringify(latest.raw_payload)).not.toContain('ana@uibk.example');
   });
 
   it('never counts absence in an incomplete run', async () => {

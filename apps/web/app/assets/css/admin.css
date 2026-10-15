@@ -204,6 +204,22 @@ button.button[aria-disabled='true'] {
 .admin-choices--columns {
   grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
 }
+.admin-choices--inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.5rem;
+}
+.admin-fieldset--boolean {
+  margin: 0 0 1rem;
+}
+.admin-status-revert {
+  border-top: 1px solid var(--c-divider);
+  margin-top: 1rem;
+}
+.admin-status-revert h3 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 1rem;
+}
 .admin-choices li,
 .admin-check {
   display: flex;
@@ -553,4 +569,78 @@ button.button.button--danger-text {
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 0 1rem;
+}
+
+/* Maintenance jobs and runs */
+
+.admin-jobs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: 0 1rem;
+}
+.admin-jobs h3 {
+  margin: 0 0 0.25rem;
+}
+.admin-dry-run-notice {
+  background: var(--c-notice-bg);
+  border-color: var(--c-notice-border);
+}
+.admin-dry-run-notice h3 {
+  margin: 0 0 0.25rem;
+}
+.admin-toast:not(:empty) {
+  border-left: 4px solid var(--c-chip-text);
+  background: var(--c-chip);
+  color: var(--c-chip-text);
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+}
+.admin-toast p {
+  margin: 0;
+}
+.admin-chips {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+}
+.admin-chips li {
+  background: var(--c-chip);
+  color: var(--c-chip-text);
+  border-radius: 999px;
+  padding: 0 0.5rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.admin-runs-table__error {
+  max-width: 24rem;
+  overflow-wrap: anywhere;
+}
+.admin-runs-table .button.admin-runs-table__toggle {
+  min-height: 2.25rem;
+  padding: 0.2rem 0.75rem;
+  white-space: nowrap;
+}
+.admin-runs-table__details > td {
+  background: var(--c-bg);
+}
+.admin-run-details pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+}
+.admin-run-details__error {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.admin-run-details__notice {
+  border-left: 4px solid var(--c-notice-border);
+  background: var(--c-notice-bg);
+  padding: 0.5rem 1rem;
 }

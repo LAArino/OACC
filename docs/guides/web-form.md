@@ -5,7 +5,7 @@
 
 For partner administrators who maintain courses by hand (Channel C, spec §6.4), and for administrators of harvested organizations who correct or complete harvested data with overrides. Getting an account (invitation, password and TOTP) is covered by the onboarding guide [D. Partner without integration capacity](../onboarding/partner-manual.md); the shared data rules are in the [guides README](README.md#common-data-quality-rules).
 
-The admin console lives at `/{locale}/admin` (English only in 0.2.0). An `alliance_admin` first picks the organization (kept in `?org=`); a `partner_admin` works on their own organization and its sub-units. The session is kept in memory: reloading the page restores it while your login session is alive (30 minutes idle, 8 hours at most), but **unsaved changes are lost**.
+The admin console lives at `/{locale}/admin` (English only). An `alliance_admin` first picks the organization (kept in `?org=`); a `partner_admin` works on their own organization and its sub-units. The session is kept in memory: reloading the page restores it while your login session is alive (30 minutes idle, 8 hours at most), but **unsaved changes are lost**.
 
 ## Two modes
 
@@ -18,7 +18,7 @@ The mode follows the organization's authoritative channel (`GET …/reference` r
 
 ## Courses list
 
-**Courses** lists every course of the organization, any status, with filters for text (code or any title), status, type and source channel, 25 per page. Each row shows code, title (English, else the first language), status, source, ECTS, offerings, last update, whether overrides exist and **Completeness** (*Complete* or *Incomplete* against the [publication rule](#publication-rule-completeness)). **New course** opens the wizard (write mode only).
+**Courses** lists every course of the organization, any status, with filters for text (code or any title), status, type and source channel, 25 per page. Each row shows code, title (English, else the first language), status, source, ECTS, offerings, last update, whether overrides exist and **Completeness** against the [publication rule](#publication-rule-completeness): a tick for a complete course, else a badge with the number of obligatory fields still missing ("*3 missing*"; the course's Completeness card lists them). **New course** opens the wizard (write mode only).
 
 ## The course wizard
 
@@ -40,7 +40,7 @@ Four steps. A new course is filled in order and each step is checked before **Ne
 
 **2. Texts.** One tab per language; English is always present and its title is required by the form. Add languages from the 29 EU/EEA languages offered. Per language: title (required for that language, ≤ 500), abstract (shown on course cards, first 300 characters), description, learning outcomes, prerequisites, assessment (each ≤ 20,000) and keywords (separated by commas or new lines, ≤ 50 of ≤ 100 characters). **More texts (optional)**, collapsed under each language, holds the five optional texts of the Aurora course data model (each ≤ 20,000): *Methods*, *Mode of repetition* (how often the course is offered, e.g. every winter semester), *Literature*, *Remarks* and *Privacy notice*. Each appears on the public course page only when filled in, after Assessment; the privacy notice comes last, in smaller print. Methods, literature and remarks are searchable. For the publication rule, description, learning outcomes, prerequisites and assessment are needed in English. A language whose fields are all empty is not sent; on save, **languages you removed are deleted**, except English.
 
-**3. Attributes.** One control per alliance attribute definition: a checkbox group for `multi_enum` (Aurora: educational hub, SDGs, target audience), a list for `enum` (competence framework, with "Not set"), a checkbox for `boolean` (micro-credential, free course, enrolled only, open to the alliance; ticked stores `true`, unticked leaves it unset, keeping an explicit `false` that came from CSV), a text field for `text` (≤ 500).
+**3. Attributes.** One control per alliance attribute definition: a checkbox group for `multi_enum` (Aurora: educational hub, SDGs, target audience), a list for `enum` (competence framework, with "Not set"), three choices for `boolean` (micro-credential, free course, enrolled only, open to the alliance): **Not set** (the attribute is left out), **Yes** (`true`) or **No** (`false`), so an explicit "no" can be stored from the form as from CSV; a text field for `text` (≤ 500).
 
 **4. Review and status.** A summary of everything entered and, for a saved course, the **Completeness** card: *Complete*, or the list of fields the Aurora catalogue requires that are still missing (for the last saved version, offerings included). Then the status: **Draft** (not shown in the public catalogue) or **Published** (requires the English title). A new course starts as draft. For an existing course that is withdrawn or cancelled the choice stays empty and saving keeps that status; use the status actions to change it. **Create course** sends `POST`, **Save** sends `PUT` (a full replace of the record).
 
@@ -89,7 +89,18 @@ What each state means for the public portal:
 | Withdrawn | hidden, offerings included | hidden |
 | Cancelled | hidden (use Withdraw for courses) | shown with a "cancelled" badge until it starts, without seats or the apply button |
 
-An offering is only visible when its course is published. **Delete** (write mode) appears for courses and offerings that are not published; it is a soft delete, refused for harvested records and for a course that still has published offerings. Re-creating a deleted code in the wizard brings the record back without its old overrides.
+An offering is only visible when its course is published.
+
+**Delete** is a soft delete for records created by mistake. The page offers it only where the API accepts it, and otherwise says why in its place:
+
+| Record | Delete offered? |
+|---|---|
+| Harvested record (source channel `oeapi`), or any record of an organization in overrides mode | No: withdraw or cancel it with a status action (`oecp.content.harvested_not_deletable`, `oecp.sync.channel_disabled`) |
+| Published course or offering | No: withdraw or cancel it first (`oecp.content.published_not_deletable`) |
+| Course with a published offering | No: withdraw or cancel those offerings first (`oecp.content.has_published_offerings`) |
+| Draft, withdrawn or cancelled record in write mode | Yes, after confirmation |
+
+A deleted code **comes back** when it is written again: re-creating it in the wizard, or uploading a CSV row with it, writes it as new without its old overrides (audit `course.revive` or `course_offering.revive`); the offerings of a revived course stay deleted until they are written again. Deleted records are purged for good after 12 months (`OECP_RETENTION_SOFT_DELETED_MONTHS`).
 
 ## Overrides mode (harvested organizations)
 
@@ -98,7 +109,8 @@ When the organization is harvested from its OEAPI endpoint, course and offering 
 - Tick **Override** to enable the control and enter your value; the field is marked "Overridden".
 - Untick a saved override to **revert**: on save the field returns to the source value at once.
 - The review step lists the pending changes ("Override *field*: *value*", "Revert *field* to the source value"); **Save overrides** sends only those, as one `PATCH …/overrides` with `set` and `clear`.
-- The status actions store a **`status` override**. It wins over the harvested status and over withdrawal by absence, so "Withdraw" is the immediate way to take a harvested course down. The console cannot remove a status override; use the API (`"clear": ["status"]`).
+- The status actions store a **`status` override**. It wins over the harvested status and over withdrawal by absence, so "Withdraw" is the immediate way to take a harvested course down.
+- While a status override exists, the course or offering page shows a **Status override** box with the overridden status and the partner's value. **Revert status to the partner's value** asks for confirmation and removes the override (`PATCH …/overrides {"clear": ["status"]}`): the record takes the harvested status at once.
 
 Overridable: course type, levels, ECTS, teaching hours, information page, contact e-mail, instructors (as one list), attributes (as one value), ISCED codes and every text field per language, the five optional texts included (adding a title in a new language adds that language until the title override is cleared); offering dates, time zone, teaching languages, delivery modes, campus, seat figures, application page and instructions.
 
@@ -114,7 +126,7 @@ Overridable: course type, levels, ECTS, teaching hours, information page, contac
 | EQF level | Not in the wizard. A form save keeps the stored value, or derives it from the primary level (short cycle 5, bachelor 6, master 7, doctoral 8) when none is stored; CSV can set it explicitly (`eqf_level`). |
 | "Seats as of" date | Stamped automatically when the seat figure is saved. |
 | Withdrawn and cancelled in the wizard | Only through the status actions. |
-| Published records, harvested records | Cannot be deleted: withdraw or cancel instead. |
+| Published records, harvested records, courses with published offerings | Cannot be deleted: withdraw or cancel instead ([Status actions](#status-actions)). |
 
 ## History
 
@@ -132,6 +144,7 @@ Base `https://{portal}/api/admin/v1`, JSON, bearer token (spec [§8.2](../spec-v
 | Open, save, delete course | `GET`, `PUT`, `DELETE /courses/{id}` (delete 204) |
 | Status action | `POST /courses/{id}/status` `{"status": "withdrawn"}` |
 | Save overrides | `PATCH /courses/{id}/overrides` `{"set": {…}, "clear": […]}` |
+| Revert status to the partner's value | `PATCH /courses/{id}/overrides` `{"clear": ["status"]}` (offerings alike) |
 | History | `GET /courses/{id}/history?limit=50` (≤ 200) |
 | Add offering | `POST /courses/{id}/offerings` |
 | Offering | `GET`, `PUT`, `DELETE /offerings/{id}`, `POST …/status`, `PATCH …/overrides` |
@@ -159,19 +172,22 @@ curl -sS -X PATCH "$API/courses/$COURSE/overrides" -H "Authorization: Bearer $TO
   -d '{"set": {"kind": "bip", "texts.en.abstract": "Blended Intensive Programme."}, "clear": ["info_url"]}'
 ```
 
-Request rules: `status` on create or replace is `draft` or `published` (default `draft`; a replace keeps the current status when omitted); `PUT` is a full replace of the record; codes in the body must match the existing record; `timezone` defaults to the organization's; `seats_available` stamps `seats_updated_at`. Course bodies take `instructors` (array of strings, default `[]`, each 1–200 characters, at most 50, no duplicates) and, per language, `mode_of_repetition`, `methods`, `literature`, `privacy_notice`, `remarks` (≤ 20,000; trimmed; empty becomes null). Responses add `instructors` and `completeness` (`{complete, missing[]}`, the [publication rule](#publication-rule-completeness) on the effective values, whatever the status); list items carry `complete`. Override keys: `status`, `kind`, `levels`, `ects`, `teaching_hours`, `info_url`, `contact_email`, `attributes`, `isced_codes`, `instructors`, `texts.<lang>.<field>` (the five optional texts included) for courses; `status`, the four dates, `timezone`, `teaching_languages`, `delivery_modes`, `campus`, `max_students`, `alliance_seats`, `seats_available`, `application_url`, `application_instructions` for offerings; at least one change, at most 100 keys each, never a key in both `set` and `clear`. Responses carry the effective values plus `overrides`, `override_meta` (`{by, at}`) and `source_values`.
+Request rules: `status` on create or replace is `draft` or `published` (default `draft`; a replace keeps the current status when omitted); `PUT` is a full replace of the record; codes in the body must match the existing record; `timezone` defaults to the organization's; `seats_available` stamps `seats_updated_at`. Course bodies take `instructors` (array of strings, default `[]`, each 1–200 characters, at most 50, no duplicates) and, per language, `mode_of_repetition`, `methods`, `literature`, `privacy_notice`, `remarks` (≤ 20,000; trimmed; empty becomes null). Responses add `instructors` and `completeness` (`{complete, missing[]}`, the [publication rule](#publication-rule-completeness) on the effective values, whatever the status); list items carry `complete` and `missing_count` (the number of missing fields, 0 exactly when complete). Override keys: `status`, `kind`, `levels`, `ects`, `teaching_hours`, `info_url`, `contact_email`, `attributes`, `isced_codes`, `instructors`, `texts.<lang>.<field>` (the five optional texts included) for courses; `status`, the four dates, `timezone`, `teaching_languages`, `delivery_modes`, `campus`, `max_students`, `alliance_seats`, `seats_available`, `application_url`, `application_instructions` for offerings; at least one change, at most 100 keys each, never a key in both `set` and `clear`. Responses carry the effective values plus `overrides`, `override_meta` (`{by, at}`) and `source_values`.
 
-**Bearer tokens.** The API accepts only Keycloak access tokens issued to the `oecp-admin` client with multi-factor authentication (`acr=mfa`); they live 300 seconds. Release 0.2.0 has no API keys or service accounts for administrators, so a script must use a token from an interactive sign-in (for example taken from the `Authorization` header of a console request in the browser's developer tools). Treat it as a password. For bulk changes, prefer [CSV](csv-authoring.md).
+**Bearer tokens.** The API accepts only Keycloak access tokens issued to the `oecp-admin` client with multi-factor authentication (`acr=mfa`); they live 300 seconds. OECP has no API keys or service accounts for administrators, so a script must use a token from an interactive sign-in (for example taken from the `Authorization` header of a console request in the browser's developer tools). Treat it as a password. For bulk changes, prefer [CSV](csv-authoring.md).
 
 ### Errors
 
-Problems are `application/problem+json` with `errors[]` items carrying `code` and a JSON `pointer` into your body.
+Problems are `application/problem+json` with `errors[]` items carrying `code`, `severity` and a JSON `pointer` into your body. Severities are those of `packages/schemas/errors.json` (spec [Appendix A](../spec-v4.1.md#appendix-a-error-codes)); every code below is an error except the warning `oecp.content.handbook_incomplete`.
 
 | HTTP | When | Codes |
 |---|---|---|
-| 400 | Body shape and field rules | `oecp.request.validation_failed` with items such as `oecp.content.english_missing` (publishing without `texts.en`), `invalid_code`, `unsupported_language` (not one of the 29), `duplicate_isced`, `unknown_isced_field`, `date_order`, `seats_exceed_capacity`, `invalid_value` (also `instructors`: too many, too long or repeated), `override_not_allowed` (unknown override key) |
+| 400 | Request shape and field formats (title "Request validation failed"; an item without a more specific code is `oecp.request.validation_failed`); when the body also breaks a content rule, every error is listed here | `invalid_code`, `unsupported_language` (not one of the 29), `invalid_value` (also `instructors`: too many, too long or repeated), `override_not_allowed` (unknown override key), and any of the 422 content rules below together with them |
+| 422 | Content rules of a well-formed body (`CONTENT_RULE_CODES`, title "Validation failed") | `oecp.content.english_missing` (publishing without `texts.en`), `date_order`, `seats_exceed_capacity`, `seats_without_timestamp`, `duplicate_isced`, `unknown_isced_field` |
 | 422 | Checks against the database and the resulting record | `oecp.content.unknown_isced_field`, `unknown_teaching_unit`, `unknown_delivery_mode`, `unknown_attribute`, `invalid_attribute_value`, `unknown_attribute_option`, `english_missing` (status action), `date_order` (after overrides), `unsupported_language`, `invalid_value` |
-| 409 | State conflicts | `oecp.sync.channel_disabled` (create, replace or delete in overrides mode), `oecp.content.override_not_allowed` (overrides in write mode), `duplicate_ext_id`, `ext_id_immutable`, `has_published_offerings`, `published_not_deletable`, `harvested_not_deletable` |
+| 409 | State conflicts | `oecp.sync.channel_disabled` (create, replace or delete in overrides mode), `oecp.content.override_not_allowed` (overrides in write mode), `duplicate_ext_id`, `ext_id_immutable`, `has_published_offerings`, `published_not_deletable` (courses and offerings), `harvested_not_deletable` |
 | 404, 403, 401 | Unknown record; organization outside your scope; missing or expired token, MFA missing | `oecp.request.not_found`, `oecp.auth.forbidden_organization`, `oecp.auth.missing_token`, `invalid_token`, `insufficient_acr` |
+
+Codes of `errors.json` the course pages never return: `oecp.content.unknown_course` (CSV only), `oecp.content.unknown_session` (an unknown session code creates a session), `oecp.content.session_ignored` (harvester), the organization codes (`duplicate_slug`, `duplicate_identifier`, `slug_immutable`, `invalid_parent`, `organization_in_use`: *Organizations* page) and the `oecp.csv.*` and `oecp.oeapi.*` families ([CSV authoring](csv-authoring.md#codes), [API integration](api-integration.md#warning-and-rejection-codes)).
 
 Every successful save is one sync run (`form`, schema `form-1`) and one audit entry; a refused save writes nothing. The publication rule's warning `oecp.content.handbook_incomplete` is stored with the save's run (visible under **Sync history**) and in the audit entry (`publish_rule` with mode, status and missing fields); it never makes a save fail.

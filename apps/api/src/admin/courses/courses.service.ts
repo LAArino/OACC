@@ -22,6 +22,7 @@ import {
   courseOffering as courseOfferingSchema,
   courseOverrideKey,
   ERROR_CODES,
+  type ErrorSeverityCode,
   FORM_LANGUAGE_TAGS,
   FORM_SCHEMA_VERSION,
   type LifecycleStatus,
@@ -89,7 +90,7 @@ export function validationProblem(errors: ProblemError[]): UnprocessableEntityEx
   return new UnprocessableEntityException(body);
 }
 
-function error(code: keyof typeof ERROR_CODES, pointer: string, detail?: string): ProblemError {
+function error(code: ErrorSeverityCode, pointer: string, detail?: string): ProblemError {
   const message = ERROR_CODES[code].message;
   return {
     code,
@@ -349,7 +350,11 @@ export class CoursesService {
     return this.loadCourse(courseId);
   }
 
-  /** Soft delete (`deleted_at`) of a course created in error, with its offerings. */
+  /**
+   * Soft delete (`deleted_at`) of a course created in error, with its offerings.
+   * Refused (409) for harvested courses, published courses and courses with
+   * published offerings.
+   */
   async deleteCourse(admin: AdminPrincipal, courseId: string): Promise<void> {
     const organizationId = await this.courseOrganization(courseId);
     const organization = await this.organization(organizationId);
@@ -358,6 +363,10 @@ export class CoursesService {
       const before = await this.lockCourse(trx, courseId);
       if (before.source_channel === 'oeapi') {
         throw new ProblemException(409, 'oecp.content.harvested_not_deletable');
+      }
+      // As the console: a published course is withdrawn or cancelled, not deleted.
+      if (before.status === 'published') {
+        throw new ProblemException(409, 'oecp.content.published_not_deletable');
       }
       const published = before.offerings.filter((o) => o.status === 'published');
       if (published.length > 0) {

@@ -30,7 +30,7 @@ OECP reads `GET /organizations?organizationType=root`, `/courses`, `/courses/{id
 
 **Who:** partner admin with the alliance. **Time:** one meeting.
 
-Confirm that your organization's authoritative channel will be `oeapi`. From then on your courses are created and changed only in your own system; CSV uploads are refused and the web form can only add overrides (see step 9).
+Confirm that your organization's authoritative channel will be `oeapi`. From then on your courses are created and changed only in your own system; CSV uploads are refused and the web form can only add overrides (see step 9). If your university entered courses by CSV or in the web form before, the harvest takes over the records whose course codes match your `primaryCode`s; a record that was deleted in OECP **comes back** when the harvest returns its code (written as new, its old overrides dropped).
 
 ## 2. Sign the access agreement
 
@@ -111,21 +111,27 @@ Under *Test and run*, choose *Test connection*. OECP calls `GET /` and `GET /cou
 
 1. Choose *Sync now* under *Test and run*. It works while *Harvest on the schedule* is still off, needs *OEAPI harvest* as the saved channel and an approved host, and is limited to once every 15 minutes (the page says when you can try again) and to one run at a time.
 2. Choose *Follow the run*, or open *Sync history* and the run. Status is `succeeded` (nothing rejected), `partial` (some records rejected) or `failed` (nothing processed). Counters show created, updated, unchanged, rejected and withdrawn records.
-3. Read the errors and warnings, each with a JSON Pointer into your data:
+3. Read the errors and warnings, each with a JSON Pointer into your data. Errors reject the course or offering (or stop the run); warnings only report what OECP ignored or adjusted. The most common ones:
 
 | Code | Severity | Meaning and fix |
 |---|---|---|
-| `oecp.content.english_missing` | warning | No English `name`: the course is stored as **draft** and not shown. Add an English name |
+| `oecp.oeapi.english_missing` | warning | No English `name`: the course is stored as **draft** and not shown. Add an English name |
 | `oecp.oeapi.invalid_isced` | warning | A `fieldsOfStudy` value is not an ISCED-F code; it is ignored |
+| `oecp.oeapi.unknown_isced_field` | warning | A `fieldsOfStudy` code whose first two digits are not an ISCED-F broad field; it is ignored |
+| `oecp.oeapi.delivery_mode_dropped` | warning | Some `modeOfDelivery` values have no OECP mapping and are ignored; the others are kept |
+| `oecp.oeapi.invalid_coordinators` | warning | `coordinators` is not a list; ignored, the course is kept (without instructors from it) |
+| `oecp.oeapi.multiple_roots` | warning | Your endpoint returned several root organizations; OECP used the first |
+| `oecp.oeapi.duplicate_entity` | warning | A course code (or an offering code within a course) appears twice; the first item is used, the repeat ignored |
+| `oecp.content.session_ignored` | warning | The offering's academic session is invalid or unknown; the offering is stored without it |
 | `oecp.oeapi.insecure_link` | warning | A `link` is not `https`; it is dropped |
 | `oecp.oeapi.language_dropped`, `invalid_language` | warning | `mul`, `und` or malformed language codes ignored |
 | `oecp.oeapi.missing_teaching_language` | error | Offering rejected: no usable `teachingLanguage` on offering or course |
-| `oecp.oeapi.unmappable_delivery_mode` | error | Rejected: no `modeOfDelivery` OECP understands |
+| `oecp.oeapi.unmappable_delivery_mode` | error | Offering rejected: no `modeOfDelivery` OECP understands |
 | `oecp.oeapi.study_load_unit` | error | Rejected: `studyLoad` not in ECTS or not above 0 |
 | `oecp.oeapi.missing_primary_code` | error | Course rejected: no `primaryCode` |
 | `oecp.content.handbook_incomplete` | warning | The course lacks fields the Aurora IT Handbook requires to show it (the message lists them, e.g. `instructors`, `texts.en.assessment`, `offerings.enrol_start_date`). Published anyway while the alliance runs the rule in `warn` mode; stored as **draft** once it is set to `enforce`. See *Completeness* below |
 
-The full list is in the [API integration guide](../guides/api-integration.md). Fix data at the source and run again.
+The full list, with the severity of every code as `packages/schemas/errors.json` defines it, is in the [API integration guide](../guides/api-integration.md#warning-and-rejection-codes). Fix data at the source and run again.
 
 4. When the result is right, switch on *Harvest on the schedule*, keep the stored credential and choose *Save settings*. The daily schedule then starts; the page shows the last run.
 
@@ -150,7 +156,7 @@ The alliance applies the Aurora IT Handbook's publication rule: a course is show
 
 - **Withdrawal by absence.** A course or offering missing from three complete daily harvests in a row is withdrawn; it comes back when it reappears. Failed or incomplete harvests never withdraw anything, and if 30% or more of your published courses vanish at once, absences are not counted.
 - **Overrides.** In the admin dashboard, open a course: each field shows the harvested value with an *Override* box. Ticked values survive every harvest until you untick them. Use this for alliance attributes, kind, instructors and instructions, not to correct errors your own system should fix. See the [web form guide](../guides/web-form.md).
-- **Unpublishing.** Change the status in your own system, or set a status override in OECP.
+- **Unpublishing.** Change the status in your own system, or set a status override in OECP (a status action on the course page). The override wins over every harvest until an administrator chooses **Revert status to the partner's value** on the same page; the course then takes your system's status again.
 - **Credential rotation.** On *Integration settings* choose *Replace it* under *Stored credential*, enter the new credential and save; then *Test connection*.
 
 ## Checklist

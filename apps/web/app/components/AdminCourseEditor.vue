@@ -351,10 +351,22 @@ const attributeList = (key: string) => {
 function setAttribute(key: string, value: AdminAttributeValue | undefined) {
   form.value.attributes = { ...form.value.attributes, [key]: value };
 }
-function setBoolean(key: string, checked: boolean) {
-  // Unticking keeps an explicit `false` that was stored; otherwise the attribute is unset.
-  setAttribute(key, checked ? true : initial.attributes[key] === false ? false : undefined);
+/** Boolean attributes are tri-state: not set (omitted), yes (`true`) or no (`false`). */
+type BooleanChoice = 'unset' | 'yes' | 'no';
+const BOOLEAN_CHOICES: readonly BooleanChoice[] = ['unset', 'yes', 'no'];
+const booleanChoice = (key: string): BooleanChoice => {
+  const value = form.value.attributes[key];
+  return value === true ? 'yes' : value === false ? 'no' : 'unset';
+};
+function setBoolean(key: string, choice: BooleanChoice) {
+  setAttribute(key, choice === 'yes' ? true : choice === 'no' ? false : undefined);
 }
+const booleanLabel = (choice: BooleanChoice) =>
+  choice === 'yes'
+    ? t('admin.courses.attributeYes')
+    : choice === 'no'
+      ? t('admin.courses.attributeNo')
+      : t('admin.courses.attributeNotSet');
 
 // ---------------------------------------------------------------------------
 // Navigation and saving
@@ -918,30 +930,20 @@ const missingLabel = (key: string) =>
               {{ t('admin.wizard.steps.attributes') }}
             </legend>
             <template v-for="d in definitions" :key="d.key">
-              <div v-if="d.value_type === 'boolean'" class="admin-field admin-field--check">
-                <AdminFieldError
-                  :id="`${fid(`/attributes/${d.key}`)}-error`"
-                  :message="err(`/attributes/${d.key}`)"
-                />
-                <div class="admin-check">
-                  <input
-                    :id="fid(`/attributes/${d.key}`)"
-                    type="checkbox"
-                    :checked="form.attributes[d.key] === true"
-                    :aria-describedby="
-                      [
-                        d.description ? `${fid(`/attributes/${d.key}`)}-hint` : '',
-                        err(`/attributes/${d.key}`) ? `${fid(`/attributes/${d.key}`)}-error` : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ') || undefined
-                    "
-                    @change="setBoolean(d.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <label :for="fid(`/attributes/${d.key}`)">{{
-                    adminLabel(d.label, locale)
-                  }}</label>
-                </div>
+              <fieldset
+                v-if="d.value_type === 'boolean'"
+                :id="fid(`/attributes/${d.key}`)"
+                class="admin-fieldset admin-fieldset--boolean"
+                :aria-describedby="
+                  [
+                    d.description ? `${fid(`/attributes/${d.key}`)}-hint` : '',
+                    err(`/attributes/${d.key}`) ? `${fid(`/attributes/${d.key}`)}-error` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ') || undefined
+                "
+              >
+                <legend>{{ adminLabel(d.label, locale) }}</legend>
                 <p
                   v-if="d.description"
                   :id="`${fid(`/attributes/${d.key}`)}-hint`"
@@ -949,7 +951,26 @@ const missingLabel = (key: string) =>
                 >
                   {{ adminLabel(d.description, locale) }}
                 </p>
-              </div>
+                <AdminFieldError
+                  :id="`${fid(`/attributes/${d.key}`)}-error`"
+                  :message="err(`/attributes/${d.key}`)"
+                />
+                <ul class="admin-choices admin-choices--inline">
+                  <li v-for="choice in BOOLEAN_CHOICES" :key="choice">
+                    <input
+                      :id="`${fid(`/attributes/${d.key}`)}-${choice}`"
+                      type="radio"
+                      :name="`course-attribute-${d.key}`"
+                      :value="choice"
+                      :checked="booleanChoice(d.key) === choice"
+                      @change="setBoolean(d.key, choice)"
+                    />
+                    <label :for="`${fid(`/attributes/${d.key}`)}-${choice}`">{{
+                      booleanLabel(choice)
+                    }}</label>
+                  </li>
+                </ul>
+              </fieldset>
               <AdminInputField
                 v-else-if="d.value_type === 'enum'"
                 :id="fid(`/attributes/${d.key}`)"

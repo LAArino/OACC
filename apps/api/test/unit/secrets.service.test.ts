@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   parseMasterKey,
   readMasterKeyFile,
+  MasterKeyUnavailableError,
   SecretError,
   SecretsService,
 } from '../../src/secrets/secrets.service.js';
@@ -136,6 +137,9 @@ describe('SecretsService', () => {
 
   it('fails on use, not at construction, when the key is unavailable', async () => {
     const secrets = service(() => readMasterKeyFile(join(tmpdir(), 'missing-oecp-key')) as never);
-    await expect(secrets.store('p', 'v')).rejects.toBeInstanceOf(SecretError);
+    await expect(secrets.store('p', 'v')).rejects.toBeInstanceOf(MasterKeyUnavailableError);
+    expect(() => secrets.assertAvailable()).toThrow(MasterKeyUnavailableError);
+    expect(() => secrets.assertAvailable()).toThrow(/cannot be read/);
+    expect(() => service().assertAvailable()).not.toThrow();
   });
 });

@@ -131,7 +131,7 @@ describe('OeapiV5Adapter.mapCourse', () => {
     expect(course.texts['de']?.learning_outcomes).toBe('Geeignete Modelle wählen.');
   });
 
-  it('keeps a German-only course as draft with oecp.content.english_missing', () => {
+  it('keeps a German-only course as draft with oecp.oeapi.english_missing', () => {
     const result = adapter.mapCourse(servedCourse(fixture('c-0002')), ctx);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -139,7 +139,7 @@ describe('OeapiV5Adapter.mapCourse', () => {
     expect(Object.keys(result.value.course.texts)).toEqual(['de']);
     expect(codes(result.warnings)).toEqual([
       'oecp.oeapi.text_without_title',
-      'oecp.content.english_missing',
+      'oecp.oeapi.english_missing',
     ]);
     expect(result.warnings[1]).toMatchObject({
       severity: 'warning',
@@ -239,7 +239,7 @@ describe('OeapiV5Adapter.mapCourse', () => {
     if (!result.ok) return;
     expect(result.value.course.isced_codes).toEqual(['0613', '0611', '07']);
     expect(result.warnings).toEqual([
-      expect.objectContaining({ code: 'oecp.content.unknown_isced_field', severity: 'warning' }),
+      expect.objectContaining({ code: 'oecp.oeapi.unknown_isced_field', severity: 'warning' }),
     ]);
   });
 
@@ -316,7 +316,7 @@ describe('OeapiV5Adapter.mapCourse: instructors and handbook texts (decision 21)
     const result = withMembers({ coordinators: { personId: 'p-1' } });
     expect(result.ok).toBe(true);
     expect(result.ok && result.value.course.instructors).toEqual([]);
-    expect(result.ok && codes(result.warnings)).toEqual(['oecp.oeapi.invalid_payload']);
+    expect(result.ok && codes(result.warnings)).toEqual(['oecp.oeapi.invalid_coordinators']);
   });
 
   it('cuts names over 200 characters and lists over 50 entries with warnings', () => {
@@ -538,7 +538,7 @@ describe('OeapiV5Adapter.mapOffering', () => {
     expect(result.value.offering.delivery_modes).toEqual(['presential']);
     expect(result.value.offering.application_url).toBeNull();
     expect(result.warnings.map((w) => [w.code, w.pointer])).toEqual([
-      ['oecp.oeapi.unmappable_delivery_mode', '/modeOfDelivery'],
+      ['oecp.oeapi.delivery_mode_dropped', '/modeOfDelivery'],
       ['oecp.oeapi.insecure_link', '/link'],
     ]);
   });

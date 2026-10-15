@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 export interface ErrorCodeSpec {
-  /** Default severity; a channel may downgrade an error to a warning (e.g. harvester → draft). */
+  /** Severity reported by every channel; no channel downgrades or upgrades it. */
   readonly severity: 'error' | 'warning';
   /** Default English message; UIs translate by code. */
   readonly message: string;
@@ -9,7 +9,10 @@ export interface ErrorCodeSpec {
 
 /**
  * Stable error codes (spec §6.6). Codes are never renamed or reused;
- * `errors.json` is generated from this table at build time.
+ * `errors.json` is generated from this table at build time. The severity here
+ * is the one every channel reports: where a channel treats a situation with
+ * another severity it uses a distinct code (e.g. `oecp.oeapi.english_missing`,
+ * a warning, next to `oecp.content.english_missing`, an error).
  */
 export const ERROR_CODES = {
   'oecp.request.validation_failed': { severity: 'error', message: 'Request validation failed' },
@@ -74,6 +77,10 @@ export const ERROR_CODES = {
   'oecp.content.unknown_delivery_mode': { severity: 'error', message: 'Unknown delivery mode' },
   'oecp.content.unknown_teaching_unit': { severity: 'error', message: 'Unknown teaching unit' },
   'oecp.content.unknown_session': { severity: 'error', message: 'Unknown academic session' },
+  'oecp.content.session_ignored': {
+    severity: 'warning',
+    message: 'Academic session unknown or invalid; the offering was stored without it',
+  },
   'oecp.content.unknown_course': { severity: 'error', message: 'Unknown course code' },
   'oecp.content.unknown_attribute': {
     severity: 'error',
@@ -171,7 +178,7 @@ export const ERROR_CODES = {
   'oecp.csv.invalid_template_version': {
     severity: 'error',
     message:
-      'Expected template_version 1.0 or 1.1 (1.1 for kind, levels, attr_* and application_instructions_* columns)',
+      'Expected template_version 1.0, 1.1 or 1.2 (1.1 for kind, levels, attr_* and application_instructions_* columns; 1.2 for instructors and the handbook texts)',
   },
   'oecp.csv.conflicting_columns': {
     severity: 'error',
@@ -203,7 +210,6 @@ export const ERROR_CODES = {
   'oecp.csv.encoding': { severity: 'error', message: 'File is not valid UTF-8' },
   'oecp.csv.malformed': { severity: 'error', message: 'File is not valid RFC 4180 CSV' },
   'oecp.csv.rate_limited': { severity: 'error', message: 'Upload limit reached (10 per hour)' },
-  'oecp.csv.english_delete': { severity: 'error', message: 'English texts cannot be deleted' },
   'oecp.csv.duplicate_column': {
     severity: 'error',
     message: 'Column appears more than once in the header',
@@ -340,6 +346,28 @@ export const ERROR_CODES = {
     severity: 'error',
     message: 'The partner credential could not be read',
   },
+  // Warnings the harvester raises where another channel refuses (one code per
+  // severity: the catalogue is the source of truth, spec §6.6).
+  'oecp.oeapi.multiple_roots': {
+    severity: 'warning',
+    message: 'Several root organizations returned; the first was used',
+  },
+  'oecp.oeapi.english_missing': {
+    severity: 'warning',
+    message: 'No English name; the course is stored as draft',
+  },
+  'oecp.oeapi.unknown_isced_field': {
+    severity: 'warning',
+    message: 'fieldsOfStudy code with an unknown ISCED broad field was ignored',
+  },
+  'oecp.oeapi.delivery_mode_dropped': {
+    severity: 'warning',
+    message: 'modeOfDelivery values without a mapping were ignored',
+  },
+  'oecp.oeapi.invalid_coordinators': {
+    severity: 'warning',
+    message: 'coordinators is not an array and was ignored',
+  },
 
   'oecp.integration.not_configured': {
     severity: 'error',
@@ -401,6 +429,12 @@ export const ERROR_CODES = {
 } as const satisfies Record<string, ErrorCodeSpec>;
 
 export type ErrorCode = keyof typeof ERROR_CODES;
+/** Codes whose catalogue severity is `error`. */
+export type ErrorSeverityCode = {
+  [K in ErrorCode]: (typeof ERROR_CODES)[K]['severity'] extends 'error' ? K : never;
+}[ErrorCode];
+/** Codes whose catalogue severity is `warning`. */
+export type WarningSeverityCode = Exclude<ErrorCode, ErrorSeverityCode>;
 
 export function isErrorCode(value: string): value is ErrorCode {
   return Object.hasOwn(ERROR_CODES, value);

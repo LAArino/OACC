@@ -4,7 +4,7 @@
  * `fetch` double. Behaves like Keycloak 26 where it matters: `q=<attr>:<value>`
  * is an exact, case-insensitive attribute match; `GET /roles/{name}/users` is
  * refused without view-realm (403 unless `roleMembersReadable`); events need
- * view-events (403 by default).
+ * view-events (403 by default); `DELETE /users/{id}` removes the user.
  */
 import { KeycloakAdminService } from '../../src/identity/keycloak-admin.service.js';
 
@@ -23,6 +23,8 @@ export interface FakeUser {
   attributes: Record<string, string[]>;
   roles: Set<string>;
   idp?: string;
+  /** Set on the service-account user of a client. */
+  serviceAccountClientId?: string;
   /** Epoch ms of the latest LOGIN event. */
   lastLogin?: number;
 }
@@ -41,6 +43,7 @@ export class FakeKeycloak {
   readonly users = new Map<string, FakeUser>();
   readonly calls: FakeKeycloakCall[] = [];
   readonly loggedOut: string[] = [];
+  readonly deleted: string[] = [];
   readonly actionEmails: { id: string; actions: string[] }[] = [];
   /** Grant `view-events` to the service account. */
   eventsReadable = false;
@@ -130,6 +133,11 @@ export class FakeKeycloak {
     if (!user) return json({ error: 'User not found' }, 404);
     const rest = parts.slice(2).join('/');
     if (rest === '' && method === 'GET') return json(representation(user));
+    if (rest === '' && method === 'DELETE') {
+      this.users.delete(user.id);
+      this.deleted.push(user.id);
+      return empty();
+    }
     if (rest === '' && method === 'PUT') {
       const rep = body as { attributes?: Record<string, string[]> };
       user.attributes = { ...(rep.attributes ?? {}) };

@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: EUPL-1.2
 /** Invitation state machine and acceptance checks (spec §2.1 step 4); pure functions. */
-import type { AdminRole, ErrorCode, InvitationStatus } from '@oecp/schemas';
+import type {
+  AdminRole,
+  ErrorCode,
+  InvitationMismatchReason,
+  InvitationStatus,
+} from '@oecp/schemas';
 import { LOCAL_IDP } from '../auth/claims.js';
 
 export interface InvitationState {
@@ -42,7 +47,7 @@ export type AcceptanceFailure =
 
 export const ACCEPTANCE_FAILURES: Record<
   AcceptanceFailure,
-  { status: number; code: ErrorCode; detail: string }
+  { status: number; code: ErrorCode; detail: string; reason?: InvitationMismatchReason }
 > = {
   not_found: { status: 404, code: 'oecp.invitation.invalid', detail: 'Unknown invitation token' },
   revoked: { status: 409, code: 'oecp.invitation.invalid', detail: 'The invitation was revoked' },
@@ -61,21 +66,25 @@ export const ACCEPTANCE_FAILURES: Record<
     status: 403,
     code: 'oecp.invitation.mismatch',
     detail: 'The e-mail address of the signed-in account is not the invited address',
+    reason: 'email',
   },
   idp_mismatch: {
     status: 403,
     code: 'oecp.invitation.mismatch',
     detail: "The account did not sign in through the organization's identity provider",
+    reason: 'idp',
   },
   schac_mismatch: {
     status: 403,
     code: 'oecp.invitation.mismatch',
     detail: 'The identity provider did not assert the home organization of the invitation',
+    reason: 'home_organization',
   },
   organization_conflict: {
     status: 409,
     code: 'oecp.invitation.mismatch',
     detail: 'The account already administers another organization',
+    reason: 'organization',
   },
 };
 

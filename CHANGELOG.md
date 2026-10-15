@@ -12,6 +12,124 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing yet.
 
+## [0.4.0] - 2026-10-15
+
+Maintenance page in the administration panel, account clean-up job (dry run), scheduled IdP metadata refresh recorded, log retention and privacy hardening (no client addresses in application logs, invitation links never logged in production, SMTP authentication, raw payload minimisation, soft-delete purge), the consistency fixes from the guides review (severity rule, 422 for content rules, revive of soft-deleted codes, delete rule, invitation mismatch reasons, missing-field counts, tri-state attributes, status revert), and the production document set (RoPA, DPIA, art. 28 checklist, accessibility statement, runbook).
+
+### Added
+
+- Web: Maintenance page (`/admin/maintenance`, alliance administrators; new
+  dashboard module "Maintenance"). A card per worker job (history partitions,
+  retention, dormancy, account clean-up, CSV upload retention, IdP metadata
+  refresh) with its description, schedule, latest run and "Run now"
+  (`POST /api/admin/v1/maintenance/jobs/{name}/run`; queued or already queued
+  announced in a live region). A runs table (`GET …/maintenance/runs`, filter by
+  job, latest 50 or 200, refresh) with start, job, trigger, status badge,
+  duration, counters as chips and an error excerpt; each row expands
+  (`aria-expanded`) into the run's details as a definition list and, for the
+  dormancy and account clean-up runs, a table of the listed accounts (account,
+  roles or when they were removed, organization, last activity, days inactive,
+  action) to review dry runs. A notice explains dry-run mode, the state read
+  from the latest run's `details.dry_run` and the switches
+  `OECP_DORMANCY_DRY_RUN` and `OECP_ACCOUNT_CLEANUP_DRY_RUN`.
+
+- API: worker job `account-cleanup` (daily 05:15 UTC, maintenance queue,
+  advisory lock, `maintenance_runs`, on demand
+  `POST /api/admin/v1/maintenance/jobs/account-cleanup/run`): Keycloak accounts
+  whose OECP roles were removed (`admin.revoke`, `admin.dormant_revoke`) more
+  than `OECP_ACCOUNT_DELETE_MONTHS` (12) months ago are deleted through the
+  Admin API, never accounts with a role, service accounts, accounts younger
+  than the period or with later activity, sign-in, re-grant or pending
+  invitation; audit `admin.account_deleted` by `system:account-cleanup`, the
+  `admin_activity` row removed. Dry run by default
+  (`OECP_ACCOUNT_CLEANUP_DRY_RUN=true`) with candidates and kept accounts in
+  `details`. Also removes idle `admin_activity` rows of role-less subs.
+- API: the `retention` job purges records soft-deleted more than
+  `OECP_RETENTION_SOFT_DELETED_MONTHS` (12) months ago: offerings, courses
+  (texts, ISCED codes, offerings) and organizations nothing refers to any more
+  (counters `soft_deleted_*` in `maintenance_runs`).
+- API: optional SMTP authentication (`SMTP_USER`, `SMTP_PASSWORD_FILE`) and
+  `SMTP_STARTTLS` (require STARTTLS); Compose passes `OECP_SMTP_USER`,
+  `OECP_SMTP_PASSWORD_FILE` (secret `smtp_password`) and `OECP_SMTP_STARTTLS`.
+- API: `oecp.invitation.mismatch` problems carry the extension member `reason`
+  (`email`, `idp`, `home_organization`, `organization`); admin course list
+  items carry `missing_count`; `CONTENT_RULE_CODES`,
+  `invitationMismatchReason`, `ErrorSeverityCode` and `WarningSeverityCode` in
+  `@oecp/schemas`.
+- API: error codes `oecp.oeapi.english_missing`, `oecp.oeapi.unknown_isced_field`,
+  `oecp.oeapi.delivery_mode_dropped`, `oecp.oeapi.multiple_roots`,
+  `oecp.oeapi.invalid_coordinators` and `oecp.content.session_ignored` (warnings;
+  137 codes).
+- Compose: log retention. Every service rotates its json-file logs
+  (`OECP_LOG_MAX_SIZE` × `OECP_LOG_MAX_FILE`, Traefik
+  `OECP_TRAEFIK_LOG_MAX_SIZE` × `OECP_TRAEFIK_LOG_MAX_FILE`); Loki of the
+  `observability` profile keeps 90 days (`observability/loki.yaml`); README
+  section "Log retention" on sizing for 90 / 30 days.
+
+### Changed
+
+- API: `idp-metadata-refresh` runs on the `maintenance` queue at 04:15 UTC and
+  after worker start, like the other jobs: every run holds the advisory lock
+  and is recorded in `maintenance_runs` (counters per IdP status, aggregate and
+  per-IdP details). The 0.3.0 queue `idp-metadata-refresh` is removed at worker
+  start. The maintenance queue's lock lasts 10 minutes.
+- API: one severity per error code. The harvester reports with the catalogue's
+  severity and uses its own warning codes where it is lenient (no English
+  name: `oecp.oeapi.english_missing`, course stored as draft; unknown ISCED
+  broad field; some unmapped delivery modes; several roots; malformed
+  coordinators; unknown or invalid academic session:
+  `oecp.content.session_ignored`); `page_cap_reached` stays a warning; a natural
+  key repeated in a run is ignored with the warning `duplicate_entity` instead
+  of being counted as rejected.
+- API: CSV uploads revive soft-deleted course and offering codes as the form
+  does (old overrides dropped, audit `course.revive` / `course_offering.revive`),
+  for every channel through `CanonicalWriter`.
+- API: course and offering bodies that break only content rules (English to
+  publish, dates, seats, ISCED list) answer 422 instead of 400.
+- API: a published course cannot be deleted (409
+  `oecp.content.published_not_deletable`), as in the console.
+- API: upload responses that have a run carry `Location` also on 503 (queue
+  unavailable).
+- API: `PUT …/integration` with a credential and `POST …/test-connection` answer
+  503 `oecp.secrets.unavailable` when the master key is missing or invalid.
+- API: a `title_en` over 500 characters in `courses.csv` reports
+  `oecp.content.invalid_value` (was `english_missing`); the message of
+  `oecp.csv.invalid_template_version` names template 1.2.
+- Compose: the Traefik access log is off by default
+  (`OECP_TRAEFIK_ACCESS_LOG=true` enables it; request headers dropped).
+- Web: boolean course attributes are tri-state in the course editor (Not set,
+  Yes, No), so `false` can be stored from the wizard; the CSV console is
+  unchanged.
+- Web: on harvested courses and offerings with a status override, "Revert status
+  to the partner's value" shows the partner's status and sends
+  `PATCH …/overrides {clear: ["status"]}` after confirmation.
+- Web: the Delete course and Delete offering buttons follow the API rule: hidden
+  for harvested records, organizations in overrides mode, published records and
+  courses with published offerings, with the reason shown instead.
+- Web: the invitation acceptance page explains the causes of
+  `oecp.invitation.mismatch` from the problem's `reason` (e-mail address; not
+  signed in through the organization's IdP, with "Sign in through your
+  university", which signs out first and keeps the invitation; home
+  organization; and, for the 409, an account that already administers another
+  organization), and keeps the generic text when `reason` is absent.
+- Web: the courses list shows "n missing" in the Completeness column when the
+  API sends `missing_count`, else the "Incomplete" badge.
+
+### Removed
+
+- `oecp.csv.english_delete` (never raised: `title_en` is required).
+
+### Security
+
+- API: the api refuses to start with `NODE_ENV=production` and an empty
+  `SMTP_HOST` unless `OECP_MAIL_LOG_LINKS=true`; without SMTP the invitation
+  text and link are logged at debug level only (one warning line otherwise).
+- API: request logs no longer contain headers, the client address, port or
+  User-Agent; `OECP_LOG_CLIENT_ADDRESSES=true` adds a salted SHA-256 of the
+  address. Admin requests log the JWT `sub`.
+- API: harvested raw payloads are stored without person data
+  (`coordinators`, `persons`, `ext` members about persons).
+
 ## [0.3.0] - 2026-10-14
 
 Maintenance jobs (history partitions, retention, dormancy dry run, worker health), IdP metadata refresh from a pinned-signature aggregate, test SAML IdP in the dev profile with the brokered sign-in verified, and the IT Handbook data-model alignment (instructors, five optional texts, CSV template 1.2, publish rule warn/enforce, completeness in the admin panel).
@@ -572,7 +690,8 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/AURORA-OECP/compare/v0.3.0...main
+[Unreleased]: https://github.com/LAArino/AURORA-OECP/compare/v0.4.0...main
+[0.4.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.4.0
 [0.3.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.3.0
 [0.2.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.2.0
 [0.1.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.1.0

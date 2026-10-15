@@ -210,9 +210,8 @@ function issue(
   code: ErrorCode,
   at: { row?: number | undefined; column?: string | undefined } = {},
   detail?: string,
-  severity: 'error' | 'warning' = ERROR_CODES[code].severity,
 ): CsvIssue {
-  const base = ERROR_CODES[code].message;
+  const { message: base, severity } = ERROR_CODES[code];
   const out: CsvIssue = { code, severity, file, message: detail ? `${base}: ${detail}` : base };
   if (at.row !== undefined) out.row = at.row;
   if (at.column !== undefined) out.column = at.column;

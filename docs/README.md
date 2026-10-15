@@ -35,6 +35,17 @@ Technical reference for whoever supplies course data, accurate to release 0.2.0;
 - [guides/csv-authoring.md](guides/csv-authoring.md) — template 1.2 column reference for `courses.csv` and `offerings.csv`, the handbook publication rule, limits, processing, browser validation, the `oecp.csv.*`/`oecp.content.*` code table and a worked example.
 - [guides/web-form.md](guides/web-form.md) — the course wizard, offerings, status actions, overrides on harvested records, history and the admin API equivalents.
 
+## Production
+
+Templates and drafts for the alliance's legal and operations staff before go-live, written for the Aurora deployment (Aurora Foundation controller, URV processor [DL 2]); every value to supply is marked `[TO COMPLETE: …]`.
+
+- [production/README.md](production/README.md) — purpose of the set, who completes what (controller, processor, DPOs, hosting operator) and in which order.
+- [production/ropa.md](production/ropa.md) — record of processing activities (GDPR art. 30), one entry per processing activity, with retention as implemented.
+- [production/dpia.md](production/dpia.md) — DPIA outline (art. 35): screening, data flows, necessity, risk register mapped to the implemented controls, sign-off.
+- [production/art28-processor-checklist.md](production/art28-processor-checklist.md) — controller–processor contract checklist (art. 28(3) a–h, sub-processors, breaches) and the partner access-agreement items [DL 14].
+- [production/accessibility-statement.md](production/accessibility-statement.md) — accessibility statement template (Directive (EU) 2016/2102, EN 301 549, WCAG 2.1 AA).
+- [production/runbook.md](production/runbook.md) — production runbook: secrets and rotation, backups and restore drill, upgrades, identity operations, monitoring, incidents, housekeeping.
+
 ## Reviews
 
 - [00-consolidado-decisiones-pendientes.md](review/00-consolidado-decisiones-pendientes.md) — [R00] consolidated review and pending decisions.

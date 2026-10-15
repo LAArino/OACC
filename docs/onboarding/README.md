@@ -3,7 +3,7 @@
 
 # Onboarding to OECP
 
-These guides take an alliance and its universities from "we want a shared course catalogue" to "our courses are published and stay current". They describe **release 0.2.0** as it is. Where something is planned but not built, they say "not yet available in 0.2.0". The as-built specification is [spec v4.1](../spec-v4.1.md); the decisions behind these guides are rows 2, 3, 4, 12, 13, 14, 15 and 17 of the [decisions log](../decisions-log.md).
+These guides take an alliance and its universities from "we want a shared course catalogue" to "our courses are published and stay current". They describe **release 0.4.0** as it is. Where something is planned but not built, they say "not yet available in 0.2.0". The as-built specification is [spec v4.1](../spec-v4.1.md); the decisions behind these guides are rows 2, 3, 4, 12, 13, 14, 15 and 17 of the [decisions log](../decisions-log.md).
 
 > **Before you start**
 >
@@ -76,12 +76,12 @@ All three end in the same canonical model, so the public catalogue cannot tell t
 
 **Lifecycle.** Courses and offerings are `draft`, `published`, `withdrawn` or `cancelled`. Publishing needs an English title. A course appears in the catalogue's default listing when it is published and has a published offering that has not ended. Harvested courses that disappear from the endpoint for three complete harvests in a row are withdrawn automatically; a CSV upload never withdraws by omission.
 
-## What 0.2.0 does not have yet
+## What 0.4.0 does not have yet
 
 Plan around these gaps; each guide repeats the ones that affect it. Since 0.2.0 every administration task of these guides has a screen ([Guide A, step 7](alliance.md#7-the-administration-screens)); the admin API remains available for scripting.
 
-- Login through a university's own identity provider (SAML/eduGAIN) has a screen ("Sign in through your university") but has not been verified end to end; administrators use local OECP accounts until their university's identity provider is connected and tested.
+- Login through a university's own identity provider (SAML/eduGAIN) is verified against a simulated IdP only; each real partner IdP must be connected and tested (see Guide A, step 3).
 - No API keys or service accounts: scripts and unattended uploads need a token from an interactive sign-in.
 - No real partner endpoint has been harvested yet; channel A is verified against the bundled mock partner only.
-- No automated backups, privacy page, accessibility statement or GDPR document set.
+- No automated backups yet (interim `pg_dump` procedure in the runbook) and no privacy page. The GDPR document set, the accessibility statement and the runbook exist as templates in `docs/production/` that the alliance must complete.
 - The portal interface is in English only.

@@ -101,8 +101,10 @@ As built (`apps/api/src/identity/metadata-refresh/`, spec §4):
 - Bad, because keycloak-config-cli resets the managed keys to the committed
   values on every `docker compose up` until the next run; the start-up run
   narrows that window to about a minute.
-- Neutral, because the daily runs are reported in logs and audit rows only;
-  `maintenance_runs` records on-demand runs.
+- Neutral, because every run (daily, start-up, on demand) goes through the
+  worker's `maintenance` queue since 0.4: it holds the maintenance advisory
+  lock and is recorded in `maintenance_runs` (before 0.4 only on-demand runs
+  were; the daily ones left logs and audit rows only).
 
 ### Confirmation
 

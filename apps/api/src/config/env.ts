@@ -10,6 +10,15 @@ export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  /**
+   * Request logs carry no client address, `X-Forwarded-For`, `X-Real-IP` or
+   * `User-Agent`. When true, a salted SHA-256 of the client address is added
+   * (never the address itself). Access logs with addresses are Traefik's (spec §10).
+   */
+  OECP_LOG_CLIENT_ADDRESSES: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
   DATABASE_URL: url(['postgres:', 'postgresql:']),
   VALKEY_URL: url(['redis:', 'rediss:', 'valkey:', 'valkeys:']),
   /** `https://{auth-host}/realms/oecp`; compared exactly with the `iss` claim. */
@@ -33,6 +42,26 @@ export const envSchema = z.object({
   SMTP_HOST: z.string().default(''),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(25),
   SMTP_FROM: z.string().min(3).default('no-reply@example.org'),
+  /** SMTP AUTH user (with `SMTP_PASSWORD_FILE`); empty: relay by source address. */
+  SMTP_USER: z.string().default(''),
+  /** Docker secret holding the SMTP AUTH password; required with `SMTP_USER`. */
+  SMTP_PASSWORD_FILE: z
+    .string()
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+  /** true: require STARTTLS (fail if not offered); false: STARTTLS when offered. */
+  SMTP_STARTTLS: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  /**
+   * Escape hatch: with `NODE_ENV=production` an empty `SMTP_HOST` stops the
+   * process (invitation links would only be logged) unless this is `true`.
+   */
+  OECP_MAIL_LOG_LINKS: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
   /** SURFeduhub gateway for `access_mode = surfeduhub` (spec §6.2.2); allowlisted host. */
   SURFEDUHUB_GATEWAY_URL: url(['https:'])
     .transform((v) => v.replace(/\/+$/, ''))
@@ -74,6 +103,12 @@ export const envSchema = z.object({
   OECP_RETENTION_SYNC_RUNS_MONTHS: z.coerce.number().int().min(1).max(120).default(24),
   /** Spec §10 retention (months): `audit_log`. */
   OECP_RETENTION_AUDIT_MONTHS: z.coerce.number().int().min(1).max(240).default(36),
+  /**
+   * Spec §5, §10 retention (months): records soft-deleted (`deleted_at`) longer
+   * ago are purged (courses with their texts, ISCED codes and offerings;
+   * offerings; organizations without remaining children).
+   */
+  OECP_RETENTION_SOFT_DELETED_MONTHS: z.coerce.number().int().min(1).max(120).default(12),
   /** Spec §2.2: OECP roles are removed after this many days without activity. */
   OECP_DORMANCY_DAYS: z.coerce.number().int().min(30).max(3650).default(180),
   /**
@@ -81,6 +116,20 @@ export const envSchema = z.object({
    * administrators it would revoke (log and `maintenance_runs.details`).
    */
   OECP_DORMANCY_DRY_RUN: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  /**
+   * Spec §2.2, §10: Keycloak accounts without an OECP role are deleted this many
+   * months after their last role removal (revocation or dormancy). At most
+   * `OECP_RETENTION_AUDIT_MONTHS`, since the audit rows are the evidence.
+   */
+  OECP_ACCOUNT_DELETE_MONTHS: z.coerce.number().int().min(1).max(120).default(12),
+  /**
+   * When true (the default), the `account-cleanup` job only reports the accounts
+   * it would delete (log and `maintenance_runs.details`).
+   */
+  OECP_ACCOUNT_CLEANUP_DRY_RUN: z
     .enum(['true', 'false'])
     .default('true')
     .transform((v) => v === 'true'),
@@ -134,6 +183,30 @@ function crossFieldRules(env: Env, ctx: z.RefinementCtx): void {
       code: 'custom',
       path: ['OECP_IDP_METADATA_SIGNING_CERT_FILE'],
       message: 'Required when OECP_IDP_METADATA_URL is set (pinned signing certificate)',
+    });
+  }
+  if (env.NODE_ENV === 'production' && !env.SMTP_HOST && !env.OECP_MAIL_LOG_LINKS) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['SMTP_HOST'],
+      message:
+        'Required in production: without it invitation e-mails are not sent and their links ' +
+        'are only logged. Set OECP_MAIL_LOG_LINKS=true to accept that explicitly',
+    });
+  }
+  if (Boolean(env.SMTP_USER) !== Boolean(env.SMTP_PASSWORD_FILE)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: [env.SMTP_USER ? 'SMTP_PASSWORD_FILE' : 'SMTP_USER'],
+      message: 'SMTP_USER and SMTP_PASSWORD_FILE go together (SMTP authentication)',
+    });
+  }
+  if (env.OECP_ACCOUNT_DELETE_MONTHS > env.OECP_RETENTION_AUDIT_MONTHS) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['OECP_ACCOUNT_DELETE_MONTHS'],
+      message:
+        'Must not exceed OECP_RETENTION_AUDIT_MONTHS (the revocation audit rows are the evidence)',
     });
   }
 }

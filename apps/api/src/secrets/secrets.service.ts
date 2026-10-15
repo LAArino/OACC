@@ -23,6 +23,14 @@ export class SecretError extends Error {
   }
 }
 
+/** The master key (`OECP_MASTER_KEY_FILE`) is missing, unreadable or invalid. */
+export class MasterKeyUnavailableError extends SecretError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MasterKeyUnavailableError';
+  }
+}
+
 export interface SecretsOptions {
   /** Returns the master keys by version; called lazily so a missing key fails only on use. */
   masterKeys: () => ReadonlyMap<number, Buffer>;
@@ -150,16 +158,27 @@ export class SecretsService {
     };
   }
 
+  /**
+   * Throws {@link MasterKeyUnavailableError} unless the current master key can be
+   * loaded; lets callers refuse a request before writing anything.
+   */
+  assertAvailable(): void {
+    this.key(this.currentKeyVersion);
+  }
+
   private key(version: number): Buffer {
     let keys: ReadonlyMap<number, Buffer>;
     try {
       keys = this.options.masterKeys();
     } catch (error) {
-      if (error instanceof SecretError) throw error;
-      throw new SecretError(`Master key unavailable: ${(error as Error).message}`);
+      throw new MasterKeyUnavailableError(
+        error instanceof SecretError
+          ? error.message
+          : `Master key unavailable: ${(error as Error).message}`,
+      );
     }
     const key = keys.get(version);
-    if (!key) throw new SecretError(`Master key version ${version} is not available`);
+    if (!key) throw new MasterKeyUnavailableError(`Master key version ${version} is not available`);
     return key;
   }
 

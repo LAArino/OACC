@@ -411,7 +411,29 @@ describe.runIf(describeWithDatabase === 'run')('Channel C, the web form (Postgre
           `${api}/organizations/${ORG.aurora}/courses`,
           courseBody({ ext_id: 'AUR-Y', status: 'published', texts: { ca: { title: 'Hola' } } }),
         )
+        .expect(422); // a content rule, not the request shape
+      expect(english.headers['content-type']).toMatch(/application\/problem\+json/);
+      const dates = await as(auth.alliance)
+        .post(
+          `${api}/courses/${courseId}/offerings`,
+          offeringBody({ ext_offering_id: 'AUR-BAD-DATES', end_date: '2027-02-01' }),
+        )
+        .expect(422);
+      expect(dates.body.errors[0]).toMatchObject({
+        code: 'oecp.content.date_order',
+        pointer: '/end_date',
+      });
+      // A shape error next to a content rule is a request error (400) listing both.
+      const mixed = await as(auth.alliance)
+        .post(
+          `${api}/organizations/${ORG.aurora}/courses`,
+          courseBody({ ext_id: '-bad', status: 'published', texts: { ca: { title: 'Hola' } } }),
+        )
         .expect(400);
+      expect(mixed.body.errors.map((e: { code: string }) => e.code).sort()).toEqual([
+        'oecp.content.english_missing',
+        'oecp.content.invalid_code',
+      ]);
       expect(english.body.errors[0]).toMatchObject({
         code: 'oecp.content.english_missing',
         pointer: '/texts/en',
@@ -606,6 +628,14 @@ describe.runIf(describeWithDatabase === 'run')('Channel C, the web form (Postgre
             .expect(200)
         ).body,
       );
+      // missing_count: the number of missing handbook fields, 0 exactly when complete.
+      for (const item of all.items) expect(item.missing_count === 0).toBe(item.complete);
+      const hist = all.items.find((i) => i.ext_id === 'AUR-HIST-2');
+      const detail = adminCourse.parse(
+        (await as(auth.alliance).get(`${api}/courses/${hist?.id}`).expect(200)).body,
+      );
+      expect(hist?.missing_count).toBe(detail.completeness.missing.length);
+      expect(hist?.missing_count).toBeGreaterThan(0);
       expect(paged).toMatchObject({ page: 2, page_size: 1, total: 2 });
       expect(paged.items).toHaveLength(1);
       await as(auth.alliance)
@@ -614,12 +644,20 @@ describe.runIf(describeWithDatabase === 'run')('Channel C, the web form (Postgre
     });
 
     it('deletes only unpublished records created by form or CSV', async () => {
+      // A published course is withdrawn or cancelled, not deleted (as in the console).
       const blocked = await as(auth.alliance).delete(`${api}/courses/${courseId}`).expect(409);
-      expect(blocked.body.errors[0].code).toBe('oecp.content.has_published_offerings');
+      expect(blocked.body.errors[0].code).toBe('oecp.content.published_not_deletable');
       const published = await as(auth.alliance)
         .delete(`${api}/offerings/${offeringId}`)
         .expect(409);
       expect(published.body.errors[0].code).toBe('oecp.content.published_not_deletable');
+      await as(auth.alliance)
+        .post(`${api}/courses/${courseId}/status`, { status: 'withdrawn' })
+        .expect(200);
+      const offeringsLeft = await as(auth.alliance)
+        .delete(`${api}/courses/${courseId}`)
+        .expect(409);
+      expect(offeringsLeft.body.errors[0].code).toBe('oecp.content.has_published_offerings');
 
       await as(auth.alliance)
         .post(`${api}/offerings/${offeringId}/status`, { status: 'withdrawn' })
@@ -884,6 +922,24 @@ describe.runIf(describeWithDatabase === 'run')('Channel C, the web form (Postgre
         .patch(`${api}/courses/${draftId}/overrides`, { set: { 'texts.zz.title': 'x' } })
         .expect(422);
       expect(unsupported.body.errors[0].code).toBe('oecp.content.unsupported_language');
+
+      // clear: ['status'] removes the status override; the harvested status is back.
+      const cleared = await as(auth.uibk)
+        .patch(`${api}/courses/${courseId}/overrides`, { clear: ['status'] })
+        .expect(200);
+      expect(cleared.body.status).toBe('published');
+      expect(cleared.body.overrides).not.toHaveProperty('status');
+      const audit = await tdb.db
+        .selectFrom('audit_log')
+        .select('changes')
+        .where('action', '=', 'course.overrides')
+        .where('entity_id', '=', courseId)
+        .orderBy('id', 'desc')
+        .executeTakeFirstOrThrow();
+      expect(audit.changes).toMatchObject({
+        clear: ['status'],
+        status: { from: 'withdrawn', to: 'published' },
+      });
     });
 
     it('overrides offering values with seat timestamps and the DDL rules', async () => {
@@ -1032,7 +1088,8 @@ describe.runIf(describeWithDatabase === 'run')('Channel C, the web form (Postgre
         (await as(auth.uibk).get(`${api}/courses/${courseId}/history`).expect(200)).body,
       );
       const overrides = history.items.filter((i) => i.action === 'course.overrides');
-      expect(overrides.length).toBe(2);
+      // Two override saves and the clear of the status override.
+      expect(overrides.length).toBe(3);
       expect(overrides[0]?.summary).toMatch(/^Overrides removed|^Overrides set|overrides removed/);
       expect(
         history.items.some((i) => i.kind === 'history' && i.actor === 'system:harvester'),

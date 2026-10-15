@@ -209,7 +209,7 @@ const courseColumns = {
   status,
   ects: required(/^\d{1,3}(\.\d{1,2})?$/, 'oecp.csv.invalid_number'),
   isced_codes: required(/^\d{2,6}(\|\d{2,6})*$/, 'oecp.csv.invalid_isced'),
-  title_en: required(/^[\s\S]{1,500}$/, 'oecp.content.english_missing'),
+  title_en: required(/^[\s\S]{1,500}$/, 'oecp.content.invalid_value'),
   kind: blankOr(/^(course|bip|lecture_series|other)$/, 'oecp.csv.invalid_kind'),
   levels: blankOr(new RegExp(`^${LEVEL}(\\|${LEVEL})*$`), 'oecp.csv.invalid_level'),
   level: blankOr(new RegExp(`^${LEVEL}$`), 'oecp.csv.invalid_level'),

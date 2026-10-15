@@ -3,7 +3,7 @@
 
 # Data-provider guides
 
-These guides are for the people who put course data into OECP: partner IT teams that expose an OEAPI endpoint, and partner administrators who upload CSV files or use the web form. They describe **release 0.2.0** as built; the as-built specification is [spec v4.1](../spec-v4.1.md), and every error code is listed in its [Appendix A](../spec-v4.1.md#appendix-a-error-codes) and in `packages/schemas/errors.json`. Who does what, invitations, choosing a channel and the governance around it are covered by the role-based [onboarding guides](../onboarding/README.md); these guides only cover the data.
+These guides are for the people who put course data into OECP: partner IT teams that expose an OEAPI endpoint, and partner administrators who upload CSV files or use the web form. They describe OECP **as built after release 0.3.0** (the unreleased changes listed in the `CHANGELOG` included); the as-built specification is [spec v4.1](../spec-v4.1.md), and every error code is listed in its [Appendix A](../spec-v4.1.md#appendix-a-error-codes) and in `packages/schemas/errors.json`. Who does what, invitations, choosing a channel and the governance around it are covered by the role-based [onboarding guides](../onboarding/README.md); these guides only cover the data.
 
 Each organization has exactly **one authoritative channel** (`oeapi`, `csv` or `form`; no integration row means `form`). CSV and form write the same records and can be mixed. An organization harvested through OEAPI can neither upload CSV files nor create records in the form: there the form only stores overrides on harvested records (spec §6.5).
 
@@ -17,7 +17,7 @@ Each organization has exactly **one authoritative channel** (`oeapi`, `csv` or `
 
 ## How problems are reported
 
-Every channel reports problems with the same stable codes (`oecp.<area>.<name>`, never renamed or reused). The admin API answers with RFC 9457 `application/problem+json` whose `errors[]` members carry `code`, `severity` (`error` or `warning`), `message` and, depending on the channel, `file`, `row` and `column` (CSV), `pointer` (a JSON Pointer into the form body or the harvested document) and `ext_id` (the course or offering code). The same items are stored per run and can be read later with `GET /api/admin/v1/sync-runs/{id}`. Errors stop the record (CSV: the whole upload); warnings never do.
+Every channel reports problems with the same stable codes (`oecp.<area>.<name>`, never renamed or reused). The admin API answers with RFC 9457 `application/problem+json` whose `errors[]` members carry `code`, `severity` (`error` or `warning`), `message` and, depending on the channel, `file`, `row` and `column` (CSV), `pointer` (a JSON Pointer into the form body or the harvested document) and `ext_id` (the course or offering code). The same items are stored per run and can be read later with `GET /api/admin/v1/sync-runs/{id}`. Errors stop the record (CSV: the whole upload); warnings never do. Each code has **one severity**, the one in `errors.json`, in every channel; where a channel is more lenient than another it uses a code of its own (the harvester's `oecp.oeapi.english_missing` is a warning, `oecp.content.english_missing` of the other channels an error).
 
 ## Common data-quality rules
 
@@ -31,7 +31,7 @@ A course can only be `published` when it has an English text with a title (`text
 |---|---|
 | CSV | `title_en` is a required column and a required cell on every row, whatever the status (`oecp.csv.missing_value` when empty). |
 | Web form | The browser asks for the English title on every save; the API itself only requires it to publish (`oecp.content.english_missing`, 422). |
-| OEAPI | A course with an English `name` is stored `published`; without one it is stored as `draft` with the warning `oecp.content.english_missing`. |
+| OEAPI | A course with an English `name` is stored `published`; without one it is stored as `draft` with the warning `oecp.oeapi.english_missing`. |
 
 Other languages are optional, but a language is only stored when it has its own title.
 
@@ -103,4 +103,4 @@ Courses and offerings have the same four statuses. Nothing is ever withdrawn bec
 | `withdrawn` | Not shown. | Not shown. |
 | `cancelled` | Not shown (use `withdrawn` for courses). | Shown on the course page with a "cancelled" badge until its start date, without seats or the apply button; listed by `/oeapi/v5`. |
 
-Publishing requires the English title (above). Deleting is a different operation (web form only, soft delete, refused for harvested and published records).
+Publishing requires the English title (above). Deleting is a different operation (web form only, soft delete, refused for harvested and published records and for courses with published offerings). Writing a deleted code again, from any channel, brings the record back without its old overrides; deleted records are purged after 12 months.

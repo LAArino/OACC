@@ -40,6 +40,17 @@ const confirm = ref<{
   }) => Promise<boolean>;
 } | null>(null);
 const overridesMode = computed(() => reference.value?.form_mode === 'overrides');
+const subject = computed(() =>
+  t('admin.offerings.subject', { code: offering.value?.ext_offering_id ?? '' }),
+);
+/** Why the offering cannot be deleted (the API's rule), or null. */
+const blocker = computed(() =>
+  offering.value ? deleteBlocker(offering.value, overridesMode.value) : null,
+);
+/** The status override of a harvested offering, with the partner's status. */
+const overriddenStatus = computed(() =>
+  overridesMode.value && offering.value ? statusOverride(offering.value) : null,
+);
 
 onMounted(page.init);
 
@@ -62,6 +73,23 @@ async function changeStatus(status: AdminLifecycleStatus) {
   try {
     replaceOffering(await coursesApi.setOfferingStatus(o.id, status));
     say(t('admin.status.changed', { status: t(`admin.lifecycle.${status}`) }));
+  } catch (error) {
+    actionFailure.value = asAdminApiError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+/** Removes the status override (`PATCH …/overrides {clear: ["status"]}`). */
+async function revertStatus() {
+  const o = offering.value;
+  if (!o) return;
+  busy.value = true;
+  actionFailure.value = null;
+  try {
+    const updated = await coursesApi.patchOfferingOverrides(o.id, { clear: ['status'] });
+    replaceOffering(updated);
+    say(t('admin.status.revert.done', { status: t(`admin.lifecycle.${updated.status}`) }));
   } catch (error) {
     actionFailure.value = asAdminApiError(error);
   } finally {
@@ -140,12 +168,20 @@ async function remove() {
                 </h2>
                 <AdminStatusActions
                   :status="offering.status"
-                  :subject="t('admin.offerings.subject', { code: offering.ext_offering_id })"
+                  :subject="subject"
                   entity="offering"
                   :busy="busy"
                   @change="changeStatus"
                 />
-                <p v-if="!overridesMode && offering.status !== 'published'" class="admin-actions">
+                <AdminStatusRevert
+                  v-if="overriddenStatus"
+                  :status="offering.status"
+                  :source="overriddenStatus.source"
+                  :subject="subject"
+                  :busy="busy"
+                  @revert="revertStatus"
+                />
+                <p v-if="!blocker" class="admin-actions">
                   <button
                     type="button"
                     class="button button--secondary button--danger-text"
@@ -154,6 +190,9 @@ async function remove() {
                   >
                     {{ t('admin.offerings.delete') }}
                   </button>
+                </p>
+                <p v-else class="admin-hint admin-delete-blocked">
+                  {{ t(`admin.courses.deleteBlocked.${blocker}`) }}
                 </p>
               </section>
               <AdminOfferingForm

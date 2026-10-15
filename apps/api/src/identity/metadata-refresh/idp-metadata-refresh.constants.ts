@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-/** BullMQ queue, job name and job scheduler id of the daily refresh (spec §4). */
-export const IDP_METADATA_REFRESH_QUEUE = 'idp-metadata-refresh';
+/**
+ * Job name of the refresh (spec §4) on the `maintenance` queue, which runs it
+ * daily, at worker start and on demand (MaintenanceProcessor).
+ */
 export const IDP_METADATA_REFRESH_JOB = 'idp-metadata-refresh';
-export const IDP_METADATA_REFRESH_SCHEDULER_ID = 'idp-metadata-refresh';
-/** One-off run queued by the worker at start-up. */
-export const IDP_METADATA_REFRESH_STARTUP_JOB_ID = 'idp-metadata-refresh-startup';
 /** Daily at 04:15 UTC. */
 export const IDP_METADATA_REFRESH_CRON = '15 4 * * *';
+/** Queue and job scheduler of the daily refresh before 0.4, removed at worker start. */
+export const LEGACY_IDP_METADATA_REFRESH_QUEUE = 'idp-metadata-refresh';
+export const LEGACY_IDP_METADATA_REFRESH_SCHEDULER_ID = 'idp-metadata-refresh';
 
 /** `audit_log.actor_sub` and `action` of an applied update. */
 export const IDP_METADATA_REFRESH_ACTOR = 'system:metadata-refresh';

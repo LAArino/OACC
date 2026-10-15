@@ -21,6 +21,7 @@ export class MaintenanceQueue {
     job: string,
     data: MaintenanceJobData,
     jobId: string,
+    options: { delayMs?: number } = {},
   ): Promise<MaintenanceRequestResult> {
     const existing = await this.queue.getJob(jobId);
     if (existing) {
@@ -35,7 +36,13 @@ export class MaintenanceQueue {
     const added = await this.queue.add(
       job,
       { ...data, requestId },
-      { jobId, attempts: 1, removeOnComplete: true, removeOnFail: 50 },
+      {
+        jobId,
+        attempts: 1,
+        removeOnComplete: true,
+        removeOnFail: 50,
+        ...(options.delayMs ? { delay: options.delayMs } : {}),
+      },
     );
     // A concurrent producer may have won the race: the returned job is theirs.
     return (added.data as { requestId?: string }).requestId === requestId

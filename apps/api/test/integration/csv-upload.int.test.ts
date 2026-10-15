@@ -605,6 +605,95 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
     expect((await ingestion.process(response.body.sync_run_id)).status).toBe('skipped');
   }, 60_000);
 
+  it('sets Location also when the queue is unavailable (503, run cancelled)', async () => {
+    queue.enqueue.mockRejectedValueOnce(new Error('valkey down'));
+    const lines = Array.from({ length: 501 }, (_, i) => `1.0,DOWN-${i},draft,3,0613,Down ${i}`);
+    const response = await upload(ORG.urv, {
+      courses: `${COURSES_HEADER}\n${lines.join('\n')}\n`,
+    }).expect(503);
+    const location = String(response.headers['location']);
+    expect(location).toMatch(/^\/api\/admin\/v1\/sync-runs\/[0-9a-f-]{36}$/);
+    const run = await tdb.db
+      .selectFrom('sync_runs')
+      .select('status')
+      .where('id', '=', location.split('/').pop() ?? '')
+      .executeTakeFirstOrThrow();
+    expect(run.status).toBe('cancelled');
+  });
+
+  it('revives soft-deleted courses and offerings written again, like the form', async () => {
+    const courses = `${COURSES_HEADER}\n1.0,REVIVE-1,draft,3,0613,Revived course\n`;
+    const offerings = `${OFFERINGS_HEADER}\n1.0,REVIVE-1,R1-2027,draft,2027-03-01,2027-06-30,en,online\n`;
+    await upload(ORG.urv, { courses, offerings }).expect(201);
+    const course = await tdb.db
+      .selectFrom('courses')
+      .select('id')
+      .where('organization_id', '=', ORG.urv)
+      .where('ext_id', '=', 'REVIVE-1')
+      .executeTakeFirstOrThrow();
+    await tdb.db
+      .updateTable('courses')
+      .set({
+        deleted_at: new Date(),
+        overrides: { ects: { value: 9, by: 'x', at: 'y', source: 3 } },
+      })
+      .where('id', '=', course.id)
+      .execute();
+    await tdb.db
+      .updateTable('course_offerings')
+      .set({ deleted_at: new Date() })
+      .where('course_id', '=', course.id)
+      .execute();
+
+    const again = await upload(ORG.urv, {
+      courses: courses.replace('Revived course', 'Revived again'),
+      offerings,
+    }).expect(201);
+    expect(again.body.run).toMatchObject({ n_created: 2, n_updated: 0 });
+    const revived = await tdb.db
+      .selectFrom('courses')
+      .select(['deleted_at', 'overrides', 'ects'])
+      .where('id', '=', course.id)
+      .executeTakeFirstOrThrow();
+    expect(revived).toMatchObject({ deleted_at: null, overrides: {} });
+    expect(Number(revived.ects)).toBe(3);
+    const offering = await tdb.db
+      .selectFrom('course_offerings')
+      .select(['id', 'deleted_at'])
+      .where('course_id', '=', course.id)
+      .executeTakeFirstOrThrow();
+    expect(offering.deleted_at).toBeNull();
+    const audits = await tdb.db
+      .selectFrom('audit_log')
+      .select(['action', 'entity_id', 'changes'])
+      .where('action', 'in', ['course.revive', 'course_offering.revive'])
+      .orderBy('id')
+      .execute();
+    expect(audits).toEqual([
+      {
+        action: 'course.revive',
+        entity_id: course.id,
+        changes: {
+          ext_id: 'REVIVE-1',
+          channel: 'csv',
+          deleted: { from: true, to: false },
+          overrides_dropped: ['ects'],
+          sync_run_id: again.body.sync_run_id,
+        },
+      },
+      {
+        action: 'course_offering.revive',
+        entity_id: offering.id,
+        changes: {
+          ext_id: 'REVIVE-1#R1-2027',
+          channel: 'csv',
+          deleted: { from: true, to: false },
+          sync_run_id: again.body.sync_run_id,
+        },
+      },
+    ]);
+  });
+
   it('limits uploads to 10 per hour per organization', async () => {
     const now = new Date();
     await tdb.db

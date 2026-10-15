@@ -71,9 +71,11 @@ export type AdminCourse = Omit<SchemaAdminCourse, 'texts' | 'instructors' | 'com
   completeness?: AdminCourseCompleteness;
 };
 
-export type AdminCourseListItem = Omit<SchemaAdminCourseListItem, 'complete'> & {
+export type AdminCourseListItem = Omit<SchemaAdminCourseListItem, 'complete' | 'missing_count'> & {
   /** Every field obligatory for publication is present. */
   complete?: boolean;
+  /** How many fields obligatory for publication are missing (`completeness.missing.length`). */
+  missing_count?: number;
 };
 
 export type AdminCourseList = Omit<SchemaAdminCourseList, 'items'> & {
@@ -258,3 +260,14 @@ export interface AdminNetworkStatus {
   generated_at: string;
   items: AdminNetworkStatusItem[];
 }
+
+// ---------------------------------------------------------------------------
+// Maintenance jobs (spec §8.2, §10): `GET /maintenance/runs`,
+// `POST /maintenance/jobs/{name}/run`, alliance_admin only.
+export type {
+  MaintenanceJobRunResponse as AdminMaintenanceJobRunResponse,
+  MaintenanceRun as AdminMaintenanceRun,
+  MaintenanceRunList as AdminMaintenanceRunList,
+  MaintenanceRunStatus as AdminMaintenanceRunStatus,
+  MaintenanceTrigger as AdminMaintenanceTrigger,
+} from '@oecp/schemas';

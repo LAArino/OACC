@@ -85,3 +85,60 @@ describe('idp-metadata-refresh environment', () => {
     });
   });
 });
+
+describe('mail environment', () => {
+  it('refuses production without SMTP_HOST unless OECP_MAIL_LOG_LINKS=true', () => {
+    expect(() => validateEnv({ ...base, NODE_ENV: 'production' })).toThrow(
+      /OECP_MAIL_LOG_LINKS=true[\s\S]*SMTP_HOST/,
+    );
+    expect(
+      validateEnv({ ...base, NODE_ENV: 'production', OECP_MAIL_LOG_LINKS: 'true' }),
+    ).toMatchObject({ SMTP_HOST: '', OECP_MAIL_LOG_LINKS: true });
+    expect(
+      validateEnv({ ...base, NODE_ENV: 'production', SMTP_HOST: 'smtp.urv.cat' }),
+    ).toMatchObject({ SMTP_HOST: 'smtp.urv.cat', SMTP_STARTTLS: false, SMTP_USER: '' });
+    // Outside production the link is only logged (debug level).
+    expect(validateEnv({ ...base, NODE_ENV: 'development' }).SMTP_HOST).toBe('');
+  });
+
+  it('takes SMTP authentication as user and password file together, and STARTTLS', () => {
+    const env = validateEnv({
+      ...base,
+      SMTP_HOST: 'smtp.urv.cat',
+      SMTP_PORT: '587',
+      SMTP_USER: 'oecp',
+      SMTP_PASSWORD_FILE: '/run/secrets/smtp_password',
+      SMTP_STARTTLS: 'true',
+    });
+    expect(env).toMatchObject({ SMTP_USER: 'oecp', SMTP_STARTTLS: true, SMTP_PORT: 587 });
+    expect(() => validateEnv({ ...base, SMTP_USER: 'oecp' })).toThrow(/SMTP_PASSWORD_FILE/);
+    expect(() => validateEnv({ ...base, SMTP_PASSWORD_FILE: '/run/secrets/x' })).toThrow(
+      /SMTP_USER/,
+    );
+  });
+});
+
+describe('maintenance and logging environment', () => {
+  it('defaults: account cleanup in dry run after 12 months, soft deletes purged after 12, no addresses logged', () => {
+    expect(validateEnv(base)).toMatchObject({
+      OECP_ACCOUNT_DELETE_MONTHS: 12,
+      OECP_ACCOUNT_CLEANUP_DRY_RUN: true,
+      OECP_RETENTION_SOFT_DELETED_MONTHS: 12,
+      OECP_LOG_CLIENT_ADDRESSES: false,
+    });
+  });
+
+  it('keeps the account deletion period within the audit retention (the evidence)', () => {
+    expect(() => validateEnv({ ...base, OECP_ACCOUNT_DELETE_MONTHS: '48' })).toThrow(
+      /OECP_RETENTION_AUDIT_MONTHS/,
+    );
+    expect(
+      validateEnv({
+        ...base,
+        OECP_ACCOUNT_DELETE_MONTHS: '48',
+        OECP_RETENTION_AUDIT_MONTHS: '60',
+        OECP_ACCOUNT_CLEANUP_DRY_RUN: 'false',
+      }),
+    ).toMatchObject({ OECP_ACCOUNT_DELETE_MONTHS: 48, OECP_ACCOUNT_CLEANUP_DRY_RUN: false });
+  });
+});

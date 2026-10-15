@@ -2,7 +2,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../config/env.js';
-import { IdentityModule } from '../../identity/identity.module.js';
+import { IdentityModule, readSecretFile } from '../../identity/identity.module.js';
 import {
   INVITATIONS_OPTIONS,
   type InvitationsOptions,
@@ -25,12 +25,18 @@ import { createMailer, MAILER } from './mailer.js';
     {
       provide: MAILER,
       inject: [ConfigService],
-      useFactory: (config: ConfigService<Env, true>) =>
-        createMailer({
+      useFactory: (config: ConfigService<Env, true>) => {
+        const passwordFile = config.get('SMTP_PASSWORD_FILE', { infer: true });
+        return createMailer({
           host: config.get('SMTP_HOST', { infer: true }),
           port: config.get('SMTP_PORT', { infer: true }),
           from: config.get('SMTP_FROM', { infer: true }),
-        }),
+          user: config.get('SMTP_USER', { infer: true }) || undefined,
+          // Read at start-up: a missing secret file stops the process.
+          password: passwordFile ? readSecretFile(passwordFile) : undefined,
+          requireStartTls: config.get('SMTP_STARTTLS', { infer: true }),
+        });
+      },
     },
   ],
   exports: [InvitationsService, INVITATIONS_OPTIONS, IdentityModule],

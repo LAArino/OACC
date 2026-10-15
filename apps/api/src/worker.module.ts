@@ -4,12 +4,12 @@ import { AppConfigModule } from './config/config.module.js';
 import { DbModule } from './db/db.module.js';
 import { IngestionWorkerModule } from './ingestion/ingestion-worker.module.js';
 import { AppLoggerModule } from './logging/logger.module.js';
-import { IdpMetadataRefreshWorkerModule } from './identity/metadata-refresh/idp-metadata-refresh-worker.module.js';
 import { MaintenanceWorkerModule } from './maintenance/maintenance-worker.module.js';
 
 /**
- * Worker process: BullMQ processors and schedules (ingestion, maintenance). Its
- * only HTTP is the internal `/health` and `/ready` on WORKER_HEALTH_PORT.
+ * Worker process: BullMQ processors and schedules (ingestion; maintenance, which
+ * includes the IdP metadata refresh). Its only HTTP is the internal `/health`
+ * and `/ready` on WORKER_HEALTH_PORT.
  */
 @Module({
   imports: [
@@ -18,7 +18,6 @@ import { MaintenanceWorkerModule } from './maintenance/maintenance-worker.module
     DbModule,
     IngestionWorkerModule,
     MaintenanceWorkerModule,
-    IdpMetadataRefreshWorkerModule,
   ],
 })
 export class WorkerModule {}

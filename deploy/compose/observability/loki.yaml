@@ -1,0 +1,57 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Loki, single binary, filesystem storage (profile `observability`), with the
+# time-based retention of spec §10: application logs 90 days. The compactor
+# deletes chunks older than retention_period (plus retention_delete_delay).
+# Access logs (Traefik, client addresses) must not be kept longer than 30 days:
+# if they are shipped here, give their stream a 30-day retention_stream rule.
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: "2024-01-01"
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # 90 days (spec §10 "application logs 90 days").
+  retention_period: 2160h
+  # Example for an access-log stream (30 days), if Traefik logs are shipped:
+  # retention_stream:
+  #   - selector: '{service_name="traefik"}'
+  #     priority: 1
+  #     period: 720h
+  allow_structured_metadata: true
+
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  delete_request_store: filesystem
+
+analytics:
+  reporting_enabled: false

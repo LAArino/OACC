@@ -23,6 +23,24 @@ export const acceptInvitationResponse = z.object({
 });
 export type AcceptInvitationResponse = z.infer<typeof acceptInvitationResponse>;
 
+/**
+ * Extension member `reason` of an `oecp.invitation.mismatch` problem
+ * (`POST /invitations/accept`, spec §2.1 step 5): which check failed.
+ *
+ * - `email`: the signed-in account's e-mail is not the invited address (403);
+ * - `idp`: the account did not sign in through the organization's IdP (403);
+ * - `home_organization`: the IdP did not assert the organization's
+ *   schacHomeOrganization (403);
+ * - `organization`: the account already administers another organization (409).
+ */
+export const invitationMismatchReason = z.enum([
+  'email',
+  'idp',
+  'home_organization',
+  'organization',
+]);
+export type InvitationMismatchReason = z.infer<typeof invitationMismatchReason>;
+
 /** `POST /api/admin/v1/invitations` (alliance_admin). */
 export const createInvitationRequest = z.strictObject({
   email: email.transform((v) => v.toLowerCase()),

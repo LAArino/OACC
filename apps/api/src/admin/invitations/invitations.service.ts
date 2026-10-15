@@ -446,9 +446,10 @@ export class InvitationsService {
   }
 }
 
+/** `oecp.invitation.mismatch` problems carry the extension member `reason`. */
 function acceptanceError(failure: AcceptanceFailure): ProblemException {
-  const { status, code, detail } = ACCEPTANCE_FAILURES[failure];
-  return new ProblemException(status, code, detail);
+  const { status, code, detail, reason } = ACCEPTANCE_FAILURES[failure];
+  return new ProblemException(status, code, detail, reason ? { reason } : undefined);
 }
 
 export function toApiInvitation(row: InvitationRow, now: Date): Invitation {

@@ -22,7 +22,7 @@ import {
 } from '../../ingestion/oeapi/oeapi-client.factory.js';
 import { OeapiError } from '../../ingestion/oeapi/oeapi-v5.client.js';
 import { SyncRunsRepository, toApiSyncRun } from '../../ingestion/sync-runs.repository.js';
-import { SecretsService } from '../../secrets/secrets.service.js';
+import { MasterKeyUnavailableError, SecretsService } from '../../secrets/secrets.service.js';
 import type { AdminPrincipal } from '../auth/claims.js';
 
 /** Spec §6.2.1: "Sync now" at most once per 15 minutes per organization. */
@@ -94,6 +94,8 @@ export class IntegrationsService {
     if (body.access_mode === 'surfeduhub' && !this.clients.settings.surfeduhubSecretRef) {
       throw new ProblemException(422, 'oecp.integration.surfeduhub_unavailable');
     }
+    // A credential to store needs the master key: refuse before writing anything.
+    if (typeof body.secret === 'string' && body.auth_scheme !== 'none') this.requireSecrets();
 
     const row = await this.db.transaction().execute(async (trx) => {
       const before = await trx
@@ -248,6 +250,9 @@ export class IntegrationsService {
     const row = await this.require(organizationId);
     const blocker = integrationBlocker(row, this.clients.settings);
     if (blocker) throw new ProblemException(409, blocker.code, blocker.detail);
+    // A stored credential cannot be read without the master key: a deployment
+    // problem (503), not a failure of the partner endpoint.
+    if (row.access_mode === 'surfeduhub' || row.auth_scheme !== 'none') this.requireSecrets();
 
     const started = Date.now();
     const result: TestConnectionResult = {
@@ -295,6 +300,21 @@ export class IntegrationsService {
       `Test connection for ${organizationId}: ${result.ok ? 'ok' : result.error?.code}`,
     );
     return result;
+  }
+
+  /** 503 `oecp.secrets.unavailable` when the master key is missing or invalid. */
+  private requireSecrets(): void {
+    try {
+      this.secrets.assertAvailable();
+    } catch (error) {
+      if (!(error instanceof MasterKeyUnavailableError)) throw error;
+      this.logger.error(`Secret storage unavailable: ${error.message}`);
+      throw new ProblemException(
+        503,
+        'oecp.secrets.unavailable',
+        'The master key (OECP_MASTER_KEY_FILE) is missing or invalid; ask the operator',
+      );
+    }
   }
 
   /** "Sync now": a queued manual run, at most once per 15 minutes (spec §6.2.1). */

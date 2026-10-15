@@ -89,8 +89,11 @@ prints a 24-hour invitation link to stdout. With the `dev` profile the
 invitation and Keycloak e-mails land in Mailpit.
 
 Without the `dev` profile, leave `COMPOSE_PROFILES` and the `dev` SMTP lines
-commented: Keycloak then has no mail relay (`OECP_SMTP_HOST` empty) and the
-api only logs invitation e-mails.
+commented and set `OECP_SMTP_HOST` to a relay. With `OECP_SMTP_HOST` empty
+Keycloak has no mail relay and the api refuses to start (`NODE_ENV=production`
+in this file) unless `OECP_MAIL_LOG_LINKS=true`; it then sends nothing and logs
+one warning per e-mail, the invitation text and link only at `LOG_LEVEL=debug`
+(`bootstrap-alliance-admin` prints its link anyway).
 
 Then open:
 
@@ -262,13 +265,60 @@ is checked.
 | `KEYCLOAK_JWKS_URL` | api, worker | `http://keycloak:8080/realms/oecp/protocol/openid-connect/certs` (internal) |
 | `OECP_MASTER_KEY_FILE` | api, worker | `/run/secrets/oecp_master_key` |
 | `KEYCLOAK_ADMIN_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_ADMIN_CLIENT_ID`, `KEYCLOAK_ADMIN_CLIENT_SECRET_FILE` | api, worker | `http://keycloak:8080`, `oecp`, `oecp-backend`, `/run/secrets/oecp_backend_client_secret` |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM` | api, worker | from `OECP_SMTP_*` in `.env` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, `SMTP_STARTTLS`, `SMTP_USER`, `SMTP_PASSWORD_FILE` | api, worker | from `OECP_SMTP_*` in `.env`; the password as Docker secret `smtp_password` (commented in `compose.yaml`) |
+| `OECP_MAIL_LOG_LINKS` | api, worker | `false`: an empty `SMTP_HOST` stops the process (spec Appendix B) |
+| `OECP_LOG_CLIENT_ADDRESSES` | api | `false`: request logs carry no client address nor User-Agent (spec §10) |
 | `OECP_PUBLIC_BASE_URL` | api, worker | `https://${OECP_PORTAL_HOST}` (invitation links) |
 | `NUXT_PUBLIC_API_BASE` | web | `https://${OECP_PORTAL_HOST}` (origin only: the app appends `/api/public/v1/...`) |
 | `NUXT_PUBLIC_I18N_BASE_URL` | web | `https://${OECP_PORTAL_HOST}` (absolute hreflang links) |
 
 `OTEL_*` variables are passed for the observability profile; the application
 reads every other variable listed above.
+
+### Log retention
+
+Spec §10 keeps application logs 90 days and access logs 30 days. Every service
+logs to Docker's `json-file` driver with rotation (`x-logging` in
+`compose.yaml`; Traefik has its own `x-logging-traefik`):
+
+| Variables | Default | Applies to |
+|---|---|---|
+| `OECP_LOG_MAX_SIZE` × `OECP_LOG_MAX_FILE` | `10m` × `5` (50 MB per container) | every service except Traefik |
+| `OECP_TRAEFIK_LOG_MAX_SIZE` × `OECP_TRAEFIK_LOG_MAX_FILE` | `20m` × `10` (200 MB) | Traefik (its log and, when enabled, the access log) |
+
+The driver's limits are **size-based**, not time-based: a container keeps at
+most `max-file` × `max-size`, so the age covered depends on the volume. Size
+them from what a container writes per day:
+
+```sh
+docker inspect --format '{{.LogPath}}' oecp-api-1   # then measure the file's growth over a day
+```
+
+For application logs choose `max-file` × `max-size` ≈ 90 × daily volume (e.g.
+2 MB a day → `10m` × `18`); the oldest lines then go after about 90 days, or
+earlier under a burst. For Traefik with the access log, ≈ 30 × daily volume,
+and never more: client addresses are personal data. Changing the variables
+recreates the containers (`docker compose up -d`).
+
+**Traefik access log.** Off by default. `OECP_TRAEFIK_ACCESS_LOG=true` writes
+one JSON line per request (request headers dropped; client address, method,
+path, status, duration kept) to Traefik's stdout, so the bound above applies.
+The commented lines in the `traefik` service drop the client address too or
+write to a file (which then needs `logrotate` and `USR1`, outside this file).
+
+**API request logs** contain method, URL, status, duration and, for admin
+requests, the JWT `sub`; never headers, client address or User-Agent.
+`OECP_LOG_CLIENT_ADDRESSES=true` adds a salted SHA-256 (16 hex characters) of
+the client address; the salt is random per process, so values cannot be
+linked across restarts.
+
+**Time-based retention: Loki.** The `observability` profile runs Loki with
+`observability/loki.yaml`: 90-day retention enforced by the compactor (a
+commented `retention_stream` rule shows a 30-day period for an access-log
+stream). The applications do not ship logs to it yet (no OpenTelemetry SDK,
+spec §10): a log shipper reading the Docker logs (Grafana Alloy, or the
+Collector's `filelog` receiver with `/var/lib/docker/containers` mounted) is
+the recommended production setup; keep the json-file limits as a local buffer.
 
 ## Production checklist
 
@@ -285,14 +335,19 @@ reads every other variable listed above.
 4. **Secrets.** Generate on the server, keep an offline copy of
    `oecp_master_key`.
 5. **Mail.** Never enable the `dev` profile; set `OECP_SMTP_*` to the host
-   institution relay (`OECP_SMTP_STARTTLS=true` if it offers TLS).
-6. **Backups (spec §10).** pgBackRest for both databases (WAL archiving to a
+   institution relay (`OECP_SMTP_STARTTLS=true` if it offers TLS; SMTP AUTH
+   with `OECP_SMTP_USER` and the `smtp_password` secret). Keep
+   `OECP_MAIL_LOG_LINKS=false`.
+6. **Logs.** Size the log rotation for the retention of spec §10 (section
+   [Log retention](#log-retention)) or ship the logs to Loki; enable the Traefik
+   access log only with a 30-day bound.
+7. **Backups (spec §10).** pgBackRest for both databases (WAL archiving to a
    second site, weekly full, daily differential, 35-day retention) is not part
    of this file yet; it will be added as a sidecar or host service. Back up the
    `uploads` volume daily.
-7. **Images.** Build in CI, sign with cosign and pin by digest
+8. **Images.** Build in CI, sign with cosign and pin by digest
    (`OECP_IMAGE_TAG`) rather than building on the server.
-8. **SAML.** Register the SP metadata (see
+9. **SAML.** Register the SP metadata (see
    [`identity/keycloak/scripts/sp-metadata.md`](../../identity/keycloak/scripts/sp-metadata.md)).
 
 ## Troubleshooting
