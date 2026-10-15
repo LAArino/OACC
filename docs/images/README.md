@@ -3,11 +3,14 @@
 
 # Screenshots
 
-Taken on 2026-10-14 from the reference Docker Compose stack (release 0.3.0) with
-simulated data: a mock OEAPI partner (Universität Innsbruck slice) and the Aurora
-Virtual Campus CSV fixture. They illustrate the documentation; the product may
-change. None contains credentials. `admin-maintenance.png` comes from the
-unreleased work after 0.3.0 (Maintenance page).
+The public portal and administration panel screenshots were taken on 2026-10-14
+from the reference Docker Compose stack (release 0.3.0) with simulated data: a
+mock OEAPI partner (Universität Innsbruck slice) and the Aurora Virtual Campus
+CSV fixture; `admin-maintenance.png` shows the Maintenance page, built after
+0.3.0 and released in 0.4.0. The three operations and API screenshots were
+added on 2026-10-15 from release 0.5.0 (development stack, `observability`
+profile). They illustrate the documentation; the product may change. None
+contains credentials.
 
 ## Public portal
 
@@ -36,3 +39,11 @@ unreleased work after 0.3.0 (Maintenance page).
 | `admin-courses-list.png` | Courses list with the completeness column (IT Handbook rule). |
 | `admin-course-editor-completeness.png` | Course editor, review step, completeness card listing missing obligatory fields. |
 | `admin-course-editor-overrides.png` | Course editor in overrides mode on a harvested course: source values and per-field "Override". |
+
+## Operations and API
+
+| File | Shows |
+|---|---|
+| `ops-grafana-overview.png` | Grafana dashboard "OECP overview" of the `observability` profile (kiosk mode, light theme, last 3 hours), rows: Status (api and worker up and ready, database and uploads backup age, last WAL archived, firing alerts), HTTP (api), Harvests (worker), Maintenance jobs (worker), Backups and disk. The "IdP metadata: last refresh" panel shows "No data" because the development stack has no eduGAIN aggregate configured. |
+| `ops-prometheus-rules.png` | Prometheus "Rule health" page with the OECP alert rules (19 rules, every one OK and inactive on the development stack); the groups `oecp-availability`, `oecp-backup` and `oecp-harvest` are visible, the others below the fold. |
+| `api-openapi-redoc.png` | The public catalogue API OpenAPI document (release 0.5.0) rendered with Redoc, a static page built with `npx @redocly/cli build-docs docs/api/oecp-public-api.openapi.json` ([docs/api/README.md](../api/README.md#how-to-view)). |

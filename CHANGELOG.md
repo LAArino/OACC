@@ -10,7 +10,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- Docs: decision 22 in the decisions log: the sign-in mode is chosen per
+  organization by `keycloak_idp_alias` (local Keycloak accounts with password
+  and TOTP for the alliance organization and for universities outside eduGAIN
+  or not yet connected; the university's IdP plus TOTP otherwise), with the
+  migration path from local to federated; a mixed mode within one
+  organization is not supported (backlog row, revisited only on a real case).
+- Docs: "Development environment" section in `CONTRIBUTING.md`: prerequisites,
+  the `dev` Compose stack, lint, type check and tests (including the database
+  suites with `DATABASE_URL_TEST`), OpenAPI generation, the identity E2E
+  scripts, the Compose and alerting checks CI runs, REUSE, and where the
+  development credentials live.
+- Docs: three operations screenshots in `docs/images/` (Grafana dashboard
+  "OECP overview", Prometheus alert rules, public API OpenAPI document in
+  Redoc).
+
+### Changed
+
+- Docs: onboarding guides, data-provider guides, documentation index and
+  production README synchronised with release 0.5.0: backups (profile
+  `backup`, restore drill) and alerting (profile `observability`) replace the
+  interim `pg_dump` advice, release references read 0.5.0, the login model
+  per organization is explained in Guide A step 3; backlog cleaned of the
+  items already done (onboarding and data-provider guides, GDPR set, spec
+  v4.1, ADRs 0007–0017, developer guide and release process; the CI item is
+  reduced to shellcheck).
+- Docs: `docs/RELEASING.md` and the Compose README no longer say that CI
+  skips the database suites and the promtool/amtool checks (it runs both since
+  0.5.0); the RoPA backup entry describes the 35-day pgBackRest window as
+  built and notes that the secret files are not in the backups.
+- Observability: the Grafana panel "5xx ratio" pins its axis to 0–100 %
+  (`min` 0, `max` 1), so an all-zero series no longer autoscales to 10 000 %.
 
 ## [0.5.0] - 2026-10-15
 

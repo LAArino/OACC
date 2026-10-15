@@ -460,7 +460,7 @@ Alertmanager data source (Alerting > Alert list, silences). Prometheus and
 Alertmanager have no published port: use Grafana, or
 `docker compose exec prometheus wget -qO- localhost:9090/api/v1/alerts`.
 
-Validate after editing (CI does not run these yet):
+Validate after editing (CI runs the three checks on every push; the delivery test is manual):
 
 ```sh
 docker run --rm --entrypoint promtool -v "$PWD/observability:/c:ro" -w /c prom/prometheus:v3.15.0 check rules alert-rules.yml

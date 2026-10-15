@@ -3,7 +3,7 @@
 
 # Onboarding to OECP
 
-These guides take an alliance and its universities from "we want a shared course catalogue" to "our courses are published and stay current". They describe **release 0.4.0** as it is. Where something is planned but not built, they say "not yet available in 0.2.0". The as-built specification is [spec v4.1](../spec-v4.1.md); the decisions behind these guides are rows 2, 3, 4, 12, 13, 14, 15 and 17 of the [decisions log](../decisions-log.md).
+These guides take an alliance and its universities from "we want a shared course catalogue" to "our courses are published and stay current". They describe **release 0.5.0** as it is. Where something is planned but not built, they say so ("not yet available in 0.5.0"). The as-built specification is [spec v4.1](../spec-v4.1.md); the decisions behind these guides are rows 2, 3, 4, 12, 13, 14, 15, 17 and 22 of the [decisions log](../decisions-log.md).
 
 > **Before you start**
 >
@@ -51,7 +51,7 @@ The technical companions, written for the people who prepare the data, are:
 
 **Organizations.** Every university is an *organization* with a short `slug` (for example `uibk`), names in English and its own languages, a country, a default time zone and its `schacHomeOrganization` domain. The alliance itself is also an organization (for example `aurora`); it can publish its own courses. Organizations are created from a seed file by the hosting operator (`oecp seed-organizations`) or by an alliance admin on the *Organizations* page.
 
-**Roles.** There are two administrator roles, both protected by multi-factor authentication (password plus a one-time code app):
+**Roles.** There are two administrator roles, both protected by multi-factor authentication (a password or the university's own login, plus a one-time code app):
 
 | Role | Can do |
 |---|---|
@@ -59,6 +59,8 @@ The technical companions, written for the people who prepare the data, are:
 | `partner_admin` | Courses, offerings, uploads, integration settings and sync history of their own organization |
 
 Nobody signs up. Administrators are **invited** by e-mail; the first alliance admin is created from the command line. Roles are never derived from what a university's login system says.
+
+**Sign-in mode per organization** [DL 22]. Each organization signs in one way, set by its *Identity provider alias*: none means local OECP accounts (the alliance organization, and universities outside eduGAIN or not connected yet); an alias means the university's own login through eduGAIN. An organization can move from local to federated later; a mix of local and federated administrators within one organization is not supported ([Guide A, step 3](alliance.md#3-identity)).
 
 **Three channels.** A university feeds its courses through one of:
 
@@ -76,12 +78,15 @@ All three end in the same canonical model, so the public catalogue cannot tell t
 
 **Lifecycle.** Courses and offerings are `draft`, `published`, `withdrawn` or `cancelled`. Publishing needs an English title. A course appears in the catalogue's default listing when it is published and has a published offering that has not ended. Harvested courses that disappear from the endpoint for three complete harvests in a row are withdrawn automatically; a CSV upload never withdraws by omission.
 
-## What 0.4.0 does not have yet
+## What 0.5.0 does not have yet
 
-Plan around these gaps; each guide repeats the ones that affect it. Since 0.2.0 every administration task of these guides has a screen ([Guide A, step 7](alliance.md#7-the-administration-screens)); the admin API remains available for scripting.
+Plan around these gaps; each guide repeats the ones that affect it. Every administration task of these guides has a screen ([Guide A, step 7](alliance.md#7-the-administration-screens)); the admin API remains available for scripting.
+
+Backups and alerting are built and are switched on by the hosting operator ([Guide A, step 9](alliance.md#9-operate)): the Compose profile `backup` runs pgBackRest with continuous WAL archiving, weekly full and daily differential backups, a 35-day recovery window and a daily archive of the uploads, checked by a quarterly restore drill (`deploy/compose/scripts/restore-drill.sh`); the profile `observability` adds Prometheus alert rules, Alertmanager (e-mail or webhook) and the Grafana dashboard *OECP overview*. See the Compose README sections [Backups](../../deploy/compose/README.md#backups-profile-backup), [Restore drill and restore](../../deploy/compose/README.md#restore-drill-and-restore) and [Alerting](../../deploy/compose/README.md#alerting), and the runbook sections [3](../production/runbook.md#3-backups-and-point-in-time-recovery), [4](../production/runbook.md#4-restore-drill) and [7](../production/runbook.md#7-monitoring-and-alerts).
 
 - Login through a university's own identity provider (SAML/eduGAIN) is verified against a simulated IdP only; each real partner IdP must be connected and tested (see Guide A, step 3).
 - No API keys or service accounts: scripts and unattended uploads need a token from an interactive sign-in.
 - No real partner endpoint has been harvested yet; channel A is verified against the bundled mock partner only.
-- No automated backups yet (interim `pg_dump` procedure in the runbook) and no privacy page. The GDPR document set, the accessibility statement and the runbook exist as templates in `docs/production/` that the alliance must complete.
+- Until the operator configures the second backup site (encrypted pgBackRest repo2, documented but not yet exercised), every backup lives on the production host only. The in-host monitoring cannot report the host itself down, nor TLS or IdP certificate expiry: these need an external check (runbook section 7, "Still manual").
+- No privacy or accessibility page in the portal. The GDPR document set, the accessibility statement and the runbook exist as templates in `docs/production/` that the alliance must complete.
 - The portal interface is in English only.

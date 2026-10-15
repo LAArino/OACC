@@ -3,7 +3,7 @@
 
 # API integration: exposing an OEAPI v5 endpoint to OECP
 
-For partner IT teams. OECP **pulls** course data from your Open Education API (OEAPI, formerly OOAPI) **v5.0** endpoint on a schedule (Channel A, spec §6.2); it never receives pushes. This guide states what OECP requests (as built after release 0.3.0, spec v4.1), how it maps your data and how to read the outcome. Getting an administrator account, agreeing to the data reuse and choosing this channel are covered in the onboarding guide [B. Partner with an OEAPI endpoint](../onboarding/partner-with-oeapi.md). Common data rules: [guides README](README.md#common-data-quality-rules).
+For partner IT teams. OECP **pulls** course data from your Open Education API (OEAPI, formerly OOAPI) **v5.0** endpoint on a schedule (Channel A, spec §6.2); it never receives pushes. This guide states what OECP requests (as built in release 0.5.0, spec v4.1), how it maps your data and how to read the outcome. Getting an administrator account, agreeing to the data reuse and choosing this channel are covered in the onboarding guide [B. Partner with an OEAPI endpoint](../onboarding/partner-with-oeapi.md). Common data rules: [guides README](README.md#common-data-quality-rules).
 
 > **Status.** The harvester is verified only against the bundled mock partner (`tools/oeapi-mock`); no real partner endpoint has been harvested yet. Integration settings are entered on the **Integration settings** page of the admin console (settings form, host approval, "Test connection", "Sync now"; walkthrough in [Guide B, steps 5–8](../onboarding/partner-with-oeapi.md#5-enter-the-integration-settings)); the admin API calls below do the same for scripting.
 
@@ -54,7 +54,7 @@ The credential is **write-only**. It is encrypted with AES-256-GCM (12-byte nonc
 - **Host approval:** an `alliance_admin` approves the exact host (`host[:port]`) of `base_url` (*Approve host* on the *Integration settings* page, or `POST …/integration/approve-host`). Changing the host clears the approval; changing only the path keeps it. Until approved, nothing is requested (`oecp.oeapi.host_not_approved`).
 - **Public DNS:** every A/AAAA record of your host must be a public unicast address. Loopback, RFC 1918, CGNAT, ULA, link-local, multicast, documentation and reserved ranges (also embedded in IPv4-mapped, NAT64 or 6to4 addresses) make the run fail with `oecp.oeapi.address_refused`. The connection is pinned to the checked address; the certificate is verified against your host name.
 - **Redirects:** at most 3, and only to the same scheme and host. A redirect to another host (for example a gateway or a login page) is refused (`oecp.oeapi.redirect_refused`).
-- **IP allowlist:** requests come from the OECP worker's egress address. OECP does not publish a fixed address list in 0.2.0; ask the alliance's hosting operator for the address to allowlist.
+- **IP allowlist:** requests come from the OECP worker's egress address. OECP does not publish a fixed address list in 0.5.0; ask the alliance's hosting operator for the address to allowlist.
 
 ## Integration settings
 

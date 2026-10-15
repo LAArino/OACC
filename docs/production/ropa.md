@@ -129,10 +129,10 @@ None: no cookies, analytics or third-party tracking on the portal (spec §1, §7
 |---|---|
 | Purpose | Restore the service and its data after failure or error (art. 32(1)(c)) |
 | Legal basis | As the activities whose data is backed up |
-| Data subjects / data | All of the above: databases `oecp` and `keycloak` (including password hashes and TOTP secrets), the `uploads` volume, the secret files |
+| Data subjects / data | All of the above: databases `oecp` and `keycloak` (including password hashes and TOTP secrets) and the `uploads` volume. The secret files are not in the backups (offline copy, runbook section 2) |
 | Recipients | Hosting operator; backup site `[TO COMPLETE: in-house or external provider; an external provider is a sub-processor]` |
 | Transfers | `[TO COMPLETE: location of the backup site]` |
-| Retention | Target 35 days (pgBackRest, planned, spec §10; not built). **As built:** OECP ships no backup; the operator's interim procedure applies `[TO COMPLETE: schedule and retention]`. Data deleted by the retention jobs survives in backups until they expire |
+| Retention | 35-day recovery window as built (pgBackRest, spec §10, release 0.5.0): a full backup every Sunday, a differential the other days, continuous WAL archiving, daily `uploads` archives kept 35 days; backups older than the window are expired by pgBackRest. Data deleted by the retention jobs survives in backups until they expire |
 | System reference | [runbook](runbook.md), "Backups" |
 
 ## Record maintenance

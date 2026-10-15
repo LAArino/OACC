@@ -22,6 +22,93 @@ participating you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
   licence is compatible with EUPL-1.2 and you record its copyright and licence
   with SPDX headers or a `REUSE.toml` annotation. `reuse lint` must pass.
 
+## Development environment
+
+**Prerequisites.** Node.js 22 (`.node-version`; `package.json` requires
+`^22.22.3`), pnpm 12 through Corepack (`corepack enable`; the exact version is
+`packageManager` in `package.json`), Docker Engine 25+ with Compose v2.24+, and
+`openssl`. Then, from the repository root:
+
+```sh
+pnpm install
+```
+
+**Development stack.** Follow the "Quick start" of
+[deploy/compose/README.md](deploy/compose/README.md#quick-start-local-development)
+once: it creates `.env` with the `dev` block enabled, generates the secrets,
+migrates the database and bootstraps the first alliance admin. Afterwards:
+
+```sh
+cd deploy/compose
+docker compose --profile dev up -d --build --wait   # COMPOSE_PROFILES=dev in .env makes the flag optional
+docker compose run --rm api pnpm db:migrate          # after pulling new migrations
+```
+
+The portal is `https://oecp.localhost/en`, the admin console
+`https://oecp.localhost/en/admin`, Keycloak `https://auth.oecp.localhost`
+(self-signed TLS: accept the certificate, `curl -k`). The `dev` profile adds
+Mailpit (`http://127.0.0.1:8025`, every e-mail), the OEAPI v5 mock partner
+`oeapi-mock` ([tools/oeapi-mock](tools/oeapi-mock/README.md)) and the test SAML
+IdP `test-saml-idp`, used by the realm only with `OECP_DEV_IDP_ENABLED=true`
+in `.env` ([Compose README](deploy/compose/README.md#test-saml-idp-test-saml-idp)).
+
+**Checks before a pull request** (what the CI job "Lint, type check, test"
+runs):
+
+```sh
+pnpm lint && pnpm format:check && pnpm typecheck && pnpm test
+pnpm openapi:check      # fails if docs/api/*.json are out of date; fix with pnpm openapi:generate
+```
+
+The API integration suites (`apps/api/test/integration`) are skipped unless
+`DATABASE_URL_TEST` names a PostgreSQL server where the user may create
+databases (each suite creates and drops its own). CI points it at the
+`postgres` database of a `postgres:16.15` service; locally:
+
+```sh
+docker run -d --rm --name oecp-test-pg -e POSTGRES_PASSWORD=oecp-test \
+  -p 127.0.0.1:55432:5432 postgres:16.15
+DATABASE_URL_TEST=postgres://postgres:oecp-test@127.0.0.1:55432/postgres \
+  pnpm --filter @oecp/api test
+docker stop oecp-test-pg
+```
+
+**Browser end-to-end checks.** [tools/e2e-identity](tools/e2e-identity/README.md)
+drives Chromium (Playwright) through the administrator onboarding against the
+running `dev` stack: `setup-account.js`, `accept-flow.js` and `relogin.js` for
+local accounts, `brokered-accept.js` and `brokered-negative.js` for the
+brokered path through the test SAML IdP. They are developer tools, not CI
+tests; install them with `npm install && npx playwright install chromium
+--only-shell` inside that directory.
+
+**Compose and alerting checks** (CI job "Validate Docker Compose file"), from
+the repository root:
+
+```sh
+for profiles in "" "--profile dev" "--profile backup" "--profile observability" \
+  "--profile dev --profile backup --profile observability"; do
+  eval docker compose --env-file deploy/compose/.env.example \
+    -f deploy/compose/compose.yaml "$profiles" config --quiet
+done
+docker run --rm -v "$PWD/deploy/compose/observability:/obs:ro" \
+  --entrypoint promtool prom/prometheus:v3.15.0 check rules /obs/alert-rules.yml
+docker run --rm -v "$PWD/deploy/compose/observability:/obs:ro" \
+  --entrypoint promtool prom/prometheus:v3.15.0 test rules /obs/alert-rules.test.yml
+docker run --rm \
+  -v "$PWD/deploy/compose/observability/alertmanager:/etc/alertmanager/oecp:ro" \
+  --entrypoint sh prom/alertmanager:v0.34.1 -c \
+  'sh /etc/alertmanager/oecp/entrypoint.sh --render-only /tmp/am.yml && amtool check-config /tmp/am.yml'
+```
+
+**Licensing.** `uvx reuse@5 lint` (or any `reuse` 5.x) must pass; CI runs it
+in the job "REUSE compliance".
+
+**Credentials.** Development secrets live in `deploy/compose/secrets/` and the
+configuration in `deploy/compose/.env`; both are git-ignored, as are the test
+administrators' password and TOTP files the E2E scripts write there. Never
+commit them, paste them into issues, pull requests or logs, or reuse them
+outside the development stack.
+
 ## Developer Certificate of Origin (DCO)
 
 Instead of a CLA, OECP uses the [Developer Certificate of Origin 1.1](DCO).

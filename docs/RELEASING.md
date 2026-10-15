@@ -88,9 +88,10 @@ A version is closed, and may be tagged, only when all of the following hold:
    tests, `reuse lint`, DCO, `docker compose config` and Trivy
    (`.github/workflows/ci.yml`).
 2. **Database suites ran with a database.** The integration suites in
-   `apps/api/test/integration` are skipped unless `DATABASE_URL_TEST` is set,
-   and CI does not set it yet; run them locally (command below) and record
-   the result in the release pull request or commit message.
+   `apps/api/test/integration` are skipped unless `DATABASE_URL_TEST` is set;
+   CI sets it to a PostgreSQL 16 service, so a green CI run covers them. If
+   the release commit was not built by CI, run them locally (command below)
+   and record the result in the release pull request or commit message.
 3. **`docker compose config` is valid** for the reference deployment,
    including the `observability` profile.
 4. **The Compose first-run path works** on an empty Docker host: every step of
