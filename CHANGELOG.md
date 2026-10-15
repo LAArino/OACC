@@ -43,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   built and notes that the secret files are not in the backups.
 - Observability: the Grafana panel "5xx ratio" pins its axis to 0–100 %
   (`min` 0, `max` 1), so an all-zero series no longer autoscales to 10 000 %.
+- Seed: Paris-East Créteil University (`upec`) has `keycloak_idp_alias: null`
+  in `apps/api/db/seed/organizations.aurora.json` (and the default seed), so
+  its administrators get local Keycloak accounts (decision 22) instead of a
+  federated login that no realm IdP serves.
 
 ## [0.5.0] - 2026-10-15
 

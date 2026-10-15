@@ -177,7 +177,7 @@
       "website_url": "https://www.u-pec.fr",
       "default_timezone": "Europe/Paris",
       "ui_languages": ["en", "fr"],
-      "keycloak_idp_alias": "upec"
+      "keycloak_idp_alias": null
     }
   ]
 }

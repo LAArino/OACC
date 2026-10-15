@@ -311,7 +311,8 @@ describe('seed-organizations', () => {
     });
     for (const partner of aurora.organizations.slice(1)) {
       expect(partner.is_partner).toBe(true);
-      expect(partner.keycloak_idp_alias).toBe(partner.slug);
+      // Decision 22: null while the university's administrators use local accounts.
+      expect([null, partner.slug]).toContain(partner.keycloak_idp_alias);
       expect(Object.keys(partner.name).length).toBeGreaterThanOrEqual(2);
       expect(partner.erasmus_code).toBeNull();
       expect(partner.pic).toBeNull();
