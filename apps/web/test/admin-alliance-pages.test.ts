@@ -615,6 +615,77 @@ describe('invitations', () => {
     await flushPromises();
     expect(w.find('[role="alert"]').text()).toContain('The e-mail could not be sent');
   });
+
+  describe('organization identity provider not enabled', () => {
+    const DETAIL =
+      'Identity provider "urv" of organization urv is not enabled in the realm; ' +
+      "enable it or clear the organization's identity provider alias before inviting";
+    const withIdp = (alias: string | null) =>
+      ok(fixtures.organization({ keycloak_idp_alias: alias }));
+    const warning = (w: Wrapper) =>
+      w.findAll('.notice[role="status"]').find((n) => n.text().includes('identity provider'));
+
+    it('warns when the alias is set but the reference does not publish it, and shows the 409', async () => {
+      asAlliance({
+        [ORG]: withIdp('urv'),
+        [INVITATIONS]: ok({ items: [] }),
+        [CREATE_INVITATION]: () => ({
+          status: 409,
+          body: problem(409, 'oecp.invitation.idp_not_enabled', {
+            detail: DETAIL,
+            idp_alias: 'urv',
+          }),
+        }),
+      });
+      const w = await mountPage(InvitationsPage, `/en/admin/invitations?org=${ORG_ID}`);
+      const notice = warning(w);
+      expect(notice?.text()).toContain('identity provider "urv" is not enabled');
+      expect(notice?.text()).toContain('Invitations will be refused');
+      expect(notice?.find('a').attributes('href')).toBe(`/en/admin/organizations/${ORG_ID}`);
+      expect(button(w, 'Send invitation').attributes('disabled')).toBeUndefined();
+      expect(await axeViolations(w.html())).toEqual([]);
+
+      await w.find('input[type="email"]').setValue('x@urv.cat');
+      await w.find('form').trigger('submit');
+      await flushPromises();
+      expect(callsTo(CREATE_INVITATION)).toHaveLength(1);
+      const alert = w.find('[role="alert"]').text();
+      expect(alert).toContain("the organization's identity provider is not enabled");
+      expect(alert).toContain(DETAIL);
+      expect(alert).toContain('oecp.invitation.idp_not_enabled');
+    });
+
+    it('does not warn when the reference publishes the alias or the organization has none', async () => {
+      const published = {
+        ...fixtures.reference,
+        organizations: fixtures.reference.organizations.map((o) =>
+          o.id === ORG_ID ? { ...o, idp_alias: 'urv' } : o,
+        ),
+      };
+      asAlliance({
+        [ORG]: withIdp('urv'),
+        [REFERENCE]: ok(published),
+        [INVITATIONS]: ok({ items: [] }),
+      });
+      let w = await mountPage(InvitationsPage, `/en/admin/invitations?org=${ORG_ID}`);
+      expect(w.find('form').exists()).toBe(true);
+      expect(warning(w)).toBeUndefined();
+
+      w.unmount();
+      resetAdminReference();
+      asAlliance({ [ORG]: withIdp(null), [INVITATIONS]: ok({ items: [] }) });
+      w = await mountPage(InvitationsPage, `/en/admin/invitations?org=${ORG_ID}`);
+      expect(w.find('form').exists()).toBe(true);
+      expect(warning(w)).toBeUndefined();
+    });
+
+    it('does not check the organization for partner administrators', async () => {
+      serve({ [ORG]: withIdp('urv'), [INVITATIONS]: ok({ items: [] }) });
+      const w = await mountPage(InvitationsPage, '/en/admin/invitations');
+      expect(warning(w)).toBeUndefined();
+      expect(callsTo(ORG)).toHaveLength(0);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

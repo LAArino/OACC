@@ -104,6 +104,7 @@ const MESSAGE_KEYS: Readonly<Record<string, string>> = {
   'oecp.invitation.expired': 'problem.invitationExpired',
   'oecp.invitation.invalid': 'problem.invitationInvalid',
   'oecp.invitation.mismatch': 'problem.invitationMismatch',
+  'oecp.invitation.idp_not_enabled': 'problem.invitationIdpNotEnabled',
   'oecp.auth.missing_token': 'problem.signInAgain',
   'oecp.auth.invalid_token': 'problem.signInAgain',
   'oecp.auth.insufficient_acr': 'problem.insufficientAcr',

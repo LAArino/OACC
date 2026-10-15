@@ -262,6 +262,9 @@ const DELETE_ERRORS = {
   409: 'Delete refused (as in the console): `oecp.content.harvested_not_deletable`, `oecp.content.published_not_deletable` (withdraw or cancel first), `oecp.content.has_published_offerings` (courses), `oecp.sync.channel_disabled`.',
 } as const;
 
+const IDP_NOT_ENABLED =
+  "The organization's identity provider (`keycloak_idp_alias`) is missing or disabled in the Keycloak realm, so the invitee could not sign in: `oecp.invitation.idp_not_enabled` with the extension member `idp_alias`";
+
 const IDENTITY_ERRORS = {
   502: 'Keycloak Admin API failed: `oecp.identity.unavailable`.',
   504: 'Keycloak Admin API timed out: `oecp.identity.unavailable`.',
@@ -314,6 +317,7 @@ export const ADMIN_OPERATIONS: readonly OperationSpec[] = [
     responses: { 201: { description: 'Created.', schema: 'Invitation' } },
     errors: {
       404: 'Unknown organization: `oecp.request.not_found`.',
+      409: `${IDP_NOT_ENABLED}.`,
       502: 'The invitation e-mail could not be sent: `oecp.mail.unavailable`.',
     },
   },
@@ -342,7 +346,7 @@ export const ADMIN_OPERATIONS: readonly OperationSpec[] = [
     responses: { 201: { description: 'The new invitation.', schema: 'Invitation' } },
     errors: {
       404: 'Unknown invitation: `oecp.request.not_found`.',
-      409: 'Accepted invitations cannot be resent: `oecp.invitation.invalid`.',
+      409: `Accepted invitations cannot be resent: \`oecp.invitation.invalid\`. ${IDP_NOT_ENABLED}.`,
       502: 'The invitation e-mail could not be sent: `oecp.mail.unavailable`.',
     },
   },
@@ -517,6 +521,7 @@ export const ADMIN_OPERATIONS: readonly OperationSpec[] = [
     responses: { 201: { description: 'Created.', schema: 'Invitation' } },
     errors: {
       404: SCOPE_404,
+      409: `${IDP_NOT_ENABLED}.`,
       502: 'The invitation e-mail could not be sent: `oecp.mail.unavailable`.',
     },
   },

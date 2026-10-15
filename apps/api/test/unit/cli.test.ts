@@ -395,12 +395,15 @@ describe('seed-attribute-definitions', () => {
     expect(byKey.get('sdg')!.options![12]!.label.en).toBe('SDG 13: Climate action');
     expect(byKey.get('competence_framework')!.options!.map((o) => o.value)).toEqual([
       'louis',
+      'seizmic',
+      'bevi',
       'none',
     ]);
     expect(byKey.get('target_audience')!.options!.map((o) => o.value)).toEqual([
       'students',
-      'phd_candidates',
-      'staff',
+      'academics',
+      'administrative_staff',
+      'other',
     ]);
     for (const key of ['micro_credential', 'free_course', 'enrolled_only', 'open_to_alliance']) {
       expect(byKey.get(key)).toMatchObject({ value_type: 'boolean', options: null });

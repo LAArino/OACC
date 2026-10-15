@@ -252,7 +252,12 @@ const sections = computed(() =>
                 <h2 id="section-invitations" tabindex="-1">
                   {{ t('admin.organizations.tabs.invitations') }}
                 </h2>
-                <AdminInvitationsPanel :org-id="org.id" :is-alliance="true" :level="3" />
+                <AdminInvitationsPanel
+                  :org-id="org.id"
+                  :is-alliance="true"
+                  :level="3"
+                  :idp-alias="org.keycloak_idp_alias"
+                />
                 <p>
                   <NuxtLink :to="localePath({ path: '/admin/invitations', query: orgQuery })">
                     {{ t('admin.organizations.openInvitations') }}

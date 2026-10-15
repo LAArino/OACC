@@ -4,6 +4,8 @@
 // list with status, revoke and resend with confirmation. Alliance administrators
 // may invite either role; partner administrators cannot invite (alliance_admin only, spec §2.1).
 // The API e-mails the link; the token is never returned to the browser.
+// The API refuses invitations to an organization whose identity provider is not
+// enabled in the realm (`oecp.invitation.idp_not_enabled`); the panel warns first.
 import type { AdminRole } from '@oecp/schemas';
 import { EMAIL_PATTERN, INVITATION_DEFAULT_TTL_HOURS } from '@oecp/schemas';
 import type { AdminInvitation, AdminInvitationStatus } from '~/types/admin';
@@ -15,11 +17,15 @@ const props = withDefaults(
     isAlliance: boolean;
     /** Heading level of the panel's sections (2 on its own page, 3 inside the organization page). */
     level?: 2 | 3;
+    /** The organization's `keycloak_idp_alias` when the caller has it (fetched otherwise). */
+    idpAlias?: string | null;
   }>(),
-  { level: 2 },
+  { level: 2, idpAlias: undefined },
 );
 const { t, locale } = useI18n();
+const localePath = useLocalePath();
 const api = useAdminAllianceApi();
+const reference = useAdminReference();
 const uid = useId();
 const id = (name: string) => `${uid}-${name}`;
 const heading = computed(() => `h${props.level}`);
@@ -67,7 +73,33 @@ async function load() {
   }
 }
 
-onMounted(load);
+// Alias of the organization's identity provider when the public reference does
+// not publish it, i.e. it is missing or disabled in the realm (the reference is
+// cached up to 5 minutes). Unknown (a request failed): no warning.
+const disabledIdp = ref<string | null>(null);
+let idpRequest = 0;
+
+async function checkIdp() {
+  const current = ++idpRequest;
+  disabledIdp.value = null;
+  if (!props.isAlliance) return;
+  try {
+    const alias =
+      props.idpAlias !== undefined
+        ? props.idpAlias
+        : (await api.getOrganization(props.orgId)).keycloak_idp_alias;
+    if (!alias) return;
+    const entry = (await reference.load()).organizations.find((o) => o.id === props.orgId);
+    if (current === idpRequest && entry && !entry.idp_alias) disabledIdp.value = alias;
+  } catch {
+    // The API remains the authority: it refuses the invitation if needed.
+  }
+}
+
+onMounted(() => {
+  void load();
+  void checkIdp();
+});
 watch(
   () => props.orgId,
   () => {
@@ -77,6 +109,7 @@ watch(
     void load();
   },
 );
+watch(() => [props.orgId, props.isAlliance, props.idpAlias], checkIdp);
 watch(roles, (value) => {
   if (!value.includes(role.value)) role.value = 'partner_admin';
 });
@@ -196,6 +229,14 @@ function when(i: AdminInvitation): string {
       <component :is="heading" :id="id('create')">
         {{ t('admin.invitations.createHeading') }}
       </component>
+      <div v-if="props.isAlliance && disabledIdp" class="notice" role="status">
+        <p>{{ t('admin.invitations.idpNotEnabled', { alias: disabledIdp }) }}</p>
+        <p>
+          <NuxtLink :to="localePath(`/admin/organizations/${props.orgId}`)">
+            {{ t('admin.invitations.idpNotEnabledLink') }}
+          </NuxtLink>
+        </p>
+      </div>
       <form v-if="props.isAlliance" class="admin-form" novalidate @submit.prevent="create">
         <div class="admin-form__row">
           <div class="admin-field" :class="{ 'admin-field--invalid': emailError }">

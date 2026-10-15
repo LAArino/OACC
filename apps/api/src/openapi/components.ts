@@ -143,6 +143,7 @@ const problemDetailsDoc = z.looseObject({
   instance: z.string().optional(),
   errors: z.array(problemErrorDoc).optional(),
   reason: invitationMismatchReason.optional(),
+  idp_alias: z.string().optional(),
 });
 
 /** Inline upload result (201): `CsvUploadInlineResponse` of the uploads controller. */
@@ -221,7 +222,7 @@ const RESPONSES: readonly ComponentDef[] = [
     id: 'ProblemDetails',
     schema: problemDetailsDoc,
     description:
-      'RFC 9457 `application/problem+json`, the body of every error response. `errors[]` lists stable codes; `instance` is the request path. Extension members: `reason` on `oecp.invitation.mismatch` (see `InvitationMismatchReason`), `sync_run_id`/`run_status`/`error_count`/`warning_count`/`processed_inline` on failed inline uploads. Problems raised by the framework itself (e.g. a malformed UUID in the path) carry `title` and `status` without `errors`.',
+      'RFC 9457 `application/problem+json`, the body of every error response. `errors[]` lists stable codes; `instance` is the request path. Extension members: `reason` on `oecp.invitation.mismatch` (see `InvitationMismatchReason`), `idp_alias` on `oecp.invitation.idp_not_enabled`, `sync_run_id`/`run_status`/`error_count`/`warning_count`/`processed_inline` on failed inline uploads. Problems raised by the framework itself (e.g. a malformed UUID in the path) carry `title` and `status` without `errors`.',
   },
   // Public catalogue (spec §7).
   { id: 'PublicOrganizationRef', schema: publicOrganizationRef },

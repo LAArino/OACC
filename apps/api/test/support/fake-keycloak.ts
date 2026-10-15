@@ -4,7 +4,8 @@
  * `fetch` double. Behaves like Keycloak 26 where it matters: `q=<attr>:<value>`
  * is an exact, case-insensitive attribute match; `GET /roles/{name}/users` is
  * refused without view-realm (403 unless `roleMembersReadable`); events need
- * view-events (403 by default); `DELETE /users/{id}` removes the user.
+ * view-events (403 by default); `DELETE /users/{id}` removes the user;
+ * identity providers are read from `identityProviders`.
  */
 import { KeycloakAdminService } from '../../src/identity/keycloak-admin.service.js';
 
@@ -49,6 +50,8 @@ export class FakeKeycloak {
   eventsReadable = false;
   /** Grant `view-realm` (`GET /roles/{name}/users`) to the service account. */
   roleMembersReadable = false;
+  /** Identity providers of the realm (`GET /identity-provider/instances[/{alias}]`). */
+  readonly identityProviders = new Map<string, { alias: string; enabled: boolean }>();
   /** Answer every Admin API call with this status (Keycloak down). */
   failWith: number | undefined;
   private seq = 0;
@@ -127,6 +130,11 @@ export class FakeKeycloak {
           .slice(first, first + max)
           .map(representation),
       );
+    }
+    if (parts[0] === 'identity-provider' && parts[1] === 'instances' && method === 'GET') {
+      if (!parts[2]) return json([...this.identityProviders.values()]);
+      const idp = this.identityProviders.get(parts[2]);
+      return idp ? json(idp) : json({ error: 'Could not find identity provider' }, 404);
     }
     if (parts[0] !== 'users' || !parts[1]) return empty(404);
     const user = this.users.get(parts[1]);

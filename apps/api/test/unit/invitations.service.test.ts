@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 import { Logger } from '@nestjs/common';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ProblemException } from '../../src/common/problem.js';
 import { hashInvitationToken } from '../../src/admin/invitations/invitation-token.js';
 import { InvitationsService } from '../../src/admin/invitations/invitations.service.js';
 import type { MailerPort } from '../../src/admin/invitations/mailer.js';
@@ -60,6 +61,7 @@ describe('InvitationsService', () => {
       findUserByEmail: vi.fn().mockResolvedValue(undefined),
       createLocalUser: vi.fn().mockResolvedValue(KC_USER),
       sendExecuteActionsEmail: vi.fn().mockResolvedValue(undefined),
+      getIdentityProvider: vi.fn().mockResolvedValue({ alias: 'urv', enabled: true }),
     };
     mailer = { send: vi.fn().mockResolvedValue(undefined) };
     service = new InvitationsService(
@@ -113,6 +115,58 @@ describe('InvitationsService', () => {
     expect(keycloak['findUserByEmail']).not.toHaveBeenCalled();
     expect(keycloak['createLocalUser']).not.toHaveBeenCalled();
     expect(mailer.send).toHaveBeenCalledOnce();
+  });
+
+  describe('organizations with an IdP alias', () => {
+    const urv = { ...base, role: 'partner_admin' as const, organizationId: URV };
+
+    it('creates the invitation when the IdP is enabled in the realm', async () => {
+      const result = await service.create(urv);
+      expect(keycloak['getIdentityProvider']).toHaveBeenCalledWith('urv');
+      expect(result.link).toBe(
+        `https://campus.example.org/en/admin/accept#token=${result.token}&idp=urv`,
+      );
+      expect(fake.events.at(-1)).toBe('commit');
+    });
+
+    it.each([
+      ['missing', undefined],
+      ['disabled', { alias: 'urv', enabled: false }],
+    ])('refuses with 409 when the IdP is %s', async (_, idp) => {
+      keycloak['getIdentityProvider']!.mockResolvedValue(idp);
+      const error = await service.create(urv).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ProblemException);
+      expect(error).toMatchObject({ code: 'oecp.invitation.idp_not_enabled' });
+      const problem = error as ProblemException;
+      expect(problem.getStatus()).toBe(409);
+      expect(problem.getResponse()).toMatchObject({
+        detail:
+          'Identity provider "urv" of organization urv is not enabled in the realm; ' +
+          "enable it or clear the organization's identity provider alias before inviting",
+        extensions: { idp_alias: 'urv' },
+      });
+      expect(fake.events).not.toContain('begin');
+      expect(mailer.send).not.toHaveBeenCalled();
+    });
+
+    it('creates the invitation (logged) when Keycloak cannot be asked', async () => {
+      const warn = vi.spyOn(Logger.prototype, 'warn');
+      keycloak['getIdentityProvider']!.mockRejectedValue(
+        new KeycloakAdminError('get identity provider', undefined),
+      );
+      const result = await service.create(urv);
+      expect(result.link).toContain('&idp=urv');
+      expect(mailer.send).toHaveBeenCalledOnce();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Identity provider "urv" of organization urv could not be checked'),
+      );
+      warn.mockRestore();
+    });
+
+    it('does not ask Keycloak about IdPs for an organization without alias', async () => {
+      await service.create(base);
+      expect(keycloak['getIdentityProvider']).not.toHaveBeenCalled();
+    });
   });
 
   it('reuses an existing local user and re-sends only pending actions', async () => {

@@ -8,6 +8,7 @@ import { type Db, KYSELY } from '../../db/db.module.js';
 import { KeycloakAdminError } from '../../identity/keycloak-admin.error.js';
 import {
   KeycloakAdminService,
+  type KeycloakIdentityProviderRepresentation,
   OECP_ORG_ID_ATTRIBUTE,
   type RequiredAction,
   SCHAC_HOME_ORGANIZATION_ATTRIBUTE,
@@ -121,7 +122,11 @@ export class InvitationsService {
     }
 
     // Organizations without an eduGAIN IdP get a Keycloak local user now; brokered
-    // users are created by Keycloak at their first login (spec §2.1).
+    // users are created by Keycloak at their first login (spec §2.1), which needs
+    // the organization's IdP to exist and be enabled in the realm.
+    if (organization.keycloak_idp_alias !== null) {
+      await this.assertIdpEnabled(organization.keycloak_idp_alias, organization.slug);
+    }
     const localUser =
       organization.keycloak_idp_alias === null
         ? await this.ensureLocalUser(email, input.ttlHours)
@@ -379,6 +384,34 @@ export class InvitationsService {
       .limit(1)
       .executeTakeFirst();
     return row !== undefined;
+  }
+
+  /**
+   * Refuses (409 `oecp.invitation.idp_not_enabled`) an invitation whose link would
+   * hint an identity provider Keycloak cannot route to (missing or disabled): the
+   * invitee would land on a login page without it. When Keycloak cannot be asked,
+   * the invitation goes ahead (logged): the check only prevents a known dead end.
+   */
+  private async assertIdpEnabled(alias: string, slug: string): Promise<void> {
+    let idp: KeycloakIdentityProviderRepresentation | undefined;
+    try {
+      idp = await this.keycloak.getIdentityProvider(alias);
+    } catch (error) {
+      if (!(error instanceof KeycloakAdminError)) throw error;
+      this.logger.warn(
+        `Identity provider "${alias}" of organization ${slug} could not be checked ` +
+          `(${error.message}); the invitation is created anyway`,
+      );
+      return;
+    }
+    if (idp && idp.enabled !== false) return;
+    throw new ProblemException(
+      409,
+      'oecp.invitation.idp_not_enabled',
+      `Identity provider "${alias}" of organization ${slug} is not enabled in the realm; ` +
+        "enable it or clear the organization's identity provider alias before inviting",
+      { idp_alias: alias },
+    );
   }
 
   /**

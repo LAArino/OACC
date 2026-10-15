@@ -41,7 +41,7 @@
         {
           "value": "culture_identities_diversities",
           "label": {
-            "en": "Culture: Identities and Diversities"
+            "en": "Culture: Identities & Diversities"
           }
         },
         {
@@ -54,6 +54,12 @@
           "value": "peace_education",
           "label": {
             "en": "Peace Education"
+          }
+        },
+        {
+          "value": "other",
+          "label": {
+            "en": "Other"
           }
         }
       ],
@@ -191,7 +197,19 @@
         {
           "value": "louis",
           "label": {
-            "en": "LOUIS"
+            "en": "LOUIS (Learning Outcomes in University education for Impact of Society)"
+          }
+        },
+        {
+          "value": "seizmic",
+          "label": {
+            "en": "seizmic (social entrepreneurship and sustainability innovation competences)"
+          }
+        },
+        {
+          "value": "bevi",
+          "label": {
+            "en": "BEVI (Beliefs, Events and Values Inventory)"
           }
         },
         {
@@ -271,15 +289,21 @@
           }
         },
         {
-          "value": "phd_candidates",
+          "value": "academics",
           "label": {
-            "en": "PhD candidates"
+            "en": "Academics"
           }
         },
         {
-          "value": "staff",
+          "value": "administrative_staff",
           "label": {
-            "en": "Staff"
+            "en": "Administrative staff"
+          }
+        },
+        {
+          "value": "other",
+          "label": {
+            "en": "Other"
           }
         }
       ],

@@ -966,7 +966,9 @@
       "revokeTitle": "Revoke the invitation?",
       "revokeMessage": "The invitation link sent to {email} stops working at once. You can invite the address again later.",
       "revoked": "The invitation to {email} was revoked.",
-      "partnerActionsHint": "Only alliance administrators can revoke or resend invitations: ask one if a link must be cancelled or sent again."
+      "partnerActionsHint": "Only alliance administrators can revoke or resend invitations: ask one if a link must be cancelled or sent again.",
+      "idpNotEnabled": "This organization's identity provider \"{alias}\" is not enabled in the login service, so its administrators cannot sign in. Invitations will be refused until the identity provider is enabled or the organization's identity provider alias is cleared.",
+      "idpNotEnabledLink": "Open the organization's settings"
     },
     "admins": {
       "intro": "Accounts holding an administration role in this organization. Removing an administrator takes the role away and ends their sessions; the account itself is kept. Local accounts with a pending set-up can get the set-up e-mail again.",
@@ -1346,6 +1348,7 @@
     "invitationExpired": "This invitation has expired. Ask an alliance administrator to send you a new one.",
     "invitationInvalid": "This invitation is not valid: it does not exist, was revoked or was already accepted.",
     "invitationMismatch": "This invitation was issued for another account. Sign out, then sign in through your organization with the e-mail address the invitation was sent to.",
+    "invitationIdpNotEnabled": "The invitation was not sent: the organization's identity provider is not enabled in the login service, so the invitee could not sign in. Enable it, or clear the organization's identity provider alias, then invite again.",
     "signInAgain": "Your session has expired. Sign in again.",
     "insufficientAcr": "This requires a sign-in with a second factor. Sign in again.",
     "noRole": "Your account has no administration role.",

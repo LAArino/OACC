@@ -184,6 +184,9 @@ describe.runIf(describeWithDatabase === 'run')('Organizations admin API (Postgre
       idp: 'urv',
     });
     keycloak.addUser({ id: '77777777-7777-4777-8777-777777777777', email: 'student@example.org' });
+    for (const alias of ['uibk', 'urv']) {
+      keycloak.identityProviders.set(alias, { alias, enabled: true });
+    }
   }, 60_000);
 
   afterAll(async () => {
@@ -672,6 +675,23 @@ describe.runIf(describeWithDatabase === 'run')('Organizations admin API (Postgre
       );
       await invite(ORG.aurora, 'new@aurora.example');
       expect(mail.at(-1)!.text).toMatch(/accept#token=[A-Za-z0-9_-]{43}\n/);
+    });
+
+    it('refuses invitations to an organization whose IdP is not enabled in the realm', async () => {
+      keycloak.identityProviders.set('urv', { alias: 'urv', enabled: false });
+      try {
+        const res = await as(auth.alliance)
+          .post(`${api}/organizations/${ORG.urv}/invitations`, {
+            email: 'blocked@urv.example',
+            role: 'partner_admin',
+          })
+          .expect(409);
+        expect(code(res)).toBe('oecp.invitation.idp_not_enabled');
+        expect(res.body).toMatchObject({ idp_alias: 'urv' });
+        expect(mail).toHaveLength(0);
+      } finally {
+        keycloak.identityProviders.set('urv', { alias: 'urv', enabled: true });
+      }
     });
 
     it('creates invitations through the org-scoped alias of POST /invitations', async () => {

@@ -159,7 +159,7 @@ The organization picker at the top of each page (kept in `?org=`) selects the or
 1. Open *Invitations* (or *Organizations* > the organization > *Invitations*) and pick the partner organization.
 2. Under *Invite an administrator* enter the e-mail address, choose the role (`partner_admin`) and the validity (7 days by default, or 3 or 1), and choose *Send invitation*.
 
-OECP e-mails the invitation link; for local-account organizations Keycloak also sends the password and TOTP set-up mail. For an organization with an identity provider alias, the link carries the alias and the person signs in through their university. The address must be the one the person signs in with, and one person can administer only one organization.
+OECP e-mails the invitation link; for local-account organizations Keycloak also sends the password and TOTP set-up mail. For an organization with an identity provider alias, the link carries the alias and the person signs in through their university. That identity provider must be enabled in the realm (section 3): otherwise OECP refuses the invitation (`oecp.invitation.idp_not_enabled`) and the *Invitations* panel shows a warning with a link to the organization, where you can clear the alias to use a local account instead. The address must be the one the person signs in with, and one person can administer only one organization.
 
 The list shows each invitation as *Pending*, *Accepted*, *Expired* or *Revoked*. *Revoke* stops a pending link at once; *Resend* replaces a lost or expired link with a new one (the old link stops working). If a local account never finished its password and TOTP set-up, use *Resend set-up e-mail* on the organization's *Administrators* panel. Agree with each partner which guide applies (B, C or D).
 

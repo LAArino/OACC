@@ -96,9 +96,9 @@ Aurora's definitions (`apps/api/db/seed/attribute-definitions.aurora.json`, stil
 |---|---|---|
 | `attr_educational_hub` | multi_enum | `sustainability_climate_change`, `digital_society_global_citizenship`, `health_wellbeing`, `culture_identities_diversities`, `social_entrepreneurship_innovation`, `peace_education` |
 | `attr_sdg` | multi_enum | `sdg01` … `sdg17` |
-| `attr_competence_framework` | enum | `louis`, `none` |
+| `attr_competence_framework` | enum | `louis`, `seizmic`, `bevi`, `none` |
 | `attr_micro_credential`, `attr_free_course`, `attr_enrolled_only`, `attr_open_to_alliance` | boolean | `true`, `false` |
-| `attr_target_audience` | multi_enum | `students`, `phd_candidates`, `staff` |
+| `attr_target_audience` | multi_enum | `students`, `academics`, `administrative_staff`, `other` |
 
 ## Status and omission
 
@@ -227,7 +227,7 @@ Three courses and their offerings from the Aurora Virtual Campus fixture (`apps/
 template_version,course_code,status,ects,isced_codes,title_en,kind,levels,eqf_level,info_url,abstract_en,prerequisites_en,keywords_en,instructors,methods_en,remarks_en,attr_educational_hub,attr_sdg,attr_competence_framework,attr_micro_credential,attr_free_course,attr_enrolled_only,attr_open_to_alliance,attr_target_audience
 1.2,AVC-BIP-AI-ETHICS,published,3,0619|0223,BIP: AI & Ethics,bip,bachelor|master,,https://aurora-universities.eu/study/virtual-campus/,"Blended Intensive Programme on the ethical questions raised by artificial intelligence, combining online sessions with a short physical mobility.",Nomination by the home university's Aurora office.,artificial intelligence|ethics|BIP,"BIP teaching team, Aurora partner universities",Online sessions combined with a short physical mobility.,,digital_society_global_citizenship,sdg04|sdg09|sdg16,,false,true,true,true,students
 1.2,AVC-SPARK-SOCIAL,published,6,0413|0319,BIP: Spark Social,bip,master|bachelor,7,https://aurora-universities.eu/study/virtual-campus/,Blended Intensive Programme on social innovation and entrepreneurship hosted by the University of Iceland.,Graduate students or third-year undergraduates (more than 120 ECTS); nomination by the home university's Aurora office.,social innovation|entrepreneurship|BIP,"Course team, University of Iceland",Online sessions combined with a short physical mobility.,Hosted by the University of Iceland.,social_entrepreneurship_innovation,sdg08|sdg09,,false,true,true,true,students
-1.2,AVC-SUST-EDU,published,5,0111|0521,Sustainability Education and Learning,course,master,7,https://aurora-universities.eu/study/virtual-campus/,Graduate course of the University of Iceland on education and learning for sustainability.,Graduate students; nomination by the home university's Aurora office.,sustainability|education,"Course team, host university",,,sustainability_climate_change,sdg04|sdg13,louis,true,true,true,true,students|phd_candidates
+1.2,AVC-SUST-EDU,published,5,0111|0521,Sustainability Education and Learning,course,master,7,https://aurora-universities.eu/study/virtual-campus/,Graduate course of the University of Iceland on education and learning for sustainability.,Graduate students; nomination by the home university's Aurora office.,sustainability|education,"Course team, host university",,,sustainability_climate_change,sdg04|sdg13,louis,true,true,true,true,students|academics
 ```
 
 `offerings.csv`:

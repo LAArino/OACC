@@ -50,6 +50,10 @@ export const ERROR_CODES = {
     severity: 'error',
     message: 'Signed-in identity does not match the invitation',
   },
+  'oecp.invitation.idp_not_enabled': {
+    severity: 'error',
+    message: 'Identity provider not enabled',
+  },
 
   'oecp.identity.unavailable': {
     severity: 'error',

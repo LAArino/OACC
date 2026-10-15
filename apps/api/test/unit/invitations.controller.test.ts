@@ -83,6 +83,7 @@ describe('InvitationsController', () => {
     sendExecuteActionsEmail: vi.fn(),
     setUserAttribute: vi.fn(),
     addRealmRole: vi.fn(),
+    getIdentityProvider: vi.fn(),
   };
   const mailer = { send: vi.fn<MailerPort['send']>() };
 
@@ -151,6 +152,7 @@ describe('InvitationsController', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    keycloak.getIdentityProvider.mockResolvedValue({ alias: 'urv', enabled: true });
     fake.queries.length = 0;
     fake.events.length = 0;
     const generated = generateInvitationToken();

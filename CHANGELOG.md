@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- API and admin panel: invitations to an organization whose identity provider
+  (`keycloak_idp_alias`) is missing or disabled in the Keycloak realm are
+  refused with 409 `oecp.invitation.idp_not_enabled` (extension member
+  `idp_alias`), since Keycloak would ignore the `idp` hint and the invitee could
+  not sign in; when Keycloak does not answer the check is skipped and logged.
+  The invitations panel warns beforehand when the organization has an alias
+  that the public reference does not publish, with a link to the organization.
 - Web: deployment branding. The home page and the course list show an optional header image
   (`NUXT_PUBLIC_HERO_IMAGE`, with `NUXT_PUBLIC_HERO_IMAGE_ALT`; decorative
   `alt=""` by default; the course list may have its own,
@@ -41,6 +48,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Seed: the Aurora attribute definitions follow the filters of the Aurora
+  Virtual Campus website (confirmed by the owner on 2026-10-15): educational
+  hubs keep their six values with the website's labels plus `other`;
+  `target_audience` is now `students`, `academics`, `administrative_staff`,
+  `other` (was `students`, `phd_candidates`, `staff`); `competence_framework`
+  lists the three Aurora frameworks `louis`, `seizmic`, `bevi` and `none`; the
+  17 SDGs are unchanged. The CSV guide and the Virtual Campus sample follow.
+  Deployments that already loaded the old definitions re-run
+  `oecp seed-attribute-definitions` and replace `phd_candidates` with
+  `academics` (and `staff` with `administrative_staff`) on existing courses.
 - Docs: onboarding guides, data-provider guides, documentation index and
   production README synchronised with release 0.5.0: backups (profile
   `backup`, restore drill) and alerting (profile `observability`) replace the
