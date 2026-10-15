@@ -550,7 +550,8 @@ services:
       NUXT_PUBLIC_ALLIANCE_NAME: ${OECP_ALLIANCE_NAME:-the alliance}
       # Branding (branding/README.md): the alliance's images, mounted read-only
       # below and served at /branding/<file>. Header image of the home page and
-      # logo of the site header; empty = none (text brand, no banner).
+      # the course list, and logo of the site header; empty = none (text brand,
+      # no banner).
       NUXT_BRANDING_DIR: /data/branding
       NUXT_PUBLIC_HERO_IMAGE: ${OECP_HERO_IMAGE:-}
       # Empty = decorative header image (alt="").

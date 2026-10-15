@@ -59,9 +59,10 @@ const title = computed(() => {
     ? t('courses.titlePage', { title: base, page: state.value.page })
     : base;
 });
+const { previewMeta } = useHeroImage();
 useHead({
   title,
-  meta: [{ name: 'description', content: () => t('courses.metaDescription') }],
+  meta: () => [{ name: 'description', content: t('courses.metaDescription') }, ...previewMeta()],
 });
 
 // --- Progressive enhancement ----------------------------------------------
@@ -110,6 +111,7 @@ const retry = () => refreshNuxtData('catalogue-search');
 
 <template>
   <div class="catalogue">
+    <BrandingBanner />
     <h1>{{ t('courses.title') }}</h1>
 
     <form

@@ -124,7 +124,7 @@ describe('home page header image', () => {
   it('renders a decorative banner above the title and link-preview meta', async () => {
     hero().heroImage = '/branding/hero.png';
     const w = await mountSuspended(HomePage, { route: '/en' });
-    const banner = w.find('.home__hero > .home__banner');
+    const banner = w.find('.home__hero > .branding-banner');
     expect(banner.exists()).toBe(true);
     expect(banner.element.nextElementSibling?.tagName).toBe('H1');
     const img = banner.find('img');
@@ -148,7 +148,7 @@ describe('home page header image', () => {
     hero().heroImage = 'https://cdn.example.eu/aurora/hero.webp';
     hero().heroImageAlt = 'Students on the campus lawn';
     const w = await mountSuspended(HomePage, { route: '/en' });
-    expect(w.find('.home__banner img').attributes()).toMatchObject({
+    expect(w.find('.branding-banner img').attributes()).toMatchObject({
       src: 'https://cdn.example.eu/aurora/hero.webp',
       alt: 'Students on the campus lawn',
     });
@@ -158,9 +158,22 @@ describe('home page header image', () => {
     w.unmount();
   });
 
+  it('shows the same banner above the course list title', async () => {
+    hero().heroImage = '/branding/hero.png';
+    const w = await mountSuspended(CataloguePage, { route: '/en/courses' });
+    const banner = w.find('.catalogue > .branding-banner');
+    expect(banner.exists()).toBe(true);
+    expect(banner.element.nextElementSibling?.tagName).toBe('H1');
+    expect(banner.find('img').html()).toContain('alt=""');
+    await vi.waitFor(() =>
+      expect(headMeta('property="og:image"')).toMatch(/^https?:\/\/[^/]+\/branding\/hero\.png$/),
+    );
+    w.unmount();
+  });
+
   it('renders no banner and no image meta when unset', async () => {
     const w = await mountSuspended(HomePage, { route: '/en' });
-    expect(w.find('.home__banner').exists()).toBe(false);
+    expect(w.find('.branding-banner').exists()).toBe(false);
     expect(w.find('img').exists()).toBe(false);
     await vi.waitFor(() =>
       expect(headMeta('name="description"')).toContain('course catalogue of the alliance'),

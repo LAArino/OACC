@@ -148,7 +148,7 @@ describe('branding files', () => {
   it('renders the configured header image on the home page', async () => {
     const home = await page('/en');
     expect(home.html).toMatch(
-      /<div class="home__banner"[^>]*><img src="\/branding\/hero\.png" alt=""/,
+      /<div class="branding-banner"[^>]*><img src="\/branding\/hero\.png" alt=""/,
     );
     // Same origin: allowed by the unchanged img-src.
     expect(home.policy).toContain("img-src 'self' data: https:");

@@ -938,7 +938,7 @@ RFC 9457 `application/problem+json` for `/api/public/v1` and `/api/admin/v1`: `t
 | Item | As built | Status |
 |---|---|---|
 | Pages (Nuxt SSR, `/{locale}` prefix) | `/{locale}/` (home; answers 200 even when the API is down), `/{locale}/courses`, `/{locale}/courses/{id}` (`?text_lang=` picks the text language) | [Implemented] |
-| Branding `/branding/{file}` (web, `NUXT_BRANDING_DIR`) | The home page shows an optional deployment-provided header image (`NUXT_PUBLIC_HERO_IMAGE`, decorative by default) and the site header an optional alliance logo (`NUXT_PUBLIC_LOGO_IMAGE`, alt text = alliance name), both served from `/branding/` (image files only, `public, max-age=86400`, weak `ETag`/304, no cookies; see `deploy/compose/branding/README.md`) | [Implemented, after 0.5.0] |
+| Branding `/branding/{file}` (web, `NUXT_BRANDING_DIR`) | The home page and the course list show an optional deployment-provided header image (`NUXT_PUBLIC_HERO_IMAGE`, decorative by default) and the site header an optional alliance logo (`NUXT_PUBLIC_LOGO_IMAGE`, alt text = alliance name), both served from `/branding/` (image files only, `public, max-age=86400`, weak `ETag`/304, no cookies; see `deploy/compose/branding/README.md`) | [Implemented, after 0.5.0] |
 | `/{locale}/partners/{slug}`, `/accessibility`, `/privacy` | — | [Deferred: not in backlog; statement text in backlog "Docs: GDPR set…"] |
 | `GET /api/public/v1/courses` · `/courses/{id}` | search with facets · course page (404 for malformed, unknown, unpublished or deleted ids) | [Implemented] |
 | `GET /api/public/v1/suggest?q&limit&locale` | `q` 2–100 characters, `limit` ≤ 10 | [Implemented] |

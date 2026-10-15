@@ -4,7 +4,7 @@
 # Branding
 
 This directory holds the deploying alliance's own images: the header image of
-the public home page and the logo of the site header. The alliance holds the
+the public home page and course list, and the logo of the site header. The alliance holds the
 rights to these pictures; they are deployment configuration, not part of OECP.
 Nothing in this directory except this README is part of the repository (the
 root `.gitignore` excludes it), so the images never end up in a commit or in a
@@ -29,7 +29,7 @@ are not served. Files are sent with `cache-control: public, max-age=86400`:
 browsers may keep showing an old image for up to a day after a change, so give
 a changed image a new file name and update the variable.
 
-## Header image (home page)
+## Header image (home page and course list)
 
 - At least 1800 × 600 pixels, aspect ratio 3:1 (it is cropped to 3:1 on wide
   screens and to 2:1 on phones, keeping the centre), under 400 KB.

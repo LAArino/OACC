@@ -161,7 +161,7 @@ certificates **and the local backup repository** `pgbackrest-repo`); there is no
 
 ### Branding
 
-The alliance's own header image (home page) and logo (site header) are
+The alliance's own header image (home page and course list) and logo (site header) are
 deployment configuration, never repository content: put the files in
 [`branding/`](branding/README.md) (or the directory named by
 `OECP_BRANDING_DIR`), which `web` mounts read-only and serves at

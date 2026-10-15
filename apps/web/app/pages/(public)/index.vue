@@ -1,7 +1,8 @@
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 <script setup lang="ts">
-// Home (spec §7): optional deployment header image, intro, search with
-// suggestions, quick links by field and by partner, number of courses. The page always answers 200 (it is the web
+// Home (spec §7): optional deployment header image (BrandingBanner), intro,
+// search with suggestions, quick links by field and by partner, number of
+// courses. The page always answers 200 (it is the web
 // container's health probe): when the catalogue API is unavailable it still
 // renders the search form and says so.
 const { t } = useI18n();
@@ -49,31 +50,13 @@ const fields = computed(() =>
 const listPath = computed(() => localePath('/courses'));
 const unavailable = computed(() => !!overviewError.value);
 
-// Header image of the deployment (NUXT_PUBLIC_HERO_IMAGE): a path on the portal
-// origin (normally /branding/<file>) or an absolute https URL. Its alt text is
-// empty (decorative) unless NUXT_PUBLIC_HERO_IMAGE_ALT is set.
-const heroImage = computed(() => config.public.heroImage);
-const heroImageAlt = computed(() => config.public.heroImageAlt);
-const requestUrl = useRequestURL();
-const i18nBase = (config.public.i18n as { baseUrl?: string } | undefined)?.baseUrl;
-/** Absolute URL of the header image for link previews (`og:image`). */
-const heroImageUrl = computed(() => {
-  const src = heroImage.value;
-  if (!src || /^https?:\/\//i.test(src)) return src;
-  const origin = (i18nBase || requestUrl.origin).replace(/\/$/, '');
-  return `${origin}${src.startsWith('/') ? '' : '/'}${src}`;
-});
+const { previewMeta } = useHeroImage();
 
 useHead({
   title: () => t('home.title'),
   meta: () => [
     { name: 'description', content: t('home.metaDescription', { alliance: alliance.value }) },
-    ...(heroImageUrl.value
-      ? [
-          { property: 'og:image', content: heroImageUrl.value },
-          { name: 'twitter:card', content: 'summary_large_image' },
-        ]
-      : []),
+    ...previewMeta(),
   ],
 });
 </script>
@@ -81,15 +64,7 @@ useHead({
 <template>
   <div class="home">
     <section class="home__hero" aria-labelledby="home-title">
-      <div v-if="heroImage" class="home__banner">
-        <img
-          :src="heroImage"
-          :alt="heroImageAlt"
-          loading="eager"
-          fetchpriority="high"
-          decoding="async"
-        />
-      </div>
+      <BrandingBanner />
       <h1 id="home-title">{{ t('home.title') }}</h1>
       <p class="home__intro">{{ t('home.intro', { alliance }) }}</p>
       <form class="home__search" role="search" method="get" :action="listPath">
@@ -154,24 +129,6 @@ useHead({
 <style scoped>
 .home__hero {
   padding: 1rem 0 1.5rem;
-}
-.home__banner {
-  margin: 0 0 1.5rem;
-}
-/* The box keeps its size before the image loads: no layout shift. */
-.home__banner img {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 3 / 1;
-  object-fit: cover;
-  border-radius: var(--radius);
-  background: var(--c-surface);
-}
-@media (max-width: 40rem) {
-  .home__banner img {
-    aspect-ratio: 2 / 1;
-  }
 }
 .home__intro {
   font-size: 1.15rem;

@@ -34,7 +34,7 @@ export default defineNuxtConfig({
     public: {
       // NUXT_PUBLIC_ALLIANCE_NAME: shown in the public portal (e.g. "Aurora").
       allianceName: 'the alliance',
-      // NUXT_PUBLIC_HERO_IMAGE: optional header image of the home page; a path on
+      // NUXT_PUBLIC_HERO_IMAGE: optional header image of the home page and the course list; a path on
       // the portal origin (e.g. /branding/hero.png) or an absolute https URL.
       heroImage: '',
       // NUXT_PUBLIC_HERO_IMAGE_ALT: its text alternative; empty = decorative (alt="").
