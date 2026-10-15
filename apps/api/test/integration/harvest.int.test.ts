@@ -8,6 +8,8 @@ import { HarvestService } from '../../src/ingestion/harvest.service.js';
 import { OeapiClientFactory } from '../../src/ingestion/oeapi/oeapi-client.factory.js';
 import { OeapiV5Adapter } from '../../src/ingestion/oeapi/oeapi-v5.adapter.js';
 import { SyncRunsRepository } from '../../src/ingestion/sync-runs.repository.js';
+import { createMetricsRegistry } from '../../src/metrics/metrics.registry.js';
+import { RunMetricsService } from '../../src/metrics/run-metrics.service.js';
 import { SecretsService } from '../../src/secrets/secrets.service.js';
 import { configStub } from '../support/config-stub.js';
 import {
@@ -31,6 +33,7 @@ describe.runIf(describeWithDatabase === 'run')('HarvestService (PostgreSQL, fake
   let fake: FakeOeapi;
   let harvest: HarvestService;
   let secrets: SecretsService;
+  const registry = createMetricsRegistry({ version: '0.0.0', commit: 'test' });
 
   const run = () => harvest.run({ organizationId: ORG.uibk, trigger: 'schedule' });
   const course = (extId: string) =>
@@ -70,6 +73,7 @@ describe.runIf(describeWithDatabase === 'run')('HarvestService (PostgreSQL, fake
       new CanonicalWriter(tdb.db),
       new SyncRunsRepository(tdb.db),
       () => NOW,
+      new RunMetricsService(registry, tdb.db, configStub({})),
     );
     const secretRef = await secrets.store('partner-integration:uibk', 'oecp:oecp-mock-secret');
     await tdb.db
@@ -477,5 +481,36 @@ describe.runIf(describeWithDatabase === 'run')('HarvestService (PostgreSQL, fake
       },
       NOW,
     );
+  });
+
+  it('metrics: counts every finished harvest and recomputes the gauges', async () => {
+    const finished = await tdb.db
+      .selectFrom('sync_runs')
+      .select(['status'])
+      .where('organization_id', '=', ORG.uibk)
+      .where('channel', '=', 'oeapi')
+      .where('status', 'in', ['succeeded', 'partial', 'failed'])
+      .execute();
+    const text = await registry.metrics();
+    const value = (line: string) =>
+      Number(
+        text
+          .split('\n')
+          .find((l) => l.startsWith(`${line} `))
+          ?.slice(line.length + 1) ?? 0,
+      );
+    for (const status of ['succeeded', 'partial', 'failed']) {
+      expect(value(`oecp_sync_runs_total{channel="oeapi",status="${status}"}`)).toBe(
+        finished.filter((r) => r.status === status).length,
+      );
+    }
+    expect(finished.length).toBeGreaterThan(3);
+    expect(value('oecp_harvest_in_progress')).toBe(0);
+    expect(
+      value(
+        'oecp_sync_run_last_success_timestamp_seconds{organization_slug="uibk",channel="oeapi"}',
+      ),
+    ).toBe(NOW.getTime() / 1000);
+    expect(text).toMatch(/^oecp_sync_runs_consecutive_failures\{organization_slug="uibk"\} \d+$/m);
   });
 });

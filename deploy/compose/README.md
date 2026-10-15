@@ -13,14 +13,16 @@ scripts.
 | `web` | built from `apps/web` | Nuxt: SSR public catalogue, client-rendered `/admin` |
 | `api` | built from `apps/api` | NestJS HTTP API: `/api/public`, `/api/admin`, `/oeapi/v5` |
 | `worker` | same image as `api` | BullMQ processors and schedules (harvester, metadata refresh) |
-| `postgres` | `postgres:16.15` | databases `oecp` and `keycloak` |
+| `postgres` | built from `postgres:16.15` + pgBackRest 2.59.3 (`dockerfiles/postgres.Dockerfile`) | databases `oecp` and `keycloak`; WAL archiving |
 | `valkey` | `valkey/valkey:8.1.10-alpine` (BSD-3) | BullMQ queues |
 | `keycloak` | built from `quay.io/keycloak/keycloak:26.8.1` | admin authentication (SAML brokering, MFA) |
 | `keycloak-config` | `adorsys/keycloak-config-cli:6.5.1-26.5.5` | one-shot: applies `identity/keycloak/realm-oecp.yaml` |
 | `mailpit` | `axllent/mailpit:v1.31.5` (MIT), profile `dev` | local SMTP sink with a web UI |
 | `oeapi-mock` | built from `tools/oeapi-mock` (`node:22.23.3-alpine3.24`), profile `dev` | simulated partner university serving OEAPI v5.0 for the harvester |
 | `test-saml-idp` | `kenchan0130/simplesamlphp:1.19.9` (MIT; SimpleSAMLphp LGPL-2.1), profile `dev` | test SAML IdP playing URV for the brokered admin path (realm IdP `urv`, `OECP_DEV_IDP_ENABLED=true`) |
+| `backup` | same image as `postgres`, profile `backup` | pgBackRest backups (weekly full, daily differential, PITR, 35 days), daily uploads archive, backup metrics |
 | `otel-collector`, `prometheus`, `loki`, `grafana` | profile `observability` | metrics and logs (spec §10) |
+| `alertmanager` (`prom/alertmanager:v0.34.1`), `node-exporter` (`prom/node-exporter:v1.12.1`), `blackbox-exporter` (`prom/blackbox-exporter:v0.29.0`), all Apache-2.0 | profile `observability` | alert notifications (e-mail, webhook), disk and backup metrics, readiness probes |
 
 ```
 Internet ─▶ traefik :443
@@ -134,12 +136,14 @@ docker compose logs -f api worker          # follow application logs
 docker compose run --rm api pnpm db:migrate     # after pulling new migrations
 docker compose run --rm keycloak-config    # re-apply the realm after editing realm-oecp.yaml
 docker compose up -d --build api worker web     # redeploy the application
-docker compose --profile observability up -d    # add metrics and logs
+docker compose --profile observability up -d    # add metrics, logs and alerting
+docker compose --profile backup up -d           # add scheduled backups (pgBackRest)
+scripts/restore-drill.sh                        # restore the latest backup into a scratch container
 docker compose down                        # stop (volumes are kept)
 ```
 
 `docker compose down -v` deletes **all data** (databases, uploads,
-certificates); there is no undo.
+certificates **and the local backup repository** `pgbackrest-repo`); there is no undo.
 
 ## Configuration
 
@@ -320,6 +324,152 @@ spec §10): a log shipper reading the Docker logs (Grafana Alloy, or the
 Collector's `filelog` receiver with `/var/lib/docker/containers` mounted) is
 the recommended production setup; keep the json-file limits as a local buffer.
 
+## Backups (profile `backup`)
+
+Spec §10: pgBackRest for the whole PostgreSQL cluster (databases `oecp` and
+`keycloak`, roles, settings), continuous WAL archiving for point-in-time
+recovery (PITR), a full backup every week and a differential every other day,
+35 days of recovery window, a second site, and a quarterly restore drill.
+
+```
+postgres ──archive_command──▶ pgBackRest repo1 (volume pgbackrest-repo) ──┐
+   ▲  (every WAL segment, ≤ 5 min)                      repo2 (optional) ◀┘ second site: S3/MinIO or SFTP
+   │ Unix socket (volume postgres_socket)
+backup ── 02:00 UTC: full (Sunday) / diff ── uploads-YYYY-MM-DD.tar.gz ── oecp_backup.prom ──▶ node-exporter
+```
+
+- **Image.** `postgres` is built from `postgres:16.15` plus the PGDG packages
+  `pgbackrest` and `jq` (pinned in `dockerfiles/postgres.Dockerfile`, about
+  5 MB more), runs as uid 999. Same PostgreSQL minor and data volume as before,
+  so an existing stack switches with `docker compose up -d --build postgres`;
+  the WAL settings (`archive_mode=on`, `archive_command`, `wal_level=replica`,
+  `archive_timeout=300`) are passed on the command line in `compose.yaml` and
+  override `postgresql.conf` of the data directory.
+- **WAL archiving** runs in the `postgres` container even without the `backup`
+  profile. `OECP_WAL_ARCHIVE=auto` (default) archives once the stanza exists
+  (created by the first start of `backup`); before that segments are dropped
+  (no base backup exists to use them), so `docker compose up -d` alone never
+  fills `pg_wal`. Set `on` in production once the stanza exists: a failing
+  archive then keeps WAL and alerts (`OecpWalArchivingFailing`).
+- **Schedule** (`postgres/bin/oecp-backup`, a sleep loop, no cron daemon):
+  at start `stanza-create` (idempotent) and `check`, then a backup at once if
+  the newest is older than `OECP_BACKUP_CATCHUP_HOURS` (24; a full if the
+  repository is empty); daily at `OECP_BACKUP_TIME` (02:00 UTC) a `full` on
+  `OECP_BACKUP_FULL_DAY` (7 = Sunday) or when the newest full is older than 7
+  days, a `diff` otherwise, then the uploads archive.
+- **Retention.** `postgres/pgbackrest.conf`: `repo1-retention-full-type=time`,
+  `repo1-retention-full=35`: pgBackRest keeps every full backup (with its
+  differentials and WAL) needed to restore any point of the last 35 days, so
+  about six weekly fulls. Uploads archives: `OECP_BACKUP_UPLOADS_RETENTION_DAYS`
+  (35), in `uploads/` of the same volume. Compressed with zstd, bundled,
+  block-incremental differentials; repo1 is not encrypted (same host and
+  protection as `postgres_data`).
+- **Second site (repo2).** Copy `postgres/pgbackrest-repo2.env.example` to
+  `.env.pgbackrest` (git-ignored, optional `env_file` of `postgres` and
+  `backup`) and follow its steps: S3/MinIO or SFTP, always encrypted (Docker
+  secrets `pgbackrest_repo2_*`), outbound network for both services. Every WAL
+  segment and backup then goes to both repositories. The uploads archives are
+  not pgBackRest data: copy `uploads/` of the volume yourself.
+- **Metrics** for alerting: node-exporter's textfile collector reads
+  `oecp_backup.prom` from the tmpfs volume `backup-metrics`, rewritten every
+  minute from the repository (`pgbackrest info`), the archives and
+  `pg_stat_archiver`: `oecp_backup_last_success_timestamp_seconds{type="pgbackrest"|"uploads"}`,
+  `oecp_backup_last_duration_seconds{type}`, `oecp_backup_last_attempt_success{type}`,
+  `oecp_backup_pgbackrest_last_full_timestamp_seconds`, `oecp_backup_pgbackrest_backups{backup_type}`,
+  `oecp_wal_archive_last_success_timestamp_seconds`, `oecp_wal_archive_last_failure_timestamp_seconds`, …
+  (list in the script header). Chosen over a sidecar because node-exporter also
+  provides the disk metrics.
+- **Permissions.** `backup` runs as uid 999 without network
+  (`network_mode: none`), reads `postgres_data` read-only and the uploads
+  through the api user's group (`group_add: ["1000"]`); PostgreSQL's Unix
+  socket (trusted local connections) is shared only with it.
+
+```sh
+docker compose --profile backup up -d --build
+docker compose logs -f backup
+docker compose exec backup pgbackrest --stanza=oecp info          # backups, WAL range
+docker compose exec backup oecp-backup backup full                # on demand (or diff, incr)
+docker compose exec backup oecp-backup uploads
+docker compose exec backup oecp-backup metrics                    # prints oecp_backup.prom
+docker compose exec postgres psql -U postgres -c 'SELECT * FROM pg_stat_archiver'
+```
+
+### Restore drill and restore
+
+`scripts/restore-drill.sh` restores into a **scratch container** (no network,
+repository read-only, `archive_mode=off`, so production and the repository are
+untouched), waits for WAL replay, checks the databases (oecp reachable,
+`keycloak` exists with realm `oecp`, latest migration, checksums, row counts of
+`courses`, `organizations`, `maintenance_runs` compared with the live
+database) and prints a report with the restore and recovery times. Run it
+quarterly (runbook §4).
+
+```sh
+scripts/restore-drill.sh                                         # latest backup + all WAL
+scripts/restore-drill.sh --target-time '2026-10-15 05:25:30+00'  # point in time
+scripts/restore-drill.sh --set 20261015-052418F                  # one backup, no WAL replay past it
+scripts/restore-drill.sh --keep                                  # inspect afterwards
+scripts/restore-drill.sh --repo 2 --env-file .env.pgbackrest     # from the second site
+```
+
+A **real restore** replaces the cluster: stop the writers, restore into the
+`postgres_data` volume with the same image, start again (runbook §3):
+
+```sh
+docker compose stop api worker keycloak backup postgres
+docker compose run --rm --no-deps postgres pgbackrest --stanza=oecp --delta \
+  [--type=time --target='YYYY-MM-DD HH:MM:SS+00' --target-action=promote] restore
+docker compose up -d --wait
+```
+
+## Alerting
+
+The `observability` profile evaluates `observability/alert-rules.yml` in
+Prometheus and notifies through Alertmanager. Prometheus scrapes the api
+(`api:3000/metrics`) and worker (`worker:3001/metrics`) over the internal
+network (Traefik does not route `/metrics`), the `/ready` endpoints through the
+blackbox exporter, node-exporter (disk of the data volumes, backup textfile
+metrics), Traefik, Keycloak and itself.
+
+| Alert | Condition (spec §10 in bold) | Severity |
+|---|---|---|
+| `OecpHarvestFailing` | **2 consecutive failed OEAPI harvests** of a partner | warning |
+| `OecpBackupTooOld` | **newest pgBackRest or uploads backup older than 26 h** | critical |
+| `OecpBackupMissing`, `OecpBackupFailed`, `OecpBackupMetricsStale`, `OecpBackupNoRecentFull` | no backup metrics for 1 h; last attempt failed; backup service stopped; no full for 8 days | critical / warning |
+| `OecpWalArchivingFailing` | archive_command failing for 15 min | critical |
+| `OecpDiskSpaceLow` | **disk > 80 %** (warning), > 90 % (critical) | warning / critical |
+| `OecpIdpMetadataRefreshFailed`, `…Stale` | **metadata-refresh failure**; no success for 26 h | warning |
+| `OecpApiHigh5xxRate`, `OecpEdgeHigh5xxRate` | **5xx > 1 %** of api responses (or per Traefik service) for 10 min, above 0.05 req/s | warning |
+| `OecpServiceDown`, `OecpServiceNotReady` | api or worker not scraped / `/ready` failing for 2 min | critical |
+| `OecpMaintenanceJobFailed`, `OecpMaintenanceJobStale`, `OecpHarvestStuck`, `OecpMonitoringTargetDown` | a maintenance run failed; a daily job without success for 26 h; harvest running 6 h; exporter down | warning |
+
+**Receivers** (`.env`, rendered into `observability/alertmanager/alertmanager.yml.tmpl`
+by its `entrypoint.sh` at every start): e-mail to `OECP_ALERT_EMAIL_TO` through
+`OECP_ALERT_SMTP_HOST`/`_PORT`/`_REQUIRE_TLS` (default: the application's
+`OECP_SMTP_*`; with the `dev` block alert mail lands in Mailpit), optional
+SMTP AUTH (`OECP_ALERT_SMTP_USER`, secret `alert_smtp_password`), sender
+`OECP_ALERT_EMAIL_FROM`; and/or a generic webhook `OECP_ALERT_WEBHOOK_URL`
+(Alertmanager's JSON payload). Critical alerts repeat every 2 h, warnings every
+12 h. Inhibitions: a critical alert silences its warning level; an api or
+worker that is down or not ready silences the alerts about its work.
+
+Grafana provisions the dashboard **OECP overview** (folder OECP: status,
+requests and 5xx ratio, p95 latency by route, harvest status per partner,
+maintenance jobs, IdP metadata, backup age and duration, disk) and an
+Alertmanager data source (Alerting > Alert list, silences). Prometheus and
+Alertmanager have no published port: use Grafana, or
+`docker compose exec prometheus wget -qO- localhost:9090/api/v1/alerts`.
+
+Validate after editing (CI does not run these yet):
+
+```sh
+docker run --rm --entrypoint promtool -v "$PWD/observability:/c:ro" -w /c prom/prometheus:v3.15.0 check rules alert-rules.yml
+docker run --rm --entrypoint promtool -v "$PWD/observability:/c:ro" -w /c prom/prometheus:v3.15.0 test rules alert-rules.test.yml
+docker compose --profile observability exec alertmanager amtool check-config /alertmanager/alertmanager.yml
+docker compose --profile observability exec alertmanager amtool --alertmanager.url=http://127.0.0.1:9093 \
+  alert add OecpTestAlert severity=warning component=monitoring   # delivery test
+```
+
 ## Production checklist
 
 1. **DNS and TLS.** Point the portal and auth hosts at the server. In the
@@ -341,13 +491,17 @@ the recommended production setup; keep the json-file limits as a local buffer.
 6. **Logs.** Size the log rotation for the retention of spec §10 (section
    [Log retention](#log-retention)) or ship the logs to Loki; enable the Traefik
    access log only with a 30-day bound.
-7. **Backups (spec §10).** pgBackRest for both databases (WAL archiving to a
-   second site, weekly full, daily differential, 35-day retention) is not part
-   of this file yet; it will be added as a sidecar or host service. Back up the
-   `uploads` volume daily.
-8. **Images.** Build in CI, sign with cosign and pin by digest
+7. **Backups (spec §10).** Run the `backup` profile; configure repo2 (second
+   site, encrypted, [Backups](#backups-profile-backup)) and copy the uploads
+   archives there; set `OECP_WAL_ARCHIVE=on` once the stanza exists; run
+   `scripts/restore-drill.sh` before go-live and quarterly.
+8. **Alerting.** Run the `observability` profile with `OECP_ALERT_EMAIL_TO`
+   (and/or `OECP_ALERT_WEBHOOK_URL`) set; send a test alert
+   ([Alerting](#alerting)). Prefer a node-exporter on the host itself for disk
+   alerts on every filesystem.
+9. **Images.** Build in CI, sign with cosign and pin by digest
    (`OECP_IMAGE_TAG`) rather than building on the server.
-9. **SAML.** Register the SP metadata (see
+10. **SAML.** Register the SP metadata (see
    [`identity/keycloak/scripts/sp-metadata.md`](../../identity/keycloak/scripts/sp-metadata.md)).
 
 ## Troubleshooting
@@ -375,3 +529,12 @@ the recommended production setup; keep the json-file limits as a local buffer.
   (`http://api:3000`), so check that it is set and that `api` is healthy.
 - **Postgres init script did not run:** it only runs on an empty
   `postgres_data` volume.
+- **`backup` restarts, "stanza-create/check failed":** `docker compose logs
+  backup postgres`. `check` needs archive_command to work: with
+  `OECP_WAL_ARCHIVE=off` it fails; after a repository change run
+  `docker compose exec backup pgbackrest --stanza=oecp stanza-create` again.
+- **`pg_wal` grows:** archiving is failing (`SELECT * FROM pg_stat_archiver`,
+  `last_failed_wal`); with `OECP_WAL_ARCHIVE=on` this happens until the stanza
+  exists or the repository is reachable again.
+- **Restore drill: "unable to restore while PostgreSQL is running":** a kept
+  scratch container was killed; `docker volume rm oecp_restore-drill-pgdata`.

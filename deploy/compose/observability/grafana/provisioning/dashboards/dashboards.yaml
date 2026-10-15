@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Dashboards as code: every JSON file in observability/grafana/dashboards
+# (mounted at /etc/grafana/dashboards) appears in the Grafana folder "OECP".
+# Edit the JSON in the repository; changes made in the UI cannot be saved.
+apiVersion: 1
+providers:
+  - name: oecp
+    folder: OECP
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

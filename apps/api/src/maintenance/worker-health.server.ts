@@ -6,6 +6,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  Optional,
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
@@ -13,8 +14,10 @@ import { ConfigService } from '@nestjs/config';
 import { DiscoveryService } from '@nestjs/core';
 import { Queue } from 'bullmq';
 import { sql } from 'kysely';
+import type { Registry } from '@prometheus-io/client';
 import type { Env } from '../config/env.js';
 import { type Db, KYSELY } from '../db/db.module.js';
+import { METRICS_REGISTRY, renderMetrics } from '../metrics/metrics.registry.js';
 import { MAINTENANCE_QUEUE } from './maintenance.constants.js';
 
 /** A repeatable job (BullMQ job scheduler) registered in Valkey. */
@@ -33,6 +36,8 @@ export interface WorkerHealthProbes {
   database(): Promise<unknown>;
   valkey(): Promise<unknown>;
   jobs(): Promise<RepeatableJob[]>;
+  /** Prometheus exposition of `GET /metrics`; absent: `/metrics` is 404 (metrics disabled). */
+  metrics?: () => Promise<{ contentType: string; body: string }>;
 }
 
 type Check = 'up' | 'down';
@@ -63,7 +68,8 @@ async function probe(fn: () => Promise<unknown>, ms: number): Promise<Check> {
  *   repeatable jobs registered in Valkey (the last list read if Valkey does not
  *   answer within the probe timeout, so liveness never depends on it);
  * - `GET /ready` → 200 `{status: "ready", checks}` once PostgreSQL and Valkey
- *   answer, else 503 `{status: "unavailable", checks}`.
+ *   answer, else 503 `{status: "unavailable", checks}`;
+ * - `GET /metrics` → 200, Prometheus text format (when `probes.metrics` is set).
  *
  * Anything else is 404 (405 for other methods). Responses are JSON, never cached.
  */
@@ -85,13 +91,24 @@ export function createWorkerHealthServer(
   const handle = async (req: IncomingMessage, res: ServerResponse) => {
     const path = (req.url ?? '/').split('?')[0];
     const head = req.method === 'HEAD';
-    if (path !== '/health' && path !== '/ready') {
+    const metrics = probes.metrics;
+    if (path !== '/health' && path !== '/ready' && !(path === '/metrics' && metrics)) {
       send(res, 404, { status: 'not_found' }, head);
       return;
     }
     if (req.method !== 'GET' && !head) {
       res.setHeader('allow', 'GET, HEAD');
       send(res, 405, { status: 'method_not_allowed' }, head);
+      return;
+    }
+    if (path === '/metrics' && metrics) {
+      const { contentType, body } = await metrics();
+      res.writeHead(200, {
+        'content-type': contentType,
+        'cache-control': 'no-store',
+        'content-length': Buffer.byteLength(body),
+      });
+      res.end(head ? undefined : body);
       return;
     }
     if (path === '/health') {
@@ -127,7 +144,8 @@ export function createWorkerHealthServer(
 /**
  * Starts {@link createWorkerHealthServer} on `WORKER_HEALTH_PORT` (default 3001)
  * in the worker process. The repeatable jobs are read from every BullMQ queue
- * registered in the worker (found through Nest's discovery service).
+ * registered in the worker (found through Nest's discovery service); `/metrics`
+ * serves the worker's metrics registry unless `OECP_METRICS_ENABLED=false`.
  */
 @Injectable()
 export class WorkerHealthServer implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -139,14 +157,18 @@ export class WorkerHealthServer implements OnApplicationBootstrap, OnApplication
     @Inject(KYSELY) private readonly db: Db,
     @InjectQueue(MAINTENANCE_QUEUE) private readonly queue: Queue,
     private readonly discovery: DiscoveryService,
+    @Optional() @Inject(METRICS_REGISTRY) private readonly registry?: Registry,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
     const port = this.config.get('WORKER_HEALTH_PORT', { infer: true });
+    const registry = this.registry;
+    const metricsEnabled = this.config.get('OECP_METRICS_ENABLED', { infer: true }) !== false;
     const server = createWorkerHealthServer({
       database: () => sql`SELECT 1`.execute(this.db),
       valkey: async () => (await this.queue.getBackend().client).runCommand('ping', []),
       jobs: () => this.repeatableJobs(),
+      ...(registry && metricsEnabled ? { metrics: () => renderMetrics(registry) } : {}),
     });
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject);

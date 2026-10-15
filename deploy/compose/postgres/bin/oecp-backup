@@ -1,0 +1,344 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# OECP backup job (spec §10 "Backups"), run by the `backup` service (profile
+# `backup`) of deploy/compose/compose.yaml.
+#
+#   oecp-backup run              scheduler (the service's command)
+#   oecp-backup backup [TYPE]    one pgBackRest backup now: full, diff (default) or incr
+#   oecp-backup uploads          one archive of the uploads volume now
+#   oecp-backup metrics          rewrite the textfile metrics now
+#   oecp-backup health           exit 0 when the metrics were refreshed recently
+#
+# Schedule (UTC, no cron daemon: a sleep loop, one process):
+#   every day at OECP_BACKUP_TIME (02:00): a pgBackRest backup, `full` on
+#   OECP_BACKUP_FULL_DAY (7 = Sunday, ISO day of week) or when the newest full
+#   backup is older than 7 days (missed Sunday), `diff` otherwise; then the
+#   uploads archive. At start: `stanza-create` (idempotent) and `check`; a
+#   backup at once when the newest one is older than OECP_BACKUP_CATCHUP_HOURS
+#   (24; a full when the repository is empty), the same for the uploads.
+#   Retention of pgBackRest backups: postgres/pgbackrest.conf (35 days, time
+#   based); uploads archives: OECP_BACKUP_UPLOADS_RETENTION_DAYS (35).
+#
+# Metrics (node-exporter textfile collector, file oecp_backup.prom in
+# OECP_BACKUP_METRICS_DIR), refreshed every OECP_BACKUP_METRICS_INTERVAL
+# seconds from the repository itself (pgbackrest info, archive files) and
+# pg_stat_archiver, so they survive restarts of this container:
+#   oecp_backup_last_success_timestamp_seconds{type="pgbackrest"|"uploads"}
+#   oecp_backup_last_duration_seconds{type}
+#   oecp_backup_last_attempt_timestamp_seconds{type}, oecp_backup_last_attempt_success{type}
+#   oecp_backup_pgbackrest_last_full_timestamp_seconds, oecp_backup_pgbackrest_backups{backup_type}
+#   oecp_backup_uploads_archives, oecp_backup_pgbackrest_stanza_status
+#   oecp_wal_archive_last_success_timestamp_seconds, oecp_wal_archive_last_failure_timestamp_seconds,
+#   oecp_wal_archive_archived_count, oecp_wal_archive_failed_count
+#   oecp_backup_metrics_updated_timestamp_seconds
+
+set -Eeuo pipefail
+umask 027
+
+STANZA=${OECP_PGBACKREST_STANZA:-oecp}
+REPO1=${PGBACKREST_REPO1_PATH:-/var/lib/pgbackrest}
+BACKUP_TIME=${OECP_BACKUP_TIME:-02:00}
+FULL_DAY=${OECP_BACKUP_FULL_DAY:-7}
+CATCHUP_HOURS=${OECP_BACKUP_CATCHUP_HOURS:-24}
+UPLOADS_SRC=${OECP_BACKUP_UPLOADS_DIR:-/data/uploads}
+UPLOADS_DEST=${OECP_BACKUP_UPLOADS_ARCHIVE_DIR:-$REPO1/uploads}
+UPLOADS_RETENTION_DAYS=${OECP_BACKUP_UPLOADS_RETENTION_DAYS:-35}
+METRICS_DIR=${OECP_BACKUP_METRICS_DIR:-/var/lib/oecp-backup-metrics}
+METRICS_INTERVAL=${OECP_BACKUP_METRICS_INTERVAL:-60}
+STATE_DIR=$REPO1/oecp-state
+PGSOCKET=${OECP_BACKUP_PG_SOCKET:-/var/run/postgresql}
+
+log() { printf '%s oecp-backup: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
+die() { log "ERROR: $*"; exit 1; }
+now() { date -u +%s; }
+
+validate() {
+  [[ $BACKUP_TIME =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] || die "OECP_BACKUP_TIME must be HH:MM (UTC), got '$BACKUP_TIME'"
+  [[ $FULL_DAY =~ ^[1-7]$ ]] || die "OECP_BACKUP_FULL_DAY must be 1 (Monday) .. 7 (Sunday), got '$FULL_DAY'"
+  [[ $CATCHUP_HOURS =~ ^[0-9]+$ ]] || die "OECP_BACKUP_CATCHUP_HOURS must be an integer"
+  [[ $UPLOADS_RETENTION_DAYS =~ ^[1-9][0-9]*$ ]] || die "OECP_BACKUP_UPLOADS_RETENTION_DAYS must be a positive integer"
+  [[ $METRICS_INTERVAL =~ ^[1-9][0-9]*$ ]] || die "OECP_BACKUP_METRICS_INTERVAL must be a positive integer"
+}
+
+# --- state of the last attempts (kept in repo1, survives restarts) ------------
+
+record_attempt() { # type ok(0|1) duration_seconds
+  mkdir -p "$STATE_DIR"
+  printf '%s %s %s\n' "$(now)" "$2" "$3" > "$STATE_DIR/$1.last-attempt.tmp"
+  mv "$STATE_DIR/$1.last-attempt.tmp" "$STATE_DIR/$1.last-attempt"
+}
+
+read_attempt() { # type -> "ts ok duration" or empty
+  cat "$STATE_DIR/$1.last-attempt" 2>/dev/null || true
+}
+
+# --- pgBackRest ------------------------------------------------------------------
+
+wait_for_postgres() {
+  local _
+  for _ in $(seq 1 60); do
+    if pg_isready -q -h "$PGSOCKET" -U postgres; then return 0; fi
+    sleep 5
+  done
+  return 1
+}
+
+pgbr_info_json() {
+  pgbackrest --stanza="$STANZA" --output=json --log-level-console=warn info 2>/dev/null || echo '[]'
+}
+
+# Stop time of the newest valid backup (optionally of one type), or empty.
+newest_backup_stop() { # [type]
+  pgbr_info_json | jq -r --arg t "${1:-}" '
+    [.[0].backup // [] | .[] | select((.error // false) | not)
+      | select($t == "" or .type == $t)] | last | .timestamp.stop // empty'
+}
+
+stanza_init() {
+  log "stanza-create (idempotent) for stanza '$STANZA'"
+  pgbackrest --stanza="$STANZA" stanza-create
+  log "check (WAL archiving and repository)"
+  pgbackrest --stanza="$STANZA" check
+}
+
+do_backup() { # type
+  local type=$1 start rc=0
+  [[ $type =~ ^(full|diff|incr)$ ]] || die "backup type must be full, diff or incr"
+  start=$(now)
+  log "pgBackRest $type backup: start"
+  pgbackrest --stanza="$STANZA" --type="$type" backup || rc=$?
+  if [[ $rc -eq 0 ]]; then
+    record_attempt pgbackrest 1 $(( $(now) - start ))
+    log "pgBackRest $type backup: done in $(( $(now) - start )) s"
+  else
+    record_attempt pgbackrest 0 $(( $(now) - start ))
+    log "ERROR: pgBackRest $type backup failed (exit $rc)"
+  fi
+  write_metrics || true
+  return "$rc"
+}
+
+# --- uploads -----------------------------------------------------------------------
+
+do_uploads() {
+  local start day dest tmp rc=0 cutoff f d
+  start=$(now)
+  day=$(date -u +%F)
+  if [[ ! -d $UPLOADS_SRC ]]; then
+    log "ERROR: uploads directory $UPLOADS_SRC is not mounted"
+    record_attempt uploads 0 0
+    write_metrics || true
+    return 1
+  fi
+  mkdir -p "$UPLOADS_DEST"
+  dest="$UPLOADS_DEST/uploads-$day.tar.gz"
+  tmp="$UPLOADS_DEST/.uploads-$day.tar.gz.partial"
+  log "uploads archive: $UPLOADS_SRC -> $dest"
+  # GNU tar exits 1 when a file changed while being read (an upload in
+  # progress): the archive is still usable, so only >1 is a failure.
+  ( umask 027; tar --numeric-owner -C "$UPLOADS_SRC" -czf "$tmp" . ) || rc=$?
+  if [[ $rc -gt 1 ]]; then
+    rm -f "$tmp"
+    record_attempt uploads 0 $(( $(now) - start ))
+    log "ERROR: uploads archive failed (tar exit $rc)"
+    write_metrics || true
+    return 1
+  fi
+  [[ $rc -eq 1 ]] && log "WARN: a file changed while it was archived (tar exit 1); archive kept"
+  mv -f "$tmp" "$dest"
+  record_attempt uploads 1 $(( $(now) - start ))
+  # Retention: archives dated before the cutoff are removed.
+  cutoff=$(date -u -d "@$(( $(now) - UPLOADS_RETENTION_DAYS * 86400 ))" +%F)
+  for f in "$UPLOADS_DEST"/uploads-*.tar.gz; do
+    [[ -e $f ]] || continue
+    d=${f##*/uploads-}; d=${d%.tar.gz}
+    if [[ $d < $cutoff ]]; then
+      log "uploads archive: expiring $(basename "$f") (older than $UPLOADS_RETENTION_DAYS days)"
+      rm -f -- "$f"
+    fi
+  done
+  log "uploads archive: done in $(( $(now) - start )) s ($(du -h "$dest" | cut -f1))"
+  write_metrics || true
+}
+
+newest_uploads_mtime() {
+  local f newest=""
+  for f in "$UPLOADS_DEST"/uploads-*.tar.gz; do
+    [[ -e $f ]] && newest=$f
+  done
+  [[ -n $newest ]] && stat -c %Y "$newest"
+  return 0
+}
+
+# --- metrics -------------------------------------------------------------------------
+
+write_metrics() {
+  local info tmp out last_stop last_dur last_full status a ts ok dur up_ts up_count row
+  mkdir -p "$METRICS_DIR"
+  info=$(pgbr_info_json)
+  tmp="$METRICS_DIR/.oecp_backup.prom.$BASHPID"
+  out="$METRICS_DIR/oecp_backup.prom"
+  {
+    echo '# HELP oecp_backup_last_success_timestamp_seconds Unix time at which the newest successful backup finished.'
+    echo '# TYPE oecp_backup_last_success_timestamp_seconds gauge'
+    last_stop=$(jq -r '[.[0].backup // [] | .[] | select((.error // false) | not)] | last | .timestamp.stop // empty' <<<"$info")
+    [[ -n $last_stop ]] && echo "oecp_backup_last_success_timestamp_seconds{type=\"pgbackrest\"} $last_stop"
+    up_ts=$(newest_uploads_mtime)
+    [[ -n $up_ts ]] && echo "oecp_backup_last_success_timestamp_seconds{type=\"uploads\"} $up_ts"
+
+    echo '# HELP oecp_backup_last_duration_seconds Duration of the newest successful backup.'
+    echo '# TYPE oecp_backup_last_duration_seconds gauge'
+    last_dur=$(jq -r '[.[0].backup // [] | .[] | select((.error // false) | not)] | last | if . then (.timestamp.stop - .timestamp.start) else empty end' <<<"$info")
+    [[ -n $last_dur ]] && echo "oecp_backup_last_duration_seconds{type=\"pgbackrest\"} $last_dur"
+    a=$(read_attempt uploads)
+    if [[ -n $a ]]; then
+      read -r ts ok dur <<<"$a"
+      [[ $ok == 1 ]] && echo "oecp_backup_last_duration_seconds{type=\"uploads\"} $dur"
+    fi
+
+    echo '# HELP oecp_backup_last_attempt_timestamp_seconds Unix time at which the last backup attempt (scheduled or manual, through oecp-backup) ended.'
+    echo '# TYPE oecp_backup_last_attempt_timestamp_seconds gauge'
+    for t in pgbackrest uploads; do
+      a=$(read_attempt "$t")
+      if [[ -n $a ]]; then read -r ts ok dur <<<"$a"; echo "oecp_backup_last_attempt_timestamp_seconds{type=\"$t\"} $ts"; fi
+    done
+    echo '# HELP oecp_backup_last_attempt_success 1 when the last backup attempt succeeded, 0 when it failed.'
+    echo '# TYPE oecp_backup_last_attempt_success gauge'
+    for t in pgbackrest uploads; do
+      a=$(read_attempt "$t")
+      if [[ -n $a ]]; then read -r ts ok dur <<<"$a"; echo "oecp_backup_last_attempt_success{type=\"$t\"} $ok"; fi
+    done
+
+    echo '# HELP oecp_backup_pgbackrest_last_full_timestamp_seconds Unix time at which the newest full pgBackRest backup finished.'
+    echo '# TYPE oecp_backup_pgbackrest_last_full_timestamp_seconds gauge'
+    last_full=$(jq -r '[.[0].backup // [] | .[] | select((.error // false) | not) | select(.type == "full")] | last | .timestamp.stop // empty' <<<"$info")
+    [[ -n $last_full ]] && echo "oecp_backup_pgbackrest_last_full_timestamp_seconds $last_full"
+    echo '# HELP oecp_backup_pgbackrest_backups pgBackRest backups in the repositories, by type.'
+    echo '# TYPE oecp_backup_pgbackrest_backups gauge'
+    for t in full diff incr; do
+      echo "oecp_backup_pgbackrest_backups{backup_type=\"$t\"} $(jq --arg t "$t" '[.[0].backup // [] | .[] | select(.type == $t)] | length' <<<"$info")"
+    done
+    echo '# HELP oecp_backup_pgbackrest_stanza_status pgBackRest stanza status code (0 = ok, 2 = no valid backups, other = error; -1 = info failed).'
+    echo '# TYPE oecp_backup_pgbackrest_stanza_status gauge'
+    status=$(jq -r '.[0].status.code // -1' <<<"$info")
+    echo "oecp_backup_pgbackrest_stanza_status $status"
+
+    echo '# HELP oecp_backup_uploads_archives Uploads archives kept in repo1.'
+    echo '# TYPE oecp_backup_uploads_archives gauge'
+    up_count=$(find "$UPLOADS_DEST" -maxdepth 1 -name 'uploads-*.tar.gz' 2>/dev/null | wc -l)
+    echo "oecp_backup_uploads_archives $up_count"
+
+    # pg_stat_archiver over the shared Unix socket (skipped when unreachable).
+    row=$(psql -h "$PGSOCKET" -U postgres -d postgres -AtX -F ' ' -c \
+      "SELECT coalesce(extract(epoch FROM last_archived_time)::bigint, 0),
+              coalesce(extract(epoch FROM last_failed_time)::bigint, 0),
+              archived_count, failed_count FROM pg_stat_archiver" 2>/dev/null || true)
+    if [[ -n $row ]]; then
+      read -r a_ok a_fail a_count f_count <<<"$row"
+      echo '# HELP oecp_wal_archive_last_success_timestamp_seconds Unix time of the last WAL segment archived by archive_command (0 = none since the statistics reset).'
+      echo '# TYPE oecp_wal_archive_last_success_timestamp_seconds gauge'
+      echo "oecp_wal_archive_last_success_timestamp_seconds $a_ok"
+      echo '# HELP oecp_wal_archive_last_failure_timestamp_seconds Unix time of the last failed archive_command (0 = none).'
+      echo '# TYPE oecp_wal_archive_last_failure_timestamp_seconds gauge'
+      echo "oecp_wal_archive_last_failure_timestamp_seconds $a_fail"
+      echo '# HELP oecp_wal_archive_archived_count WAL segments archived since the statistics reset (pg_stat_archiver).'
+      echo '# TYPE oecp_wal_archive_archived_count gauge'
+      echo "oecp_wal_archive_archived_count $a_count"
+      echo '# HELP oecp_wal_archive_failed_count Failed archive_command runs since the statistics reset (pg_stat_archiver).'
+      echo '# TYPE oecp_wal_archive_failed_count gauge'
+      echo "oecp_wal_archive_failed_count $f_count"
+    fi
+
+    echo '# HELP oecp_backup_metrics_updated_timestamp_seconds Unix time at which the backup service last wrote these metrics.'
+    echo '# TYPE oecp_backup_metrics_updated_timestamp_seconds gauge'
+    echo "oecp_backup_metrics_updated_timestamp_seconds $(now)"
+  } > "$tmp"
+  chmod 0644 "$tmp"
+  mv -f "$tmp" "$out"
+}
+
+health() {
+  local out="$METRICS_DIR/oecp_backup.prom" age
+  [[ -f $out ]] || exit 1
+  age=$(( $(now) - $(stat -c %Y "$out") ))
+  [[ $age -le $(( METRICS_INTERVAL * 3 + 60 )) ]]
+}
+
+# --- scheduler -----------------------------------------------------------------------
+
+next_run() { # -> epoch of the next BACKUP_TIME (UTC) strictly after now
+  local t
+  t=$(date -u -d "$(date -u +%F) $BACKUP_TIME" +%s)
+  (( t <= $(now) )) && t=$(( t + 86400 ))
+  echo "$t"
+}
+
+scheduled_type() { # epoch -> full|diff
+  local last_full
+  if [[ $(date -u -d "@$1" +%u) == "$FULL_DAY" ]]; then echo full; return; fi
+  last_full=$(newest_backup_stop full)
+  if [[ -z $last_full ]] || (( $(now) - ${last_full%.*} > 7 * 86400 )); then echo full; else echo diff; fi
+}
+
+catch_up() {
+  local last up
+  last=$(newest_backup_stop)
+  if [[ -z $last ]]; then
+    log "repository has no backup yet: full backup now"
+    do_backup full || true
+  elif (( $(now) - ${last%.*} > CATCHUP_HOURS * 3600 )); then
+    log "newest backup is older than $CATCHUP_HOURS h: catching up"
+    do_backup "$(scheduled_type "$(now)")" || true
+  fi
+  up=$(newest_uploads_mtime)
+  if [[ -z $up ]] || (( $(now) - up > CATCHUP_HOURS * 3600 )); then
+    do_uploads || true
+  fi
+}
+
+metrics_loop() {
+  while true; do
+    write_metrics || log "WARN: could not write metrics"
+    sleep "$METRICS_INTERVAL"
+  done
+}
+
+run() {
+  local next type metrics_pid
+  validate
+  log "schedule: daily at $BACKUP_TIME UTC, full on ISO weekday $FULL_DAY, uploads retention $UPLOADS_RETENTION_DAYS days"
+  wait_for_postgres || die "PostgreSQL is not reachable on $PGSOCKET"
+  # Metrics are refreshed in the background, also while a backup runs.
+  metrics_loop &
+  metrics_pid=$!
+  trap 'log "stopping"; kill "$metrics_pid" 2>/dev/null; exit 0' TERM INT
+  until stanza_init; do
+    record_attempt pgbackrest 0 0
+    log "ERROR: stanza-create/check failed; retrying in 300 s"
+    sleep 300 & wait $!
+  done
+  catch_up
+  while true; do
+    next=$(next_run)
+    log "next backup at $(date -u -d "@$next" +%Y-%m-%dT%H:%MZ)"
+    while (( $(now) < next )); do
+      sleep "$(( next - $(now) ))" & wait $!
+    done
+    type=$(scheduled_type "$next")
+    do_backup "$type" || true
+    do_uploads || true
+  done
+}
+
+cmd=${1:-run}
+shift || true
+case "$cmd" in
+  run) run ;;
+  backup) validate; do_backup "${1:-diff}" ;;
+  uploads) validate; do_uploads ;;
+  metrics) write_metrics; cat "$METRICS_DIR/oecp_backup.prom" ;;
+  health) health ;;
+  *) echo "usage: oecp-backup run | backup [full|diff|incr] | uploads | metrics | health" >&2; exit 2 ;;
+esac

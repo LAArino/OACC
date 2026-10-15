@@ -1,0 +1,18 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# pgBackRest wrapper (first in PATH): every Docker secret mounted as
+# /run/secrets/pgbackrest_<option> becomes the environment variable
+# PGBACKREST_<OPTION> (dashes as underscores), e.g. the secret
+# `pgbackrest_repo2_cipher_pass` sets repo2-cipher-pass and
+# `pgbackrest_repo2_s3_key_secret` sets repo2-s3-key-secret. Secrets thus never
+# appear in compose.yaml, .env or `docker inspect`. Then runs the real binary.
+set -eu
+for f in /run/secrets/pgbackrest_*; do
+  [ -f "$f" ] || continue
+  name=$(basename "$f" | sed 's/^pgbackrest_//' | tr '[:lower:]-' '[:upper:]_')
+  value=$(cat "$f")
+  export "PGBACKREST_${name}=${value}"
+done
+exec /usr/bin/pgbackrest "$@"

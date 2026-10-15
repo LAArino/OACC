@@ -1,0 +1,238 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Prometheus alert rules (profile `observability`), spec §10 "Alerts":
+#   two consecutive failed harvests       OecpHarvestFailing
+#   backup older than 26 h                OecpBackupTooOld (+ OecpBackupMissing)
+#   disk > 80 %                           OecpDiskSpaceLow (warning 80 %, critical 90 %)
+#   metadata-refresh failure              OecpIdpMetadataRefreshFailed, ...Stale
+#   5xx > 1 %                             OecpApiHigh5xxRate, OecpEdgeHigh5xxRate
+# plus availability (api and worker down or not ready), WAL archiving and the
+# maintenance jobs. Timestamp gauges are 0 when nothing succeeded yet (or the
+# job is not configured): the staleness rules ignore 0 (`and ... > 0`, written
+# second so that $value is the age). Unit tests: alert-rules.test.yml. Every alert has `severity` (critical | warning) and
+# `component` (api, worker, backup, host, edge, monitoring), used by the
+# Alertmanager routes and inhibitions; the runbook (docs/production/runbook.md
+# §7) says what to do for each.
+#
+# Metric sources: api :3000/metrics and worker :3001/metrics (oecp_http_*,
+# oecp_sync_*, oecp_maintenance_*, oecp_idp_*, oecp_harvest_*), the `backup`
+# service through node-exporter's textfile collector (oecp_backup_*,
+# oecp_wal_archive_*), node-exporter (node_filesystem_*), blackbox probes
+# (probe_success) and Traefik (traefik_service_requests_total).
+#
+# Check: docker run --rm --entrypoint promtool -v "$PWD/observability:/c:ro" \
+#          prom/prometheus:v3.15.0 check rules /c/alert-rules.yml
+
+groups:
+  - name: oecp-availability
+    rules:
+      - alert: OecpServiceDown
+        expr: up{job=~"api|worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.component }} is not answering on /metrics"
+          description: "Prometheus could not scrape {{ $labels.instance }} for 2 minutes: the {{ $labels.component }} container is down, restarting or unreachable. Check `docker compose ps` and `docker compose logs {{ $labels.component }}`."
+      - alert: OecpServiceNotReady
+        expr: probe_success{job="ready"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.component }} /ready is failing"
+          description: "{{ $labels.instance }} has not answered 200 for 2 minutes (503 = PostgreSQL or Valkey unreachable from {{ $labels.component }})."
+      - alert: OecpMonitoringTargetDown
+        expr: up{job=~"node-exporter|blackbox-exporter|alertmanager|traefik|keycloak|otel-collector"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scrape target {{ $labels.job }} is down"
+          description: "Prometheus could not scrape {{ $labels.instance }} (job {{ $labels.job }}) for 5 minutes; alerts that depend on it cannot fire."
+
+  - name: oecp-http
+    rules:
+      - alert: OecpApiHigh5xxRate
+        expr: |
+          (
+            sum(rate(oecp_http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(oecp_http_requests_total[5m]))
+          ) > 0.01
+          and
+          sum(rate(oecp_http_requests_total[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "API 5xx ratio above 1 %"
+          description: "{{ $value | humanizePercentage }} of the api's responses over the last 5 minutes were 5xx (spec §10 threshold 1 %). Look at the api log and the 5xx by route on the Grafana dashboard."
+      - alert: OecpEdgeHigh5xxRate
+        expr: |
+          (
+            sum by (service) (rate(traefik_service_requests_total{code=~"5.."}[5m]))
+            /
+            sum by (service) (rate(traefik_service_requests_total[5m]))
+          ) > 0.01
+          and
+          sum by (service) (rate(traefik_service_requests_total[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          component: edge
+        annotations:
+          summary: "5xx ratio above 1 % at Traefik for {{ $labels.service }}"
+          description: "{{ $value | humanizePercentage }} of the responses Traefik returned for {{ $labels.service }} over 5 minutes were 5xx (includes 502/503 when the backend is down)."
+
+  - name: oecp-harvest
+    rules:
+      - alert: OecpHarvestFailing
+        expr: oecp_sync_runs_consecutive_failures >= 2
+        for: 5m
+        labels:
+          severity: warning
+          component: worker
+        annotations:
+          summary: "OEAPI harvest of {{ $labels.organization_slug }} failed {{ $value }} times in a row"
+          description: "The last {{ $value }} OEAPI harvests of {{ $labels.organization_slug }} failed (spec §10: two consecutive failures). Admin panel: Network status and Sync history; usual causes: partner endpoint down, credential expired, IP allowlist."
+      - alert: OecpHarvestStuck
+        expr: oecp_harvest_in_progress > 0
+        for: 6h
+        labels:
+          severity: warning
+          component: worker
+        annotations:
+          summary: "A harvest has been running for more than 6 hours"
+          description: "The worker reports {{ $value }} harvest(s) in progress for 6 hours; check the worker log and the sync run in the admin panel."
+
+  - name: oecp-maintenance
+    rules:
+      - alert: OecpMaintenanceJobFailed
+        expr: increase(oecp_maintenance_runs_total{status="failed", job!="idp-metadata-refresh"}[1h]) > 0
+        labels:
+          severity: warning
+          component: worker
+        annotations:
+          summary: "Maintenance job {{ $labels.job }} failed"
+          description: "A run of {{ $labels.job }} failed in the last hour. Admin panel: Maintenance, runs table (error and details)."
+      - alert: OecpMaintenanceJobStale
+        expr: |
+          time() - oecp_maintenance_run_last_success_timestamp_seconds{job!="idp-metadata-refresh"} > 26 * 3600
+          and
+          oecp_maintenance_run_last_success_timestamp_seconds{job!="idp-metadata-refresh"} > 0
+        for: 10m
+        labels:
+          severity: warning
+          component: worker
+        annotations:
+          summary: "Maintenance job {{ $labels.job }} has not succeeded for {{ $value | humanizeDuration }}"
+          description: "The daily job {{ $labels.job }} last succeeded {{ $value | humanizeDuration }} ago. Check its runs on the Maintenance page and the worker's /health (schedules)."
+      - alert: OecpIdpMetadataRefreshFailed
+        expr: increase(oecp_maintenance_runs_total{job="idp-metadata-refresh", status="failed"}[1h]) > 0
+        labels:
+          severity: warning
+          component: worker
+        annotations:
+          summary: "IdP metadata refresh failed"
+          description: "A run of idp-metadata-refresh failed in the last hour (download, signature, validUntil or one IdP). Brokered sign-in keeps the previous certificates; see the run's details on the Maintenance page."
+      - alert: OecpIdpMetadataRefreshStale
+        expr: |
+          time() - oecp_idp_metadata_refresh_last_success_timestamp_seconds > 26 * 3600
+          and
+          oecp_idp_metadata_refresh_last_success_timestamp_seconds > 0
+        for: 10m
+        labels:
+          severity: warning
+          component: worker
+        annotations:
+          summary: "IdP metadata not refreshed for more than 26 hours"
+          description: "The last successful IdP metadata refresh was {{ $value | humanizeDuration }} ago (daily at 04:15 UTC). Certificates of partner IdPs may go stale."
+
+  - name: oecp-backup
+    rules:
+      - alert: OecpBackupTooOld
+        expr: |
+          time() - oecp_backup_last_success_timestamp_seconds > 26 * 3600
+          and
+          oecp_backup_last_success_timestamp_seconds > 0
+        labels:
+          severity: critical
+          component: backup
+        annotations:
+          summary: "Newest {{ $labels.type }} backup is older than 26 hours"
+          description: "The newest successful {{ $labels.type }} backup finished {{ $value | humanizeDuration }} ago (spec §10: 26 h). Check `docker compose --profile backup ps backup` and `docker compose logs backup`."
+      - alert: OecpBackupMissing
+        expr: |
+          absent(oecp_backup_last_success_timestamp_seconds{type="pgbackrest"})
+          or
+          absent(oecp_backup_last_success_timestamp_seconds{type="uploads"})
+        for: 1h
+        labels:
+          severity: critical
+          component: backup
+        annotations:
+          summary: "No backup metrics: backups are not running or never succeeded"
+          description: "node-exporter exposes no oecp_backup_last_success_timestamp_seconds for pgbackrest or uploads: the `backup` profile is not running, has never completed a backup, or node-exporter cannot read the backup-metrics volume."
+      - alert: OecpBackupFailed
+        expr: oecp_backup_last_attempt_success == 0
+        labels:
+          severity: warning
+          component: backup
+        annotations:
+          summary: "The last {{ $labels.type }} backup attempt failed"
+          description: "The backup service's last {{ $labels.type }} attempt failed; it retries at the next schedule. `docker compose logs backup`."
+      - alert: OecpBackupNoRecentFull
+        expr: time() - oecp_backup_pgbackrest_last_full_timestamp_seconds > 8 * 86400
+        labels:
+          severity: warning
+          component: backup
+        annotations:
+          summary: "No full pgBackRest backup for more than 8 days"
+          description: "The newest full backup is {{ $value | humanizeDuration }} old (weekly, Sundays): differentials keep growing and a restore needs the old full."
+      - alert: OecpBackupMetricsStale
+        expr: time() - oecp_backup_metrics_updated_timestamp_seconds > 600
+        labels:
+          severity: warning
+          component: backup
+        annotations:
+          summary: "The backup service stopped refreshing its metrics"
+          description: "oecp_backup.prom was last written {{ $value | humanizeDuration }} ago (every minute while the `backup` service runs): the service is stopped or hanging."
+      - alert: OecpWalArchivingFailing
+        expr: oecp_wal_archive_last_failure_timestamp_seconds > oecp_wal_archive_last_success_timestamp_seconds
+        for: 15m
+        labels:
+          severity: critical
+          component: backup
+        annotations:
+          summary: "PostgreSQL WAL archiving is failing"
+          description: "archive_command (pgBackRest archive-push) has failed since its last success for 15 minutes: point-in-time recovery stops at the last archived segment and pg_wal grows. `docker compose logs postgres`, then `docker compose exec backup pgbackrest --stanza=oecp check`."
+
+  - name: oecp-host
+    rules:
+      - alert: OecpDiskSpaceLow
+        expr: |
+          max by (instance, device) (
+            100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|ramfs"})
+          ) > 80
+        for: 15m
+        labels:
+          severity: warning
+          component: host
+        annotations:
+          summary: "Disk {{ $labels.device }} is {{ $value | humanize }} % full"
+          description: "The filesystem holding the data volumes (PostgreSQL, pgBackRest repository, uploads) is more than 80 % full (spec §10). Free space or grow the disk before PostgreSQL stops."
+      - alert: OecpDiskSpaceLow
+        expr: |
+          max by (instance, device) (
+            100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|ramfs"})
+          ) > 90
+        for: 5m
+        labels:
+          severity: critical
+          component: host
+        annotations:
+          summary: "Disk {{ $labels.device }} is {{ $value | humanize }} % full"
+          description: "The filesystem holding the data volumes is more than 90 % full: PostgreSQL stops when it is full and WAL archiving needs room. Act now."

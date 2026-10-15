@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: EUPL-1.2
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { sql } from 'kysely';
 import type { MaintenanceTrigger } from '@oecp/schemas';
 import { type Db, KYSELY } from '../db/db.module.js';
+import { RunMetricsService } from '../metrics/run-metrics.service.js';
 import { type Counters, MaintenanceRunsRepository } from './maintenance-runs.repository.js';
 
 /** What a maintenance job reports; stored in `maintenance_runs`. */
@@ -44,6 +45,8 @@ export class MaintenanceRunner {
   constructor(
     @Inject(KYSELY) private readonly db: Db,
     private readonly runs: MaintenanceRunsRepository,
+    /** Worker only (spec §10 metrics); the api never runs jobs itself. */
+    @Optional() private readonly metrics?: RunMetricsService,
   ) {}
 
   async run(
@@ -62,6 +65,7 @@ export class MaintenanceRunner {
       if (!rows[0]?.locked) {
         const details = { reason: 'Another run of this job is in progress' };
         await this.runs.finish(runId, 'skipped', { details });
+        this.metrics?.maintenanceRunFinished(job, 'skipped');
         this.logger.warn(`Maintenance job ${job} skipped: another run is in progress`);
         return { runId, status: 'skipped', counters: {}, details };
       }
@@ -69,6 +73,7 @@ export class MaintenanceRunner {
       try {
         const outcome = await fn();
         await this.runs.finish(runId, 'succeeded', outcome);
+        this.metrics?.maintenanceRunFinished(job, 'succeeded');
         this.logger.log(
           `Maintenance job ${job} (${trigger}) succeeded in ${Date.now() - started} ms: ` +
             JSON.stringify(outcome.counters),
@@ -80,6 +85,7 @@ export class MaintenanceRunner {
         await this.runs
           .finish(runId, 'failed', { ...outcome, error: message })
           .catch((e: unknown) => this.logger.error(e, `Run ${runId} could not be recorded`));
+        this.metrics?.maintenanceRunFinished(job, 'failed');
         this.logger.error(error, `Maintenance job ${job} (${trigger}) failed`);
         throw error;
       } finally {

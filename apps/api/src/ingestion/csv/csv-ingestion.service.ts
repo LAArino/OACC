@@ -24,6 +24,7 @@ import { sql, type Transaction } from 'kysely';
 import { loadAttributeDefinitions } from '../../attributes/attribute-definitions.js';
 import type { Database } from '../../db/database.js';
 import { type Db, KYSELY } from '../../db/db.module.js';
+import { RunMetricsService } from '../../metrics/run-metrics.service.js';
 import { CanonicalContentRejected, CanonicalWriter } from '../canonical-writer.service.js';
 import { offeringKey, type WriteContext } from '../ports/canonical-writer.js';
 import type { FinishRun, RunCounters, SyncRunRow } from '../sync-runs.repository.js';
@@ -123,6 +124,8 @@ export class CsvIngestionService {
     private readonly storage: UploadStorage,
     private readonly runs: SyncRunsRepository,
     @Optional() @Inject(CSV_CLOCK) clock?: () => Date,
+    /** Worker only (spec §10 metrics): queued uploads; inline ones run in the api. */
+    @Optional() private readonly metrics?: RunMetricsService,
   ) {
     this.now = clock ?? (() => new Date());
   }
@@ -177,7 +180,14 @@ export class CsvIngestionService {
       is_complete: result.ok,
       error_summary: result.summary?.slice(0, 2000) ?? null,
     };
-    await this.runs.finish(syncRunId, finish, this.now());
+    const finishedAt = this.now();
+    await this.runs.finish(syncRunId, finish, finishedAt);
+    await this.metrics?.syncRunFinished({
+      organizationId: run.organization_id,
+      channel: 'csv',
+      status: finish.status,
+      finishedAt,
+    });
     await this.db
       .insertInto('audit_log')
       .values({

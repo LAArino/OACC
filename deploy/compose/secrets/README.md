@@ -17,6 +17,19 @@
 | `oecp_master_key` | api, worker | AES-256-GCM master key of the `secrets` table (spec §10): 32 random bytes, base64 |
 | `grafana_admin_password` | grafana (profile `observability`) | Grafana `admin` password |
 
+Optional, commented out in `compose.yaml` until used:
+
+| File | Used by | Content |
+|---|---|---|
+| `smtp_password` | api, worker | SMTP AUTH password (`OECP_SMTP_USER`) |
+| `alert_smtp_password` | alertmanager (profile `observability`) | SMTP AUTH password for alert mail (`OECP_ALERT_SMTP_USER`) |
+| `pgbackrest_repo2_cipher_pass` | postgres, backup (profile `backup`) | Encryption passphrase of pgBackRest repo2, the second site (`openssl rand -base64 48`); without it repo2 cannot be restored: keep it with the offline copy |
+| `pgbackrest_repo2_s3_key_secret` | postgres, backup | S3 secret access key of repo2 |
+
+Any file named `pgbackrest_<option>` mounted into `postgres` or `backup` sets
+that pgBackRest option (`postgres/bin/pgbackrest`); see
+[`../postgres/pgbackrest-repo2.env.example`](../postgres/pgbackrest-repo2.env.example).
+
 ## Create them
 
 Run from `deploy/compose/`. Files must have **no trailing newline** (Keycloak

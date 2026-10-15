@@ -93,7 +93,22 @@ export const envSchema = z.object({
    * CSV uploads processed inline) and `worker` (harvests, queued uploads): set both.
    */
   OECP_PUBLISH_RULE: z.enum(['warn', 'enforce']).default('warn'),
-  /** Worker process only: port of its internal `/health` and `/ready` HTTP server. */
+  /**
+   * Prometheus metrics (spec §10): `GET /metrics` on the api (port `PORT`) and on
+   * the worker's internal server (`WORKER_HEALTH_PORT`). Internal network only:
+   * Traefik routes neither. `false`: both answer 404 and nothing is collected.
+   */
+  OECP_METRICS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  /** Commit the image was built from, exported as `oecp_build_info{commit}`; else `unknown`. */
+  OECP_GIT_COMMIT: z
+    .string()
+    .regex(/^[0-9A-Za-z._-]{1,64}$/)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+  /** Worker process only: port of its internal `/health`, `/ready` and `/metrics` HTTP server. */
   WORKER_HEALTH_PORT: z.coerce.number().int().min(0).max(65535).default(3001),
   /** Spec §10 retention (months): `ext_metadata_history` partitions (raw payloads). */
   OECP_RETENTION_HISTORY_MONTHS: z.coerce.number().int().min(1).max(120).default(12),

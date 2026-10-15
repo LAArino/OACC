@@ -88,6 +88,11 @@ x-oecp-backend-env: &oecp-backend-env
   # NODE_ENV=production refuses to start with an empty SMTP host (invitation links
   # would only be logged) unless this is true. Development without Mailpit only.
   OECP_MAIL_LOG_LINKS: ${OECP_MAIL_LOG_LINKS:-false}
+  # Prometheus metrics (spec §10): api on :3000/metrics, worker on :3001/metrics,
+  # internal network only (Traefik does not route them); scraped by the
+  # `observability` profile. OECP_GIT_COMMIT labels oecp_build_info{commit}.
+  OECP_METRICS_ENABLED: ${OECP_METRICS_ENABLED:-true}
+  OECP_GIT_COMMIT: ${OECP_GIT_COMMIT:-unknown}
   # Standard OpenTelemetry SDK variables (spec §10 Observability). The SDK is
   # disabled unless the `observability` profile is running.
   OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
@@ -201,24 +206,63 @@ services:
   # Data stores
   # -------------------------------------------------------------------------
   postgres:
-    image: postgres:16.15
+    # postgres:16.15 plus pgBackRest (dockerfiles/postgres.Dockerfile): same
+    # PostgreSQL minor, same data volume, non-root (uid 999).
+    build:
+      context: ./postgres
+      dockerfile: ../dockerfiles/postgres.Dockerfile
+    image: oecp/postgres:${OECP_IMAGE_TAG:-dev}
     restart: unless-stopped
     shm_size: 256mb
+    # WAL archiving for point-in-time recovery (spec §10 "Backups"). These
+    # server settings override postgresql.conf of the data directory (command
+    # line wins), so they also apply to an existing cluster: recreate the
+    # container to change them. archive_command pushes every completed WAL
+    # segment to the pgBackRest repositories; OECP_WAL_ARCHIVE (on, auto, off)
+    # is explained in postgres/bin/oecp-pgbackrest-archive-push.
+    # archive_timeout bounds the WAL not yet archived (recovery point) to 5 min.
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=oecp-pgbackrest-archive-push %p
+      - -c
+      - archive_timeout=${OECP_WAL_ARCHIVE_TIMEOUT:-300}
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_superuser_password
       POSTGRES_DB: postgres
       POSTGRES_INITDB_ARGS: --data-checksums --encoding=UTF8 --locale=C.UTF-8
+      OECP_WAL_ARCHIVE: ${OECP_WAL_ARCHIVE:-auto}
+    # Second repository (repo2, the "second site"): PGBACKREST_REPO2_* variables,
+    # see postgres/pgbackrest-repo2.env.example. Optional file.
+    env_file:
+      - path: ./.env.pgbackrest
+        required: false
     secrets:
       - postgres_superuser_password
       - oecp_db_password
       - keycloak_db_password
+      # repo2 secrets, read by the pgbackrest wrapper (postgres/bin/pgbackrest):
+      # - pgbackrest_repo2_cipher_pass
+      # - pgbackrest_repo2_s3_key_secret
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Unix socket, shared with the `backup` service (pgBackRest connects
+      # through it; local connections are trusted, so nothing else mounts it).
+      - postgres_socket:/var/run/postgresql
+      # repo1, written by archive-push.
+      - pgbackrest-repo:/var/lib/pgbackrest
+      - ./postgres/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
       # Runs once, on an empty data directory: creates databases `oecp` and `keycloak`.
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
     networks:
       - backend
+      # With repo2 on S3 or SFTP, archive-push needs outbound access:
+      # - egress
     healthcheck:
       # TCP probe: during first-run initialisation the entrypoint's temporary
       # server listens on the Unix socket only, so this turns healthy only after
@@ -504,6 +548,8 @@ services:
       NUXT_PUBLIC_I18N_BASE_URL: https://${OECP_PORTAL_HOST}
       # Shown on the public portal (home intro, titles).
       NUXT_PUBLIC_ALLIANCE_NAME: ${OECP_ALLIANCE_NAME:-the alliance}
+      # Content-Security-Policy of the portal (spec §10): enforce | report-only | off.
+      NUXT_CSP_MODE: ${NUXT_CSP_MODE:-enforce}
       OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
       OTEL_SERVICE_NAME: oecp-web
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
@@ -658,8 +704,73 @@ services:
     logging: *default-logging
 
   # -------------------------------------------------------------------------
-  # Optional observability (profile `observability`), spec §10. Kept minimal:
-  # OTLP in, metrics to Prometheus, logs to Loki, traces to the debug exporter.
+  # Backups (profile `backup`), spec §10: pgBackRest for the whole PostgreSQL
+  # cluster (databases `oecp` and `keycloak`) with continuous WAL archiving
+  # (point-in-time recovery), a full backup every Sunday and a differential
+  # on the other days at 02:00 UTC, 35 days of recovery window; plus a daily
+  # archive of the `uploads` volume (35 days). Repository repo1 = volume
+  # `pgbackrest-repo`; repo2 (second site, S3/MinIO or SFTP) via .env.pgbackrest.
+  # Writes textfile metrics for node-exporter (profile `observability`).
+  # Script: postgres/bin/oecp-backup. Restore drill: scripts/restore-drill.sh.
+  #   docker compose --profile backup up -d
+  #   docker compose exec backup oecp-backup backup full     # on demand
+  #   docker compose exec backup pgbackrest --stanza=oecp info
+  # -------------------------------------------------------------------------
+  backup:
+    image: oecp/postgres:${OECP_IMAGE_TAG:-dev}
+    # Built by the `postgres` service.
+    pull_policy: never
+    profiles: ["backup"]
+    restart: unless-stopped
+    init: true
+    command: ["oecp-backup", "run"]
+    # A backup in progress finishes its current step before the container stops.
+    stop_grace_period: 60s
+    # Group of the api/worker user (node, gid 1000), which owns the uploads
+    # (files 0640, directories 0750): read access for the uploads archive.
+    group_add: ["1000"]
+    environment:
+      OECP_BACKUP_TIME: ${OECP_BACKUP_TIME:-02:00}
+      OECP_BACKUP_FULL_DAY: ${OECP_BACKUP_FULL_DAY:-7}
+      OECP_BACKUP_CATCHUP_HOURS: ${OECP_BACKUP_CATCHUP_HOURS:-24}
+      OECP_BACKUP_UPLOADS_RETENTION_DAYS: ${OECP_BACKUP_UPLOADS_RETENTION_DAYS:-35}
+    env_file:
+      - path: ./.env.pgbackrest
+        required: false
+    # secrets:
+    #   - pgbackrest_repo2_cipher_pass
+    #   - pgbackrest_repo2_s3_key_secret
+    volumes:
+      # Read-only: pgBackRest reads the files and asks the server (socket) for
+      # the start and stop of each backup.
+      - postgres_data:/var/lib/postgresql/data:ro
+      - postgres_socket:/var/run/postgresql
+      - pgbackrest-repo:/var/lib/pgbackrest
+      - ./postgres/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
+      - uploads:/data/uploads:ro
+      - backup-metrics:/var/lib/oecp-backup-metrics
+    # No network: PostgreSQL is reached over the shared Unix socket and repo1
+    # is a volume. With repo2 on S3 or SFTP replace by `networks: [egress]`.
+    network_mode: none
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # The metrics file is rewritten every minute while the scheduler runs.
+      test: ["CMD", "oecp-backup", "health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    logging: *default-logging
+
+  # -------------------------------------------------------------------------
+  # Optional observability (profile `observability`), spec §10: OTLP in,
+  # metrics to Prometheus (also scraped from api and worker `/metrics`,
+  # node-exporter and blackbox probes), logs to Loki, traces to the debug
+  # exporter; alert rules in observability/alert-rules.yml, notifications by
+  # Alertmanager (e-mail and/or webhook, OECP_ALERT_* in .env); Grafana with
+  # the provisioned dashboard "OECP overview".
   # -------------------------------------------------------------------------
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.162.0
@@ -682,10 +793,90 @@ services:
       - --storage.tsdb.retention.time=30d
     volumes:
       - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ./observability/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
       - prometheus_data:/prometheus
     networks:
       - backend
       - edge
+    logging: *default-logging
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    profiles: ["observability"]
+    restart: unless-stopped
+    # Renders observability/alertmanager/alertmanager.yml.tmpl with the
+    # OECP_ALERT_* values below (Alertmanager does not expand variables), then
+    # starts Alertmanager on the result.
+    entrypoint: ["/bin/sh", "/etc/alertmanager/oecp/entrypoint.sh"]
+    environment:
+      # Receivers: either or both; with neither, alerts are only shown in
+      # Alertmanager and Grafana.
+      OECP_ALERT_WEBHOOK_URL: ${OECP_ALERT_WEBHOOK_URL:-}
+      OECP_ALERT_EMAIL_TO: ${OECP_ALERT_EMAIL_TO:-}
+      OECP_ALERT_EMAIL_FROM: ${OECP_ALERT_EMAIL_FROM:-${OECP_SMTP_FROM:-no-reply@example.org}}
+      # SMTP relay: defaults to the one of the application (OECP_SMTP_*).
+      OECP_ALERT_SMTP_HOST: ${OECP_ALERT_SMTP_HOST:-${OECP_SMTP_HOST:-}}
+      OECP_ALERT_SMTP_PORT: ${OECP_ALERT_SMTP_PORT:-${OECP_SMTP_PORT:-25}}
+      OECP_ALERT_SMTP_REQUIRE_TLS: ${OECP_ALERT_SMTP_REQUIRE_TLS:-${OECP_SMTP_STARTTLS:-true}}
+      # SMTP AUTH: user here, password as Docker secret `alert_smtp_password`
+      # (uncomment below and in `secrets:`).
+      OECP_ALERT_SMTP_USER: ${OECP_ALERT_SMTP_USER:-}
+      OECP_ALERT_SMTP_PASSWORD_FILE: ${OECP_ALERT_SMTP_PASSWORD_FILE:-}
+      OECP_ENVIRONMENT: ${OECP_ENVIRONMENT:-local}
+    # secrets:
+    #   - alert_smtp_password
+    volumes:
+      - ./observability/alertmanager:/etc/alertmanager/oecp:ro
+      - alertmanager_data:/alertmanager
+    networks:
+      # backend: Prometheus, Mailpit (dev); edge: outbound SMTP and webhooks.
+      - backend
+      - edge
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9093/-/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging: *default-logging
+
+  # Host metrics, chiefly disk usage of the data volumes (alert "disk > 80%"),
+  # and the textfile metrics written by the `backup` service. The volumes are
+  # mounted only so that their filesystems are reported (statfs); in production
+  # a node-exporter on the host itself sees every filesystem.
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    profiles: ["observability"]
+    restart: unless-stopped
+    command:
+      - --collector.textfile.directory=/textfile
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|etc)($$|/)
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - backup-metrics:/textfile:ro
+      - postgres_data:/volumes/postgres_data:ro
+      - pgbackrest-repo:/volumes/pgbackrest-repo:ro
+      - uploads:/volumes/uploads:ro
+    networks:
+      - backend
+    logging: *default-logging
+
+  # HTTP probes of the internal readiness endpoints (api and worker `/ready`:
+  # PostgreSQL and Valkey reachable), which `up` alone does not cover.
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.29.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["--config.file=/etc/blackbox/blackbox.yml"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ./observability/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    networks:
+      - backend
     logging: *default-logging
 
   loki:
@@ -718,10 +909,12 @@ services:
       - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
     volumes:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
       - loki
+      - alertmanager
     networks:
       - backend
       - edge
@@ -750,6 +943,22 @@ volumes:
   prometheus_data:
   loki_data:
   grafana_data:
+  alertmanager_data:
+  # Unix socket directory of PostgreSQL, shared with `backup`.
+  postgres_socket:
+  # pgBackRest repo1 (backups, WAL archive) and the uploads archives
+  # (uploads/uploads-YYYY-MM-DD.tar.gz). Back it up off-site too, or configure
+  # repo2 (second site, .env.pgbackrest).
+  pgbackrest-repo:
+  # Textfile metrics of `backup`, read by node-exporter. tmpfs owned by the
+  # postgres uid, so it does not matter which service creates it first; the
+  # backup service rewrites the file every minute from the repository.
+  backup-metrics:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=1m,uid=999,gid=999,mode=0755
 
 # File-based Docker secrets; create them as described in secrets/README.md.
 secrets:
@@ -769,3 +978,11 @@ secrets:
     file: ./secrets/grafana_admin_password
   # smtp_password:
   #   file: ./secrets/smtp_password
+  # Alertmanager SMTP AUTH (OECP_ALERT_SMTP_PASSWORD_FILE=/run/secrets/alert_smtp_password):
+  # alert_smtp_password:
+  #   file: ./secrets/alert_smtp_password
+  # pgBackRest repo2 (second site), see postgres/pgbackrest-repo2.env.example:
+  # pgbackrest_repo2_cipher_pass:
+  #   file: ./secrets/pgbackrest_repo2_cipher_pass
+  # pgbackrest_repo2_s3_key_secret:
+  #   file: ./secrets/pgbackrest_repo2_s3_key_secret

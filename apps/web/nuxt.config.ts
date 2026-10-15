@@ -20,6 +20,13 @@ export default defineNuxtConfig({
     // inside Docker, where the public host would resolve to the web container itself).
     // Empty means "use public.apiBase".
     apiInternalBase: '',
+    // Content-Security-Policy of every HTML response (server/plugins/csp.ts, spec §10).
+    csp: {
+      // NUXT_CSP_MODE: enforce | report-only | off.
+      mode: 'enforce',
+      // NUXT_CSP_REPORT_URI: optional violation report endpoint (absolute URL or path).
+      reportUri: '',
+    },
     public: {
       // NUXT_PUBLIC_ALLIANCE_NAME: shown in the public portal (e.g. "Aurora").
       allianceName: 'the alliance',

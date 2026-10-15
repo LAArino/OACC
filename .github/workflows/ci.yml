@@ -169,12 +169,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: docker compose config
+      - name: docker compose config (every profile)
         run: |
           docker compose version
-          docker compose --env-file deploy/compose/.env.example \
-            -f deploy/compose/compose.yaml --profile observability config --quiet
-          echo "compose.yaml is valid"
+          for profiles in "" "--profile dev" "--profile backup" "--profile observability" \
+            "--profile dev --profile backup --profile observability"; do
+            eval docker compose --env-file deploy/compose/.env.example \
+              -f deploy/compose/compose.yaml "$profiles" config --quiet
+          done
+          echo "compose.yaml is valid for every profile"
+      - name: promtool check rules and config
+        run: |
+          docker run --rm -v "$PWD/deploy/compose/observability:/obs:ro" \
+            --entrypoint promtool prom/prometheus:v3.15.0 check rules /obs/alert-rules.yml
+          docker run --rm -v "$PWD/deploy/compose/observability:/obs:ro" \
+            --entrypoint promtool prom/prometheus:v3.15.0 test rules /obs/alert-rules.test.yml
+      - name: amtool check-config (rendered template, no receivers)
+        run: |
+          docker run --rm \
+            -v "$PWD/deploy/compose/observability/alertmanager:/etc/alertmanager/oecp:ro" \
+            --entrypoint sh prom/alertmanager:v0.34.1 -c \
+            'sh /etc/alertmanager/oecp/entrypoint.sh --render-only /tmp/am.yml && amtool check-config /tmp/am.yml'
 
   trivy-fs:
     name: Trivy filesystem scan

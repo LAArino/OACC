@@ -1,0 +1,131 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Unit tests of alert-rules.yml (promtool test rules), see README "Alerting":
+#   docker run --rm --entrypoint promtool -v "$PWD/observability:/c:ro" -w /c \
+#     prom/prometheus:v3.15.0 test rules alert-rules.test.yml
+
+rule_files:
+  - alert-rules.yml
+
+evaluation_interval: 30s
+
+tests:
+  # Two consecutive failed harvests fire after 5 minutes; one does not.
+  - interval: 1m
+    input_series:
+      - series: 'oecp_sync_runs_consecutive_failures{job="worker",component="worker",organization_slug="uibk"}'
+        values: '0 1 2 2 2 2 2 2 2 2'
+      - series: 'oecp_sync_runs_consecutive_failures{job="worker",component="worker",organization_slug="urv"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: OecpHarvestFailing
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: OecpHarvestFailing
+        exp_alerts:
+          - exp_labels: {severity: warning, component: worker, job: worker, organization_slug: uibk}
+            exp_annotations:
+              summary: "OEAPI harvest of uibk failed 2 times in a row"
+              description: "The last 2 OEAPI harvests of uibk failed (spec §10: two consecutive failures). Admin panel: Network status and Sync history; usual causes: partner endpoint down, credential expired, IP allowlist."
+
+  # Backup older than 26 h: the series starts at t=0 with a backup finished at
+  # t=0 (value 0 is "never", so use 60); at 27 h it is too old.
+  - interval: 1h
+    input_series:
+      - series: 'oecp_backup_last_success_timestamp_seconds{job="node-exporter",component="host",type="pgbackrest"}'
+        values: '60x30'
+      - series: 'oecp_backup_last_success_timestamp_seconds{job="node-exporter",component="host",type="uploads"}'
+        values: '60+3600x30'
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: OecpBackupTooOld
+        exp_alerts: []
+      - eval_time: 27h
+        alertname: OecpBackupTooOld
+        exp_alerts:
+          - exp_labels: {severity: critical, component: backup, job: node-exporter, type: pgbackrest}
+            exp_annotations:
+              summary: "Newest pgbackrest backup is older than 26 hours"
+              description: "The newest successful pgbackrest backup finished 1d 2h 59m 0s ago (spec §10: 26 h). Check `docker compose --profile backup ps backup` and `docker compose logs backup`."
+      - eval_time: 27h
+        alertname: OecpBackupMissing
+        exp_alerts: []
+
+  # IdP metadata refresh never succeeded / not configured (0): no alert; a
+  # refresh 30 h ago: alert after the 10-minute `for`.
+  - interval: 1h
+    input_series:
+      - series: 'oecp_idp_metadata_refresh_last_success_timestamp_seconds{job="worker",component="worker"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 40h
+        alertname: OecpIdpMetadataRefreshStale
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'oecp_idp_metadata_refresh_last_success_timestamp_seconds{job="worker",component="worker"}'
+        values: '3600x2000'
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: OecpIdpMetadataRefreshStale
+        exp_alerts: []
+      - eval_time: 31h
+        alertname: OecpIdpMetadataRefreshStale
+        exp_alerts:
+          - exp_labels: {severity: warning, component: worker, job: worker}
+            exp_annotations:
+              summary: "IdP metadata not refreshed for more than 26 hours"
+              description: "The last successful IdP metadata refresh was 1d 6h 0m 0s ago (daily at 04:15 UTC). Certificates of partner IdPs may go stale."
+
+  # 5xx ratio: 2 % of 1 req/s for 15 minutes fires; 0.5 % does not.
+  - interval: 1m
+    input_series:
+      - series: 'oecp_http_requests_total{job="api",component="api",method="GET",route="/api/public/v1/courses",status="200"}'
+        values: '0+58.8x30'
+      - series: 'oecp_http_requests_total{job="api",component="api",method="GET",route="/api/public/v1/courses",status="500"}'
+        values: '0+1.2x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: OecpApiHigh5xxRate
+        exp_alerts:
+          - exp_labels: {severity: warning, component: api}
+            exp_annotations:
+              summary: "API 5xx ratio above 1 %"
+              description: "2% of the api's responses over the last 5 minutes were 5xx (spec §10 threshold 1 %). Look at the api log and the 5xx by route on the Grafana dashboard."
+
+  # Disk: 85 % is a warning only, 95 % both levels (Alertmanager inhibits the warning).
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/volumes/postgres_data"}'
+        values: '15x20'
+      - series: 'node_filesystem_size_bytes{instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/volumes/postgres_data"}'
+        values: '100x20'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: OecpDiskSpaceLow
+        exp_alerts:
+          - exp_labels: {severity: warning, component: host, instance: "node-exporter:9100", device: /dev/vda1}
+            exp_annotations:
+              summary: "Disk /dev/vda1 is 85 % full"
+              description: "The filesystem holding the data volumes (PostgreSQL, pgBackRest repository, uploads) is more than 80 % full (spec §10). Free space or grow the disk before PostgreSQL stops."
+
+  # WAL archiving failing for 15 minutes.
+  - interval: 1m
+    input_series:
+      - series: 'oecp_wal_archive_last_success_timestamp_seconds{job="node-exporter",component="host"}'
+        values: '1000x30'
+      - series: 'oecp_wal_archive_last_failure_timestamp_seconds{job="node-exporter",component="host"}'
+        values: '2000x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: OecpWalArchivingFailing
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: OecpWalArchivingFailing
+        exp_alerts:
+          - exp_labels: {severity: critical, component: backup, job: node-exporter}
+            exp_annotations:
+              summary: "PostgreSQL WAL archiving is failing"
+              description: "archive_command (pgBackRest archive-push) has failed since its last success for 15 minutes: point-in-time recovery stops at the last archived segment and pg_wal grows. `docker compose logs postgres`, then `docker compose exec backup pgbackrest --stanza=oecp check`."

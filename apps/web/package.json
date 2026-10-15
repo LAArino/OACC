@@ -1,6 +1,6 @@
 {
   "name": "@oecp/web",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "license": "EUPL-1.2",
   "type": "module",
@@ -10,7 +10,8 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "typecheck": "nuxt typecheck",
-    "test": "vitest run"
+    "test": "vitest run && vitest run --config vitest.render.config.ts",
+    "test:render": "vitest run --config vitest.render.config.ts"
   },
   "dependencies": {
     "@nuxtjs/i18n": "10.6.0",
@@ -18,7 +19,8 @@
     "nuxt": "4.6.1",
     "oidc-client-ts": "3.5.0",
     "vue": "3.5.44",
-    "vue-router": "5.4.0"
+    "vue-router": "5.4.0",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@nuxt/test-utils": "4.3.3",
