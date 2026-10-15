@@ -5,69 +5,134 @@
 
 Status: 0.4.0, pre-production (no real partner data yet); specification v4.1 (as built)
 
-OECP is an open-source web application that publishes the course offer of a
-European University alliance as one public catalogue and one read API. Partner
-universities feed their courses through three channels: scheduled harvesting of
-their Open Education API (OEAPI, formerly OOAPI) endpoints, CSV upload, or a web
-form. An anti-corruption layer normalises every channel into one canonical model
-before publication, and the published catalogue is exposed again as an
-OEAPI v5-compatible read API so that others can harvest it. OECP is
-alliance-agnostic: the alliance name, partners, domains, logos, colours and UI
-languages are configuration, and one deployment serves one alliance. Its first
-deployment targets the Aurora alliance. OECP never handles applications or
-enrolment and stores no student data.
+OECP is a sovereign, open-source course-catalogue portal for European
+University alliances. It collects the courses that the partner universities of
+an alliance open to each other's students, normalises them into one data model,
+and publishes them as one searchable public catalogue and one standards-based
+read API. Everything is open source under the EUPL-1.2 and runs on open
+components only, so an alliance can host it itself without licence costs or
+dependence on an external managed platform.
 
-The full specification is [docs/spec-v4.0.md](docs/spec-v4.0.md).
+The full specification is [docs/spec-v4.1.md](docs/spec-v4.1.md). An index of
+all documentation is in [docs/README.md](docs/README.md).
+
+## The problem it solves
+
+An alliance of universities wants one place where students can find every
+course offered across the alliance: which university teaches it, in which
+language and mode, how many ECTS, when it runs, when to apply and how. The
+universities, however, are very different: some expose a modern course API,
+some can export a spreadsheet, some can only type courses in by hand. Their
+course data follows different conventions, and some of the information the
+alliance wants to show (educational hubs, sustainability goals, whether a
+course is open to all partners) does not exist in any university system.
+
+OECP absorbs that diversity so that the alliance gets one consistent catalogue
+without forcing every partner into the same tooling:
+
+- **Three ways in, one model out.** A partner can be harvested automatically
+  from its Open Education API (OEAPI, the SURF standard formerly called OOAPI),
+  upload CSV files from a published template, or maintain courses in a web
+  form. All three land in the same canonical model, with the same validation
+  and the same audit trail.
+- **Alliance-specific data without forking the standard.** Each alliance
+  defines its own course attributes (for Aurora: educational hub, SDGs,
+  micro-credential, free course, target audience) that become tags and filters
+  in the catalogue, next to the standard fields.
+- **Local edits that survive automation.** Alliance staff can correct or
+  enrich a harvested course; those overrides are kept per field and survive
+  every later harvest, and the partner's original value stays visible.
+- **The catalogue is itself harvestable.** The published offer is exposed
+  again as an OEAPI v5-compatible read API, so other platforms and alliances
+  can consume it.
+- **No student data.** OECP publishes the offer and points students to the
+  partner's own application process. It never handles applications,
+  enrolment or student records, which keeps its data-protection footprint
+  small.
+
+## Main modules
+
+| Module | What it does |
+|---|---|
+| **Public catalogue** | Server-rendered portal with full-text search in several languages, filters (partner, mode, language, ISCED field, level, ECTS, alliance attributes), sorting by start date or application deadline, course pages with texts per language, offerings, seats and "how to apply", structured data for search engines, sitemap, no cookies. |
+| **Harvester (channel A)** | Scheduled pull of each partner's OEAPI v5 endpoint through an anti-corruption layer: validation, mapping to the canonical model, change detection by content hash, withdrawal of courses that disappear, and a full audit of every run and every original payload (minimised of person data). |
+| **CSV upload (channel B)** | Versioned CSV template, validated in the browser before upload with the same validator the server uses, all-or-nothing processing, row-and-column error reports. |
+| **Web form (channel C)** | A stepped editor for courses and offerings, including alliance attributes and per-language texts; on harvested organisations it works as an overrides editor. |
+| **Administration panel** | Invitations, integration settings per partner (endpoint, credentials, host approval, test connection, sync now), sync history and error reports, organisations and administrators, network status with a health indicator per partner, maintenance runs. |
+| **Identity** | Keycloak as the only identity component: administrators sign in through their own university (SAML / eduGAIN) or with a local account, always with a second factor; roles are assigned inside OECP, never derived from the identity provider. The public portal needs no sign-in. |
+| **OEAPI read API** | The alliance catalogue published in OEAPI v5 shapes, plus two documented JSON APIs of OECP's own (public and administration). |
+| **Maintenance** | Daily jobs for history partitions, retention periods, dormant-administrator review, account clean-up and identity-provider metadata refresh from eduGAIN, all recorded and runnable on demand from the panel. |
+
+## Who uses it
+
+| Role | Needs an account? | What they do |
+|---|---|---|
+| **Students and visitors** | No | Search and browse the catalogue, read course pages, follow the link or instructions to apply at the partner university. |
+| **Partner administrator** (one or more per university) | Yes: the university's identity provider or a local account, with MFA | Keeps the university's courses current: configures the OEAPI integration, uploads CSV files, edits courses and offerings in the form, reviews sync reports and completeness warnings. |
+| **Alliance administrator** (the alliance office or foundation) | Yes, same | Onboards universities and their administrators, approves partner endpoints, watches the network status, runs maintenance, defines the alliance attributes and decides what is published. |
+| **Hosting operator** | No OECP account | Deploys and operates the reference Docker Compose stack, backups, secrets, logs and upgrades (see the runbook). |
+| **Other platforms** | No | Harvest the alliance catalogue through the OEAPI v5 read API. |
+
+The data-protection roles for the first deployment are documented in the
+decisions log: the Aurora Foundation decides what is published (controller)
+and Universitat Rovira i Virgili hosts the service (processor).
 
 ## Architecture
 
 - **Edge:** Traefik v3 terminates TLS, routes, rate-limits and sets security headers ([ADR-0003](docs/adr/0003-traefik-edge-proxy.md)).
-- **Web:** Nuxt 4 / Vue 3 renders the public catalogue server-side and the admin dashboard client-side ([ADR-0002](docs/adr/0002-vue3-nuxt-ssr-catalogue.md)).
-- **Backend:** one NestJS modular monolith, one image, two processes: `api` (HTTP) and `worker` (BullMQ on Valkey) ([ADR-0001](docs/adr/0001-modular-monolith-on-nestjs.md)).
-- **Data:** PostgreSQL 16 holds the canonical model, full-text search and history; ingestion is pull-only OEAPI harvesting plus CSV and form ([ADR-0005](docs/adr/0005-pull-only-oeapi-harvesting-canonical-model.md)).
-- **Identity:** Keycloak authenticates administrators only, with one SAML IdP per partner (eduGAIN) and mandatory MFA; the public portal never touches it ([ADR-0004](docs/adr/0004-keycloak-only-identity-one-saml-idp-per-partner.md)).
+- **Web:** Nuxt 4 / Vue 3 renders the public catalogue server-side and the administration panel client-side ([ADR-0002](docs/adr/0002-vue3-nuxt-ssr-catalogue.md)).
+- **Backend:** one NestJS modular monolith, one image, two processes: `api` (HTTP) and `worker` (jobs on BullMQ / Valkey) ([ADR-0001](docs/adr/0001-modular-monolith-on-nestjs.md)).
+- **Data:** PostgreSQL 16 holds the canonical model, full-text search and the ingestion history; ingestion is pull-only OEAPI harvesting plus CSV and form ([ADR-0005](docs/adr/0005-pull-only-oeapi-harvesting-canonical-model.md), [ADR-0010](docs/adr/0010-overrides-on-harvested-records.md)).
+- **Identity:** Keycloak authenticates administrators only, with one SAML identity provider per partner (eduGAIN) and mandatory MFA; the public portal never touches it ([ADR-0004](docs/adr/0004-keycloak-only-identity-one-saml-idp-per-partner.md)).
+- **Alliance-agnostic:** the alliance name, partners, attributes, hosts and UI languages are configuration; one deployment serves one alliance. The first deployment targets the Aurora European Universities Alliance.
+
+All architecture decisions are recorded in [docs/adr](docs/adr/README.md).
 
 ## Repository layout
 
 ```
 .
 ├── apps/
-│   ├── api/              NestJS backend: `api` and `worker` processes
-│   └── web/              Nuxt public catalogue and admin dashboard
+│   ├── api/              NestJS backend: `api` and `worker` processes, migrations, CLI
+│   └── web/              Nuxt public catalogue and administration panel
 ├── packages/
-│   └── schemas/          Canonical model, CSV template, OEAPI DTOs, error codes
+│   └── schemas/          Canonical model, CSV template, OEAPI DTOs, error codes (Zod + JSON Schema)
 ├── identity/
-│   └── keycloak/         Realm as code, themes, SP metadata scripts
+│   └── keycloak/         Realm as code, SP metadata notes
 ├── deploy/
-│   ├── compose/          Docker Compose reference deployment (MVP)
-│   └── helm/             Helm chart (v1)
+│   ├── compose/          Docker Compose reference deployment, test SAML IdP (dev profile)
+│   └── helm/             Helm chart (planned)
+├── tools/
+│   ├── oeapi-mock/       Simulated OEAPI v5 partner for development and tests
+│   └── e2e-identity/     Browser checks of the administrator onboarding (local and federated)
 └── docs/
+    ├── spec-v4.1.md      Specification as built
     ├── adr/              Architecture decision records (MADR)
-    ├── research/         Background research
-    ├── review/           Reviews of specification v3.0
+    ├── onboarding/       Guides for the alliance and the three partner profiles
+    ├── guides/           Data-provider guides: API integration, CSV authoring, web form
+    ├── production/       GDPR, accessibility and operations templates for go-live
+    ├── research/         Background research (partner endpoints, Aurora portal, IT Handbook)
     ├── decisions-log.md  Owner decisions
-    └── spec-v4.0.md      Current specification
+    └── backlog.md        What is deferred and why
 ```
-
-See [docs/README.md](docs/README.md) for an index of the documentation.
 
 ## Quick start
 
 The reference deployment is Docker Compose; the verified first-run path
 (services, secrets, migrations, first alliance administrator, optional
-`dev` profile with a mail sink and a simulated OEAPI partner) is in
-[deploy/compose/README.md](deploy/compose/README.md). Developer tooling:
-[tools/oeapi-mock](tools/oeapi-mock/README.md) (simulated partner) and
-[tools/e2e-identity](tools/e2e-identity/README.md) (browser check of the
-administrator onboarding).
+`dev` profile with a mail sink, a simulated OEAPI partner and a test SAML
+identity provider) is in [deploy/compose/README.md](deploy/compose/README.md).
+To onboard an alliance or a university, start from
+[docs/onboarding/README.md](docs/onboarding/README.md).
 
 ## Contributing
 
 Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md)
 (Developer Certificate of Origin sign-off, no CLA),
 the [Code of Conduct](CODE_OF_CONDUCT.md), [GOVERNANCE.md](GOVERNANCE.md) and,
-for vulnerabilities, [SECURITY.md](SECURITY.md). Notable changes are recorded
-in [CHANGELOG.md](CHANGELOG.md).
+for vulnerabilities, [SECURITY.md](SECURITY.md). Releases follow
+[docs/RELEASING.md](docs/RELEASING.md); notable changes are recorded in
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Licence
 
@@ -75,9 +140,9 @@ Copyright 2026 Lluís Alfons Ariño
 Licensed under the EUPL
 
 OECP is licensed under the [European Union Public Licence v. 1.2](LICENSE)
-(EUPL-1.2), English version. The EUPL's network clause means that anyone who operates a modified
-version of OECP as a network service must make the source code of that version
-available. Trivial configuration files are dedicated to the public domain
-(CC0-1.0). Licensing information for every file is declared in
-[REUSE.toml](REUSE.toml) following the [REUSE](https://reuse.software)
+(EUPL-1.2), English version. The EUPL's network clause means that anyone who
+operates a modified version of OECP as a network service must make the source
+code of that version available. Trivial configuration files are dedicated to
+the public domain (CC0-1.0). Licensing information for every file is declared
+in [REUSE.toml](REUSE.toml) following the [REUSE](https://reuse.software)
 specification; the licence texts are in [LICENSES/](LICENSES/).
