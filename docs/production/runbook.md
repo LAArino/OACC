@@ -3,7 +3,7 @@
 
 # Production runbook: OECP at the hosting institution
 
-For the hosting operator (URV for Aurora). It complements [deploy/compose/README.md](../../deploy/compose/README.md) (installation), [Guide A](../onboarding/alliance.md) (alliance set-up), [identity/keycloak/README.md](../../identity/keycloak/README.md) and [RELEASING.md](../RELEASING.md). Commands run in `deploy/compose` on the production host. Written for release 0.3.0 and updated through release 0.6.0 and the Unreleased changes after it (maintenance page, account clean-up; pgBackRest backups, restore drill, metrics and alerting; branding; container logs to Loki, certificate expiry alerts; see the CHANGELOG); where something is planned but not built, this runbook says so.
+For the hosting operator (URV for Aurora). It complements [deploy/compose/README.md](../../deploy/compose/README.md) (installation), [Guide A](../onboarding/alliance.md) (alliance set-up), [identity/keycloak/README.md](../../identity/keycloak/README.md) and [RELEASING.md](../RELEASING.md). Commands run in `deploy/compose` on the production host. Written for release 0.3.0 and updated through release 0.7.0 (maintenance page, account clean-up; pgBackRest backups, restore drill, metrics and alerting; branding; container logs to Loki, certificate expiry alerts; see the CHANGELOG); where something is planned but not built, this runbook says so.
 
 ## 1. Topology and environments
 

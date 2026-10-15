@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.7.0] - 2026-10-15
+
+Operations and content release: container logs shipped to Loki through Grafana Alloy with time-based retention; certificate expiry metrics and alerts for the partner identity providers and the portal's TLS; the 13 courses of the Aurora Virtual Campus 2026-27 as the first real CSV upload; an accessibility audit (WCAG 2.1 AA) with fixes and the statement filled; the administrator lifecycle page and decision 26; shellcheck in CI; every README and document aligned with the implementation.
+
 ### Added
 
 - Accessibility audit (WCAG 2.1 AA), `docs/production/accessibility-audit-2026-10.md`:
@@ -956,7 +962,8 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/AURORA-OECP/compare/v0.6.0...main
+[Unreleased]: https://github.com/LAArino/AURORA-OECP/compare/v0.7.0...main
+[0.7.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.7.0
 [0.6.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.6.0
 [0.5.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.5.0
 [0.4.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.4.0

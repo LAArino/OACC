@@ -1,6 +1,6 @@
 {
   "name": "@oecp/web",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "license": "EUPL-1.2",
   "type": "module",

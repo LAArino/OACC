@@ -7,7 +7,7 @@ Template under **Directive (EU) 2016/2102** on the accessibility of the websites
 
 **How to use this template.** The part between the two rules below is the statement to publish (on the alliance website until the portal has an `/accessibility` page, spec §7.1). Fill every `[TO COMPLETE]`, delete the guidance notes in *italics*, and publish it in English and in `[TO COMPLETE: other languages of the portal]`. Before publishing, the controller confirms that the Directive applies: it covers public sector bodies; `[TO COMPLETE: whether the Aurora Foundation is a public sector body, or whether the statement is issued by URV or the partner universities as such]`. Even where it does not strictly apply, publishing the statement is good practice and expected by the partners.
 
-*What has been checked so far (release 0.6.0 and the unreleased work after it), for the person who completes the statement:*
+*What has been checked so far (release 0.7.0), for the person who completes the statement:*
 
 - *Automated checks in the test suite: the web application's unit tests run **axe-core** on the rendered catalogue and administration components (rule sets WCAG 2.0, 2.1 and 2.2 levels A and AA, and best practices; `apps/web/test/*.test.ts`, helper `axeViolations`); contrast of the design tokens is checked by `apps/web/test/contrast.test.ts`, and the stylesheet rules found in the audit by `apps/web/test/a11y-css.test.ts`.*
 - ***Audit of October 2026** ([accessibility-audit-2026-10.md](accessibility-audit-2026-10.md)): axe-core 4.14 on 39 complete page states of the portal and the panel in Chromium, desktop and mobile (two serious issues, 4 violations over both viewports, before; none after the fixes); scripted keyboard checks (skip link, order, focus visibility, traps, the confirmation dialog, tabs, wizard, error summaries, focus after filtering and paging); an accessibility-tree review (headings, landmarks, labels, errors, tables, live regions, `lang`); reflow at 320 px and 200 % zoom. Seven defects were fixed in the same work (contrast of the danger buttons, `lang` and skip link on error pages, reflow of tables and fact lists, `aria-current` on pagination and filter links, focus lost on *Refresh*, focus ring of date fields).*
@@ -48,7 +48,7 @@ The content listed below is not accessible for the following reasons.
 
 **(a) Non-compliance with the accessibility requirements**
 
-*Guidance: the rows below are the open findings of the [October 2026 audit](accessibility-audit-2026-10.md#8-known-limitations-for-the-accessibility-statement) (OECP 0.6.0 and unreleased work). Remove a row once the fix is deployed; add the issues found in the screen-reader session and in the review of the sign-in pages.*
+*Guidance: the rows below are the open findings of the [October 2026 audit](accessibility-audit-2026-10.md#8-known-limitations-for-the-accessibility-statement) (OECP 0.7.0). Remove a row once the fix is deployed; add the issues found in the screen-reader session and in the review of the sign-in pages.*
 
 | Issue | Where | WCAG success criterion | Planned fix and date |
 |---|---|---|---|
@@ -72,7 +72,7 @@ The content listed below is not accessible for the following reasons.
 - Statement prepared on: `[TO COMPLETE: date]`.
 - Last reviewed on: `[TO COMPLETE: date]` *(review at least once a year and after each major release)*.
 - Software version assessed: OECP `[TO COMPLETE: release]`.
-- Method: `[TO COMPLETE: self-assessment by …, or assessment by a third party (name)]`; automated testing with axe-core in the project's test suite and on complete pages in a browser, keyboard and reflow checks (OECP audit of October 2026, [accessibility-audit-2026-10.md](accessibility-audit-2026-10.md), for release 0.6.0 and later changes); manual review of a representative sample of pages `[TO COMPLETE: list of pages and templates sampled, e.g. home, search with filters, course page, course page in a fallback language, admin dashboard, course wizard, CSV console, invitations, sign-in and MFA set-up]`; assistive technologies and browsers used `[TO COMPLETE]`.
+- Method: `[TO COMPLETE: self-assessment by …, or assessment by a third party (name)]`; automated testing with axe-core in the project's test suite and on complete pages in a browser, keyboard and reflow checks (OECP audit of October 2026, [accessibility-audit-2026-10.md](accessibility-audit-2026-10.md), for release 0.7.0); manual review of a representative sample of pages `[TO COMPLETE: list of pages and templates sampled, e.g. home, search with filters, course page, course page in a fallback language, admin dashboard, course wizard, CSV console, invitations, sign-in and MFA set-up]`; assistive technologies and browsers used `[TO COMPLETE]`.
 
 ### Feedback and contact information
 

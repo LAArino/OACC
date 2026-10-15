@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-# Accessibility audit, October 2026 (release 0.6.0 and unreleased work)
+# Accessibility audit, October 2026 (release 0.7.0)
 
 Audit of the public portal and the administration panel of OECP (`apps/web`) against **WCAG 2.1 level AA**, the web requirements of EN 301 549 V3.2.1 referenced by Directive (EU) 2016/2102. Carried out on 2026-10-15 on the development stack (`deploy/compose`, profile `dev`) with the 31 published courses of the development data (University of Iceland, Duisburg-Essen, Amsterdam, Créteil, Olomouc, the simulated Innsbruck, one alliance course). It feeds the [accessibility statement](accessibility-statement.md).
 
