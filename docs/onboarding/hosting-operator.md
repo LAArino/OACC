@@ -7,7 +7,7 @@
 
 For the **hosting operator**: the IT team of the institution that installs and runs OECP for an alliance. In the first deployment this is URV for the Aurora alliance [DL 2], with the pilot on `lspurv.urv.cat` (portal) and `auth.lspurv.urv.cat` (Keycloak).
 
-At the end you have the reference Docker Compose deployment of release 0.7.0 running on one host, with production TLS, an SMTP relay, backups with a passed restore drill, alerting and logs, the organizations seeded and a first alliance admin invited, and a list of what you run every week, month, quarter and year.
+At the end you have the reference Docker Compose deployment of release 0.8.0 running on one host, with production TLS, an SMTP relay, backups with a passed restore drill, alerting and logs, the organizations seeded and a first alliance admin invited, and a list of what you run every week, month, quarter and year.
 
 This guide is the **ordered path**. The detail lives in three documents, and each step below links to the section that has it:
 
@@ -65,13 +65,13 @@ Run every command in `deploy/compose` of the checkout, as the operator account. 
 
 ```sh
 git clone https://github.com/LAArino/OECP.git && cd OECP
-git checkout v0.7.0          # or the latest release: only the latest minor is supported
+git checkout v0.8.0          # or the latest release: only the latest minor is supported
 cd deploy/compose
 ```
 
 Clone the whole repository: `compose.yaml` builds from the repository root and mounts `identity/keycloak`. Images are not published yet: you build them on the server from the tag ([RELEASING.md](../RELEASING.md#support-policy)).
 
-Check: `git describe --tags` prints `v0.7.0`.
+Check: `git describe --tags` prints `v0.8.0`.
 
 ### 2.2 Write `.env`
 
@@ -85,7 +85,7 @@ Every variable is documented in `.env.example`. Set these, and leave every other
 |---|---|
 | Hosts | `OECP_PORTAL_HOST`, `OECP_AUTH_HOST` (the ports stay 80 and 443); `OECP_ENVIRONMENT=production` (shown in telemetry and alerts) |
 | TLS | `ACME_EMAIL` (the ACME account contact) |
-| Images | `OECP_IMAGE_TAG=0.7.0` (the release you checked out; default `dev`); `OECP_GIT_COMMIT` (e.g. `git rev-parse --short HEAD`) |
+| Images | `OECP_IMAGE_TAG=0.8.0` (the release you checked out; default `dev`); `OECP_GIT_COMMIT` (e.g. `git rev-parse --short HEAD`) |
 | Keycloak | `KEYCLOAK_ADMIN_ALLOWLIST` (operators' networks only); `OECP_REALM_DISPLAY_NAME` (login page) |
 | Portal | `OECP_ALLIANCE_NAME`; the branding variables come in [step 2.11](#211-branding) |
 | Mail | `OECP_SMTP_HOST`, `OECP_SMTP_PORT`, `OECP_SMTP_FROM`, `OECP_SMTP_STARTTLS` (`true`, the default, requires the relay to offer STARTTLS; `false` for a relay without TLS); for SMTP AUTH of the api: `OECP_SMTP_USER`, `OECP_SMTP_PASSWORD_FILE=/run/secrets/smtp_password` and the secret `smtp_password` uncommented in `compose.yaml` (both the `x-oecp-backend-secrets` list and the top-level `secrets:`); the api refuses one without the other. `OECP_MAIL_LOG_LINKS=false` |
@@ -261,12 +261,12 @@ Check:
 
 Until a university's IdP is connected and tested, its administrators use local accounts (alias `null`, step 2.6). To connect one (procedure: [identity/keycloak/README.md, "Adding a partner IdP"](../../identity/keycloak/README.md#adding-a-partner-idp); runbook [§6](../production/runbook.md#6-identity-operations)):
 
-1. **Send** the institution's identity team the SP entity ID `https://<auth host>/realms/oecp`, the descriptor `https://<auth host>/realms/oecp/broker/<alias>/endpoint/descriptor` (alias = organization slug; it lists that IdP's assertion consumer service and the realm's signing and encryption certificates) and the attributes of Day 0. Assertions must be signed and encrypted. The combined multi-ACS metadata for the federation registration (SIR/RedIRIS for Aurora [DL 15]) is a design only in 0.7.0 ([sp-metadata.md](../../identity/keycloak/scripts/sp-metadata.md)).
+1. **Send** the institution's identity team the SP entity ID `https://<auth host>/realms/oecp`, the descriptor `https://<auth host>/realms/oecp/broker/<alias>/endpoint/descriptor` (alias = organization slug; it lists that IdP's assertion consumer service and the realm's signing and encryption certificates) and the attributes of Day 0. Assertions must be signed and encrypted. The combined multi-ACS metadata for the federation registration (SIR/RedIRIS for Aurora [DL 15]) is a design only in 0.8.0 ([sp-metadata.md](../../identity/keycloak/scripts/sp-metadata.md)).
 2. **Receive** the IdP's entity ID, SSO URL, logout URL if any and signing certificates; write them in the IdP block of `identity/keycloak/realm-oecp.yaml` (for URV: replace the values of the development block `urv` and its `enabled` line, keeping the alias and the mappers) and apply with `docker compose run --rm keycloak-config`. Edit the file, never the console.
 3. **Configure the metadata refresh** (Guide A step 3, "IdP metadata refresh": aggregate URL, signing certificate checked against a second source and mounted into the worker, dry run).
 4. **Hand over:** to an alliance admin, who sets the organization's *Identity provider alias* and invites one administrator of that university (Guide A [step 8](alliance.md#8-invite-partner-admins)).
 
-Check: the invitation is accepted through the university's login plus TOTP enrolment; the worker log shows the metadata refresh about a minute after the worker starts. No real partner IdP has been connected in 0.7.0: the brokered path is verified against the development test IdP only.
+Check: the invitation is accepted through the university's login plus TOTP enrolment; the worker log shows the metadata refresh about a minute after the worker starts. No real partner IdP has been connected in 0.8.0: the brokered path is verified against the development test IdP only.
 
 ### 2.14 Hardening recap
 

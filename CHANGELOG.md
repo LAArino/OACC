@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.8.0] - 2026-10-16
+
+Content release: images per course (decision 27) stored and served by OECP with CSV template 1.3, favicon and partner logos from the branding directory, the hosting operator guide verified on a clean install, the public screenshots retaken, every document in English, decisions 27 and the repository renamed to LAArino/OECP.
+
+### Upgrade notes
+
+- **Migration 0008** (`0008_course_images.sql`): `ALTER TABLE courses ADD COLUMN …` with defaults and CHECK constraints, additive and fast (no table rewrite in PostgreSQL 16; a brief ACCESS EXCLUSIVE lock); reversible with its Down section. Run `docker compose run --rm api pnpm db:migrate` after pulling the images.
+- **Images must be rebuilt**: the `api` image gains `sharp`; `docker compose up -d --build --wait` recreates `api`, `worker` and `web`. The `api` router of Traefik now also matches `/media` (label change, applied when `api` is recreated).
+- **CSV template 1.3** is current (1.0–1.2 still accepted); the admin console offers the 1.3 schema.
+- No new secret or required variable; `OECP_FAVICON_IMAGE` is optional.
+
 ### Added
 
 - API: course images (decision 27). Migration `0008_course_images` adds
@@ -1044,7 +1057,8 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/OECP/compare/v0.7.0...main
+[Unreleased]: https://github.com/LAArino/OECP/compare/v0.8.0...main
+[0.8.0]: https://github.com/LAArino/OECP/releases/tag/v0.8.0
 [0.7.0]: https://github.com/LAArino/OECP/releases/tag/v0.7.0
 [0.6.0]: https://github.com/LAArino/OECP/releases/tag/v0.6.0
 [0.5.0]: https://github.com/LAArino/OECP/releases/tag/v0.5.0
