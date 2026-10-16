@@ -563,8 +563,11 @@ docker compose --profile observability exec alertmanager amtool --alertmanager.u
    If a load balancer fronts Traefik, configure `forwardedheaders.trustedips`
    and the rate-limit `ipStrategy` (comments in the files) so limits apply
    per client.
-3. **Keycloak admin.** Replace the temporary bootstrap admin by a permanent
-   `master` realm admin with MFA.
+3. **Keycloak admin.** `KEYCLOAK_ADMIN_USER` of the `master` realm is the
+   configuration service account of `keycloak-config` (no MFA, never deleted;
+   password only in `secrets/keycloak_admin_password`, rotated per
+   `secrets/README.md`); create separate permanent `master` administrators with
+   MFA for people, behind the allowlist.
 4. **Secrets.** Generate on the server, keep an offline copy of
    `oecp_master_key`.
 5. **Mail.** Never enable the `dev` profile; set `OECP_SMTP_*` to the host

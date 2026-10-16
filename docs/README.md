@@ -25,6 +25,7 @@ Guides for alliances and partner universities joining an OECP deployment [DL 17]
 
 - [onboarding/README.md](onboarding/README.md) — which guide to read, and the model on one page (organizations, roles, channels, overrides).
 - [onboarding/alliance.md](onboarding/alliance.md) — Guide A: governance, deployment, identity, organizations, attributes, first alliance admin, operation.
+- [onboarding/hosting-operator.md](onboarding/hosting-operator.md) — Guide E: the hosting operator's ordered path from an empty server to the pilot (day 0 requests, installation with a check at every step, go-live checklist, day-2 schedule), with the URV pilot as worked example.
 - [onboarding/administrator-lifecycle.md](onboarding/administrator-lifecycle.md) — the administrator lifecycle on one page: invitation, sign-in mode, removal, dormancy, account clean-up, recertification; the defaults and the choices [DL 26].
 - [onboarding/partner-with-oeapi.md](onboarding/partner-with-oeapi.md) — Guide B: a university with an OEAPI v5 endpoint (direct harvesting).
 - [onboarding/partner-with-integration-capacity.md](onboarding/partner-with-integration-capacity.md) — Guide C: build an OEAPI endpoint or automate the CSV files.

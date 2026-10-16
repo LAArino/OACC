@@ -14,22 +14,27 @@ These guides take an alliance and its universities from "we want a shared course
 ## Which guide should I read?
 
 ```
-Are you setting up OECP for the whole alliance (governance, server, identity)?
-├── Yes → Guide A: alliance.md
-└── No, I represent one university
+Are you the IT team that installs and runs the server for the alliance?
+├── Yes → Guide E: hosting-operator.md
+│         (then Guide A, steps 3–6, together with the alliance)
+└── No
     │
-    Does your university already run an OEAPI v5 endpoint
-    (for example the one eduXchange harvests)?
-    ├── Yes → Guide B: partner-with-oeapi.md
-    └── No
+    Are you setting up OECP for the whole alliance (governance, identity, organizations)?
+    ├── Yes → Guide A: alliance.md
+    └── No, I represent one university
         │
-        Does your IT team have time to build or schedule an integration
-        (a few days to a few weeks)?
-        ├── Yes → Guide C: partner-with-integration-capacity.md
-        │         (build an OEAPI endpoint, then Guide B;
-        │          or generate the CSV files automatically)
-        └── No  → Guide D: partner-manual.md
-                  (web form and hand-made CSV files)
+        Does your university already run an OEAPI v5 endpoint
+        (for example the one eduXchange harvests)?
+        ├── Yes → Guide B: partner-with-oeapi.md
+        └── No
+            │
+            Does your IT team have time to build or schedule an integration
+            (a few days to a few weeks)?
+            ├── Yes → Guide C: partner-with-integration-capacity.md
+            │         (build an OEAPI endpoint, then Guide B;
+            │          or generate the CSV files automatically)
+            └── No  → Guide D: partner-manual.md
+                      (web form and hand-made CSV files)
 ```
 
 | Guide | For | Typical example in the Aurora deployment |
@@ -38,6 +43,7 @@ Are you setting up OECP for the whole alliance (governance, server, identity)?
 | [B. Partner with an OEAPI endpoint](partner-with-oeapi.md) | Partner admin and partner IT | Universität Innsbruck, which already serves eduXchange |
 | [C. Partner with integration capacity](partner-with-integration-capacity.md) | Partner IT, partner admin | A university with an SIS export team but no OEAPI endpoint |
 | [D. Partner without integration capacity](partner-manual.md) | Partner admin | A small international office maintaining a handful of courses |
+| [E. Hosting operator](hosting-operator.md) | Hosting operator (the institution's IT team) | URV IT installing the Aurora pilot on `lspurv.urv.cat`: day 0 requests, installation with a check at every step, go-live, day-2 operation |
 | [Administrator lifecycle](administrator-lifecycle.md) | Alliance office, hosting operator | Invitation, sign-in mode, removal, dormancy, account clean-up and recertification: defaults and choices [DL 26] |
 
 The technical companions, written for the people who prepare the data, are:
@@ -83,7 +89,7 @@ All three end in the same canonical model, so the public catalogue cannot tell t
 
 Plan around these gaps; each guide repeats the ones that affect it. Every administration task of these guides has a screen ([Guide A, step 7](alliance.md#7-the-administration-screens)); the admin API remains available for scripting.
 
-Backups and alerting are built and are switched on by the hosting operator ([Guide A, step 9](alliance.md#9-operate)): the Compose profile `backup` runs pgBackRest with continuous WAL archiving, weekly full and daily differential backups, a 35-day recovery window and a daily archive of the uploads, checked by a quarterly restore drill (`deploy/compose/scripts/restore-drill.sh`); the profile `observability` adds Prometheus alert rules (including the expiry of partner IdP signing certificates and of the TLS certificate), Alertmanager (e-mail or webhook), container logs shipped to Loki (90 days, Traefik access log 30 days; after 0.7.0, see the CHANGELOG's Unreleased section) and the Grafana dashboards *OECP overview* and *OECP logs*. See the Compose README sections [Backups](../../deploy/compose/README.md#backups-profile-backup), [Restore drill and restore](../../deploy/compose/README.md#restore-drill-and-restore), [Alerting](../../deploy/compose/README.md#alerting) and [Log retention](../../deploy/compose/README.md#log-retention), and the runbook sections [3](../production/runbook.md#3-backups-and-point-in-time-recovery), [4](../production/runbook.md#4-restore-drill), [7](../production/runbook.md#7-monitoring-and-alerts) and [10](../production/runbook.md#10-log-and-data-retention).
+Backups and alerting are built and are switched on by the hosting operator ([Guide A, step 9](alliance.md#9-operate)): the Compose profile `backup` runs pgBackRest with continuous WAL archiving, weekly full and daily differential backups, a 35-day recovery window and a daily archive of the uploads, checked by a quarterly restore drill (`deploy/compose/scripts/restore-drill.sh`); the profile `observability` adds Prometheus alert rules (including the expiry of partner IdP signing certificates and of the TLS certificate), Alertmanager (e-mail or webhook), container logs shipped to Loki (90 days, Traefik access log 30 days; since 0.7.0) and the Grafana dashboards *OECP overview* and *OECP logs*. See the Compose README sections [Backups](../../deploy/compose/README.md#backups-profile-backup), [Restore drill and restore](../../deploy/compose/README.md#restore-drill-and-restore), [Alerting](../../deploy/compose/README.md#alerting) and [Log retention](../../deploy/compose/README.md#log-retention), and the runbook sections [3](../production/runbook.md#3-backups-and-point-in-time-recovery), [4](../production/runbook.md#4-restore-drill), [7](../production/runbook.md#7-monitoring-and-alerts) and [10](../production/runbook.md#10-log-and-data-retention).
 
 - Login through a university's own identity provider (SAML/eduGAIN) is verified against a simulated IdP only; each real partner IdP must be connected and tested (see Guide A, step 3).
 - No API keys or service accounts: scripts and unattended uploads need a token from an interactive sign-in.

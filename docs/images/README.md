@@ -3,32 +3,32 @@
 
 # Screenshots
 
-The public portal and administration panel screenshots were taken on 2026-10-14
-from the reference Docker Compose stack (release 0.3.0) with simulated data: a
-mock OEAPI partner (Universität Innsbruck slice) and the Aurora Virtual Campus
-CSV fixture; `admin-maintenance.png` shows the Maintenance page, built after
-0.3.0 and released in 0.4.0. The three operations and API screenshots were
-added on 2026-10-15 from release 0.5.0 (development stack, `observability`
-profile). They illustrate the documentation; the product may change. None
-contains credentials.
+The **public portal** screenshots were retaken on 2026-10-16 from the reference
+Docker Compose stack (release 0.7.0) with the deployment branding of the
+development stack (alliance logo in the header, a header image on the home
+page and another on the course list, all three the deployment's own files, see
+[deploy/compose/branding/README.md](../../deploy/compose/branding/README.md))
+and the real course data of the Aurora Virtual Campus 2026-27 next to the
+simulated Innsbruck partner. The **administration panel** screenshots date
+from 2026-10-14 (release 0.3.0, simulated data; `admin-maintenance.png` from
+the Maintenance page released in 0.4.0) and the three **operations and API**
+screenshots from 2026-10-15 (release 0.5.0). They illustrate the
+documentation; the product may change. None contains credentials.
 
-They are not retaken for every change, so some show an earlier state: since
-0.6.0 the home page and the course list show the deployment's header image and
-the site header its alliance logo when branding is configured
-([deploy/compose/branding/README.md](../../deploy/compose/branding/README.md)),
-which `public-home.png` and `public-catalogue-filters.png` predate; in 0.7.0
-the alert rules grew to 26 (group `oecp-certificates`), "OECP overview" gained
-a *Certificates* row and a second dashboard, "OECP logs", shows the container
-logs shipped to Loki; none of these has a screenshot.
+Not retaken since: in 0.7.0 the alert rules grew to 26 (group
+`oecp-certificates`), "OECP overview" gained a *Certificates* row and a second
+dashboard, "OECP logs", shows the container logs shipped to Loki; the admin
+panel refuses invitations to an organization whose identity provider is not
+enabled and shows a warning first. None of these has a screenshot.
 
 ## Public portal
 
 | File | Shows |
 |---|---|
-| `public-home.png` | Home page with the search box and quick links. |
-| `public-catalogue-filters.png` | Catalogue filtered by an alliance attribute ("free course"), sorted by application deadline, with hub and SDG tags on the cards. |
-| `public-course-page.png` | Course page: key facts incl. instructors, texts per language (methods, remarks), offerings with "How to apply". |
-| `public-catalogue-mobile.png` | Catalogue at phone width. |
+| `public-home.png` | Home page: alliance logo, header image, search box, number of courses with upcoming offerings, quick links by field and by university. |
+| `public-catalogue-filters.png` | Course list with its own header image, filtered by an alliance attribute ("free course") and sorted by application deadline; filter chips, facet counts, hub and SDG tags on the cards. |
+| `public-course-page.png` | Course page of a real BIP: key facts, alliance attributes (hub, SDGs, competence framework, flags), texts, the offering with dates, application period, "How to apply" and the apply button. |
+| `public-catalogue-mobile.png` | Course list at phone width (header image, search, filters). |
 
 ## Administration panel
 

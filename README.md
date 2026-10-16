@@ -71,7 +71,7 @@ without forcing every partner into the same tooling:
 | **Students and visitors** | No | Search and browse the catalogue, read course pages, follow the link or instructions to apply at the partner university. |
 | **Partner administrator** (one or more per university) | Yes: the university's identity provider or a local account, with MFA | Keeps the university's courses current: configures the OEAPI integration, uploads CSV files, edits courses and offerings in the form, reviews sync reports and completeness warnings. |
 | **Alliance administrator** (the alliance office or foundation) | Yes, same | Onboards universities and their administrators, approves partner endpoints, watches the network status, runs maintenance, defines the alliance attributes and decides what is published. |
-| **Hosting operator** | No OECP account | Deploys and operates the reference Docker Compose stack, backups, secrets, logs and upgrades (see the runbook). |
+| **Hosting operator** | No OECP account | Deploys and operates the reference Docker Compose stack, backups, secrets, logs and upgrades (see [Guide E](docs/onboarding/hosting-operator.md) and the [runbook](docs/production/runbook.md)). |
 | **Other platforms** | No | Harvest the alliance catalogue through the OEAPI v5 read API. |
 
 The data-protection roles for the first deployment are documented in the

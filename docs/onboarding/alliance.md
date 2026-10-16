@@ -29,6 +29,8 @@ Spec [§10](../spec-v4.1.md#10-non-functional-requirements) lists what is needed
 
 **Who:** hosting operator. **Time:** one day.
 
+The operator's full path, from an empty server to the pilot and day-2 operation, is [Guide E](hosting-operator.md); this step lists the choices the alliance needs to know about.
+
 Follow [deploy/compose/README.md](../../deploy/compose/README.md) ("Quick start" and "Production checklist"), with these choices:
 
 1. Check out tag `v0.7.0` (or later) and copy `.env.example` to `.env`. Set `OECP_PORTAL_HOST`, `OECP_AUTH_HOST`, `ACME_EMAIL`, `OECP_ALLIANCE_NAME`, `OECP_REALM_DISPLAY_NAME`, `KEYCLOAK_ADMIN_ALLOWLIST` (operators' networks only) and `OECP_SMTP_HOST`, `_PORT`, `_FROM` (the institutional relay; `OECP_SMTP_STARTTLS=true`, the default, requires TLS; for SMTP AUTH set `OECP_SMTP_USER`, put the password in the Docker secret `smtp_password`, uncomment it in `compose.yaml` and set `OECP_SMTP_PASSWORD_FILE=/run/secrets/smtp_password`). Keep `OECP_MAIL_LOG_LINKS=false`: in production the api then refuses to start without an SMTP host, so invitation links never end up in a log. Leave the `dev` profile off and `OECP_ALLOW_INSECURE_PARTNER_HTTP=false`. Keep `OECP_PUBLISH_RULE=warn`, `OECP_DORMANCY_DRY_RUN=true` and `OECP_ACCOUNT_CLEANUP_DRY_RUN=true` for now (step 9 explains when to change them); the IdP metadata settings `OECP_IDP_METADATA_*` are set in step 3.

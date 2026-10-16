@@ -272,7 +272,7 @@ scheduled runs used a queue of their own, which the worker removes at start.
 | `OECP_IDP_METADATA_SIGNING_CERT_FILE` | (required with the URL) | PEM file with exactly one certificate: the federation's metadata signing certificate, pinned |
 | `OECP_IDP_METADATA_REQUIRE_VALID_UNTIL` | `true` | refuse an aggregate without `validUntil` (a past one is always refused) |
 | `OECP_IDP_METADATA_CACHE_DIR` | `/data/idp-metadata` | last good aggregate (`aggregate.xml`, `aggregate.json`); must be writable by the worker and persistent |
-| `OECP_IDP_METADATA_MAX_BYTES` | 52428800 (50 MiB); Compose: 157286400 | download limit. The eduGAIN aggregate is larger (94 MB in October 2026), hence the Compose default of 150 MiB |
+| `OECP_IDP_METADATA_MAX_BYTES` | 157286400 (150 MiB; the same in Compose) | download limit. The eduGAIN aggregate is larger (94 MB in October 2026), hence the Compose default of 150 MiB |
 | `OECP_IDP_METADATA_INCLUDE_DISABLED` | `false` | also refresh IdPs disabled in Keycloak |
 | `OECP_IDP_METADATA_REFRESH_ON_START` | `true` | the start-up run described above |
 

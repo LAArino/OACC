@@ -10,6 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Docs: Guide E for the hosting operator, `docs/onboarding/hosting-operator.md`:
+  the ordered path from an empty server to the pilot (day 0 requests to the
+  institution, host requirements, installation steps each with a check,
+  hardening recap, operator go-live checklist), the day-2 schedule mapped to
+  the runbook, the alert-to-section map, upgrades, secrets and the runbook
+  items to complete, and the URV pilot (`lspurv.urv.cat`) as worked example
+  with its open questions. Linked from the onboarding index (decision tree and
+  table), the documentation index, the root README and Guide A step 2.
+
+- Docs: the four public-portal screenshots in `docs/images/` retaken on
+  release 0.7.0 with the deployment branding and the real Aurora Virtual
+  Campus courses.
+
 ### Changed
 
 - Docs: every document is now in English. The owner decisions log
