@@ -8,7 +8,8 @@
 // every field shows its source value and an "Override" toggle, and Save sends only
 // the toggled fields as `PATCH …/overrides` `set`/`clear`. Instructors and the
 // optional IT Handbook texts ("More texts") follow DL 21; the Review step shows
-// the course's completeness against the publication rule as last saved.
+// the course's completeness against the publication rule as last saved, and the
+// course image card [DL 27] (saved by its own buttons, once the course exists).
 import type { AdminAttributeValue, AdminCourse, AdminCourseReference } from '~/types/admin';
 
 const props = defineProps<{
@@ -19,6 +20,8 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   saved: [course: AdminCourse, outcome: 'created' | 'updated' | 'overridden'];
+  /** The image card changed the image: the course as read again. */
+  imageChanged: [course: AdminCourse];
 }>();
 const { t, te, locale } = useI18n();
 const coursesApi = useAdminCoursesApi();
@@ -63,13 +66,28 @@ function load() {
   );
 }
 load();
+/** The next new `course` only carries a changed image: keep the unsaved form. */
+let keepForm = false;
 watch(
   () => props.course,
   () => {
+    if (keepForm) {
+      keepForm = false;
+      return;
+    }
     load();
     issues.value = [];
   },
 );
+
+function onImageChanged(course: AdminCourse) {
+  keepForm = true;
+  emit('imageChanged', course);
+  // A parent that does not pass the course back must not swallow the next one.
+  void nextTick(() => {
+    keepForm = false;
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Labels and options
@@ -1053,6 +1071,16 @@ const missingLabel = (key: string) =>
             </ul>
           </template>
           <p class="admin-hint">{{ t('admin.completeness.hint') }}</p>
+        </section>
+        <AdminCourseImage
+          v-if="props.course"
+          :course="props.course"
+          :harvested="overridesMode"
+          @changed="onImageChanged"
+        />
+        <section v-else class="admin-card" aria-labelledby="course-image-heading">
+          <h3 id="course-image-heading">{{ t('admin.courseImage.heading') }}</h3>
+          <p>{{ t('admin.courseImage.saveFirst') }}</p>
         </section>
         <template v-if="overridesMode">
           <h3>{{ t('admin.courses.pendingHeading') }}</h3>

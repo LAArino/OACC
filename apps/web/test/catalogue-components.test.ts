@@ -707,6 +707,51 @@ describe('CourseCard', () => {
     expect(w.find('.course-card__partner').text()).toBe('Universitat Rovira i Virgili · Spain');
   });
 
+  it('shows the course image as a 16:9 thumbnail, after the text in reading order [DL 27]', async () => {
+    const w = await mountSuspended(CourseCard, { props: { course: card(0), reference } });
+    const media = w.find('.course-card__media');
+    expect(w.find('article').classes()).toContain('has-image');
+    // Last in the markup (shown above the text by CSS): the title stays first.
+    expect(w.find('article').element.lastElementChild).toBe(media.element);
+    const img = media.find('img');
+    expect(img.attributes()).toMatchObject({
+      src: '/media/courses/6f1d2c3b-0000-4000-8000-000000000001/3f9a1c0d2b4e6a81.sm.webp',
+      alt: 'Pine forest on a rocky Mediterranean coastline at sunset',
+      width: '640',
+      height: '360',
+      loading: 'lazy',
+      decoding: 'async',
+    });
+    expect(img.attributes('lang')).toBeUndefined();
+    // Not a link: the title link remains the only way into the course.
+    expect(media.find('a').exists()).toBe(false);
+    expect(w.findAll('a').map((a) => a.text())).toEqual([
+      'Climate Change and Mediterranean Ecosystems',
+    ]);
+    // The partner line is unchanged.
+    expect(w.find('.course-card__partner').text()).toBe('Universitat Rovira i Virgili · Spain');
+    expect(await axeViolations(w.html())).toEqual([]);
+  });
+
+  it('gives a decorative image an empty alt, and renders no box without an image', async () => {
+    const decorative = await mountSuspended(CourseCard, { props: { course: card(1), reference } });
+    const img = decorative.find('.course-card__media img');
+    expect(img.html()).toContain('alt=""');
+    expect(img.attributes()).toMatchObject({ width: '640', height: '640' });
+    expect(await axeViolations(decorative.html())).toEqual([]);
+
+    const none = await mountSuspended(CourseCard, { props: { course: card(2), reference } });
+    expect(none.find('.course-card__media').exists()).toBe(false);
+    expect(none.find('article').classes()).not.toContain('has-image');
+    // An older API without the member renders the same.
+    const { image: _i, ...old } = card(0);
+    const older = await mountSuspended(CourseCard, {
+      props: { course: old as CourseCardData, reference },
+    });
+    expect(older.find('.course-card__media').exists()).toBe(false);
+    expect(await axeViolations(none.html())).toEqual([]);
+  });
+
   it('marks texts that fell back to another language', async () => {
     const w = await mountSuspended(CourseCard, {
       props: { course: { ...card(0), title_lang: 'ca', abstract_lang: 'ca' }, reference },

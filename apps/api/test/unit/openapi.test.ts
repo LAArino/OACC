@@ -170,7 +170,7 @@ describe('OpenAPI documents', () => {
       documents.admin['components'] as { schemas: Record<string, { enum?: string[] }> }
     ).schemas;
     expect(schemas['ErrorCode']?.enum).toEqual(Object.keys(errors));
-    expect(Object.keys(errors)).toHaveLength(138);
+    expect(Object.keys(errors)).toHaveLength(144);
   });
 
   it.each(APIS)('%s: the committed copy in docs/api is up to date', (api) => {

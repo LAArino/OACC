@@ -152,3 +152,9 @@ PostgreSQL 16 database before the tests.
 - Specification §5 (DDL), §6.3 (CSV validation), §10 (testing), §11 (layout).
 - Revisit when upgrading the Node.js LTS line or if Kysely type generation
   proves unreliable for the partitioned or generated columns.
+- Amendment 2026-10-16 (course images, decision 27): `sharp` (Apache-2.0)
+  ships prebuilt libvips binaries (`@img/sharp-libvips-*`, LGPL-3.0-or-later),
+  loaded as a shared library at runtime and not modified. LGPL is a weak
+  copyleft, listed as compatible in the EUPL-1.2 appendix; the "permissive
+  licences" rule above is read as "permissive or EUPL-compatible weak
+  copyleft, unmodified and dynamically linked". Record new cases here.

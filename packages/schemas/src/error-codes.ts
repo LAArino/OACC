@@ -182,7 +182,7 @@ export const ERROR_CODES = {
   'oecp.csv.invalid_template_version': {
     severity: 'error',
     message:
-      'Expected template_version 1.0, 1.1 or 1.2 (1.1 for kind, levels, attr_* and application_instructions_* columns; 1.2 for instructors and the handbook texts)',
+      'Expected template_version 1.0, 1.1, 1.2 or 1.3 (1.1 for kind, levels, attr_* and application_instructions_* columns; 1.2 for instructors and the handbook texts; 1.3 for the image columns)',
   },
   'oecp.csv.conflicting_columns': {
     severity: 'error',
@@ -430,6 +430,25 @@ export const ERROR_CODES = {
     severity: 'error',
     message: 'Channel is not authoritative for this organization',
   },
+
+  'oecp.media.too_large': { severity: 'error', message: 'Image larger than 5 MiB' },
+  'oecp.media.unsupported_type': {
+    severity: 'error',
+    message: 'Image must be JPEG, PNG or WebP',
+  },
+  'oecp.media.invalid_image': {
+    severity: 'error',
+    message: 'Image cannot be decoded, exceeds 40 megapixels or does not fit 2 MiB once re-encoded',
+  },
+  'oecp.media.alt_required': {
+    severity: 'error',
+    message: 'An English alternative text is required unless the image is decorative',
+  },
+  'oecp.media.fetch_failed': {
+    severity: 'warning',
+    message: 'Image could not be fetched from image_url; the course keeps its current image',
+  },
+  'oecp.media.not_found': { severity: 'error', message: 'The course has no image' },
 } as const satisfies Record<string, ErrorCodeSpec>;
 
 export type ErrorCode = keyof typeof ERROR_CODES;

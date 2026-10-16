@@ -110,6 +110,11 @@ describe('translations', () => {
       'oecp.csv.no_files',
       'oecp.csv.unexpected_file',
       'oecp.integration.not_configured',
+      'oecp.media.too_large',
+      'oecp.media.unsupported_type',
+      'oecp.media.invalid_image',
+      'oecp.media.alt_required',
+      'oecp.media.not_found',
     ];
     const keys = [
       ...codes.map((code) => problemMessageKey({ status: 400, codes: [code] })),
@@ -118,6 +123,18 @@ describe('translations', () => {
     for (const key of keys) {
       expect(en.problem[key.replace(/^problem\./, '')], key).toBeTypeOf('string');
     }
+  });
+});
+
+describe('course image problems [DL 27]', () => {
+  it.each([
+    ['oecp.media.too_large', 413, 'problem.mediaTooLarge'],
+    ['oecp.media.unsupported_type', 415, 'problem.mediaUnsupportedType'],
+    ['oecp.media.invalid_image', 422, 'problem.mediaInvalidImage'],
+    ['oecp.media.alt_required', 422, 'problem.mediaAltRequired'],
+    ['oecp.media.not_found', 404, 'problem.mediaNotFound'],
+  ])('maps %s (%i) to %s', (code, status, key) => {
+    expect(problemMessageKey(toAdminApiError(status, problem(code, status)))).toBe(key);
   });
 });
 

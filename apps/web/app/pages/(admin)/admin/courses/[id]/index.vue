@@ -1,8 +1,9 @@
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 <script setup lang="ts">
 // One course (spec §8.1 "Course wizard"): the wizard to edit it (`PUT`, or
-// `PATCH …/overrides` for harvested records), status actions (`POST …/status`),
-// delete, its offerings and its change history.
+// `PATCH …/overrides` for harvested records; its Review step holds the course
+// image card), status actions (`POST …/status`), delete, its offerings and its
+// change history.
 import type { AdminCourse, AdminLifecycleStatus } from '~/types/admin';
 
 definePageMeta({ layout: 'admin' });
@@ -244,6 +245,7 @@ const kindLabel = (code: string) => (te(`kind.${code}`) ? t(`kind.${code}`) : co
                 :reference="reference"
                 :course="course"
                 @saved="onSaved"
+                @image-changed="onSaved"
               />
             </section>
 

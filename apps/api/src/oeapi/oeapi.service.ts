@@ -63,7 +63,8 @@ export class OeapiService {
   private async context(): Promise<{ ctx: MappingContext; orgs: OrganizationRow[] }> {
     const orgs = await this.repository.organizations();
     const alliance = orgs.find((o) => o.org_type === 'alliance') ?? null;
-    return { ctx: { alliance, today: utcToday(this.clock()) }, orgs };
+    const baseUrl = this.config.get('OECP_PUBLIC_BASE_URL', { infer: true });
+    return { ctx: { alliance, today: utcToday(this.clock()), baseUrl }, orgs };
   }
 
   /** v5 `consumer`: OECP serves its own consumer only; any other selects nothing. */

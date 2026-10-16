@@ -383,7 +383,7 @@ describe('CSV template 1.1', () => {
       ['oecp.csv.invalid_template_version', 'template_version'],
     ]);
     expect(
-      validateCsvText('courses', `${COURSES}\n1.3,C1,draft,5,0613,T,,,,,\n`).errors[0]?.code,
+      validateCsvText('courses', `${COURSES}\n1.4,C1,draft,5,0613,T,,,,,\n`).errors[0]?.code,
     ).toBe('oecp.csv.invalid_template_version');
   });
 

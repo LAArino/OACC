@@ -460,8 +460,9 @@ services:
     labels:
       traefik.enable: "true"
       traefik.http.services.api.loadbalancer.server.port: "3000"
-      # Generic API router: /api (public and admin) and /oeapi on the portal host.
-      traefik.http.routers.api.rule: Host(`${OECP_PORTAL_HOST}`) && (PathPrefix(`/api`) || PathPrefix(`/oeapi`))
+      # Generic API router: /api (public and admin), /oeapi and the course images
+      # (/media/courses/..., decision 27) on the portal host.
+      traefik.http.routers.api.rule: Host(`${OECP_PORTAL_HOST}`) && (PathPrefix(`/api`) || PathPrefix(`/oeapi`) || PathPrefix(`/media`))
       traefik.http.routers.api.entrypoints: websecure
       traefik.http.routers.api.tls: "true"
       traefik.http.routers.api.priority: "50"

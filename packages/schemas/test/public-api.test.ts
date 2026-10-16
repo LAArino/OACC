@@ -149,6 +149,7 @@ describe('response contracts', () => {
       teaching_languages: [],
       next_offering: null,
       offerings_count: 0,
+      image: null,
     };
     expect(publicCourseCard.safeParse(card).success).toBe(true);
     expect(publicCourseCard.safeParse({ ...card, extra: 1 }).success).toBe(false);

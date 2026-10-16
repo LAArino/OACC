@@ -21,6 +21,7 @@ import {
   lifecycleStatus,
   schemaOrgCourseMode,
 } from './enums.js';
+import { publicCourseImage } from './media.js';
 import { IDP_ALIAS_PATTERN, localizedLabel } from './primitives.js';
 
 const nullable = <T extends z.ZodType>(t: T) => t.nullable();
@@ -108,6 +109,8 @@ export const publicCourseCard = z.strictObject({
   next_offering: nullable(publicNextOffering),
   /** Number of published offerings that have not ended. */
   offerings_count: z.int().min(0),
+  /** Course image (decision 27); `thumbnail_url` is the card size. Null: show no image box. */
+  image: nullable(publicCourseImage),
 });
 export type PublicCourseCard = z.infer<typeof publicCourseCard>;
 
@@ -260,6 +263,11 @@ export const publicCourseDetail = z.strictObject({
    * not started, ordered by `start_date`.
    */
   offerings: z.array(publicOffering),
+  /**
+   * Course image (decision 27): `url` for the page and `og:image` (prefix the
+   * portal origin), `credit` in small print; null when the course has none.
+   */
+  image: nullable(publicCourseImage),
   /** Latest change of the course, its texts or offerings. */
   updated_at: timestamp,
 });

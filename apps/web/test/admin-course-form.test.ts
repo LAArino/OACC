@@ -42,6 +42,7 @@ import {
 } from '../app/utils/adminCourseForm';
 import {
   course,
+  courseImage,
   courseList,
   handbookCourse,
   history,
@@ -408,6 +409,8 @@ describe('contract (@oecp/schemas admin-courses)', () => {
     expect(() => adminReference.parse(reference())).not.toThrow();
     // Fixtures with the DL 21 members once the installed schemas declare them.
     expect(adminCourse.safeParse(declaresDl21 ? handbookCourse() : course()).error).toBeUndefined();
+    // With an image [DL 27].
+    expect(adminCourse.safeParse(handbookCourse({ image: courseImage() })).error).toBeUndefined();
     const items = declaresListDl21
       ? [
           listItem(1, { complete: true, ...(declaresMissingCount ? { missing_count: 0 } : {}) }),

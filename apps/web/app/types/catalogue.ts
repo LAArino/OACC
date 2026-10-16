@@ -98,13 +98,38 @@ interface CourseExtras {
 
 type NewCourseKeys = keyof CourseExtras;
 
+/**
+ * Image of a course on the public card and course page [DL 27]: `url` (lg,
+ * fitted inside 1600×1600) and `thumbnail_url` (sm, inside 640×640) are paths
+ * on the portal origin; `width`/`height` are the lg file's. `alt` is keyed by
+ * language (English present unless `decorative`).
+ */
+export interface CourseImage {
+  url: string;
+  thumbnail_url: string;
+  alt: Readonly<Record<string, string>>;
+  decorative: boolean;
+  credit: string | null;
+  width: number;
+  height: number;
+}
+
+/**
+ * `image` is additive like the members above: optional here (an older API does
+ * not send it), `null` when the course has none.
+ */
+interface CourseImageExtra {
+  image?: CourseImage | null;
+}
+
 export type NextOffering = Omit<PublicNextOffering, 'application_instructions'> & {
   /** Instructions resolved for the requested `locale` (English fallback). */
   application_instructions?: string | null;
 };
 
-export type CourseCard = Omit<PublicCourseCard, NewCourseKeys | 'next_offering'> &
-  CourseExtras & { next_offering: NextOffering | null };
+export type CourseCard = Omit<PublicCourseCard, NewCourseKeys | 'next_offering' | 'image'> &
+  CourseExtras &
+  CourseImageExtra & { next_offering: NextOffering | null };
 
 export type Offering = Omit<PublicOffering, 'application_instructions'> & {
   /** How to apply, keyed by primary language subtag (plain text). */
@@ -113,9 +138,10 @@ export type Offering = Omit<PublicOffering, 'application_instructions'> & {
 
 export type CourseDetail = Omit<
   PublicCourseDetail,
-  NewCourseKeys | 'offerings' | 'texts' | 'instructors'
+  NewCourseKeys | 'offerings' | 'texts' | 'instructors' | 'image'
 > &
-  CourseExtras & {
+  CourseExtras &
+  CourseImageExtra & {
     offerings: Offering[];
     texts: Record<string, CourseTexts>;
     /** Instructor names [DL 21]; absent from an older API. */

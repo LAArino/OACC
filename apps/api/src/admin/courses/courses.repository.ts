@@ -24,6 +24,7 @@ import type { Database, OverrideMap } from '../../db/database.js';
 import { type Db, KYSELY } from '../../db/db.module.js';
 import { HARVESTER_ACTOR } from '../../ingestion/canonical-writer.service.js';
 import { loadCompleteness } from '../../ingestion/handbook-completeness.js';
+import { courseImageFromRow } from '../../media/course-image.service.js';
 
 /** A database handle or a transaction (both are `Kysely<Database>`). */
 export type Reader = Kysely<Database>;
@@ -99,6 +100,15 @@ export function auditSummary(action: string, changes: Record<string, unknown>): 
     }
     case 'delete':
       return `${subject} deleted`;
+    case 'image_set':
+      if (changes['metadata_only']) return `Image details updated: ${list(changes['fields'])}`;
+      return changes['channel'] === 'csv'
+        ? 'Image set from the CSV image_url'
+        : changes['previous_key']
+          ? 'Image replaced'
+          : 'Image set';
+    case 'image_removed':
+      return 'Image removed';
     case 'withdraw':
       return `Withdrawn after ${String(changes['absent_count'] ?? 'repeated')} absences from the harvest`;
     case 'republish':
@@ -406,6 +416,7 @@ export class CoursesRepository {
       instructors: row.instructors,
       attributes: row.attributes,
       texts: textMap,
+      image: courseImageFromRow(row),
       completeness,
       overrides: course.overrides,
       override_meta: course.override_meta,
@@ -604,7 +615,9 @@ export class CoursesRepository {
     // A form save writes its own audit row; the writer's row of the same run repeats it,
     // except a change made by the IT Handbook publication rule (decision 21c).
     const formRuns = new Set(
-      entries.filter((e) => e.kind === 'audit' && e.channel === 'form').map((e) => e.sync_run_id),
+      entries
+        .filter((e) => e.kind === 'audit' && e.channel === 'form' && e.sync_run_id !== null)
+        .map((e) => e.sync_run_id),
     );
     const byRule = (e: AdminHistoryEntry) =>
       e.details['publish_rule'] !== undefined && e.details['missing'] !== undefined;

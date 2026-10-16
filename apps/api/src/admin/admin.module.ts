@@ -14,6 +14,11 @@ import {
   ORGANIZATION_DIRECTORY,
 } from './auth/organization-directory.js';
 import { CsvIngestionModule } from '../ingestion/csv/csv-ingestion.module.js';
+import { MediaCoreModule } from '../media/media-core.module.js';
+import {
+  CourseImageController,
+  CourseImageUploadInterceptor,
+} from './courses/course-image.controller.js';
 import { CoursesController } from './courses/courses.controller.js';
 import { CoursesRepository } from './courses/courses.repository.js';
 import { CoursesService } from './courses/courses.service.js';
@@ -33,13 +38,20 @@ import { UploadsController } from './uploads/uploads.controller.js';
 import { UploadsService } from './uploads/uploads.service.js';
 
 @Module({
-  imports: [InvitationsModule, IngestionModule, CsvIngestionModule, MaintenanceApiModule],
+  imports: [
+    InvitationsModule,
+    IngestionModule,
+    CsvIngestionModule,
+    MaintenanceApiModule,
+    MediaCoreModule,
+  ],
   controllers: [
     AdminController,
     InvitationsController,
     IntegrationsController,
     UploadsController,
     CoursesController,
+    CourseImageController,
     OrganizationsController,
     NetworkStatusController,
     MaintenanceController,
@@ -61,6 +73,7 @@ import { UploadsService } from './uploads/uploads.service.js';
     IntegrationsService,
     UploadsService,
     CsvUploadInterceptor,
+    CourseImageUploadInterceptor,
     CoursesRepository,
     CoursesService,
     OrganizationsService,

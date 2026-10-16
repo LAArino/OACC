@@ -4,6 +4,7 @@ export * from './primitives.js';
 export * from './attributes.js';
 export * from './canonical.js';
 export * from './handbook.js';
+export * from './media.js';
 export * from './csv.js';
 export * from './csv-validate.js';
 export * from './problem.js';

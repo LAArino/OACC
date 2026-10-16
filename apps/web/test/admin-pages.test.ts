@@ -494,7 +494,7 @@ describe('CSV console', () => {
     );
   });
 
-  it('offers template 1.2 and explains its new course columns [DL 21]', async () => {
+  it('offers template 1.3 and explains its new course columns [DL 21, DL 27]', async () => {
     serve({
       'GET /api/admin/v1/csv-template/schema.json': ok(
         new Blob(['{}'], { type: 'application/schema+json' }),
@@ -509,15 +509,18 @@ describe('CSV console', () => {
       saved.push(this.download);
     });
     const w = await mountPage(CsvPage, '/en/admin/csv');
-    expect(w.text()).toContain('(template 1.2, at most 5 MB');
+    expect(w.text()).toContain('(template 1.3, at most 5 MB');
     expect(w.text()).toContain(
       'Template 1.2 adds optional course columns: instructors (names separated by |) and, per language, methods_xx',
     );
+    expect(w.text()).toContain(
+      'Template 1.3 adds the course image: image_url (https), image_alt_en (empty for a decorative image) and image_credit.',
+    );
     const links = w.findAll('[aria-labelledby="templates-heading"] a');
-    expect(links[2]!.text()).toBe('Download the JSON Schema of template 1.2');
+    expect(links[2]!.text()).toBe('Download the JSON Schema of template 1.3');
     await links[2]!.trigger('click');
     await flushPromises();
-    expect(saved).toEqual(['oecp-csv-1.2.schema.json']);
+    expect(saved).toEqual(['oecp-csv-1.3.schema.json']);
     expect(await axeViolations(w.html())).toEqual([]);
   });
 

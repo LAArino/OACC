@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 // Fixtures of the course wizard API (`/api/admin/v1` courses, offerings and the
 // organization reference), shaped like the contract the web app codes against.
+import type { CourseImage } from '@oecp/schemas';
 import type {
   AdminCourse,
   AdminCourseList,
@@ -179,6 +180,7 @@ export function course(overrides: Partial<AdminCourse> = {}): AdminCourse {
         is_machine_translated: false,
       },
     },
+    image: null,
     overrides: {},
     override_meta: {},
     source_values: {},
@@ -187,6 +189,21 @@ export function course(overrides: Partial<AdminCourse> = {}): AdminCourse {
     created_at: '2026-10-01T10:00:00.000Z',
     updated_at: '2026-10-10T10:00:00.000Z',
     last_seen_at: null,
+    ...overrides,
+  };
+}
+
+/** A stored course image [DL 27] (`image` of the admin course record). */
+export function courseImage(overrides: Partial<CourseImage> = {}): CourseImage {
+  return {
+    key: '3f9a1c0d2b4e6a81',
+    alt: { en: 'Students measuring a river with GPS receivers' },
+    decorative: false,
+    credit: 'Photo: URV, CC BY 4.0',
+    width: 1600,
+    height: 900,
+    source_url: null,
+    updated_at: '2026-10-12T09:00:00.000Z',
     ...overrides,
   };
 }

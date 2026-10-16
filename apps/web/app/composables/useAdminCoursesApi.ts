@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: EUPL-1.2
 // Course wizard client (spec §6.4, §8.1): courses, offerings, overrides, status
-// changes and history of `/api/admin/v1`, plus the organization's reference data
-// for the form (cached per organization and access token, successes only).
+// changes, the course image [DL 27] and history of `/api/admin/v1`, plus the
+// organization's reference data for the form (cached per organization and access
+// token, successes only).
+import type { CourseImage, CourseImagePatch } from '@oecp/schemas';
 import type {
   AdminCourse,
   AdminCourseList,
@@ -77,6 +79,16 @@ export function useAdminCoursesApi() {
         body: { status },
       }),
     remove: (id: string) => api<unknown>(`${BASE}/courses/${seg(id)}`, { method: 'DELETE' }),
+    /** `PUT …/image` (`multipart/form-data`: `file`, `alt_en`, `decorative`, `credit`). */
+    putImage: (id: string, form: FormData) =>
+      api<CourseImage>(`${BASE}/courses/${seg(id)}/image`, { method: 'PUT', body: form }),
+    patchImage: (id: string, patch: CourseImagePatch) =>
+      api<CourseImage>(`${BASE}/courses/${seg(id)}/image`, {
+        method: 'PATCH',
+        body: body(patch),
+      }),
+    removeImage: (id: string) =>
+      api<unknown>(`${BASE}/courses/${seg(id)}/image`, { method: 'DELETE' }),
     history: (id: string, limit = 50) =>
       api<AdminHistory>(`${BASE}/courses/${seg(id)}/history`, { query: { limit } }),
 

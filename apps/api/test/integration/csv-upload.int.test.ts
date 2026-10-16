@@ -165,7 +165,7 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       run: {
         channel: 'csv',
         trigger_kind: 'upload',
-        schema_version: 'csv-1.2',
+        schema_version: 'csv-1.3',
         triggered_by: ALLIANCE_SUB,
         n_created: 16,
         n_updated: 0,
@@ -313,7 +313,7 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
     expect(history.filter((h) => h.entity_type === 'course')).toHaveLength(8);
     expect(history.filter((h) => h.entity_type === 'course_offering')).toHaveLength(8);
     expect(history.filter((h) => h.entity_type === 'academic_session')).toHaveLength(2);
-    expect(history.every((h) => h.channel === 'csv' && h.schema_version === 'csv-1.2')).toBe(true);
+    expect(history.every((h) => h.channel === 'csv' && h.schema_version === 'csv-1.3')).toBe(true);
     expect(history.find((h) => h.entity_type === 'course')?.raw_payload).toMatchObject({
       template_version: '1.2',
     });
@@ -738,7 +738,7 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       'attr_open_to_alliance',
       'attr_target_audience',
     ]);
-    expect(courses.text.split('\r\n')[1]!.startsWith('1.2,')).toBe(true);
+    expect(courses.text.split('\r\n')[1]!.startsWith('1.3,')).toBe(true);
     const offerings = await http()
       .get('/api/admin/v1/csv-template/offerings.csv')
       .set('Authorization', auth.partner)
@@ -749,9 +749,9 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       .set('Authorization', auth.partner)
       .expect(200);
     expect(schema.headers['content-type']).toMatch(/^application\/schema\+json/);
-    expect(schema.headers['content-disposition']).toContain('oecp-csv-1.2.schema.json');
+    expect(schema.headers['content-disposition']).toContain('oecp-csv-1.3.schema.json');
     expect(JSON.parse(schema.text)).toMatchObject({
-      $id: 'urn:oecp:schema:csv:1.2',
+      $id: 'urn:oecp:schema:csv:1.3',
       $defs: { courseRow: expect.any(Object), offeringRow: expect.any(Object) },
     });
     await http().get('/api/admin/v1/csv-template/courses.csv').expect(401);

@@ -227,6 +227,12 @@ const bundle: CourseBundle = {
     info_url: null,
     contact_email: 'c@uibk.example',
     instructors: ['Course team, University of Innsbruck'],
+    image_key: null,
+    image_alt: {},
+    image_decorative: false,
+    image_credit: null,
+    image_width: null,
+    image_height: null,
     updated_at: new Date('2026-10-01T00:00:00Z'),
   },
   texts: [
@@ -360,6 +366,32 @@ describe('courses and offerings', () => {
       expect(v5).not.toHaveProperty(key);
     }
     expect(Object.keys(v5.ext.oecp.texts ?? {})).toEqual(['modeOfRepetition', 'methods']);
+    expect(v5.ext.oecp_image).toBeNull();
+    expect(oeapiV5Course.safeParse(v5).success).toBe(true);
+  });
+
+  it('puts the course image in ext.oecp_image with absolute URLs', () => {
+    const withImage: CourseBundle = {
+      ...bundle,
+      course: {
+        ...bundle.course,
+        image_key: '0123456789abcdef',
+        image_alt: { en: 'Students in a lab' },
+        image_credit: 'Photo: A. Example',
+        image_width: 1600,
+        image_height: 1067,
+      },
+    };
+    const v5 = toV5Course(withImage, { ...ctx, baseUrl: 'https://campus.example.org' });
+    expect(v5.ext.oecp_image).toEqual({
+      url: 'https://campus.example.org/media/courses/c/0123456789abcdef.lg.webp',
+      thumbnail_url: 'https://campus.example.org/media/courses/c/0123456789abcdef.sm.webp',
+      alt: { en: 'Students in a lab' },
+      decorative: false,
+      credit: 'Photo: A. Example',
+      width: 1600,
+      height: 1067,
+    });
     expect(oeapiV5Course.safeParse(v5).success).toBe(true);
   });
 

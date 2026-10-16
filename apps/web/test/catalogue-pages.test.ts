@@ -694,7 +694,14 @@ describe('course page', () => {
   });
 
   it('renders a course from an older API (no kind, levels, attributes or instructions)', async () => {
-    const { kind: _k, levels: _l, attributes: _a, instructors: _n, ...old } = fixtures.course;
+    const {
+      kind: _k,
+      levels: _l,
+      attributes: _a,
+      instructors: _n,
+      image: _img,
+      ...old
+    } = fixtures.course;
     const oldCourse = {
       ...old,
       texts: {
@@ -726,6 +733,7 @@ describe('course page', () => {
     // No instructors and none of the optional texts of DL 21.
     expect(dts).not.toContain('Instructors');
     expect(w.find('.course__instructors').exists()).toBe(false);
+    expect(w.find('.course__image').exists()).toBe(false);
     expect(w.findAll('#course-text-panel h3').map((h) => h.text())).toEqual([
       'Summary',
       'Description',
@@ -735,6 +743,95 @@ describe('course page', () => {
       'Keywords',
     ]);
     expect(await axeViolations(w.html())).toEqual([]);
+  });
+
+  describe('course image [DL 27]', () => {
+    const headMeta = (selector: string) =>
+      document.head.querySelector(`meta[${selector}]`)?.getAttribute('content');
+    const jsonLd = (): Record<string, unknown> =>
+      JSON.parse(
+        document.head.querySelector('script[type="application/ld+json"]')?.textContent || '{}',
+      ) as Record<string, unknown>;
+    const withImage = (image: unknown) => {
+      api.handler = fixtureHandler({
+        [`/api/public/v1/courses/${COURSE_ID}`]: async () => ({
+          ...structuredClone(fixtures.course),
+          image,
+        }),
+      }) as Handler;
+    };
+    afterEach(() => {
+      useRuntimeConfig().public.heroImage = '';
+    });
+
+    it('shows the image above the texts with its credit, and uses it for link previews', async () => {
+      const w = await mountSuspended(CoursePage, { route: path });
+      const figure = w.find('figure.course__image');
+      expect(figure.exists()).toBe(true);
+      // Between the key facts and "About this course".
+      expect(figure.element.previousElementSibling?.classList.contains('course__facts')).toBe(true);
+      expect(figure.element.nextElementSibling?.id).toBe('course-texts');
+      const img = figure.find('.course__image-box img');
+      expect(img.attributes()).toMatchObject({
+        src: fixtures.course.image.url,
+        alt: 'Pine forest on a rocky Mediterranean coastline at sunset',
+        width: '1600',
+        height: '900',
+        decoding: 'async',
+      });
+      expect(figure.find('figcaption.course__image-credit').text()).toBe(
+        'Image: Universitat Rovira i Virgili, CC BY 4.0',
+      );
+      await vi.waitFor(() =>
+        expect(headMeta('property="og:image"')).toMatch(
+          new RegExp(`^https?://[^/]+${fixtures.course.image.url.replace(/\./g, '\\.')}$`),
+        ),
+      );
+      expect(headMeta('property="og:image:alt"')).toBe(
+        'Pine forest on a rocky Mediterranean coastline at sunset',
+      );
+      expect(headMeta('property="og:image:width"')).toBe('1600');
+      expect(headMeta('name="twitter:card"')).toBe('summary_large_image');
+      // The schema.org Course names the same absolute lg URL as og:image.
+      await vi.waitFor(() => expect(jsonLd().image).toBe(headMeta('property="og:image"')));
+      expect(await axeViolations(w.html())).toEqual([]);
+      w.unmount();
+    });
+
+    it('gives a decorative image an empty alt and shows no credit when there is none', async () => {
+      withImage({ ...fixtures.course.image, alt: {}, decorative: true, credit: null });
+      const w = await mountSuspended(CoursePage, { route: path });
+      const figure = w.find('figure.course__image');
+      expect(figure.find('img').html()).toContain('alt=""');
+      expect(figure.find('figcaption').exists()).toBe(false);
+      await vi.waitFor(() => expect(headMeta('property="og:image"')).toMatch(/\.lg\.webp$/));
+      // Head entries of the previous (unmounted) mount are removed asynchronously.
+      await vi.waitFor(() => expect(headMeta('property="og:image:alt"')).toBeUndefined());
+      expect(await axeViolations(w.html())).toEqual([]);
+      w.unmount();
+    });
+
+    it("falls back to the home page's header image for link previews without an image", async () => {
+      withImage(null);
+      useRuntimeConfig().public.heroImage = '/branding/hero.png';
+      const w = await mountSuspended(CoursePage, { route: path });
+      expect(w.find('.course__image').exists()).toBe(false);
+      await vi.waitFor(() =>
+        expect(headMeta('property="og:image"')).toMatch(/^https?:\/\/[^/]+\/branding\/hero\.png$/),
+      );
+      expect(headMeta('name="twitter:card"')).toBe('summary_large_image');
+      w.unmount();
+    });
+
+    it('sets no image meta without an image or a header image', async () => {
+      withImage(null);
+      const w = await mountSuspended(CoursePage, { route: path });
+      expect(w.find('figure').exists()).toBe(false);
+      await vi.waitFor(() => expect(headMeta('property="og:image"')).toBeUndefined());
+      expect(headMeta('name="twitter:card"')).toBeUndefined();
+      await vi.waitFor(() => expect(jsonLd()).not.toHaveProperty('image'));
+      w.unmount();
+    });
   });
 
   it('answers 404 for an unknown course and 503 when the API is down', async () => {

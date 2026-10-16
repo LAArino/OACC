@@ -12,6 +12,7 @@ import type {
   PublicDeliveryMode,
   PublicAttribute,
   PublicAttributeDefinition,
+  PublicCourseImage,
   PublicIscedField,
   ReferenceResponse,
 } from '@oecp/schemas';
@@ -22,10 +23,12 @@ import {
   courseLevel,
   isIdpAlias,
   sortAttributeDefinitions,
+  toPublicCourseImage,
 } from '@oecp/schemas';
 import type {
   CardOfferingRow,
   CourseDetailRows,
+  ImageRow,
   IscedRow,
   ModeRef,
   ReferenceRows,
@@ -56,6 +59,22 @@ const asLevel = (v: string | null): CourseLevel | null =>
   courseLevel.safeParse(v).success ? (v as CourseLevel) : null;
 const asLevels = (values: readonly string[]): CourseLevel[] =>
   values.filter((v): v is CourseLevel => courseLevel.safeParse(v).success);
+
+/**
+ * The public image of a course (decision 27): paths on the portal origin
+ * (`/media/courses/<id>/<key>.<lg|sm>.webp`); null without an image.
+ */
+export function publicImage(courseId: string, row: ImageRow): PublicCourseImage | null {
+  if (!row.image_key || !row.image_width || !row.image_height) return null;
+  return toPublicCourseImage(courseId, {
+    key: row.image_key,
+    alt: row.image_alt ?? {},
+    decorative: row.image_decorative,
+    credit: row.image_credit,
+    width: row.image_width,
+    height: row.image_height,
+  });
+}
 
 /**
  * A course's attributes resolved with the alliance's definitions, in definition
@@ -209,6 +228,7 @@ export function toSearchResponse(
         application_instructions: localizedText(next.application_instructions, search.locale),
       },
       offerings_count: upcoming.length,
+      image: publicImage(id, c),
     });
   }
   return {
@@ -306,6 +326,7 @@ export function toCourseDetail(rows: CourseDetailRows): PublicCourseDetail {
       application_url: o.application_url,
       application_instructions: o.application_instructions ?? {},
     })),
+    image: publicImage(c.id, c),
     updated_at: updated.toISOString(),
   };
 }

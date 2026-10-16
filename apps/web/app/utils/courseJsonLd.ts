@@ -2,6 +2,7 @@
 // schema.org/Course structured data for the course page (spec §7 "JSON-LD").
 import type { CourseDetail, CourseTexts } from '../types/catalogue';
 import { courseInstructors, courseLevels, labelText, safeHttpUrl } from './catalogue';
+import { absoluteUrl } from './courseImage';
 import { pickLocalized } from './localized';
 
 /**
@@ -20,7 +21,10 @@ const COURSE_MODE: Readonly<Record<string, string>> = {
 };
 
 export interface CourseJsonLdOptions {
-  /** Absolute canonical URL of the course page. */
+  /**
+   * Absolute canonical URL of the course page; its origin also makes the course
+   * image absolute (the `og:image` rule: the i18n base URL, else the request's).
+   */
   url: string;
   locale: string;
   /** `delivery_modes.schema_org` per code, from `/reference`, when available. */
@@ -60,6 +64,7 @@ export function courseJsonLd(
     courseCode: course.ext_id,
     url: options.url,
     sameAs: safeHttpUrl(course.info_url),
+    image: imageUrl(course, options.url),
     inLanguage: languages,
     provider,
     numberOfCredits: { '@type': 'StructuredValue', value: course.ects, unitText: 'ECTS' },
@@ -90,6 +95,19 @@ export function courseJsonLd(
         }),
       ),
   });
+}
+
+/** The course image's lg file as an absolute URL on the canonical URL's origin [DL 27]. */
+function imageUrl(course: CourseDetail, pageUrl: string): string | undefined {
+  const src = course.image?.url;
+  if (!src) return undefined;
+  let origin: string;
+  try {
+    origin = new URL(pageUrl).origin;
+  } catch {
+    return undefined;
+  }
+  return absoluteUrl(src, origin);
 }
 
 /** JSON for an inline `<script type="application/ld+json">`: `<` escaped so it cannot close the tag. */

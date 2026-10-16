@@ -244,6 +244,7 @@ describe.runIf(describeWithDatabase === 'run')('OEAPI v5 read API (PostgreSQL)',
             },
             updatedAt: expect.any(String),
           },
+          oecp_image: null,
         },
       });
     });

@@ -131,6 +131,7 @@ describe.runIf(describeWithDatabase === 'run')('public catalogue API (PostgreSQL
           application_instructions: null,
         },
         offerings_count: 2,
+        image: null,
       });
       const b = body.items.find((i) => i.id === COURSE.B)!;
       expect([...b.abstract!].length).toBeLessThanOrEqual(300);

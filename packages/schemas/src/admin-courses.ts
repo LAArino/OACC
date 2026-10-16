@@ -26,6 +26,7 @@ import type { CsvReferenceData } from './csv-validate.js';
 import { courseKind, courseLevel, lifecycleStatus, sessionType, sourceChannel } from './enums.js';
 import type { ErrorCode } from './error-codes.js';
 import { courseCompleteness } from './handbook.js';
+import { courseImage } from './media.js';
 import {
   CODE_PATTERN,
   deliveryModeCode,
@@ -663,6 +664,11 @@ export const adminCourse = z.strictObject({
   attributes: courseAttributes,
   /** Keyed by primary language subtag. */
   texts: z.record(z.string(), adminCourseText),
+  /**
+   * The course image (decision 27), set through `…/image` or CSV `image_url`;
+   * never harvested, never an override.
+   */
+  image: courseImage.nullable(),
   /**
    * The IT Handbook publication rule on the effective values (decision 21c,
    * {@link completeness}): published offerings count; the organization's contact

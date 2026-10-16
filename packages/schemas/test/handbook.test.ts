@@ -296,7 +296,7 @@ describe('CSV template 1.2', () => {
     expect(csvColumnVersion('offerings', 'start_date')).toBe('1.0');
   });
 
-  it('generates a 1.2 template with instructors and the handbook texts', () => {
+  it('generates the current template with instructors and the handbook texts', () => {
     const [header, example] = csvTemplate('courses').replace('﻿', '').split('\r\n');
     expect(header?.split(',')).toEqual(
       expect.arrayContaining([
@@ -308,7 +308,7 @@ describe('CSV template 1.2', () => {
         'remarks_en',
       ]),
     );
-    expect(example?.startsWith('1.2,')).toBe(true);
+    expect(example?.startsWith('1.3,')).toBe(true);
   });
 });
 

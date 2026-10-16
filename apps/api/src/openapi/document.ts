@@ -249,7 +249,7 @@ function errorResponse(status: number, description: string, operationId: string)
 const CSV_MULTIPART_BODY: JsonSchema = {
   required: true,
   description:
-    'At least one of the file parts `courses` and `offerings` (one file each, UTF-8 CSV, template 1.2; 1.0 and 1.1 accepted). No other parts.',
+    'At least one of the file parts `courses` and `offerings` (one file each, UTF-8 CSV, template 1.3; 1.0, 1.1 and 1.2 accepted). No other parts.',
   content: {
     'multipart/form-data': {
       schema: {
@@ -269,6 +269,45 @@ const CSV_MULTIPART_BODY: JsonSchema = {
         courses: { contentType: 'text/csv' },
         offerings: { contentType: 'text/csv' },
       },
+    },
+  },
+};
+
+const IMAGE_MULTIPART_BODY: JsonSchema = {
+  required: true,
+  description:
+    'The image file and its text parts; no other parts. The type is sniffed from the bytes, not taken from the part header.',
+  content: {
+    'multipart/form-data': {
+      schema: {
+        type: 'object',
+        properties: {
+          file: {
+            type: 'string',
+            contentMediaType: 'application/octet-stream',
+            description: 'JPEG, PNG or WebP, at most 5 MiB and 40 megapixels.',
+          },
+          alt_en: {
+            type: 'string',
+            maxLength: 300,
+            description: 'English alternative text; required unless `decorative` is `true`.',
+          },
+          decorative: {
+            type: 'string',
+            enum: ['true', 'false'],
+            default: 'false',
+            description: 'Purely decorative image (rendered with an empty alternative text).',
+          },
+          credit: {
+            type: 'string',
+            maxLength: 300,
+            description: 'Credit shown under the image (photographer, licence…).',
+          },
+        },
+        required: ['file'],
+        additionalProperties: false,
+      },
+      encoding: { file: { contentType: 'image/jpeg, image/png, image/webp' } },
     },
   },
 };
@@ -321,6 +360,8 @@ function operationObject(api: ApiName, op: OperationSpec): Record<string, unknow
   if (parameters.length) operation['parameters'] = parameters;
   if (op.body === 'csv-multipart') {
     operation['requestBody'] = CSV_MULTIPART_BODY;
+  } else if (op.body === 'image-multipart') {
+    operation['requestBody'] = IMAGE_MULTIPART_BODY;
   } else if (op.body) {
     operation['requestBody'] = {
       required: op.body.required ?? true,

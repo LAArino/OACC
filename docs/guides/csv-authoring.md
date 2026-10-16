@@ -24,20 +24,21 @@ Uploads are refused (409 `oecp.sync.channel_disabled`) for organizations whose a
 
 ### `template_version`
 
-Every row declares `1.0`, `1.1` or `1.2`. Generated templates are **1.2**. Each version only adds optional columns:
+Every row declares `1.0`, `1.1`, `1.2` or `1.3`. Generated templates are **1.3**. Each version only adds optional columns:
 
 | Version | Adds |
 |---|---|
 | 1.1 | `kind`, `levels` and `attr_<key>` in `courses.csv`; `application_instructions_<lang>` in `offerings.csv` |
 | 1.2 | `instructors` and, per language, `mode_of_repetition_<lang>`, `methods_<lang>`, `literature_<lang>`, `privacy_notice_<lang>`, `remarks_<lang>` in `courses.csv` (Aurora IT Handbook, decision 21); `offerings.csv` is unchanged |
+| 1.3 | `image_url`, `image_alt_en` and `image_credit` in `courses.csv` ([course image](#course-image-image_url), decision 27); `offerings.csv` is unchanged |
 
-A row must declare at least the version of every column in the header (filled or not): a row declaring `1.0` in a file with any 1.1 or 1.2 column, or `1.1` in a file with any 1.2 column, fails with `oecp.csv.invalid_template_version`, as does an empty or other value. Older files stay valid as they are, and rows may declare a newer version than their columns need. `level` (single value) is kept for 1.0 files; use `levels` from 1.1 on, never both. The JSON Schema of the console is `oecp-csv-1.2.schema.json`; those of 1.0 and 1.1 are frozen.
+A row must declare at least the version of every column in the header (filled or not): a row declaring `1.0` in a file with any 1.1, 1.2 or 1.3 column, `1.1` in a file with any 1.2 or 1.3 column, or `1.2` in a file with any 1.3 column, fails with `oecp.csv.invalid_template_version`, as does an empty or other value. Older files stay valid as they are, and rows may declare a newer version than their columns need. `level` (single value) is kept for 1.0 files; use `levels` from 1.1 on, never both. The JSON Schema of the console is `oecp-csv-1.3.schema.json`; those of 1.0, 1.1 and 1.2 are frozen.
 
 ## `courses.csv` columns
 
 | Column | Req. | Format | Example | Notes |
 |---|---|---|---|---|
-| `template_version` | yes | `1.0`, `1.1` or `1.2` | `1.2` | per row |
+| `template_version` | yes | `1.0`, `1.1`, `1.2` or `1.3` | `1.3` | per row |
 | `course_code` | yes | `^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$` | `AVC-GIS-SOCIETY` | natural key; once per file; never changes |
 | `status` | yes | `draft`, `published`, `withdrawn`, `cancelled` | `published` | see [Status](#status-and-omission) |
 | `ects` | yes | ≤ 3 digits, ≤ 2 decimals, 0 < x ≤ 120 | `7.5` | |
@@ -57,6 +58,9 @@ A row must declare at least the version of every column in the header (filled or
 | `keywords_<lang>` | no | `\|`-separated | `GIS\|geography` | |
 | `mode_of_repetition_<lang>`, `methods_<lang>`, `literature_<lang>`, `privacy_notice_<lang>`, `remarks_<lang>` | 1.2 | text ≤ 20,000 | `Every winter semester.` | optional handbook texts, shown on the course page only when filled; the privacy notice last, in small print; methods, literature and remarks are searchable |
 | `attr_<key>` | 1.1 | per attribute definition | `sdg04\|sdg13` | [below](#alliance-attributes-attr_key) |
+| `image_url` | 1.3 | `https://…`, ≤ 2,048 | `https://www.urv.cat/img/course-gis.jpg` | the course image, fetched after the upload ([below](#course-image-image_url)); empty: the image stays as it is |
+| `image_alt_en` | 1.3 | text ≤ 300 | `Students mapping a river with GPS receivers` | English alternative text; empty with a URL: decorative image |
+| `image_credit` | 1.3 | text ≤ 300 | `Photo: URV / A. Example, CC BY 4.0` | shown in small print under the image |
 
 **Languages in a row.** A language whose cells are all empty on a row is **deleted** from that course (warning `oecp.csv.language_deleted`; English never). Text in a language whose `title_<lang>` cell is empty is an error (`oecp.csv.text_without_title`). Languages without columns in the header are untouched.
 
@@ -64,11 +68,21 @@ A row must declare at least the version of every column in the header (filled or
 
 `instructors` holds the names (or role descriptions, such as "Course team, University of Iceland") of the teaching staff **exactly as your university already publishes them** for this course in its own catalogue. They are personal data: OECP republishes them for the same purpose, keeps nothing else about the person (no e-mail address, phone or identifier) and never looks anyone up. Do not add names your university does not publish; a role description is enough. The column is optional, but the handbook's publication rule counts at least one instructor as obligatory ([below](#publication-rule-handbook-completeness)).
 
+### Course image (`image_url`)
+
+One image per course (decision 27), shown on the course card and above *About this course*; without one the portal shows the partner logo line as before. OECP stores its own copy: the image is fetched **once**, never hot-linked.
+
+- **When.** After the upload has been processed successfully, the worker fetches every `image_url` that differs from the URL the course's current image was fetched from. The upload's result does not wait for it; repeating the same URL in a later upload fetches nothing. An empty cell (or no column) leaves the image as it is; removing an image is done in the web form or the admin API, not by CSV.
+- **What is accepted.** `https://` on port 443 only, from a public address (never an internal, private or loopback one), at most 3 redirects, each to `https://`; at most 20 seconds and **5 MiB**; JPEG, PNG or WebP recognised from the content (the server's content type is not trusted), at most 40 megapixels. The image is re-encoded to WebP without metadata (no EXIF, location or camera data): a large version fitted inside 1600×1600 and a card version inside 640×640, never enlarged. Use a landscape image of at least 1600 pixels wide; cards crop to 16:9.
+- **Alternative text and credit.** `image_alt_en` describes the image for screen readers; leave it empty only for a purely decorative image. `image_credit` names the author and licence when needed. Both are stored only together with a successfully fetched image: on a failed fetch the course keeps its previous image, text and credit.
+- **Rights and people.** Upload only images your university may publish for this purpose, and no identifiable people (decision 27): the partner declares the rights for every image ([art. 28 checklist](../production/art28-processor-checklist.md)).
+- **Failures** never fail the upload: they are added to the upload's run afterwards as warnings `oecp.media.fetch_failed` on the course's row, column `image_url` (see *Sync history*), with the reason (HTTP status, size, refused address, not an image…).
+
 ## `offerings.csv` columns
 
 | Column | Req. | Format | Example | Notes |
 |---|---|---|---|---|
-| `template_version` | yes | `1.0`, `1.1` or `1.2` | `1.1` | 1.2 adds no offering column |
+| `template_version` | yes | `1.0`, `1.1`, `1.2` or `1.3` | `1.1` | 1.2 and 1.3 add no offering column |
 | `course_code` | yes | code | `AVC-SPARK-SOCIAL` | in your catalogue (not deleted) or in `courses.csv` of the same upload |
 | `offering_code` | yes | code | `2026-27-S2` | key together with `course_code`; once per file |
 | `status` | yes | as for courses | `published` | `cancelled` keeps a labelled entry until the start date |
@@ -154,24 +168,24 @@ The **CSV upload** page of the admin console (`/{locale}/admin/csv`) offers the 
 
 The report shows rows, errors and warnings per file and a table (filter all, errors or warnings) with severity, file, row, column, code and message; **Download report as CSV** saves it. After uploading, the server's result replaces it; a queued upload is polled every 3 seconds.
 
-The browser cannot check everything: it checks ISCED broad fields and delivery modes from the public reference data, but **not** offering course codes against the catalogue, `teaching_unit_code`, or `attr_<key>` columns and values. A file that passes in the browser can therefore still fail on the server with `oecp.content.unknown_course`, `unknown_teaching_unit`, `unknown_attribute`, `invalid_attribute_value` or `unknown_attribute_option`.
+The browser cannot check everything: it checks ISCED broad fields and delivery modes from the public reference data, but **not** offering course codes against the catalogue, `teaching_unit_code`, or `attr_<key>` columns and values. A file that passes in the browser can therefore still fail on the server with `oecp.content.unknown_course`, `unknown_teaching_unit`, `unknown_attribute`, `invalid_attribute_value` or `unknown_attribute_option`. For `image_url` both check only the shape (`https://`, length) and the lengths of `image_alt_en` and `image_credit`; whether the image can be fetched is known only after the upload ([`oecp.media.fetch_failed`](#course-image-image_url)).
 
 ## Codes
 
-Every `oecp.csv.*` code of `packages/schemas/errors.json` (138 codes in all; spec [Appendix A](../spec-v4.1.md#appendix-a-error-codes)) and every `oecp.content.*` code a data file can meet, in its order; the eleven content codes that only the admin API and the web form raise on single records and organizations (`invalid_parent`, `duplicate_identifier`, `duplicate_ext_id`, `unsupported_language`, `slug_immutable`, `ext_id_immutable`, `override_not_allowed`, `harvested_not_deletable`, `published_not_deletable`, `has_published_offerings`, `organization_in_use`) are in Appendix A and the [web form guide](web-form.md). **Sev.** is the catalogue's severity, which is the one every channel reports (spec §6.6): E = error (the upload fails, nothing is written), W = warning (reported, never blocks). Codes that CSV cannot raise are listed with the channel that does.
+Every `oecp.csv.*` code of `packages/schemas/errors.json` (144 codes in all; spec [Appendix A](../spec-v4.1.md#appendix-a-error-codes)) and every `oecp.content.*` code a data file can meet, in its order; the eleven content codes that only the admin API and the web form raise on single records and organizations (`invalid_parent`, `duplicate_identifier`, `duplicate_ext_id`, `unsupported_language`, `slug_immutable`, `ext_id_immutable`, `override_not_allowed`, `harvested_not_deletable`, `published_not_deletable`, `has_published_offerings`, `organization_in_use`) are in Appendix A and the [web form guide](web-form.md). **Sev.** is the catalogue's severity, which is the one every channel reports (spec §6.6): E = error (the upload fails, nothing is written), W = warning (reported, never blocks). Codes that CSV cannot raise are listed with the channel that does.
 
 | Code | Sev. | Cause | Fix |
 |---|---|---|---|
 | `oecp.csv.missing_column` | E | required column absent; or `title_<lang>` absent while other `_<lang>` columns exist | add the column |
 | `oecp.csv.unknown_column` | E | column not in the template: typo, wrong case, unnamed column, invalid `attr_` key | rename or remove |
 | `oecp.csv.missing_value` | E | required cell empty (also an empty `title_en`) | fill it |
-| `oecp.csv.invalid_template_version` | E | not `1.0`/`1.1`/`1.2`, or a version older than a column of the header (`1.0` with 1.1 or 1.2 columns, `1.1` with 1.2 columns) | write `1.2` |
+| `oecp.csv.invalid_template_version` | E | not `1.0`/`1.1`/`1.2`/`1.3`, or a version older than a column of the header (`1.0` with 1.1–1.3 columns, `1.1` with 1.2 or 1.3 columns, `1.2` with 1.3 columns) | write `1.3` |
 | `oecp.csv.conflicting_columns` | E | both `level` and `levels` | keep `levels` |
 | `oecp.csv.invalid_code` | E | `course_code`, `offering_code`, `teaching_unit_code` or `academic_session_code` breaks the code pattern | letters, digits, `. _ / -`, ≤ 200, starting with a letter or digit |
 | `oecp.csv.invalid_status` | E | not one of the four statuses | lower case value |
 | `oecp.csv.invalid_date` | E | not `YYYY-MM-DD`, or not a real date | format the cell as text `YYYY-MM-DD` |
 | `oecp.csv.invalid_number` | E | `ects` (format, ≤ 0, > 120, comma), `teaching_hours`, `max_students` (< 1), `alliance_seats`, `seats_available` | digits with a decimal point |
-| `oecp.csv.invalid_url` | E | not `https://…` or > 2,048 characters | use https |
+| `oecp.csv.invalid_url` | E | `info_url`, `image_url` or `application_url` not `https://…`, or > 2,048 characters | use https |
 | `oecp.csv.invalid_email` | E | not an address or > 320 characters | correct it |
 | `oecp.csv.invalid_language` | E | `teaching_languages` tag not BCP 47 with a lower-case primary subtag | `en`, `de-AT` |
 | `oecp.csv.invalid_isced` | E | `isced_codes` not 2–6 digits separated by `\|` | e.g. `0532\|0312` |
@@ -197,7 +211,7 @@ Every `oecp.csv.*` code of `packages/schemas/errors.json` (138 codes in all; spe
 | `oecp.csv.unexpected_file` | E | other multipart field or a second file in a field (HTTP 400) | only the two fields |
 | `oecp.csv.write_failed` | E | the database refused the write; nothing saved | report the run id |
 | `oecp.content.english_missing` | E | not raised by CSV (`title_en` is required on every row); web form and admin API: publishing without an English title | |
-| `oecp.content.invalid_value` | E | `title_en` or `title_<lang>` > 500, `campus` > 200, `instructors` (an entry over 200 characters, more than 50 entries, or an empty entry between separators), or another canonical rule (message tells) | correct the value |
+| `oecp.content.invalid_value` | E | `title_en` or `title_<lang>` > 500, `campus` > 200, `image_alt_en` or `image_credit` > 300, `instructors` (an entry over 200 characters, more than 50 entries, or an empty entry between separators), or another canonical rule (message tells) | correct the value |
 | `oecp.content.date_order` | E | end before start, deadline after end, enrolment start after deadline | fix the dates |
 | `oecp.content.seats_exceed_capacity` | E | `alliance_seats` or `seats_available` > `max_students` | lower them |
 | `oecp.content.seats_without_timestamp` | E | not raised by CSV (the upload time is stamped) | |
@@ -214,6 +228,8 @@ Every `oecp.csv.*` code of `packages/schemas/errors.json` (138 codes in all; spe
 | `oecp.content.invalid_code` · `unsupported_language` · `duplicate_ext_id` · `ext_id_immutable` · `override_not_allowed` · `has_published_offerings` · `published_not_deletable` · `harvested_not_deletable` | E | web form and admin API only, see [Web form](web-form.md#errors) | |
 | `oecp.content.duplicate_slug` · `duplicate_identifier` · `slug_immutable` · `invalid_parent` · `organization_in_use` | E | *Organizations* page and admin API only (alliance administrators) | |
 | `oecp.content.handbook_incomplete` | W | a `published` course misses fields the Aurora IT Handbook requires; in `enforce` mode it is stored as `draft` | fill the listed fields ([publication rule](#publication-rule-handbook-completeness)) |
+| `oecp.media.fetch_failed` | W | the `image_url` of an accepted row could not be fetched or is not a usable image (added to the run after it finished; the course keeps its image) | fix the URL or the file, or upload the image in the web form |
+| `oecp.media.too_large` · `unsupported_type` · `invalid_image` · `alt_required` · `not_found` | E | web form and admin API only (`PUT`/`PATCH`/`DELETE …/courses/{id}/image`); in CSV the same causes are reported as `oecp.media.fetch_failed` | |
 
 ## CSV injection
 

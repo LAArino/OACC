@@ -48,7 +48,7 @@ const MAX_FILES = 2;
 const TEMPLATES = [
   { path: 'courses.csv', filename: 'courses.csv', label: 'admin.csv.templateCourses' },
   { path: 'offerings.csv', filename: 'offerings.csv', label: 'admin.csv.templateOfferings' },
-  { path: 'schema.json', filename: 'oecp-csv-1.2.schema.json', label: 'admin.csv.templateSchema' },
+  { path: 'schema.json', filename: 'oecp-csv-1.3.schema.json', label: 'admin.csv.templateSchema' },
 ] as const;
 
 interface SelectedFile {
@@ -358,6 +358,7 @@ function reset(focus = true) {
           <template v-else>
             <p>{{ t('admin.csv.intro', { rows: CSV_MAX_ROWS }) }}</p>
             <p>{{ t('admin.csv.columnsInfo') }}</p>
+            <p>{{ t('admin.csv.imageColumnsInfo') }}</p>
 
             <section aria-labelledby="templates-heading">
               <h2 id="templates-heading">

@@ -89,7 +89,8 @@ Template for the Aurora deployment of OECP, release 0.3.0, updated through relea
 | Recipients | **The public** (portal, `/oeapi/v5`, sitemap, search engines); any reuser of the open API |
 | Transfers | Publication on the internet is accessible worldwide; `[TO COMPLETE: DPO assessment]` |
 | Retention | Target: while the course is published. **As built:** instructors and contacts stay in the course row in every status (draft, withdrawn, cancelled); courses and offerings deleted in the web form are purged 12 months after deletion (`retention` job, `OECP_RETENTION_SOFT_DELETED_MONTHS`). Withdrawn courses are never purged: clear `instructors` when a course is withdrawn for good, or delete it if it is not published `[TO COMPLETE: decide]` |
-| System reference | `courses`, `course_texts`, `course_offerings`; `apps/api/src/catalogue/`, `apps/api/src/oeapi/`; spec §5.2, §7, §9 |
+| Course images [DL 27] | One image per course, uploaded in the web form or fetched from a CSV `image_url`, re-encoded without metadata (no EXIF, location or camera data) and published on the portal and in `/oeapi/v5` (`ext.oecp_image`). **No person data by policy:** images must show no identifiable people and the partner declares its rights for each one (art. 28 checklist, B); the alternative text and the credit are free texts (a credit may name a photographer, as published with the image). Retention: with the course (deleted with it by the `retention` job, or when replaced or removed); the files are in the `uploads` volume (`media/courses/`), so in its daily backup archives (activity 8). Audit rows `course.image_set`/`course.image_removed` keep the image key, never the file or the credit text |
+| System reference | `courses`, `course_texts`, `course_offerings`; `apps/api/src/catalogue/`, `apps/api/src/oeapi/`, `apps/api/src/media/`; spec §5.2, §7, §9 |
 
 ## 5. Partner data ingestion and raw payload history
 

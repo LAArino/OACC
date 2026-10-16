@@ -7,6 +7,7 @@ import {
   type CourseOffering,
   type CourseText,
   CSV_SCHEMA_VERSION,
+  type CsvCourseImage,
   type CsvFileKind,
   type CsvIssue,
   type CsvReferenceData,
@@ -24,6 +25,7 @@ import { sql, type Transaction } from 'kysely';
 import { loadAttributeDefinitions } from '../../attributes/attribute-definitions.js';
 import type { Database } from '../../db/database.js';
 import { type Db, KYSELY } from '../../db/db.module.js';
+import { MediaQueue } from '../../media/media.queue.js';
 import { RunMetricsService } from '../../metrics/run-metrics.service.js';
 import { CanonicalContentRejected, CanonicalWriter } from '../canonical-writer.service.js';
 import { offeringKey, type WriteContext } from '../ports/canonical-writer.js';
@@ -64,6 +66,14 @@ interface Result {
   errorCount: number;
   warningCount: number;
   summary: string | null;
+}
+
+/** A template 1.3 `image_url` of an accepted row, fetched after the commit. */
+interface PendingImage {
+  courseId: string;
+  extId: string;
+  row: number;
+  image: CsvCourseImage;
 }
 
 /** Canonical validation failed after mapping; the transaction is rolled back. */
@@ -126,6 +136,8 @@ export class CsvIngestionService {
     @Optional() @Inject(CSV_CLOCK) clock?: () => Date,
     /** Worker only (spec §10 metrics): queued uploads; inline ones run in the api. */
     @Optional() private readonly metrics?: RunMetricsService,
+    /** CSV `image_url` fetches (template 1.3, decision 27); absent in some tests. */
+    @Optional() private readonly media?: MediaQueue,
   ) {
     this.now = clock ?? (() => new Date());
   }
@@ -280,6 +292,7 @@ export class CsvIngestionService {
     // 4. All-or-nothing write.
     const uploadedAt = new Date(run.created_at);
     const publishWarnings: CsvIssue[] = [];
+    const images: PendingImage[] = [];
     try {
       const counters = await this.writer.transaction((writer, trx) =>
         this.write(writer, trx, ctx, {
@@ -289,8 +302,11 @@ export class CsvIngestionService {
           uploadedAt,
           warnings,
           publishWarnings,
+          images,
         }),
       );
+      // After the commit: the fetches are asynchronous and never fail the run.
+      await this.enqueueImages(ctx, images);
       const warningCount = validation.warningCount + publishWarnings.length;
       return {
         ok: true,
@@ -323,6 +339,8 @@ export class CsvIngestionService {
       warnings: readonly CsvIssue[];
       /** Filled with the `oecp.content.handbook_incomplete` warnings (already recorded). */
       publishWarnings: CsvIssue[];
+      /** Filled with the accepted rows that carry an `image_url` (template 1.3). */
+      images: PendingImage[];
     },
   ): Promise<RunCounters> {
     // One upload per organization at a time: the snapshot below stays current.
@@ -341,11 +359,14 @@ export class CsvIngestionService {
     );
 
     const issues: CsvIssue[] = [];
-    const courses: (MappedCsvCourse & { row: number })[] = [];
+    const courses: (MappedCsvCourse & { row: number; image?: CsvCourseImage })[] = [];
     for (const row of input.courses) {
       const mapped = this.adapter.mapCourse(row, existingCourses.get(row.course_code));
-      if (mapped.ok) courses.push({ ...mapped.value, row: row.row });
-      else issues.push(...mapped.errors);
+      if (mapped.ok) {
+        courses.push({ ...mapped.value, row: row.row, ...(row.image ? { image: row.image } : {}) });
+      } else {
+        issues.push(...mapped.errors);
+      }
     }
     const offerings: MappedCsvOffering[] = [];
     for (const row of input.offerings) {
@@ -389,12 +410,15 @@ export class CsvIngestionService {
     // rejection leaves the transaction usable; every rejection is reported, then all roll back.
     const requested = new Map<string, LifecycleStatus | undefined>();
     const courseRows = new Map<string, number>();
-    for (const { course, raw, row } of courses) {
+    for (const { course, raw, row, image } of courses) {
       try {
         const result = await writer.upsertCourse(ctx, course, raw);
         counters[`n_${result.outcome}`] += 1;
         requested.set(course.ext_id, result.requestedStatus);
         courseRows.set(course.ext_id, row);
+        if (image) {
+          input.images.push({ courseId: result.entityId, extId: course.ext_id, row, image });
+        }
       } catch (error) {
         if (!(error instanceof CanonicalContentRejected)) throw error;
         issues.push(...error.errors.map((e) => writerIssue(e, row)));
@@ -423,6 +447,62 @@ export class CsvIngestionService {
       input.publishWarnings.push(issue);
     }
     return counters;
+  }
+
+  /**
+   * One `media` job per accepted row whose `image_url` differs from the course's
+   * current `image_source_url` (the same URL is a no-op). The row's alt text and
+   * credit travel with the job and are stored only with the fetched image. A queue
+   * failure is a warning `oecp.media.fetch_failed` on the run, never an error.
+   */
+  private async enqueueImages(ctx: WriteContext, images: readonly PendingImage[]): Promise<void> {
+    if (images.length === 0) return;
+    const current = new Map(
+      (
+        await this.db
+          .selectFrom('courses')
+          .select(['id', 'image_source_url'])
+          .where(
+            'id',
+            'in',
+            images.map((i) => i.courseId),
+          )
+          .execute()
+      ).map((r) => [r.id, r.image_source_url]),
+    );
+    for (const { courseId, extId, row, image } of images) {
+      if (current.get(courseId) === image.url) continue;
+      try {
+        if (!this.media) throw new Error('the media queue is not available');
+        await this.media.enqueueFetch({
+          courseId,
+          syncRunId: ctx.syncRunId,
+          extId,
+          row,
+          url: image.url,
+          alt: image.alt_en ? { en: image.alt_en } : {},
+          decorative: image.alt_en === null,
+          credit: image.credit,
+        });
+      } catch (error) {
+        this.logger.warn(`Image of ${extId} not queued: ${(error as Error).message}`);
+        await this.db
+          .insertInto('sync_errors')
+          .values({
+            sync_run_id: ctx.syncRunId,
+            severity: 'warning',
+            code: 'oecp.media.fetch_failed',
+            message: `${ERROR_CODES['oecp.media.fetch_failed'].message}: the fetch could not be queued`,
+            entity_type: 'course',
+            ext_id: extId,
+            file: 'courses',
+            row_number: row,
+            column_name: 'image_url',
+          })
+          .execute()
+          .catch((failure: unknown) => this.logger.error(failure));
+      }
+    }
   }
 
   private async referenceData(organizationId: string): Promise<CsvReferenceData> {

@@ -104,6 +104,19 @@ export interface CoursesTable {
   contact_email: string | null;
   /** Migration 0007: teaching staff as published by the university (decision 21a). */
   instructors: Generated<string[]>;
+  /**
+   * Migration 0008 (decision 27): the course image. Written only by the media
+   * module (form `…/image`, CSV `image_url` fetch); never by CanonicalWriter.
+   */
+  image_key: string | null;
+  /** `{lang: text}`; DEFAULT '{}'. */
+  image_alt: JsonObject<Record<string, string>>;
+  image_decorative: Generated<boolean>;
+  image_credit: string | null;
+  image_width: number | null;
+  image_height: number | null;
+  image_source_url: string | null;
+  image_updated_at: Timestamp | null;
   overrides: Overrides;
   content_hash: Buffer | null;
   absent_count: Generated<number>;

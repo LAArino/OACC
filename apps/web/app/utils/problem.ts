@@ -148,6 +148,11 @@ const MESSAGE_KEYS: Readonly<Record<string, string>> = {
   'oecp.integration.surfeduhub_unavailable': 'problem.surfeduhubUnavailable',
   'oecp.secrets.unavailable': 'problem.secretsUnavailable',
   'oecp.request.validation_failed': 'problem.validationFailed',
+  'oecp.media.too_large': 'problem.mediaTooLarge',
+  'oecp.media.unsupported_type': 'problem.mediaUnsupportedType',
+  'oecp.media.invalid_image': 'problem.mediaInvalidImage',
+  'oecp.media.alt_required': 'problem.mediaAltRequired',
+  'oecp.media.not_found': 'problem.mediaNotFound',
 };
 
 /** Translation key of the human message for an error (falls back on generic messages). */

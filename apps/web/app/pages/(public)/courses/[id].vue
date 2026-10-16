@@ -4,7 +4,9 @@
 // levels and every alliance attribute [DL 18]), course texts per language,
 // offerings with how to apply, schema.org/Course JSON-LD, canonical URL.
 // Instructors and the optional texts of the Aurora IT Handbook [DL 21] are
-// shown when the API sends them (an older API does not).
+// shown when the API sends them (an older API does not). The course image
+// [DL 27] is shown above the texts, with its credit, and used for link previews
+// (else the home page's header image, as on the other public pages).
 import type { CourseTexts } from '~/types/catalogue';
 
 /** Text sections in page order; the privacy notice is shown last, after the keywords. */
@@ -150,6 +152,9 @@ const offerings = computed(() =>
 const infoUrl = computed(() => safeHttpUrl(course.value?.info_url));
 const contactEmail = computed(() => safeEmail(course.value?.contact_email));
 const instructors = computed(() => courseInstructors(course.value));
+const image = computed(() => course.value?.image ?? null);
+const imageAlt = computed(() => (image.value ? courseImageAlt(image.value, locale.value) : null));
+const imageCredit = computed(() => image.value?.credit?.trim() || undefined);
 
 // --- Back to results -----------------------------------------------------------
 const listPath = computed(() => localePath('/courses'));
@@ -170,11 +175,9 @@ onMounted(() => {
 // --- Head: title, description, canonical, JSON-LD ------------------------------
 const requestUrl = useRequestURL();
 const i18nBase = (config.public.i18n as { baseUrl?: string } | undefined)?.baseUrl;
+const origin = (i18nBase || requestUrl.origin).replace(/\/$/, '');
 const canonical = computed(
-  () =>
-    `${(i18nBase || requestUrl.origin).replace(/\/$/, '')}${localePath(
-      `/courses/${encodeURIComponent(id.value)}`,
-    )}`,
+  () => `${origin}${localePath(`/courses/${encodeURIComponent(id.value)}`)}`,
 );
 const description = computed(() => {
   const text = pageText.value?.value;
@@ -182,9 +185,22 @@ const description = computed(() => {
     text?.abstract || text?.description || t('course.metaFallback', { partner: partner.value });
   return source.length > 160 ? `${source.slice(0, 157).trimEnd()}…` : source;
 });
+const { previewMeta: heroPreviewMeta } = useHeroImage();
+/** Link-preview meta: the course image when set, else the home header image (if any). */
+function previewMeta() {
+  if (!image.value) return heroPreviewMeta();
+  const alt = imageAlt.value?.text;
+  return [
+    { property: 'og:image', content: absoluteUrl(image.value.url, origin) },
+    { property: 'og:image:width', content: String(image.value.width) },
+    { property: 'og:image:height', content: String(image.value.height) },
+    ...(alt ? [{ property: 'og:image:alt', content: alt }] : []),
+    { name: 'twitter:card', content: 'summary_large_image' },
+  ];
+}
 useHead({
   title,
-  meta: [{ name: 'description', content: description }],
+  meta: () => [{ name: 'description', content: description.value }, ...previewMeta()],
   link: [{ rel: 'canonical', href: canonical, key: 'canonical' }],
   script: [
     {
@@ -313,6 +329,22 @@ useHead({
       </p>
     </section>
 
+    <figure v-if="image" class="course__image">
+      <div class="course__image-box">
+        <img
+          :src="image.url"
+          :alt="imageAlt?.text ?? ''"
+          :lang="imageAlt?.lang"
+          :width="image.width"
+          :height="image.height"
+          decoding="async"
+        />
+      </div>
+      <figcaption v-if="imageCredit" class="course__image-credit">
+        {{ t('course.imageCredit', { credit: imageCredit }) }}
+      </figcaption>
+    </figure>
+
     <section id="course-texts" class="course__texts" aria-labelledby="texts-heading">
       <h2 id="texts-heading">{{ t('course.aboutHeading') }}</h2>
       <LanguageTabs
@@ -425,6 +457,31 @@ useHead({
 }
 .course__info {
   margin: 0.75rem 0 0;
+}
+/* The course image: full width, 16:9 up to 32rem high, sized before it loads
+   (no layout shift); a taller or wider file is cropped to the box. */
+.course__image {
+  margin: 1.5rem 0 0;
+}
+.course__image-box {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 32rem;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--c-surface);
+}
+.course__image-box img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.course__image-credit {
+  margin: 0.35rem 0 0;
+  color: var(--c-muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
 }
 .course__panel:focus-visible {
   outline: 3px solid var(--c-focus);

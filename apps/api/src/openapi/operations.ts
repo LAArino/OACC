@@ -11,6 +11,7 @@ import {
   adminCourseHistoryQuery,
   adminCourseListQuery,
   adminOrganizationListQuery,
+  COURSE_IMAGE_MAX_BYTES,
   CSV_MAX_FILE_BYTES,
   courseSearchQuery,
   MAX_ATTRIBUTE_FILTERS,
@@ -74,8 +75,8 @@ export interface OperationSpec {
   access?: readonly Access[];
   params?: readonly PathParameter[];
   query?: QuerySpec;
-  /** Component id of an `application/json` body, or the CSV multipart body. */
-  body?: { schema: string; required?: boolean } | 'csv-multipart';
+  /** Component id of an `application/json` body, or the CSV or image multipart body. */
+  body?: { schema: string; required?: boolean } | 'csv-multipart' | 'image-multipart';
   /** Success (and documented non-error) responses. */
   responses: Readonly<Record<number, ResponseSpec>>;
   /** Error responses (problem+json), status → description with the codes. */
@@ -257,6 +258,8 @@ const OVERRIDES_ERRORS = {
   409: '`oecp.content.override_not_allowed`: the record is not harvested (its organization is not in `overrides` mode).',
   422: 'A key that cannot be overridden (`oecp.content.override_not_allowed` with a pointer) or an override value, or the resulting effective record, breaks a content rule.',
 } as const;
+
+const IMAGE_404 = 'Unknown course (or one outside the caller scope): `oecp.request.not_found`.';
 
 const DELETE_ERRORS = {
   409: 'Delete refused (as in the console): `oecp.content.harvested_not_deletable`, `oecp.content.published_not_deletable` (withdraw or cancel first), `oecp.content.has_published_offerings` (courses), `oecp.sync.channel_disabled`.',
@@ -666,7 +669,7 @@ export const ADMIN_OPERATIONS: readonly OperationSpec[] = [
     operationId: 'adminUploadCsv',
     tag: 'CSV uploads',
     summary: 'Upload CSV files',
-    description: `\`multipart/form-data\` with the file parts \`courses\` and/or \`offerings\` (template 1.2; 1.0 and 1.1 accepted), at most ${CSV_MAX_FILE_BYTES / 1024 / 1024} MB each; no other parts. All or nothing (ADR-0011): uploads with at most ${CSV_INLINE_MAX_ROWS} data rows are processed in the request (201, or 422 when validation fails and nothing is written), larger ones are queued (202). \`Location: /api/admin/v1/sync-runs/{id}\` is set on every response that has a run (201, 202, 422, 503).`,
+    description: `\`multipart/form-data\` with the file parts \`courses\` and/or \`offerings\` (template 1.3; 1.0, 1.1 and 1.2 accepted; \`image_url\` cells are fetched asynchronously after a successful run, failures are warnings \`oecp.media.fetch_failed\` added to the run), at most ${CSV_MAX_FILE_BYTES / 1024 / 1024} MB each; no other parts. All or nothing (ADR-0011): uploads with at most ${CSV_INLINE_MAX_ROWS} data rows are processed in the request (201, or 422 when validation fails and nothing is written), larger ones are queued (202). \`Location: /api/admin/v1/sync-runs/{id}\` is set on every response that has a run (201, 202, 422, 503).`,
     access: PA,
     params: ['OrgId'],
     body: 'csv-multipart',
@@ -699,7 +702,7 @@ export const ADMIN_OPERATIONS: readonly OperationSpec[] = [
     tag: 'CSV uploads',
     summary: 'Download the courses CSV template',
     description:
-      'Template 1.2 header row (`instructors` and the IT Handbook texts) with one `attr_<key>` column per alliance attribute definition.',
+      'Template 1.3 header row (`instructors`, the IT Handbook texts and the image columns `image_url`, `image_alt_en`, `image_credit`) with one `attr_<key>` column per alliance attribute definition.',
     access: PA,
     responses: {
       200: {
@@ -733,7 +736,7 @@ export const ADMIN_OPERATIONS: readonly OperationSpec[] = [
     tag: 'CSV uploads',
     summary: 'Download the CSV JSON Schema',
     description:
-      'The generated JSON Schema 2020-12 of template 1.2 (`urn:oecp:schema:csv:1.2`), which also accepts 1.0 and 1.1 files; `attr_<key>` cells are checked by the validator against the definitions, not by the schema.',
+      'The generated JSON Schema 2020-12 of template 1.3 (`urn:oecp:schema:csv:1.3`), which also accepts 1.0, 1.1 and 1.2 files; `attr_<key>` cells are checked by the validator against the definitions, not by the schema.',
     access: PA,
     responses: {
       200: {
@@ -833,6 +836,57 @@ export const ADMIN_OPERATIONS: readonly OperationSpec[] = [
     params: ['CourseId'],
     responses: { 204: { description: 'Deleted.' } },
     errors: { 404: 'Unknown course: `oecp.request.not_found`.', ...DELETE_ERRORS },
+  },
+  {
+    method: 'put',
+    path: '/courses/{id}/image',
+    operationId: 'adminPutCourseImage',
+    tag: 'Courses',
+    summary: 'Upload or replace the course image',
+    description: `Decision 27: one image per course, stored by OECP. \`multipart/form-data\` with \`file\` (JPEG, PNG or WebP, sniffed from the bytes; at most ${COURSE_IMAGE_MAX_BYTES / 1024 / 1024} MiB and 40 megapixels), \`alt_en\` (required unless \`decorative=true\`, at most 300 characters), \`decorative\` (\`true\`/\`false\`, default \`false\`) and \`credit\` (at most 300 characters). Re-encoded to WebP without metadata: \`lg\` inside 1600×1600 and \`sm\` inside 640×640, never upscaled; served at \`/media/courses/{id}/{key}.lg.webp\` and \`.sm.webp\`. Replaces (and deletes) the previous image. Works on harvested courses too: the harvester never touches the image. Audited \`course.image_set\`.`,
+    access: PA,
+    params: ['CourseId'],
+    body: 'image-multipart',
+    responses: { 200: { description: 'The stored image.', schema: 'CourseImage' } },
+    errors: {
+      400: 'Missing `file` part, unexpected parts or invalid text parts: `oecp.request.validation_failed`.',
+      404: IMAGE_404,
+      413: 'File over 5 MiB: `oecp.media.too_large`.',
+      415: 'Not a JPEG, PNG or WebP image: `oecp.media.unsupported_type`.',
+      422: 'No English alternative text on a non-decorative image: `oecp.media.alt_required`; image that cannot be decoded, over 40 megapixels or over 2 MiB once re-encoded: `oecp.media.invalid_image`.',
+    },
+  },
+  {
+    method: 'patch',
+    path: '/courses/{id}/image',
+    operationId: 'adminPatchCourseImage',
+    tag: 'Courses',
+    summary: 'Change the alternative text, decorative flag or credit of the course image',
+    description:
+      'Metadata only; `alt` replaces the whole map (keys are primary language subtags). The result must be decorative or have an English text. Audited `course.image_set`.',
+    access: PA,
+    params: ['CourseId'],
+    body: { schema: 'CourseImagePatch' },
+    responses: { 200: { description: 'The stored image.', schema: 'CourseImage' } },
+    errors: {
+      404: 'Unknown course (`oecp.request.not_found`) or a course without image (`oecp.media.not_found`).',
+      422: 'No English alternative text on a non-decorative image: `oecp.media.alt_required`.',
+    },
+  },
+  {
+    method: 'delete',
+    path: '/courses/{id}/image',
+    operationId: 'adminDeleteCourseImage',
+    tag: 'Courses',
+    summary: 'Remove the course image',
+    description:
+      'Deletes the files and clears the image; the portal falls back to the partner logo. Audited `course.image_removed`.',
+    access: PA,
+    params: ['CourseId'],
+    responses: { 204: { description: 'Removed.' } },
+    errors: {
+      404: 'Unknown course (`oecp.request.not_found`) or a course without image (`oecp.media.not_found`).',
+    },
   },
   {
     method: 'patch',

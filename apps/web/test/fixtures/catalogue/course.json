@@ -256,5 +256,16 @@
       "application_instructions": {}
     }
   ],
+  "image": {
+    "url": "/media/courses/6f1d2c3b-0000-4000-8000-000000000001/3f9a1c0d2b4e6a81.lg.webp",
+    "thumbnail_url": "/media/courses/6f1d2c3b-0000-4000-8000-000000000001/3f9a1c0d2b4e6a81.sm.webp",
+    "alt": {
+      "en": "Pine forest on a rocky Mediterranean coastline at sunset"
+    },
+    "decorative": false,
+    "credit": "Universitat Rovira i Virgili, CC BY 4.0",
+    "width": 1600,
+    "height": 900
+  },
   "updated_at": "2026-10-12T09:30:00Z"
 }

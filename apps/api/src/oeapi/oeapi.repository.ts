@@ -169,7 +169,8 @@ export class OeapiRepository {
     const [courses, texts, isced, offerings] = await Promise.all([
       sql<CourseRow>`SELECT c.id, c.organization_id, c.teaching_unit_id, c.ext_id, c.kind, c.ects,
           c.level, c.levels, c.attributes, c.eqf_level, c.teaching_hours, c.info_url, c.contact_email,
-          c.instructors, c.updated_at
+          c.instructors, c.image_key, c.image_alt, c.image_decorative, c.image_credit,
+          c.image_width, c.image_height, c.updated_at
         FROM courses c JOIN organizations org ON org.id = c.organization_id
         WHERE c.id = ANY(${ids}::uuid[]) AND ${PUBLISHED_COURSE}`.execute(this.db),
       sql<CourseTextRow>`SELECT t.course_id, t.lang, t.title, t.abstract, t.description,

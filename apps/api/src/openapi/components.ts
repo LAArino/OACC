@@ -25,6 +25,8 @@ import {
   attributeValueType,
   COURSE_OVERRIDE_FIELDS,
   courseCompleteness,
+  courseImage,
+  courseImagePatch,
   courseInput,
   courseKind,
   courseLevel,
@@ -65,6 +67,7 @@ import {
   publicAttributeValue,
   publicCourseCard,
   publicCourseDetail,
+  publicCourseImage,
   publicCourseText,
   publicNextOffering,
   publicOffering,
@@ -109,6 +112,7 @@ const PREFIX_TITLES: Readonly<Record<string, string>> = {
   'oecp.integration': 'Integration settings',
   'oecp.secrets': 'Secrets',
   'oecp.sync': 'Sync runs',
+  'oecp.media': 'Course images',
 };
 
 /** Markdown list of every stable code, grouped by prefix (spec Appendix A). */
@@ -234,6 +238,12 @@ const RESPONSES: readonly ComponentDef[] = [
       'An alliance attribute of a course, resolved with its definition; ordered by the definition `sort_order`, then key.',
   },
   { id: 'PublicNextOffering', schema: publicNextOffering },
+  {
+    id: 'PublicCourseImage',
+    schema: publicCourseImage,
+    description:
+      'Course image (decision 27): `url` (lg, inside 1600×1600) and `thumbnail_url` (sm, inside 640×640) are paths on the portal origin, `/media/courses/{id}/{key}.{lg|sm}.webp`; `alt` is keyed by language (empty alternative text when `decorative`); `width`/`height` of the lg file.',
+  },
   { id: 'PublicCourseCard', schema: publicCourseCard, description: 'One search result.' },
   {
     id: 'CourseSearchFacets',
@@ -310,6 +320,12 @@ const RESPONSES: readonly ComponentDef[] = [
   },
   { id: 'AttributeDefinition', schema: attributeDefinition },
   { id: 'CourseCompleteness', schema: courseCompleteness },
+  {
+    id: 'CourseImage',
+    schema: courseImage,
+    description:
+      'The stored course image (decision 27). `source_url` is the CSV `image_url` it was fetched from (null for an upload). Never harvested, never an override.',
+  },
   { id: 'AdminReference', schema: adminReference },
   {
     id: 'AdminOffering',
@@ -389,6 +405,12 @@ const REQUESTS: readonly ComponentDef[] = [
     description: `\`set\` stores overrides, \`clear\` removes them (restoring the harvested value). ${overrideKeys(OFFERING_OVERRIDE_FIELDS, false)}`,
   },
   { id: 'StatusChangeRequest', schema: statusChangeRequest },
+  {
+    id: 'CourseImagePatch',
+    schema: courseImagePatch,
+    description:
+      'At least one member. `alt` replaces the whole map (primary language subtag → 1–300 characters); `credit` `null` or empty removes it.',
+  },
 ];
 
 function stripRoot(schema: JsonSchema): JsonSchema {

@@ -12,6 +12,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- API: course images (decision 27). Migration `0008_course_images` adds
+  `image_key`, `image_alt` (per language), `image_decorative`, `image_credit`,
+  `image_width`, `image_height`, `image_source_url` and `image_updated_at` to
+  `courses` (an image is decorative or has an English alt, CHECK). New media
+  module with `sharp` 0.34.5 (Apache-2.0; its prebuilt libvips binaries are
+  LGPL-3.0-or-later, dynamically linked and unmodified, an EUPL-compatible
+  licence recorded in ADR 0006; no Dockerfile change): JPEG, PNG or WebP sniffed from the bytes, ≤ 5 MiB and 40
+  megapixels, re-encoded without metadata to WebP `lg` (inside 1600×1600) and
+  `sm` (inside 640×640), stored under `OECP_UPLOADS_DIR/media/courses/<id>/`
+  with a content-hash key, written atomically; the retention job deletes the
+  directory of hard-deleted courses. Admin `PUT` (multipart), `PATCH` and
+  `DELETE /api/admin/v1/courses/{id}/image` (also on harvested courses),
+  audited `course.image_set` / `course.image_removed`; `AdminCourse.image`.
+  Anonymous `GET /media/courses/{id}/{key}.{lg|sm}.webp` (immutable caching,
+  weak `ETag`, `HEAD`), routed by Traefik with `PathPrefix(/media)`. Public
+  cards and course page carry `image` (`url`, `thumbnail_url`, `alt`,
+  `decorative`, `credit`, `width`, `height`), `/oeapi/v5` courses
+  `ext.oecp_image` with absolute URLs. CSV template 1.3 (1.0–1.2 accepted):
+  `image_url`, `image_alt_en`, `image_credit`; after a successful run each new
+  URL is fetched by the worker (queue `media`) with the harvester's SSRF rules
+  (https:443 only, public addresses pinned, ≤ 3 https redirects, 20 s,
+  5 MiB); failures are warnings `oecp.media.fetch_failed` on the run. Six new
+  error codes `oecp.media.*` (144 in all); OpenAPI documents regenerated; the
+  harvester never writes the image columns (unit and integration tests).
+  Admin panel: an **Image** card in the course wizard's Review step (existing
+  courses, write and overrides modes; a new course is asked to save first)
+  with preview, file picker checked in the browser (JPEG, PNG or WebP,
+  ≤ 5 MiB), English alternative text or "decorative", credit, and Upload or
+  Replace (`PUT` multipart), Save text (`PATCH`) and Remove (`DELETE`, after
+  a confirmation); messages for the five `oecp.media.*` errors it can meet;
+  unsaved wizard edits are kept when the image changes. The CSV console
+  offers template 1.3 (`oecp-csv-1.3.schema.json`) and explains its image
+  columns; the course page's schema.org JSON-LD carries `image` (the absolute
+  `lg` URL, as `og:image`).
+
 - Web: a favicon of the portal's own (`apps/web/public/favicon.svg`, an open
   book in a portal arch), replaceable per deployment with
   `NUXT_PUBLIC_FAVICON_IMAGE` (Compose `OECP_FAVICON_IMAGE`, e.g.

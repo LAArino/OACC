@@ -105,7 +105,18 @@
         "timezone": "Europe/Madrid",
         "application_instructions": "Contact the Aurora office of your home university before 1 October 2026; it nominates up to two students.\nThe host then sends the application form to nominated students."
       },
-      "offerings_count": 2
+      "offerings_count": 2,
+      "image": {
+        "url": "/media/courses/6f1d2c3b-0000-4000-8000-000000000001/3f9a1c0d2b4e6a81.lg.webp",
+        "thumbnail_url": "/media/courses/6f1d2c3b-0000-4000-8000-000000000001/3f9a1c0d2b4e6a81.sm.webp",
+        "alt": {
+          "en": "Pine forest on a rocky Mediterranean coastline at sunset"
+        },
+        "decorative": false,
+        "credit": "Universitat Rovira i Virgili, CC BY 4.0",
+        "width": 1600,
+        "height": 900
+      }
     },
     {
       "id": "6f1d2c3b-0000-4000-8000-000000000002",
@@ -164,7 +175,16 @@
         "timezone": "Europe/Amsterdam",
         "application_instructions": null
       },
-      "offerings_count": 1
+      "offerings_count": 1,
+      "image": {
+        "url": "/media/courses/6f1d2c3b-0000-4000-8000-000000000002/b70e52c91a3d4f06.lg.webp",
+        "thumbnail_url": "/media/courses/6f1d2c3b-0000-4000-8000-000000000002/b70e52c91a3d4f06.sm.webp",
+        "alt": {},
+        "decorative": true,
+        "credit": null,
+        "width": 1200,
+        "height": 1200
+      }
     },
     {
       "id": "6f1d2c3b-0000-4000-8000-000000000003",
@@ -191,7 +211,8 @@
       "delivery_modes": ["presential"],
       "teaching_languages": ["de", "en"],
       "next_offering": null,
-      "offerings_count": 0
+      "offerings_count": 0,
+      "image": null
     }
   ],
   "page": 1,

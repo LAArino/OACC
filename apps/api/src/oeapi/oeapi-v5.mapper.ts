@@ -5,10 +5,12 @@
  * follow the v5.0 OpenAPI document (`tools/oeapi-mock/spec/oeapi-v5.0.bundled.json`)
  * and are contract-tested against it. Values v5 cannot express go in `ext.oecp`.
  */
-import type {
-  LocalizedLabel,
-  OeapiV5IdentifierEntry,
-  OeapiV5LanguageTypedString,
+import {
+  type LocalizedLabel,
+  type OeapiV5IdentifierEntry,
+  type OeapiV5LanguageTypedString,
+  type PublicCourseImage,
+  toPublicCourseImage,
 } from '@oecp/schemas';
 import { toIso6392T } from './languages.js';
 
@@ -53,6 +55,13 @@ export interface CourseRow {
   contact_email: string | null;
   /** Teaching staff (decision 21a). */
   instructors: string[];
+  /** Course image (migration 0008, decision 27). */
+  image_key: string | null;
+  image_alt: Record<string, string>;
+  image_decorative: boolean;
+  image_credit: string | null;
+  image_width: number | null;
+  image_height: number | null;
   updated_at: Date;
 }
 
@@ -129,6 +138,8 @@ export interface MappingContext {
   alliance: OrganizationRow | null;
   /** `YYYY-MM-DD`. */
   today: string;
+  /** `OECP_PUBLIC_BASE_URL` (no trailing slash): makes image URLs absolute. */
+  baseUrl?: string;
 }
 
 export interface V5Organization {
@@ -194,6 +205,11 @@ export interface V5Course {
       attributes: Record<string, unknown>;
       updatedAt: string;
     };
+    /**
+     * Course image (decision 27; v5 has none): the public image object with
+     * absolute URLs on the portal origin; null when the course has no image.
+     */
+    oecp_image: PublicCourseImage | null;
   };
 }
 
@@ -513,6 +529,21 @@ export function toV5Course(
         attributes: c.attributes ?? {},
         updatedAt: c.updated_at.toISOString(),
       },
+      oecp_image:
+        c.image_key && c.image_width && c.image_height
+          ? toPublicCourseImage(
+              c.id,
+              {
+                key: c.image_key,
+                alt: c.image_alt ?? {},
+                decorative: c.image_decorative,
+                credit: c.image_credit,
+                width: c.image_width,
+                height: c.image_height,
+              },
+              ctx.baseUrl ?? '',
+            )
+          : null,
     },
   };
 }

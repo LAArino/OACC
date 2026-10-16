@@ -26,6 +26,15 @@ import type {
 const COURSE = '0c000000-0000-4000-8000-000000000001';
 const ORG = '0a000000-0000-4000-8000-000000000002';
 const label = (en: string) => ({ en });
+const KEY = '0123456789abcdef';
+const NO_IMAGE = {
+  image_key: null,
+  image_alt: {},
+  image_decorative: false,
+  image_credit: null,
+  image_width: null,
+  image_height: null,
+};
 const mode = (code: string, sort_order: number) => ({
   code,
   sort_order,
@@ -151,6 +160,12 @@ const rows: SearchResultRows = {
       level: 'master',
       levels: ['master', 'bachelor'],
       attributes: ATTRIBUTES,
+      image_key: KEY,
+      image_alt: { en: 'Students in a lab' },
+      image_decorative: false,
+      image_credit: 'Photo: A. Example',
+      image_width: 1600,
+      image_height: 900,
       org_id: ORG,
       org_slug: 'uibk',
       org_name: label('Innsbruck'),
@@ -219,6 +234,24 @@ describe('toSearchResponse', () => {
     expect(body.items[0]!.next_offering!.id).toBe('0c000000-0000-4000-8000-000000000011');
     expect(body.items[0]!.next_offering!.application_instructions).toBe('Fragen Sie.');
     expect(body.items[0]).toMatchObject({ kind: 'bip', levels: ['master', 'bachelor'] });
+  });
+
+  it('puts the image on the card as paths on the portal origin', () => {
+    const body = courseSearchResponse.parse(toSearchResponse(rows, search({})));
+    expect(body.items[0]!.image).toEqual({
+      url: `/media/courses/${COURSE}/${KEY}.lg.webp`,
+      thumbnail_url: `/media/courses/${COURSE}/${KEY}.sm.webp`,
+      alt: { en: 'Students in a lab' },
+      decorative: false,
+      credit: 'Photo: A. Example',
+      width: 1600,
+      height: 900,
+    });
+    const without = toSearchResponse(
+      { ...rows, courses: rows.courses.map((c) => ({ ...c, ...NO_IMAGE })) },
+      search({}),
+    );
+    expect(without.items[0]!.image).toBeNull();
   });
 
   it('shows tag attributes on cards: show_as_tag definitions, booleans only when true', () => {
@@ -292,6 +325,7 @@ describe('toCourseDetail', () => {
       info_url: null,
       contact_email: null,
       instructors: ['Course team, University of Innsbruck'],
+      ...NO_IMAGE,
       updated_at: new Date('2026-01-01T00:00:00Z'),
       org_id: ORG,
       org_slug: 'uibk',
@@ -374,12 +408,83 @@ describe('toCourseDetail', () => {
       application_instructions: { en: 'Nomination by the home university.' },
     });
     expect(body.levels).toEqual(['master']);
+    expect(body.image).toBeNull();
     expect(body.attributes.map((a) => [a.key, a.values.map((v) => v.value)])).toEqual([
       ['sdg', ['sdg04', 'sdg13', 'sdg99']],
       ['competence_framework', ['louis']],
       ['free_course', ['true']],
       ['enrolled_only', ['false']],
     ]);
+  });
+});
+
+describe('toCourseDetail image', () => {
+  it('maps a decorative image without credit', () => {
+    const rows: CourseDetailRows = {
+      definitions: [],
+      course: {
+        id: COURSE,
+        ext_id: 'X1',
+        kind: 'course',
+        ects: '5.00',
+        level: 'master',
+        levels: ['master'],
+        attributes: {},
+        eqf_level: null,
+        teaching_hours: null,
+        info_url: null,
+        contact_email: null,
+        instructors: [],
+        image_key: KEY,
+        image_alt: {},
+        image_decorative: true,
+        image_credit: null,
+        image_width: 640,
+        image_height: 480,
+        updated_at: new Date('2026-01-01T00:00:00Z'),
+        org_id: ORG,
+        org_slug: 'uibk',
+        org_name: label('Innsbruck'),
+        org_country_code: null,
+        org_logo_url: null,
+        org_website_url: null,
+        org_contact_email: null,
+        unit_id: null,
+        unit_slug: null,
+        unit_name: null,
+      },
+      texts: [
+        {
+          lang: 'en',
+          title: 'T',
+          abstract: null,
+          description: null,
+          learning_outcomes: null,
+          prerequisites: null,
+          assessment: null,
+          mode_of_repetition: null,
+          methods: null,
+          literature: null,
+          privacy_notice: null,
+          remarks: null,
+          keywords: [],
+          is_machine_translated: false,
+          updated_at: new Date('2026-01-01T00:00:00Z'),
+        },
+      ],
+      isced: [],
+      offerings: [],
+    };
+    const body = publicCourseDetail.parse(toCourseDetail(rows));
+    expect(body.image).toEqual({
+      url: `/media/courses/${COURSE}/${KEY}.lg.webp`,
+      thumbnail_url: `/media/courses/${COURSE}/${KEY}.sm.webp`,
+      alt: {},
+      decorative: true,
+      credit: null,
+      width: 640,
+      height: 480,
+    });
   });
 });
 

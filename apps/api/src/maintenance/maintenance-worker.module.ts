@@ -5,6 +5,7 @@ import { DiscoveryModule } from '@nestjs/core';
 import { IdentityModule } from '../identity/identity.module.js';
 import { IdpMetadataRefreshModule } from '../identity/metadata-refresh/idp-metadata-refresh.module.js';
 import { CsvWorkerModule } from '../ingestion/csv/csv-worker.module.js';
+import { MediaCoreModule } from '../media/media-core.module.js';
 import { AccountCleanupService } from './account-cleanup.service.js';
 import { DormancyService } from './dormancy.service.js';
 import { HistoryPartitionsService } from './history-partitions.service.js';
@@ -29,6 +30,8 @@ import { WorkerHealthServer } from './worker-health.server.js';
     CsvWorkerModule,
     IdpMetadataRefreshModule,
     MaintenanceCoreModule,
+    // Retention deletes the image directory of every course it hard-deletes.
+    MediaCoreModule,
     BullModule.registerQueue({ name: MAINTENANCE_QUEUE }),
   ],
   providers: [

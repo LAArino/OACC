@@ -2,6 +2,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { type RawBuilder, sql } from 'kysely';
 import { type Db, KYSELY } from '../db/db.module.js';
+import { CourseMediaStorage } from '../media/course-media.storage.js';
 import {
   MAINTENANCE_CLOCK,
   MAINTENANCE_OPTIONS,
@@ -54,7 +55,8 @@ export function retentionCutoffs(now: Date, options: MaintenanceOptions): Retent
  *   dormant by then anyway);
  * - records soft-deleted (`deleted_at`) more than 12 months ago
  *   (`OECP_RETENTION_SOFT_DELETED_MONTHS`): offerings; courses with their
- *   texts, ISCED codes and offerings; organizations nothing refers to any more
+ *   texts, ISCED codes, offerings and image files (`media/courses/<id>/`,
+ *   decision 27); organizations nothing refers to any more
  *   (see {@link RetentionService.purgeOrganizations}).
  *
  * Batched deletes of {@link RETENTION_BATCH} rows. Also fails maintenance runs
@@ -70,6 +72,8 @@ export class RetentionService {
     @Inject(KYSELY) private readonly db: Db,
     @Inject(MAINTENANCE_OPTIONS) private readonly options: MaintenanceOptions,
     @Optional() @Inject(MAINTENANCE_CLOCK) clock?: () => Date,
+    /** Deletes the image directory of each hard-deleted course (absent in some tests). */
+    @Optional() private readonly media?: CourseMediaStorage,
   ) {
     this.now = clock ?? (() => new Date());
   }
@@ -165,8 +169,9 @@ export class RetentionService {
       if (n < RETENTION_BATCH) break;
     }
     let courses = 0;
+    let imageDirectories = 0;
     for (;;) {
-      const n = await this.db.transaction().execute(async (trx) => {
+      const deletedIds = await this.db.transaction().execute(async (trx) => {
         const ids = (
           await trx
             .selectFrom('courses')
@@ -177,22 +182,34 @@ export class RetentionService {
             .forUpdate()
             .execute()
         ).map((r) => r.id);
-        if (ids.length === 0) return 0;
+        if (ids.length === 0) return [];
         const cascaded = await trx
           .deleteFrom('course_offerings')
           .where('course_id', 'in', ids)
           .executeTakeFirst();
         offerings += Number(cascaded.numDeletedRows);
         await trx.deleteFrom('courses').where('id', 'in', ids).execute();
-        return ids.length;
+        return ids;
       });
-      courses += n;
-      if (n < RETENTION_BATCH) break;
+      // After the commit: a failed transaction keeps both the rows and the files.
+      for (const id of deletedIds) {
+        try {
+          await this.media?.removeCourse(id);
+          if (this.media) imageDirectories += 1;
+        } catch (error) {
+          this.logger.warn(
+            `Image directory of course ${id} not deleted: ${(error as Error).message}`,
+          );
+        }
+      }
+      courses += deletedIds.length;
+      if (deletedIds.length < RETENTION_BATCH) break;
     }
     const organizations = await this.purgeOrganizations(cutoff);
     return {
       soft_deleted_offerings: offerings,
       soft_deleted_courses: courses,
+      soft_deleted_course_media: imageDirectories,
       soft_deleted_organizations: organizations.deleted,
       soft_deleted_organizations_kept: organizations.kept,
     };

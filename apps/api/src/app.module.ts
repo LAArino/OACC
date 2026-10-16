@@ -9,6 +9,7 @@ import { DbModule } from './db/db.module.js';
 import { HealthModule } from './health/health.module.js';
 import { IngestionModule } from './ingestion/ingestion.module.js';
 import { AppLoggerModule } from './logging/logger.module.js';
+import { MediaApiModule } from './media/media-api.module.js';
 import { MetricsModule } from './metrics/metrics.module.js';
 import { OeapiModule } from './oeapi/oeapi.module.js';
 import { OpenApiModule } from './openapi/openapi.module.js';
@@ -25,6 +26,7 @@ import { OpenApiModule } from './openapi/openapi.module.js';
     CatalogueModule,
     OeapiModule,
     AdminModule,
+    MediaApiModule,
     OpenApiModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: ProblemDetailsFilter }],

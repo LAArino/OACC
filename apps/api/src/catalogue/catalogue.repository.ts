@@ -16,7 +16,17 @@ import { loadAttributeDefinitions } from '../attributes/attribute-definitions.js
 import { type Db, KYSELY } from '../db/db.module.js';
 import { CourseSearchSql, type FacetKey } from './search-sql.js';
 
-export interface CardCourseRow {
+/** Image columns of migration 0008 (decision 27). */
+export interface ImageRow {
+  image_key: string | null;
+  image_alt: Record<string, string>;
+  image_decorative: boolean;
+  image_credit: string | null;
+  image_width: number | null;
+  image_height: number | null;
+}
+
+export interface CardCourseRow extends ImageRow {
   id: string;
   ext_id: string;
   kind: CourseKind;
@@ -80,7 +90,7 @@ export interface SearchResultRows {
   offerings: CardOfferingRow[];
 }
 
-export interface DetailCourseRow {
+export interface DetailCourseRow extends ImageRow {
   id: string;
   ext_id: string;
   kind: CourseKind;
@@ -195,6 +205,8 @@ const OFFERING_MODES = sql<ModeRef[]>`coalesce((
 export const SUGGEST_WORD_SIMILARITY = 0.5;
 
 /** Visible-course predicate on `c`/`org`. */
+const IMAGE_COLUMNS = sql`c.image_key, c.image_alt, c.image_decorative, c.image_credit,
+  c.image_width, c.image_height`;
 const PUBLISHED = sql`c.status = 'published' AND c.deleted_at IS NULL AND org.deleted_at IS NULL`;
 
 @Injectable()
@@ -233,7 +245,7 @@ export class CatalogueRepository {
     const langs = [...new Set([search.locale, 'en'])];
     const [courses, texts, isced, offerings] = await Promise.all([
       sql<CardCourseRow>`SELECT c.id, c.ext_id, c.kind, c.ects, c.level, c.levels, c.attributes,
-          org.id AS org_id, org.slug AS org_slug, org.name AS org_name,
+          ${IMAGE_COLUMNS}, org.id AS org_id, org.slug AS org_slug, org.name AS org_name,
           org.country_code AS org_country_code
         FROM courses c JOIN organizations org ON org.id = c.organization_id
         WHERE c.id = ANY(${ids}::uuid[])`.execute(this.db),
@@ -275,7 +287,7 @@ export class CatalogueRepository {
   async courseDetail(id: string, today: string): Promise<CourseDetailRows | null> {
     const { rows } = await sql<DetailCourseRow>`SELECT c.id, c.ext_id, c.kind, c.ects, c.level,
         c.levels, c.attributes, c.eqf_level, c.teaching_hours, c.info_url, c.contact_email,
-        c.instructors, c.updated_at, org.id AS org_id, org.slug AS org_slug, org.name AS org_name,
+        c.instructors, c.updated_at, ${IMAGE_COLUMNS}, org.id AS org_id, org.slug AS org_slug, org.name AS org_name,
         org.country_code AS org_country_code, org.logo_url AS org_logo_url,
         org.website_url AS org_website_url, org.contact_email AS org_contact_email,
         tu.id AS unit_id, tu.slug AS unit_slug, tu.name AS unit_name

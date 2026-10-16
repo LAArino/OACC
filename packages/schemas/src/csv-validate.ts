@@ -142,6 +142,12 @@ export interface NormalizedCourseRow {
   contact_email?: string | null;
   /** Template 1.2: names or role descriptions, distinct, in file order; `null` (empty cell) clears them. */
   instructors?: string[] | null;
+  /**
+   * Template 1.3: the image to fetch after the upload is processed, when
+   * `image_url` is set; `undefined` (column absent or cell empty) leaves the
+   * course's image as it is. `alt_en` null means a decorative image.
+   */
+  image?: CsvCourseImage;
   /** Languages with at least one column in the header and one non-empty cell. */
   texts: Record<string, NormalizedCourseText>;
   /** Header languages whose cells are all empty: deleted (never `en`). */
@@ -153,6 +159,13 @@ export interface NormalizedCourseRow {
   attributes: Record<string, AttributeValue | null>;
   /** The row as parsed (cells verbatim). */
   source: Record<string, string>;
+}
+
+/** `image_url`, `image_alt_en` and `image_credit` of a template 1.3 row with a URL. */
+export interface CsvCourseImage {
+  url: string;
+  alt_en: string | null;
+  credit: string | null;
 }
 
 /** A valid `offerings.csv` row; `undefined`/`null` as in {@link NormalizedCourseRow}. */
@@ -760,6 +773,7 @@ function validateCourses(
       info_url: optional(cells, 'info_url', identity),
       contact_email: optional(cells, 'contact_email', identity),
       instructors: optional(cells, 'instructors', (x) => [...new Set(splitMultiValue(x))]),
+      ...courseImage(cells),
       texts,
       deleted_languages: deleted,
       attributes,
@@ -767,6 +781,19 @@ function validateCourses(
     });
   });
   return normalized;
+}
+
+/** Template 1.3 image cells; alt and credit count only together with a URL. */
+function courseImage(cells: Record<string, string>): { image?: CsvCourseImage } {
+  const url = cells['image_url'] ?? '';
+  if (url === '') return {};
+  return {
+    image: {
+      url,
+      alt_en: cells['image_alt_en'] || null,
+      credit: cells['image_credit'] || null,
+    },
+  };
 }
 
 function validateOfferings(
@@ -1010,6 +1037,10 @@ export const CSV_TEMPLATE_EXAMPLES: Readonly<
     info_url: 'https://www.example.org/courses/aur-sust-101',
     contact_email: 'courses@example.org',
     instructors: 'Course coordinator, Example University|Teaching team, Example University',
+    // Template 1.3: an https URL here is fetched after the upload (left empty in the example).
+    image_url: '',
+    image_alt_en: '',
+    image_credit: '',
     abstract_en: 'An interdisciplinary introduction to sustainability challenges.',
     description_en: 'Weekly online seminars combine lectures, case studies and group work.',
     learning_outcomes_en: 'Explain the main sustainability frameworks.',

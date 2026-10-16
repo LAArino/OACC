@@ -3,7 +3,9 @@
 // One search result (spec §7): title, kind badge, partner, key facts, next
 // offering, seats and the alliance attribute tags [DL 18]. The partner's logo
 // (branding file partner-<slug>.svg|png|webp, useBrandingIndex) sits next to its
-// name, decorative (alt="") since the name is text.
+// name, decorative (alt="") since the name is text. The course image [DL 27],
+// when set, is shown as a 16:9 thumbnail above the text: it comes last in the
+// markup (the title stays first in reading order) and is not a link.
 import type { CourseCard } from '../types/catalogue';
 import type { MaybeReference } from '../composables/useCatalogueLabels';
 
@@ -56,82 +58,106 @@ const tags = computed(() =>
 );
 const shownTags = computed(() => tags.value.slice(0, TAG_LIMIT));
 const hiddenTags = computed(() => Math.max(0, tags.value.length - TAG_LIMIT));
+const image = computed(() => props.course.image ?? null);
+const imageAlt = computed(() => (image.value ? courseImageAlt(image.value, locale.value) : null));
+const thumbnailSize = computed(() => (image.value ? courseThumbnailSize(image.value) : null));
 </script>
 
 <template>
-  <article class="course-card">
-    <component :is="heading" class="course-card__title">
-      <NuxtLink
-        :to="localePath(`/courses/${encodeURIComponent(course.id)}`)"
-        :lang="otherLang(course.title_lang)"
+  <article class="course-card" :class="{ 'has-image': image }">
+    <div class="course-card__body">
+      <component :is="heading" class="course-card__title">
+        <NuxtLink
+          :to="localePath(`/courses/${encodeURIComponent(course.id)}`)"
+          :lang="otherLang(course.title_lang)"
+        >
+          {{ course.title }}
+        </NuxtLink>
+      </component>
+      <p v-if="kindBadge" class="course-card__kind">{{ kindBadge }}</p>
+      <p class="course-card__partner">
+        <img
+          v-if="logo"
+          class="course-card__logo"
+          :src="logo"
+          alt=""
+          height="24"
+          loading="lazy"
+          decoding="async"
+        />
+        <span
+          >{{ partner }}<template v-if="country"> · {{ country }}</template></span
+        >
+      </p>
+      <p
+        v-if="course.abstract"
+        class="course-card__abstract"
+        :lang="otherLang(course.abstract_lang)"
       >
-        {{ course.title }}
-      </NuxtLink>
-    </component>
-    <p v-if="kindBadge" class="course-card__kind">{{ kindBadge }}</p>
-    <p class="course-card__partner">
+        {{ course.abstract }}
+      </p>
+      <dl class="facts course-card__facts">
+        <dt>{{ t('facts.ects') }}</dt>
+        <dd>{{ course.ects }}</dd>
+        <template v-if="levels.length">
+          <dt>{{ t('facts.levels', levels.length) }}</dt>
+          <dd>{{ levels.join(', ') }}</dd>
+        </template>
+        <template v-if="modes.length">
+          <dt>{{ t('facts.modes') }}</dt>
+          <dd>{{ modes.join(', ') }}</dd>
+        </template>
+        <template v-if="languages.length">
+          <dt>{{ t('facts.languages') }}</dt>
+          <dd>{{ languages.join(', ') }}</dd>
+        </template>
+        <template v-if="next">
+          <dt>{{ t('facts.nextOffering') }}</dt>
+          <dd>
+            {{ t('dates.range', { start: fmt(next.start_date), end: fmt(next.end_date) }) }}
+          </dd>
+          <template v-if="next.application_deadline">
+            <dt :class="{ 'is-highlighted': highlightDeadline }">
+              {{ t('facts.applicationDeadline') }}
+            </dt>
+            <dd :class="{ 'is-passed': deadlinePassed, 'is-highlighted': highlightDeadline }">
+              {{ deadlineText }}
+            </dd>
+          </template>
+        </template>
+      </dl>
+      <p v-if="!next" class="course-card__muted">
+        {{ t('courses.noUpcoming') }}
+      </p>
+      <SeatsLine :offering="next" :time-zone="next?.timezone" />
+      <p v-if="otherOfferings > 0" class="course-card__muted">
+        {{ t('courses.moreOfferings', { n: otherOfferings }, otherOfferings) }}
+      </p>
+      <ul
+        v-if="shownTags.length"
+        class="tag-list course-card__tags"
+        :aria-label="t('courses.tags')"
+      >
+        <li v-for="tag in shownTags" :key="tag">{{ tag }}</li>
+        <li v-if="hiddenTags > 0" class="course-card__more">
+          <span aria-hidden="true">+{{ hiddenTags }}</span>
+          <span class="visually-hidden">{{
+            t('courses.moreTags', { n: hiddenTags }, hiddenTags)
+          }}</span>
+        </li>
+      </ul>
+    </div>
+    <div v-if="image && thumbnailSize" class="course-card__media">
       <img
-        v-if="logo"
-        class="course-card__logo"
-        :src="logo"
-        alt=""
-        height="24"
+        :src="image.thumbnail_url"
+        :alt="imageAlt?.text ?? ''"
+        :lang="imageAlt?.lang"
+        :width="thumbnailSize.width"
+        :height="thumbnailSize.height"
         loading="lazy"
         decoding="async"
       />
-      <span
-        >{{ partner }}<template v-if="country"> · {{ country }}</template></span
-      >
-    </p>
-    <p v-if="course.abstract" class="course-card__abstract" :lang="otherLang(course.abstract_lang)">
-      {{ course.abstract }}
-    </p>
-    <dl class="facts course-card__facts">
-      <dt>{{ t('facts.ects') }}</dt>
-      <dd>{{ course.ects }}</dd>
-      <template v-if="levels.length">
-        <dt>{{ t('facts.levels', levels.length) }}</dt>
-        <dd>{{ levels.join(', ') }}</dd>
-      </template>
-      <template v-if="modes.length">
-        <dt>{{ t('facts.modes') }}</dt>
-        <dd>{{ modes.join(', ') }}</dd>
-      </template>
-      <template v-if="languages.length">
-        <dt>{{ t('facts.languages') }}</dt>
-        <dd>{{ languages.join(', ') }}</dd>
-      </template>
-      <template v-if="next">
-        <dt>{{ t('facts.nextOffering') }}</dt>
-        <dd>
-          {{ t('dates.range', { start: fmt(next.start_date), end: fmt(next.end_date) }) }}
-        </dd>
-        <template v-if="next.application_deadline">
-          <dt :class="{ 'is-highlighted': highlightDeadline }">
-            {{ t('facts.applicationDeadline') }}
-          </dt>
-          <dd :class="{ 'is-passed': deadlinePassed, 'is-highlighted': highlightDeadline }">
-            {{ deadlineText }}
-          </dd>
-        </template>
-      </template>
-    </dl>
-    <p v-if="!next" class="course-card__muted">
-      {{ t('courses.noUpcoming') }}
-    </p>
-    <SeatsLine :offering="next" :time-zone="next?.timezone" />
-    <p v-if="otherOfferings > 0" class="course-card__muted">
-      {{ t('courses.moreOfferings', { n: otherOfferings }, otherOfferings) }}
-    </p>
-    <ul v-if="shownTags.length" class="tag-list course-card__tags" :aria-label="t('courses.tags')">
-      <li v-for="tag in shownTags" :key="tag">{{ tag }}</li>
-      <li v-if="hiddenTags > 0" class="course-card__more">
-        <span aria-hidden="true">+{{ hiddenTags }}</span>
-        <span class="visually-hidden">{{
-          t('courses.moreTags', { n: hiddenTags }, hiddenTags)
-        }}</span>
-      </li>
-    </ul>
+    </div>
   </article>
 </template>
 
@@ -141,6 +167,32 @@ const hiddenTags = computed(() => Math.max(0, tags.value.length - TAG_LIMIT));
   border-radius: var(--radius);
   padding: 1rem 1.1rem;
   background: var(--c-bg);
+}
+/* The thumbnail follows the text in the markup and is shown above it. */
+.course-card.has-image {
+  display: flex;
+  flex-direction: column;
+}
+.course-card__body {
+  min-width: 0;
+}
+/* A 16:9 box sized before the image loads (no layout shift); the sm file is
+   at most 640 px wide, shown at most 20rem wide (2x on high-density screens). */
+.course-card__media {
+  order: -1;
+  width: 100%;
+  max-width: 20rem;
+  aspect-ratio: 16 / 9;
+  margin: 0 0 0.75rem;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--c-surface);
+}
+.course-card__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .course-card__title {
   margin: 0 0 0.25rem;

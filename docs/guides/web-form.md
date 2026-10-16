@@ -42,7 +42,19 @@ Four steps. A new course is filled in order and each step is checked before **Ne
 
 **3. Attributes.** One control per alliance attribute definition: a checkbox group for `multi_enum` (Aurora: educational hub, SDGs, target audience), a list for `enum` (competence framework, with "Not set"), three choices for `boolean` (micro-credential, free course, enrolled only, open to the alliance): **Not set** (the attribute is left out), **Yes** (`true`) or **No** (`false`), so an explicit "no" can be stored from the form as from CSV; a text field for `text` (≤ 500).
 
-**4. Review and status.** A summary of everything entered and, for a saved course, the **Completeness** card: *Complete*, or the list of fields the Aurora catalogue requires that are still missing (for the last saved version, offerings included). Then the status: **Draft** (not shown in the public catalogue) or **Published** (requires the English title). A new course starts as draft. For an existing course that is withdrawn or cancelled the choice stays empty and saving keeps that status; use the status actions to change it. **Create course** sends `POST`, **Save** sends `PUT` (a full replace of the record).
+**4. Review and status.** A summary of everything entered and, for a saved course, the **Completeness** card: *Complete*, or the list of fields the Aurora catalogue requires that are still missing (for the last saved version, offerings included), and the **Image** card ([below](#course-image); for a new course it only says to save the course first). Then the status: **Draft** (not shown in the public catalogue) or **Published** (requires the English title). A new course starts as draft. For an existing course that is withdrawn or cancelled the choice stays empty and saving keeps that status; use the status actions to change it. **Create course** sends `POST`, **Save** sends `PUT` (a full replace of the record).
+
+## Course image
+
+One image per course (decision 27), shown on the course card and above *About this course* on the public course page; without one the portal shows the partner logo line as before. It is set in the **Image** card of the Review step, which appears once the course exists (save a new course first). Its buttons act **at once**: they do not wait for **Save**, and they keep what you have typed but not yet saved in the other steps.
+
+- **Image file.** JPEG, PNG or WebP, at most **5 MB**; the browser checks the type and the size before anything is sent. Use a landscape image at least 1600 pixels wide: cards crop it to 16:9. OECP stores its own copy, re-encoded to WebP without metadata (no EXIF, location or camera data): a large version inside 1600×1600 and a card version inside 640×640, never enlarged. The original file is not kept.
+- **Alternative text (English).** Required, at most 300 characters: what the image shows, for people who cannot see it. Tick **Decorative image (no alternative text)** only when the image adds no information; the text field is then disabled and emptied.
+- **Credit.** Optional, at most 300 characters (author and licence, e.g. *Photo: URV / A. Example, CC BY 4.0*), shown in small print under the image.
+- **Upload image** (or **Replace image** when there is one) sends the file with its text; replacing deletes the previous files. **Save text** changes only the alternative text, the decorative flag and the credit of the current image (enabled when one of them changed). **Remove image** asks for confirmation, then deletes the image with its text and credit.
+- The card shows the current image (the card version) with its alternative text, credit, size, source (an uploaded file, or the URL a [CSV](csv-authoring.md#course-image-image_url) `image_url` was fetched from) and date. Each change is a *History* entry (`course.image_set`, `course.image_removed`).
+- **Harvested courses** use the same card: OEAPI v5 carries no image, so the harvester never sets or changes it, and there is no source value or override to manage.
+- **Rights and people.** Upload only images your university may publish for this purpose, and no identifiable people: the partner declares the rights for every image ([art. 28 checklist](../production/art28-processor-checklist.md)).
 
 ## Publication rule (completeness)
 
@@ -146,6 +158,9 @@ Base `https://{portal}/api/admin/v1`, JSON, bearer token (spec [§8.2](../spec-v
 | Save overrides | `PATCH /courses/{id}/overrides` `{"set": {…}, "clear": […]}` |
 | Revert status to the partner's value | `PATCH /courses/{id}/overrides` `{"clear": ["status"]}` (offerings alike) |
 | History | `GET /courses/{id}/history?limit=50` (≤ 200) |
+| Upload or replace the image | `PUT /courses/{id}/image`, `multipart/form-data`: `file`, `alt_en` (required unless `decorative=true`), `decorative` (`true`/`false`), `credit` → 200 with the image |
+| Save the image text | `PATCH /courses/{id}/image` `{"alt": {"en": "…"}, "decorative": false, "credit": "…"}` (any of them; `alt` replaces the whole map) |
+| Remove the image | `DELETE /courses/{id}/image` → 204 |
 | Add offering | `POST /courses/{id}/offerings` |
 | Offering | `GET`, `PUT`, `DELETE /offerings/{id}`, `POST …/status`, `PATCH …/overrides` |
 
@@ -170,6 +185,9 @@ curl -sS -X POST "$API/courses/$COURSE/offerings" -H "Authorization: Bearer $TOK
 curl -sS -X PATCH "$API/courses/$COURSE/overrides" -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"set": {"kind": "bip", "texts.en.abstract": "Blended Intensive Programme."}, "clear": ["info_url"]}'
+curl -sS -X PUT "$API/courses/$COURSE/image" -H "Authorization: Bearer $TOKEN" \
+  -F file=@river.jpg -F 'alt_en=Students measuring a river with GPS receivers' \
+  -F 'credit=Photo: URV, CC BY 4.0'
 ```
 
 Request rules: `status` on create or replace is `draft` or `published` (default `draft`; a replace keeps the current status when omitted); `PUT` is a full replace of the record; codes in the body must match the existing record; `timezone` defaults to the organization's; `seats_available` stamps `seats_updated_at`. Course bodies take `instructors` (array of strings, default `[]`, each 1–200 characters, at most 50, no duplicates) and, per language, `mode_of_repetition`, `methods`, `literature`, `privacy_notice`, `remarks` (≤ 20,000; trimmed; empty becomes null). Responses add `instructors` and `completeness` (`{complete, missing[]}`, the [publication rule](#publication-rule-completeness) on the effective values, whatever the status); list items carry `complete` and `missing_count` (the number of missing fields, 0 exactly when complete). Override keys: `status`, `kind`, `levels`, `ects`, `teaching_hours`, `info_url`, `contact_email`, `attributes`, `isced_codes`, `instructors`, `texts.<lang>.<field>` (the five optional texts included) for courses; `status`, the four dates, `timezone`, `teaching_languages`, `delivery_modes`, `campus`, `max_students`, `alliance_seats`, `seats_available`, `application_url`, `application_instructions` for offerings; at least one change, at most 100 keys each, never a key in both `set` and `clear`. Responses carry the effective values plus `overrides`, `override_meta` (`{by, at}`) and `source_values`.
@@ -186,8 +204,9 @@ Problems are `application/problem+json` with `errors[]` items carrying `code`, `
 | 422 | Content rules of a well-formed body (`CONTENT_RULE_CODES`, title "Validation failed") | `oecp.content.english_missing` (publishing without `texts.en`), `date_order`, `seats_exceed_capacity`, `seats_without_timestamp`, `duplicate_isced`, `unknown_isced_field` |
 | 422 | Checks against the database and the resulting record | `oecp.content.unknown_isced_field`, `unknown_teaching_unit`, `unknown_delivery_mode`, `unknown_attribute`, `invalid_attribute_value`, `unknown_attribute_option`, `english_missing` (status action), `date_order` (after overrides), `unsupported_language`, `invalid_value` |
 | 409 | State conflicts | `oecp.sync.channel_disabled` (create, replace or delete in overrides mode), `oecp.content.override_not_allowed` (overrides in write mode), `duplicate_ext_id`, `ext_id_immutable`, `has_published_offerings`, `published_not_deletable` (courses and offerings), `harvested_not_deletable` |
+| 413, 415, 422, 404 | Course image (`…/image`) | `oecp.media.too_large` (413, over 5 MiB), `unsupported_type` (415, not JPEG, PNG or WebP by its content), `invalid_image` (422, unreadable or over 40 megapixels), `alt_required` (422, no English alternative text and not decorative), `not_found` (404, `PATCH` on a course without an image) |
 | 404, 403, 401 | Unknown record; organization outside your scope; missing or expired token, MFA missing | `oecp.request.not_found`, `oecp.auth.forbidden_organization`, `oecp.auth.missing_token`, `invalid_token`, `insufficient_acr` |
 
-Codes of `errors.json` the course pages never return: `oecp.content.unknown_course` (CSV only), `oecp.content.unknown_session` (an unknown session code creates a session), `oecp.content.session_ignored` (harvester), the organization codes (`duplicate_slug`, `duplicate_identifier`, `slug_immutable`, `invalid_parent`, `organization_in_use`: *Organizations* page) and the `oecp.csv.*` and `oecp.oeapi.*` families ([CSV authoring](csv-authoring.md#codes), [API integration](api-integration.md#warning-and-rejection-codes)).
+Codes of `errors.json` the course pages never return: `oecp.content.unknown_course` (CSV only), `oecp.content.unknown_session` (an unknown session code creates a session), `oecp.content.session_ignored` (harvester), the organization codes (`duplicate_slug`, `duplicate_identifier`, `slug_immutable`, `invalid_parent`, `organization_in_use`: *Organizations* page) `oecp.media.fetch_failed` (the worker's fetch of a CSV `image_url`) and the `oecp.csv.*` and `oecp.oeapi.*` families ([CSV authoring](csv-authoring.md#codes), [API integration](api-integration.md#warning-and-rejection-codes)).
 
 Every successful save is one sync run (`form`, schema `form-1`) and one audit entry; a refused save writes nothing. The publication rule's warning `oecp.content.handbook_incomplete` is stored with the save's run (visible under **Sync history**) and in the audit entry (`publish_rule` with mode, status and missing fields); it never makes a save fail.
