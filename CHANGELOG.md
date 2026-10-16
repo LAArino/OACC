@@ -41,6 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   release 0.7.0 with the deployment branding and the real Aurora Virtual
   Campus courses.
 
+- Docs: decision 27 (images per course, taken as recommended on 2026-10-16:
+  one image per course stored in OECP, no external links, no identifiable
+  people, mandatory alt text, partner logo as fallback; the current website's
+  photographs are not migrated) and its backlog row.
+
 ### Changed
 
 - Docs: every document is now in English. The owner decisions log
