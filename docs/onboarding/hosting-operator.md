@@ -43,7 +43,7 @@ Settle these with the institution's network, mail, identity and security teams a
 
 ### 1.2 The host
 
-**Sizing.** The sources do not size the host as a whole: the runbook's [§1](../production/runbook.md#1-topology-and-environments) template asks for "RAM ≥ 4 GB with 2 GB for the worker", and the worker alone needs at least 2 GB once the IdP metadata refresh uses the eduGAIN aggregate (runbook [§9](../production/runbook.md#9-capacity)). CPU and disk are **not sized yet**; the only measured figure is the development backup repository (5.5 MB per full backup of a 47 MB cluster). Record the real sizes in runbook §9 after the first months.
+**Sizing.** The sources do not size the host as a whole: the runbook's [§1](../production/runbook.md#1-topology-and-environments) template asks for "RAM ≥ 4 GB with 2 GB for the worker", and the worker alone needs at least 2 GB once the IdP metadata refresh uses the eduGAIN aggregate (runbook [§9](../production/runbook.md#9-capacity)). Measured on the full development stack at rest on 2026-10-16 (every profile, 31 courses): the containers use **1.7 GiB of memory** in total (Keycloak 750 MiB, Grafana 300 MiB, every other service under 90 MiB) and under 3 % CPU each; the images take about **8 GB** of disk (Grafana 1.9 GB, Alloy 0.9 GB, the four OECP images 2.1 GB) and the data volumes 230 MB, growing with the 35-day backup window (5.5 MB per full backup of a 47 MB cluster). The image build of step 2.5 is the heaviest moment. A host with **4 vCPU, 8 GB of RAM and 60 GB of disk** is ample for the pilot; record the real sizes in runbook [§9](../production/runbook.md#9-capacity) after the first months.
 
 **Operating system.** One Linux host with:
 
@@ -379,7 +379,7 @@ The values below are those the sources and the decisions log give for the Aurora
 | Federation | One SP in SIR (RedIRIS) with export to eduGAIN [DL 15]; multi-ACS generator not built |
 | Host exposure | `[TO DECIDE: open to the Internet or URV networks only]`. With URV-only access Let's Encrypt cannot reach port 443, so the ACME path of step 2.4 does not apply and an institution certificate is needed, which the sources do not document |
 | Hosts | `[TO DECIDE: one host (production only) or two (production and a staging host for upgrade rehearsals and restore drills, runbook §1)]` |
-| Server size | `[TO DECIDE]`; at least the runbook's indication (RAM ≥ 4 GB, 2 GB for the worker) |
+| Server size | `[TO DECIDE]`; the measured footprint suggests 4 vCPU, 8 GB of RAM, 60 GB of disk ([section 1.2](#12-the-host)) |
 | SMTP relay | `[TO DECIDE: URV relay host, port, STARTTLS, relay by source address for Keycloak]` |
 | `ACME_EMAIL`, alert recipient | `[TO DECIDE]` |
 | URV IdP metadata | `[TO DECIDE]`: requested from URV; until then `urv` administrators use local accounts |
