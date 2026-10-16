@@ -37,7 +37,7 @@ export const OPENAPI_FILE_NAMES: Readonly<Record<ApiName, string>> = {
   admin: 'oecp-admin-api.openapi.json',
 };
 
-const SPEC_URL = 'https://github.com/LAArino/AURORA-OECP/blob/main/docs/spec-v4.1.md';
+const SPEC_URL = 'https://github.com/LAArino/OECP/blob/main/docs/spec-v4.1.md';
 const PROBLEM_JSON = 'application/problem+json';
 /** `Cache-Control` of the served documents. */
 export const OPENAPI_CACHE = 'public, max-age=3600';

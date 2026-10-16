@@ -973,11 +973,11 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/AURORA-OECP/compare/v0.7.0...main
-[0.7.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.7.0
-[0.6.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.6.0
-[0.5.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.5.0
-[0.4.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.4.0
-[0.3.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.3.0
-[0.2.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.2.0
-[0.1.0]: https://github.com/LAArino/AURORA-OECP/releases/tag/v0.1.0
+[Unreleased]: https://github.com/LAArino/OECP/compare/v0.7.0...main
+[0.7.0]: https://github.com/LAArino/OECP/releases/tag/v0.7.0
+[0.6.0]: https://github.com/LAArino/OECP/releases/tag/v0.6.0
+[0.5.0]: https://github.com/LAArino/OECP/releases/tag/v0.5.0
+[0.4.0]: https://github.com/LAArino/OECP/releases/tag/v0.4.0
+[0.3.0]: https://github.com/LAArino/OECP/releases/tag/v0.3.0
+[0.2.0]: https://github.com/LAArino/OECP/releases/tag/v0.2.0
+[0.1.0]: https://github.com/LAArino/OECP/releases/tag/v0.1.0

@@ -8,11 +8,11 @@
       "name": "EUPL-1.2",
       "identifier": "EUPL-1.2"
     },
-    "x-oecp-spec": "https://github.com/LAArino/AURORA-OECP/blob/main/docs/spec-v4.1.md#82-admin-api-apiadminv1-implemented"
+    "x-oecp-spec": "https://github.com/LAArino/OECP/blob/main/docs/spec-v4.1.md#82-admin-api-apiadminv1-implemented"
   },
   "externalDocs": {
     "description": "OECP specification v4.1",
-    "url": "https://github.com/LAArino/AURORA-OECP/blob/main/docs/spec-v4.1.md"
+    "url": "https://github.com/LAArino/OECP/blob/main/docs/spec-v4.1.md"
   },
   "servers": [
     {

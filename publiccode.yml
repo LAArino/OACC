@@ -7,7 +7,7 @@
 publiccodeYmlVersion: "0.4"
 
 name: Open European Campus Portal
-url: "https://github.com/LAArino/AURORA-OECP"
+url: "https://github.com/LAArino/OECP"
 
 # Updated at every release (docs/RELEASING.md).
 softwareVersion: "0.7.0"
