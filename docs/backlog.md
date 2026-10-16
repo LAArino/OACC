@@ -6,7 +6,7 @@
 | Item | Requested | Trigger | Notes |
 |---|---|---|---|
 | Harvest a real partner OEAPI endpoint (needs a bilateral credential; UIBK, UICE, VUA or UDE) | 2026-10-14 | When a partner grants access | Channel A verified against `tools/oeapi-mock` on 2026-10-14: create, change, withdraw-by-absence and republish. |
-| Public portal: per-field update dates, partner logos | 2026-10-14 | v1 | Parity gaps vs the Aurora Virtual Campus draft, reported by the UI build. |
+| Public portal: per-field update dates | 2026-10-14 | v1 | Parity gaps vs the Aurora Virtual Campus draft, reported by the UI build. |
 | Playwright E2E in CI with a test SAML IdP (brokered login, `idp` claim, schacHomeOrganization check) | 2026-10-14 | Before partner onboarding | Manual part done 2026-10-14: dev-profile test IdP `test-saml-idp` (SimpleSAMLphp, realm IdP `urv` behind `OECP_DEV_IDP_ENABLED`) and `tools/e2e-identity/brokered-accept.js` / `brokered-negative.js` (accept, re-login, admins list, e-mail / idp / schac mismatch, no linking by e-mail) pass on the dev stack. Remaining: run them in CI (stack in the runner, scripted bootstrap of the alliance admin, assertions as a test runner). |
 | Keycloak mapper for `schac_home_organization` claim | 2026-10-14 | Before SAML partner onboarding | Saves an Admin API lookup at invitation acceptance. Verified 2026-10-14 with the test IdP: the claim is absent and the API's fallback to the Keycloak user attribute accepts `urv.cat` and rejects `example.edu`. |
 | CSV JSON Schema should `$ref` the canonical schema | 2026-10-14 | Before CSV channel implementation | Spec §6.3. |

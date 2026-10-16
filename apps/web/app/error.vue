@@ -23,6 +23,8 @@ useHead(() => ({
   htmlAttrs: { lang: localeHead.value.htmlAttrs.lang, dir: localeHead.value.htmlAttrs.dir },
   meta: [{ name: 'robots', content: 'noindex' }],
 }));
+// The favicon too, as app.vue does.
+useFavicon();
 </script>
 
 <template>

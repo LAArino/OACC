@@ -2,13 +2,19 @@
 <script setup lang="ts">
 import type { HeroVariant } from '~/composables/useHeroImage';
 // Deployment header image (useHeroImage): renders nothing when none is set.
-// `variant` picks the course-list image, which falls back to the home one.
+// `variant` picks the course-list image, which falls back to the home one. The
+// course list's own image is an illustration of 12:5 (2.4:1); the home image,
+// also shown on the course list when it has none of its own, is 3:1.
 const props = defineProps<{ variant?: HeroVariant }>();
-const { heroImage, heroImageAlt } = useHeroImage(props.variant ?? 'home');
+const { heroImage, heroImageAlt, hasOwnImage } = useHeroImage(props.variant ?? 'home');
 </script>
 
 <template>
-  <div v-if="heroImage" class="branding-banner">
+  <div
+    v-if="heroImage"
+    class="branding-banner"
+    :class="{ 'branding-banner--courses': hasOwnImage && variant === 'courses' }"
+  >
     <img
       :src="heroImage"
       :alt="heroImageAlt"
@@ -33,8 +39,12 @@ const { heroImage, heroImageAlt } = useHeroImage(props.variant ?? 'home');
   border-radius: var(--radius);
   background: var(--c-surface);
 }
+.branding-banner--courses img {
+  aspect-ratio: 12 / 5;
+}
 @media (max-width: 40rem) {
-  .branding-banner img {
+  .branding-banner img,
+  .branding-banner--courses img {
     aspect-ratio: 2 / 1;
   }
 }

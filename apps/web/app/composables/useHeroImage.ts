@@ -31,5 +31,7 @@ export function useHeroImage(variant: HeroVariant = 'home') {
           { name: 'twitter:card', content: 'summary_large_image' },
         ]
       : [];
-  return { heroImage, heroImageAlt, heroImageUrl, previewMeta };
+  /** Whether the variant shows its own image (the course list's), not the home one. */
+  const hasOwnImage = computed(() => Boolean(own.value));
+  return { heroImage, heroImageAlt, heroImageUrl, hasOwnImage, previewMeta };
 }

@@ -557,7 +557,8 @@ services:
       # Branding (branding/README.md): the alliance's images, mounted read-only
       # below and served at /branding/<file>. Header image of the home page and
       # the course list, and logo of the site header; empty = none (text brand,
-      # no banner).
+      # no banner). Partner logos need no variable: a file partner-<slug>.svg
+      # (or .png, .webp) is shown next to that partner's name.
       NUXT_BRANDING_DIR: /data/branding
       NUXT_PUBLIC_HERO_IMAGE: ${OECP_HERO_IMAGE:-}
       # Empty = decorative header image (alt="").
@@ -566,6 +567,8 @@ services:
       NUXT_PUBLIC_HERO_IMAGE_COURSES: ${OECP_HERO_IMAGE_COURSES:-}
       NUXT_PUBLIC_HERO_IMAGE_COURSES_ALT: ${OECP_HERO_IMAGE_COURSES_ALT:-}
       NUXT_PUBLIC_LOGO_IMAGE: ${OECP_LOGO_IMAGE:-}
+      # Favicon, e.g. /branding/favicon.svg; empty = the portal's own.
+      NUXT_PUBLIC_FAVICON_IMAGE: ${OECP_FAVICON_IMAGE:-}
       # Content-Security-Policy of the portal (spec §10): enforce | report-only | off.
       NUXT_CSP_MODE: ${NUXT_CSP_MODE:-enforce}
       OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}

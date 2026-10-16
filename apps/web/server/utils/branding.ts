@@ -69,3 +69,55 @@ export function etagMatches(ifNoneMatch: string | undefined, etag: string): bool
   const wanted = opaque(etag);
   return ifNoneMatch.split(',').some((tag) => tag.trim() === '*' || opaque(tag) === wanted);
 }
+
+// --- Index of the branding directory -------------------------------------------
+
+/** Name of the listing of the branding directory: `/branding/index.json`. */
+export const BRANDING_INDEX_NAME = 'index.json';
+
+/** How long a listing of the directory is reused before it is read again. */
+export const BRANDING_INDEX_TTL_MS = 60_000;
+
+/** A directory entry as far as the index cares: its name and whether it is a file. */
+export interface BrandingDirEntry {
+  name: string;
+  isFile: boolean;
+}
+
+/** Body of `/branding/index.json`: the servable file names, sorted. */
+export interface BrandingIndex {
+  files: string[];
+}
+
+/** Servable file names among `entries` (the name rule, regular files only), sorted. */
+export function brandingIndexFiles(entries: readonly BrandingDirEntry[]): string[] {
+  return entries
+    .filter((e) => e.isFile && isBrandingFileName(e.name))
+    .map((e) => e.name)
+    .sort();
+}
+
+/**
+ * Cached listing of the branding directory: `list(dir)` reads the directory
+ * (through `readDir`) at most once per `ttlMs` and directory; concurrent calls
+ * share one read. `undefined` when the feature is off (`dir` empty); an
+ * unreadable directory lists no files (and is retried after `ttlMs`).
+ */
+export function createBrandingIndex(
+  readDir: (dir: string) => Promise<BrandingDirEntry[]>,
+  options: { ttlMs?: number; now?: () => number } = {},
+) {
+  const ttlMs = options.ttlMs ?? BRANDING_INDEX_TTL_MS;
+  const now = options.now ?? Date.now;
+  const cache = new Map<string, { at: number; files: Promise<string[]> }>();
+  return {
+    list(dir: string): Promise<string[]> | undefined {
+      if (!dir) return undefined;
+      const hit = cache.get(dir);
+      if (hit && now() - hit.at < ttlMs) return hit.files;
+      const files = readDir(dir).then(brandingIndexFiles, () => []);
+      cache.set(dir, { at: now(), files });
+      return files;
+    },
+  };
+}

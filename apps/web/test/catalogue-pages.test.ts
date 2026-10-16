@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: EUPL-1.2
 // @vitest-environment nuxt
-import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime';
+import { mockNuxtImport, mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import App from '../app/app.vue';
 import ErrorPage from '../app/error.vue';
 import DefaultLayout from '../app/layouts/default.vue';
 import CoursePage from '../app/pages/(public)/courses/[id].vue';
@@ -40,6 +41,14 @@ mockNuxtImport(
   },
 );
 
+// `/branding/index.json` (server/middleware/branding.ts), as Nitro would answer it:
+// `files` listed, or 404 (feature off) when `null`.
+const brandingIndex = vi.hoisted(() => ({ files: null as string[] | null }));
+registerEndpoint('/branding/index.json', () => {
+  if (!brandingIndex.files) throw createError({ statusCode: 404 });
+  return { files: brandingIndex.files };
+});
+
 async function mountFailing(component: unknown, route: string) {
   errors.created.length = 0;
   // The thrown error aborts setup; the test only checks which error was raised.
@@ -48,6 +57,7 @@ async function mountFailing(component: unknown, route: string) {
 }
 
 beforeEach(() => {
+  brandingIndex.files = null;
   api.calls.length = 0;
   api.handler = fixtureHandler() as Handler;
   clearNuxtData();
@@ -196,6 +206,20 @@ describe('home page header image', () => {
     home.unmount();
   });
 
+  it("frames the course list's own image at 12:5 and the home image at 3:1", async () => {
+    hero().heroImage = '/branding/hero.png';
+    const fallback = await mountSuspended(CataloguePage, { route: '/en/courses' });
+    expect(fallback.find('.branding-banner').classes()).toEqual(['branding-banner']);
+    fallback.unmount();
+    hero().heroImageCourses = '/branding/courses.jpg';
+    const own = await mountSuspended(CataloguePage, { route: '/en/courses' });
+    expect(own.find('.branding-banner').classes()).toContain('branding-banner--courses');
+    own.unmount();
+    const home = await mountSuspended(HomePage, { route: '/en' });
+    expect(home.find('.branding-banner').classes()).toEqual(['branding-banner']);
+    home.unmount();
+  });
+
   it('renders no banner and no image meta when unset', async () => {
     const w = await mountSuspended(HomePage, { route: '/en' });
     expect(w.find('.branding-banner').exists()).toBe(false);
@@ -207,6 +231,43 @@ describe('home page header image', () => {
     await vi.waitFor(() => expect(headMeta('property="og:image"')).toBeUndefined());
     expect(headMeta('name="twitter:card"')).toBeUndefined();
     w.unmount();
+  });
+});
+
+describe('favicon', () => {
+  const pub = () => useRuntimeConfig().public;
+  const icon = () => {
+    const link = document.head.querySelector('link[rel="icon"]');
+    return link && { href: link.getAttribute('href'), type: link.getAttribute('type') };
+  };
+  const notFound = () => ({ props: { error: createError({ statusCode: 404 }) }, route: '/en' });
+  afterEach(() => {
+    pub().faviconImage = '';
+  });
+
+  it("links the portal's own favicon from app.vue and error.vue by default", async () => {
+    const app = await mountSuspended(App, { route: '/en' });
+    await vi.waitFor(() => expect(icon()).toEqual({ href: '/favicon.svg', type: 'image/svg+xml' }));
+    app.unmount();
+    const error = await mountSuspended(ErrorPage, notFound());
+    await vi.waitFor(() => expect(icon()).toEqual({ href: '/favicon.svg', type: 'image/svg+xml' }));
+    error.unmount();
+  });
+
+  it('links the configured favicon, typed by its extension', async () => {
+    pub().faviconImage = '/branding/favicon.png';
+    const app = await mountSuspended(App, { route: '/en' });
+    await vi.waitFor(() =>
+      expect(icon()).toEqual({ href: '/branding/favicon.png', type: 'image/png' }),
+    );
+    app.unmount();
+    pub().faviconImage = '/branding/favicon.svg';
+    const error = await mountSuspended(ErrorPage, notFound());
+    await vi.waitFor(() =>
+      expect(icon()).toEqual({ href: '/branding/favicon.svg', type: 'image/svg+xml' }),
+    );
+    expect(document.head.querySelectorAll('link[rel="icon"]')).toHaveLength(1);
+    error.unmount();
   });
 });
 
@@ -416,6 +477,28 @@ describe('catalogue page', () => {
 
 describe('course page', () => {
   const path = `/en/courses/${COURSE_ID}`;
+
+  it("shows the partner's logo from the branding directory next to its name", async () => {
+    brandingIndex.files = ['favicon.svg', 'partner-urv.png', 'partner-urv.svg'];
+    const w = await mountSuspended(CoursePage, { route: path });
+    const partner = w.find('.course__partner');
+    // Client side the index arrives after the page (during SSR it is awaited).
+    await vi.waitFor(() => expect(partner.find('img.course__logo').exists()).toBe(true));
+    expect(partner.find('img.course__logo').attributes()).toMatchObject({
+      src: '/branding/partner-urv.svg',
+      alt: '',
+      height: '40',
+    });
+    expect(partner.text()).toBe('Universitat Rovira i Virgili · Spain');
+  });
+
+  it('shows no partner logo when the branding index is unavailable', async () => {
+    const w = await mountSuspended(CoursePage, { route: path });
+    // The 404 of the index is answered meanwhile; the page shows no error.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(w.find('.course__partner img').exists()).toBe(false);
+    expect(w.find('h1').exists()).toBe(true);
+  });
 
   it('renders the header, breadcrumb, key facts and links', async () => {
     const w = await mountSuspended(CoursePage, { route: path });

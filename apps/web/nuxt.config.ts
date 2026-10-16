@@ -28,7 +28,8 @@ export default defineNuxtConfig({
       reportUri: '',
     },
     // NUXT_BRANDING_DIR: directory of the deployment's branding images (header
-    // image, ...), served at /branding/<name> (server/middleware/branding.ts).
+    // image, partner logos partner-<slug>.svg, ...), served at /branding/<name>,
+    // with the listing /branding/index.json (server/middleware/branding.ts).
     // Empty: feature off, every /branding/* request answers 404.
     brandingDir: '',
     public: {
@@ -47,6 +48,9 @@ export default defineNuxtConfig({
       // NUXT_PUBLIC_LOGO_IMAGE: optional alliance logo in the site header, in place
       // of the text brand (alt = allianceName); a path or an absolute https URL.
       logoImage: '',
+      // NUXT_PUBLIC_FAVICON_IMAGE: optional favicon (e.g. /branding/favicon.svg or an
+      // absolute https URL); empty = the portal's own public/favicon.svg.
+      faviconImage: '',
       // NUXT_PUBLIC_API_BASE: origin serving /api/public, /api/admin and /oeapi/v5.
       apiBase: 'http://localhost:3000',
       // NUXT_PUBLIC_OIDC_AUTHORITY: https://{auth-host}/realms/oecp

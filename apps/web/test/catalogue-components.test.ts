@@ -38,6 +38,12 @@ mockNuxtImport('useApi', () => () => (url: string, options?: unknown) => {
   return api.handler!(url, options);
 });
 mockNuxtImport('navigateTo', () => navigation.navigateTo);
+// Partner logos of the branding directory, by organization slug (useBrandingIndex).
+const branding = vi.hoisted(() => ({ logos: {} as Record<string, string> }));
+mockNuxtImport('useBrandingIndex', () => () => ({
+  files: { value: [] as string[] },
+  partnerLogo: (slug: string) => branding.logos[slug],
+}));
 
 const reference = fixtures.reference as unknown as ReferenceData;
 const card = (i: number) => fixtures.search.items[i] as unknown as CourseCardData;
@@ -47,6 +53,7 @@ beforeEach(() => {
   api.calls.length = 0;
   api.handler = fixtureHandler() as Handler;
   navigation.navigateTo.mockReset();
+  branding.logos = {};
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-14T10:00:00Z'));
 });
@@ -673,6 +680,31 @@ describe('CourseCard', () => {
     expect(w.text()).toContain('No upcoming offering scheduled.');
     expect(w.text()).toContain('University of Vienna · Austria');
     expect(w.find('.seats').exists()).toBe(false);
+  });
+
+  it("shows the partner's logo next to its name, decorative, when the branding has one", async () => {
+    branding.logos = { urv: '/branding/partner-urv.svg' };
+    const w = await mountSuspended(CourseCard, { props: { course: card(0), reference } });
+    const partner = w.find('.course-card__partner');
+    const img = partner.find('img.course-card__logo');
+    expect(img.attributes()).toMatchObject({
+      src: '/branding/partner-urv.svg',
+      alt: '',
+      height: '24',
+      loading: 'lazy',
+    });
+    // Next to the name, not instead of it.
+    expect(partner.text()).toBe('Universitat Rovira i Virgili · Spain');
+    expect(await axeViolations(w.html())).toEqual([]);
+    // Another partner without a logo file shows none.
+    const other = await mountSuspended(CourseCard, { props: { course: card(2), reference } });
+    expect(other.find('.course-card__partner img').exists()).toBe(false);
+  });
+
+  it('shows no logo when the branding has none', async () => {
+    const w = await mountSuspended(CourseCard, { props: { course: card(0), reference } });
+    expect(w.find('.course-card__partner img').exists()).toBe(false);
+    expect(w.find('.course-card__partner').text()).toBe('Universitat Rovira i Virgili · Spain');
   });
 
   it('marks texts that fell back to another language', async () => {

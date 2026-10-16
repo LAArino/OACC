@@ -5,17 +5,44 @@
 // internal routes, which would change the `$fetch` typings of the app (see
 // `seo-files.ts`). Name rule, content types and path containment live in
 // `server/utils/branding.ts`. GET and HEAD only; no cookies.
+// `/branding/index.json` lists the servable files (`{"files": [...]}`), read from
+// the directory at most once a minute, so that pages can show optional files
+// (partner logos `partner-<slug>.svg`) without probing for them.
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import {
+  BRANDING_INDEX_NAME,
+  BRANDING_INDEX_TTL_MS,
   BRANDING_PREFIX,
+  type BrandingDirEntry,
+  type BrandingIndex,
   brandingContentType,
   brandingEtag,
+  createBrandingIndex,
   etagMatches,
   resolveBrandingFile,
 } from '../utils/branding';
 
 const notFound = () => createError({ statusCode: 404, statusMessage: 'Not Found' });
+
+/** Entries of `dir`; a symbolic link counts as a file when it points to one (as served). */
+async function readBrandingDir(dir: string): Promise<BrandingDirEntry[]> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  return Promise.all(
+    entries.map(async (e) => ({
+      name: e.name,
+      isFile: e.isSymbolicLink()
+        ? await stat(join(dir, e.name)).then(
+            (s) => s.isFile(),
+            () => false,
+          )
+        : e.isFile(),
+    })),
+  );
+}
+
+const brandingIndex = createBrandingIndex(readBrandingDir);
 
 export default defineEventHandler(async (event) => {
   const path = event.path.split('?')[0]!;
@@ -24,6 +51,18 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event);
 
   const name = path.slice(BRANDING_PREFIX.length);
+  if (name === BRANDING_INDEX_NAME) {
+    const files = await brandingIndex.list(config.brandingDir);
+    if (!files) throw notFound();
+    const body = JSON.stringify({ files } satisfies BrandingIndex);
+    setResponseHeaders(event, {
+      'content-type': 'application/json; charset=utf-8',
+      'content-length': Buffer.byteLength(body),
+      'cache-control': `public, max-age=${BRANDING_INDEX_TTL_MS / 1000}`,
+      'x-content-type-options': 'nosniff',
+    });
+    return event.method === 'HEAD' ? send(event) : body;
+  }
   const file = resolveBrandingFile(config.brandingDir, name);
   if (!file) throw notFound();
   const info = await stat(file).catch(() => undefined);

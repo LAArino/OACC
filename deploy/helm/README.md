@@ -44,7 +44,7 @@ chart stay aligned.
 | `worker.resources`, `worker.egress.allowedCidrs` | harvester sizing and egress policy |
 | `web.replicas`, `web.resources` | Nuxt sizing |
 | `web.env.NUXT_PUBLIC_API_BASE` | public API base URL |
-| `web.branding.existingConfigMap` (or a volume), `web.env.NUXT_PUBLIC_HERO_IMAGE`, `…_HERO_IMAGE_COURSES`, `…_LOGO_IMAGE` and their alt texts | header images and alliance logo served at `/branding/` (`deploy/compose/branding/README.md`) |
+| `web.branding.existingConfigMap` (or a volume), `web.env.NUXT_PUBLIC_HERO_IMAGE`, `…_HERO_IMAGE_COURSES`, `…_LOGO_IMAGE`, `…_FAVICON_IMAGE` and the alt texts | header images, alliance logo, favicon and partner logos (`partner-<slug>.svg`) served at `/branding/` (`deploy/compose/branding/README.md`) |
 | `postgresql.host`, `postgresql.port`, `postgresql.database`, `postgresql.user`, `postgresql.existingSecret` | `DATABASE_URL` |
 | `valkey.url`, `valkey.existingSecret` | `VALKEY_URL` |
 | `keycloak.issuer`, `keycloak.jwksUrl`, `keycloak.adminUrl`, `keycloak.backendClientExistingSecret` | JWT validation and Admin API (`oecp-backend`) |

@@ -91,6 +91,11 @@ function selectText(lang: string) {
 const partner = computed(() =>
   course.value ? labels.organizationName(course.value.organization) : '',
 );
+// Partner logo from the branding directory (partner-<slug>.svg|png|webp), decorative.
+const { partnerLogo } = useBrandingIndex();
+const logo = computed(() =>
+  course.value ? partnerLogo(course.value.organization.slug) : undefined,
+);
 const country = computed(() => labels.countryLabel(course.value?.organization.country_code));
 const unique = (values: string[]) => [...new Set(values)];
 const languages = computed(() =>
@@ -227,7 +232,10 @@ useHead({
     <header class="course__header">
       <h1 id="course-title" :lang="titleLang">{{ title }}</h1>
       <p class="course__partner">
-        {{ partner }}<template v-if="country"> · {{ country }}</template>
+        <img v-if="logo" class="course__logo" :src="logo" alt="" height="40" decoding="async" />
+        <span
+          >{{ partner }}<template v-if="country"> · {{ country }}</template></span
+        >
       </p>
     </header>
 
@@ -380,10 +388,20 @@ useHead({
   margin-bottom: 0.25rem;
 }
 .course__partner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   margin: 0 0 1rem;
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--c-muted);
+}
+.course__logo {
+  flex: none;
+  height: 2.5rem;
+  width: auto;
+  max-width: 10rem;
+  object-fit: contain;
 }
 .course__facts {
   background: var(--c-surface);

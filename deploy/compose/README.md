@@ -178,7 +178,12 @@ deployment configuration, never repository content: put the files in
 `OECP_HERO_IMAGE_COURSES` and `OECP_HERO_IMAGE_COURSES_ALT` (a different image
 for the course list; empty = the home image) and `OECP_LOGO_IMAGE`
 (e.g. `/branding/logo.svg`, alt text = `OECP_ALLIANCE_NAME`); all empty by
-default. File-name rule, recommended sizes and permissions (uid
+default. `OECP_FAVICON_IMAGE` (e.g. `/branding/favicon.svg`) replaces the
+portal's own favicon. Partner logos need no variable: a file
+`partner-<slug>.svg` (or `.png`, `.webp`, named after the organization's slug)
+is shown next to that university's name on the course cards and the course
+page, found through `/branding/index.json` (the directory's file list, re-read
+at most once a minute). File-name rule, recommended sizes and permissions (uid
 1000): [`branding/README.md`](branding/README.md).
 
 ### Local development profile (`dev`)
@@ -300,7 +305,7 @@ is checked.
 | `NUXT_API_INTERNAL_BASE` | web | `http://api:3000` (server-side rendering) |
 | `NUXT_PUBLIC_OIDC_AUTHORITY`, `NUXT_PUBLIC_OIDC_CLIENT_ID` | web | `https://${OECP_AUTH_HOST}/realms/oecp`, `oecp-admin` |
 | `NUXT_PUBLIC_ALLIANCE_NAME` | web | from `OECP_ALLIANCE_NAME` |
-| `NUXT_BRANDING_DIR`, `NUXT_PUBLIC_HERO_IMAGE`, `NUXT_PUBLIC_HERO_IMAGE_ALT`, `NUXT_PUBLIC_HERO_IMAGE_COURSES`, `NUXT_PUBLIC_HERO_IMAGE_COURSES_ALT`, `NUXT_PUBLIC_LOGO_IMAGE` | web | `/data/branding` and the `OECP_HERO_IMAGE*` / `OECP_LOGO_IMAGE` values ([Branding](#branding)) |
+| `NUXT_BRANDING_DIR`, `NUXT_PUBLIC_HERO_IMAGE`, `NUXT_PUBLIC_HERO_IMAGE_ALT`, `NUXT_PUBLIC_HERO_IMAGE_COURSES`, `NUXT_PUBLIC_HERO_IMAGE_COURSES_ALT`, `NUXT_PUBLIC_LOGO_IMAGE`, `NUXT_PUBLIC_FAVICON_IMAGE` | web | `/data/branding` and the `OECP_HERO_IMAGE*` / `OECP_LOGO_IMAGE` / `OECP_FAVICON_IMAGE` values ([Branding](#branding)) |
 | `NUXT_CSP_MODE` | web | `enforce` (or `report-only`, `off`): the portal's nonce-based Content-Security-Policy |
 | `OECP_UPLOADS_DIR` | api, worker | `/data/uploads` (volume `uploads`, CSV files kept 90 days) |
 | `OECP_ALLOW_INSECURE_PARTNER_HTTP` | api, worker | `false` (development against `oeapi-mock` only) |

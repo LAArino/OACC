@@ -1,11 +1,22 @@
 // SPDX-License-Identifier: EUPL-1.2
 // Branding files served at /branding/<name> (server/utils/branding.ts).
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  DEFAULT_FAVICON,
+  faviconLink,
+  faviconType,
+  parseBrandingIndex,
+  partnerLogoPath,
+} from '../app/utils/branding';
 import {
   BRANDING_CONTENT_TYPES,
+  BRANDING_INDEX_TTL_MS,
+  type BrandingDirEntry,
   brandingContentType,
   brandingEtag,
+  brandingIndexFiles,
+  createBrandingIndex,
   etagMatches,
   isBrandingFileName,
   isPathInside,
@@ -124,5 +135,123 @@ describe('caching', () => {
     expect(etagMatches(undefined, etag)).toBe(false);
     expect(etagMatches('', etag)).toBe(false);
     expect(etagMatches('W/"other"', etag)).toBe(false);
+  });
+});
+
+describe('index of the branding directory (/branding/index.json)', () => {
+  const file = (name: string): BrandingDirEntry => ({ name, isFile: true });
+
+  it('lists only regular files whose names pass the rule, sorted', () => {
+    expect(
+      brandingIndexFiles([
+        file('partner-uice.svg'),
+        file('favicon.svg'),
+        file('.secret.png'),
+        file('Hero.png'),
+        file('notes.txt'),
+        file('index.json'),
+        file('README.md'),
+        { name: 'dir.png', isFile: false },
+        file('partner-ude.png'),
+      ]),
+    ).toEqual(['favicon.svg', 'partner-ude.png', 'partner-uice.svg']);
+  });
+
+  it('is off (undefined, answered 404) when no directory is configured', () => {
+    const readDir = vi.fn(async () => [file('hero.png')]);
+    expect(createBrandingIndex(readDir).list('')).toBeUndefined();
+    expect(readDir).not.toHaveBeenCalled();
+  });
+
+  it('reads the directory at most once per minute and shares concurrent reads', async () => {
+    let clock = 1_000_000;
+    let entries = [file('hero.png')];
+    const readDir = vi.fn(async () => entries);
+    const index = createBrandingIndex(readDir, { now: () => clock });
+
+    const [a, b] = await Promise.all([index.list(DIR), index.list(DIR)]);
+    expect(a).toEqual(['hero.png']);
+    expect(b).toEqual(['hero.png']);
+    expect(readDir).toHaveBeenCalledTimes(1);
+    expect(readDir).toHaveBeenCalledWith(DIR);
+
+    entries = [file('hero.png'), file('partner-uice.svg')];
+    clock += BRANDING_INDEX_TTL_MS - 1;
+    expect(await index.list(DIR)).toEqual(['hero.png']);
+    expect(readDir).toHaveBeenCalledTimes(1);
+
+    clock += 1;
+    expect(await index.list(DIR)).toEqual(['hero.png', 'partner-uice.svg']);
+    expect(readDir).toHaveBeenCalledTimes(2);
+    expect(BRANDING_INDEX_TTL_MS).toBe(60_000);
+  });
+
+  it('lists no files when the directory cannot be read, and retries later', async () => {
+    let clock = 0;
+    const readDir = vi
+      .fn<(dir: string) => Promise<BrandingDirEntry[]>>()
+      .mockRejectedValueOnce(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+      .mockResolvedValue([file('hero.png')]);
+    const index = createBrandingIndex(readDir, { now: () => clock });
+    expect(await index.list(DIR)).toEqual([]);
+    clock += BRANDING_INDEX_TTL_MS;
+    expect(await index.list(DIR)).toEqual(['hero.png']);
+  });
+
+  it('keeps one cache entry per directory', async () => {
+    const readDir = vi.fn(async (dir: string) => [file(dir === DIR ? 'a.png' : 'b.png')]);
+    const index = createBrandingIndex(readDir);
+    expect(await index.list(DIR)).toEqual(['a.png']);
+    expect(await index.list('/other')).toEqual(['b.png']);
+    expect(readDir).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('partner logos (app side)', () => {
+  it('reads the file list of an index body and ignores anything else', () => {
+    expect(parseBrandingIndex({ files: ['a.png', 7, 'b.svg'] })).toEqual(['a.png', 'b.svg']);
+    expect(parseBrandingIndex({ files: 'a.png' })).toEqual([]);
+    expect(parseBrandingIndex(null)).toEqual([]);
+    expect(parseBrandingIndex('<html>')).toEqual([]);
+  });
+
+  it('picks partner-<slug>.svg, then .png, then .webp', () => {
+    const files = ['partner-uice.png', 'partner-uice.svg', 'partner-ude.webp', 'partner-x.jpg'];
+    expect(partnerLogoPath(files, 'uice')).toBe('/branding/partner-uice.svg');
+    expect(partnerLogoPath(files, 'ude')).toBe('/branding/partner-ude.webp');
+    expect(partnerLogoPath(files, 'x')).toBeUndefined();
+    expect(partnerLogoPath(files, 'uva')).toBeUndefined();
+    expect(partnerLogoPath(files, '')).toBeUndefined();
+    expect(partnerLogoPath([], 'uice')).toBeUndefined();
+  });
+});
+
+describe('favicon link', () => {
+  it('uses the portal favicon when none is configured', () => {
+    expect(DEFAULT_FAVICON).toBe('/favicon.svg');
+    for (const configured of [undefined, '', '  ']) {
+      expect(faviconLink(configured)).toEqual({
+        key: 'icon',
+        rel: 'icon',
+        href: '/favicon.svg',
+        type: 'image/svg+xml',
+      });
+    }
+  });
+
+  it('types the configured icon by its extension', () => {
+    expect(faviconLink('/branding/favicon.png')).toMatchObject({
+      href: '/branding/favicon.png',
+      type: 'image/png',
+    });
+    expect(faviconType('/branding/favicon.ico')).toBe('image/x-icon');
+    expect(faviconType('https://cdn.example.eu/a/icon.SVG?v=2#x')).toBe('image/svg+xml');
+    expect(faviconType('/branding/icon.webp')).toBe('image/webp');
+    expect(faviconType('https://cdn.example.eu/icon')).toBeUndefined();
+    expect(faviconLink('https://cdn.example.eu/icon')).toEqual({
+      key: 'icon',
+      rel: 'icon',
+      href: 'https://cdn.example.eu/icon',
+    });
   });
 });

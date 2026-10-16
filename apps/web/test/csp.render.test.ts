@@ -21,11 +21,14 @@ const COURSE_ID = '6f1d2c3b-0000-4000-8000-000000000001';
 let fixture: ChildProcess | undefined;
 
 // Branding directory: a stand-in "image" (the middleware never inspects content),
-// a hidden file and a sub-directory that must not be served.
+// the logo of partner `urv` (slug of the fixture courses), a hidden file, a file
+// of another type and a sub-directory that must not be served or listed.
 const BRANDING_DIR = mkdtempSync(join(tmpdir(), 'oecp-branding-'));
 const HERO_BYTES = 'stand-in image bytes';
 writeFileSync(join(BRANDING_DIR, 'hero.png'), HERO_BYTES);
+writeFileSync(join(BRANDING_DIR, 'partner-urv.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
 writeFileSync(join(BRANDING_DIR, '.secret.png'), 'hidden');
+writeFileSync(join(BRANDING_DIR, 'notes.txt'), 'not an image');
 mkdirSync(join(BRANDING_DIR, 'dir.png'));
 
 beforeAll(async () => {
@@ -177,6 +180,41 @@ describe('branding files', () => {
     });
     expect(cached.status).toBe(304);
     expect(await cached.text()).toBe('');
+  });
+
+  it('lists the servable files at /branding/index.json, cached one minute, no cookie', async () => {
+    const response = await fetch('/branding/index.json');
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8');
+    expect(response.headers.get('cache-control')).toBe('public, max-age=60');
+    expect(response.headers.get('set-cookie')).toBeNull();
+    expect(await response.json()).toEqual({ files: ['hero.png', 'partner-urv.svg'] });
+  });
+
+  it("shows the partner's logo next to its name on the course list and the course page", async () => {
+    const list = await page('/en/courses');
+    const logos = tags(list.html, 'img').filter((t) => t.includes('course-card__logo'));
+    // One of the three fixture cards is a course of `urv`; Amsterdam and Vienna have no logo.
+    expect(logos).toHaveLength(1);
+    for (const tag of logos) {
+      expect(tag).toContain('src="/branding/partner-urv.svg"');
+      expect(tag).toContain('alt=""');
+    }
+    const course = await page(`/en/courses/${COURSE_ID}`);
+    expect(course.html).toMatch(
+      /<img[^>]*class="course__logo"[^>]*src="\/branding\/partner-urv\.svg"/,
+    );
+  });
+
+  it("links and serves the portal's own favicon", async () => {
+    const home = await page('/en');
+    expect(tags(home.html, 'link').find((t) => t.includes('rel="icon"'))).toMatch(
+      /href="\/favicon\.svg"/,
+    );
+    const icon = await fetch('/favicon.svg');
+    expect(icon.status).toBe(200);
+    expect(icon.headers.get('content-type')).toMatch(/^image\/svg\+xml/);
+    expect(await icon.text()).toContain('<svg');
   });
 
   it('answers 404 to missing, hidden, invalid and non-file names', async () => {

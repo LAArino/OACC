@@ -12,6 +12,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Web: a favicon of the portal's own (`apps/web/public/favicon.svg`, an open
+  book in a portal arch), replaceable per deployment with
+  `NUXT_PUBLIC_FAVICON_IMAGE` (Compose `OECP_FAVICON_IMAGE`, e.g.
+  `/branding/favicon.svg`); `app.vue` and `error.vue` link it with its type.
+- Web: partner logos by file convention, without a data-model change: a
+  branding file `partner-<slug>.svg` (or `.png`, `.webp`) is shown next to the
+  university name on the course cards (1.5rem high) and the course page
+  (2.5rem), decorative (`alt=""`). The branding middleware answers
+  `/branding/index.json` with the servable file names (`{"files": [...]}`,
+  directory re-read at most once a minute, `max-age=60`, 404 when no branding
+  directory is configured); `useBrandingIndex()` reads it once per app and
+  lists no files on any failure.
+- Web: the course list's own header image is framed at 12:5 (2.4:1) on wide
+  screens; the home image stays 3:1. `branding/README.md` gives the
+  recommended size of every branding image.
+
 - Docs: Guide E for the hosting operator, `docs/onboarding/hosting-operator.md`:
   the ordered path from an empty server to the pilot (day 0 requests to the
   institution, host requirements, installation steps each with a check,

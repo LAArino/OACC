@@ -1,7 +1,9 @@
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 <script setup lang="ts">
 // One search result (spec §7): title, kind badge, partner, key facts, next
-// offering, seats and the alliance attribute tags [DL 18].
+// offering, seats and the alliance attribute tags [DL 18]. The partner's logo
+// (branding file partner-<slug>.svg|png|webp, useBrandingIndex) sits next to its
+// name, decorative (alt="") since the name is text.
 import type { CourseCard } from '../types/catalogue';
 import type { MaybeReference } from '../composables/useCatalogueLabels';
 
@@ -22,7 +24,9 @@ const labels = useCatalogueLabels(() => props.reference);
 
 const fmt = (d: string | null | undefined) => formatDate(d, locale.value);
 const heading = computed(() => `h${props.headingLevel ?? 3}`);
+const { partnerLogo } = useBrandingIndex();
 const partner = computed(() => labels.organizationName(props.course.organization));
+const logo = computed(() => partnerLogo(props.course.organization.slug));
 const country = computed(() => labels.countryLabel(props.course.organization.country_code));
 const modes = computed(() => props.course.delivery_modes.map((m) => labels.modeLabel(m)));
 const languages = computed(() =>
@@ -66,7 +70,18 @@ const hiddenTags = computed(() => Math.max(0, tags.value.length - TAG_LIMIT));
     </component>
     <p v-if="kindBadge" class="course-card__kind">{{ kindBadge }}</p>
     <p class="course-card__partner">
-      {{ partner }}<template v-if="country"> · {{ country }}</template>
+      <img
+        v-if="logo"
+        class="course-card__logo"
+        :src="logo"
+        alt=""
+        height="24"
+        loading="lazy"
+        decoding="async"
+      />
+      <span
+        >{{ partner }}<template v-if="country"> · {{ country }}</template></span
+      >
     </p>
     <p v-if="course.abstract" class="course-card__abstract" :lang="otherLang(course.abstract_lang)">
       {{ course.abstract }}
@@ -131,9 +146,19 @@ const hiddenTags = computed(() => Math.max(0, tags.value.length - TAG_LIMIT));
   margin: 0 0 0.25rem;
 }
 .course-card__partner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin: 0 0 0.5rem;
   color: var(--c-muted);
   font-weight: 600;
+}
+.course-card__logo {
+  flex: none;
+  height: 1.5rem;
+  width: auto;
+  max-width: 6rem;
+  object-fit: contain;
 }
 .course-card__abstract {
   margin: 0.25rem 0 0.5rem;
