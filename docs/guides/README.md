@@ -3,7 +3,7 @@
 
 # Data-provider guides
 
-These guides are for the people who put course data into OECP: partner IT teams that expose an OEAPI endpoint, and partner administrators who upload CSV files or use the web form. They describe OECP **as built in release 0.8.0**; the as-built specification is [spec v4.1](../spec-v4.1.md), and every error code is listed in its [Appendix A](../spec-v4.1.md#appendix-a-error-codes) and in `packages/schemas/errors.json`. Who does what, invitations, choosing a channel and the governance around it are covered by the role-based [onboarding guides](../onboarding/README.md); these guides only cover the data.
+These guides are for the people who put course data into OECP: partner IT teams that expose an OEAPI endpoint, and partner administrators who upload CSV files or use the web form. They describe OECP **as built in release 0.9.0**; the as-built specification is [spec v4.1](../spec-v4.1.md), and every error code is listed in its [Appendix A](../spec-v4.1.md#appendix-a-error-codes) and in `packages/schemas/errors.json`. Who does what, invitations, choosing a channel and the governance around it are covered by the role-based [onboarding guides](../onboarding/README.md); these guides only cover the data.
 
 Each organization has exactly **one authoritative channel** (`oeapi`, `csv` or `form`; no integration row means `form`). CSV and form write the same records and can be mixed. An organization harvested through OEAPI can neither upload CSV files nor create records in the form: there the form only stores overrides on harvested records (spec §6.5).
 

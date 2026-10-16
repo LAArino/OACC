@@ -38,7 +38,7 @@ breaking changes need a major version.
 | Contract | Where | Rule |
 |---|---|---|
 | Database schema | `apps/api/db/migrations/NNNN_*.sql` | Append-only; see [Migrations](#migrations). |
-| CSV template | `template_version` column; `packages/schemas/src/csv.ts` (`CSV_TEMPLATE_VERSION`, `CSV_TEMPLATE_VERSIONS`); `packages/schemas/json/csv/oecp-csv-<version>.schema.json` | Any change visible to CSV authors bumps the template version (1.0 → 1.1 for additive columns). A published template version stays accepted for at least one release after its successor, and its JSON Schema file is never edited. Current: 1.2; accepted: 1.0, 1.1, 1.2. |
+| CSV template | `template_version` column; `packages/schemas/src/csv.ts` (`CSV_TEMPLATE_VERSION`, `CSV_TEMPLATE_VERSIONS`); `packages/schemas/json/csv/oecp-csv-<version>.schema.json` | Any change visible to CSV authors bumps the template version (1.0 → 1.1 for additive columns). A published template version stays accepted for at least one release after its successor, and its JSON Schema file is never edited. Current: 1.3; accepted: 1.0, 1.1, 1.2, 1.3. |
 | OEAPI read API | `/oeapi/v5` | Follows the OEAPI **v5.0** standard; OECP-only values go in `ext.oecp` and are additive. A v6 surface will be a new path, `/oeapi/v6` (spec §9, §12). |
 | Public catalogue API | `/api/public/v1` | **Additive only**: new endpoints, optional parameters and response members may be added; nothing is removed, renamed or given a new meaning. A breaking change means `/api/public/v2`, served alongside v1 for at least one minor release. |
 | Admin API | `/api/admin/v1` | Consumed by the admin dashboard of the same release. Changes are recorded in the CHANGELOG; external clients are not supported before 1.0. |

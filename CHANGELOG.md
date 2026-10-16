@@ -10,13 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.9.0] - 2026-10-16
+
 ### Upgrade notes
 
 - **Migrations 0009 and 0010** (`0009_course_level_trigger.sql`,
   `0010_sync_run_files.sql`): a trigger that keeps `courses.level` equal to
   `levels[1]` (with a backfill that does not touch `updated_at`) and a
   `sync_runs.files` column backfilled from the `upload.create` audit rows.
-  Both additive and fast; reversible with their Down sections. Run
+  Both additive and fast (no table rewrite; brief locks). 0009 is
+  reversible (its Down drops the trigger and function, the data stay); 0010
+  is reversible with data loss (its Down drops the stored file names). No
+  hashed field changes, so the first harvest or upload after the upgrade
+  reports unchanged records as unchanged. Run
   `docker compose run --rm api pnpm db:migrate` after pulling the images.
 - **Realm**: the client scope `oecp` gains the `schac_home_organization`
   mapper; `keycloak-config` re-applies `realm-oecp.yaml` on the next
@@ -1159,7 +1167,8 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/OECP/compare/v0.8.0...main
+[Unreleased]: https://github.com/LAArino/OECP/compare/v0.9.0...main
+[0.9.0]: https://github.com/LAArino/OECP/releases/tag/v0.9.0
 [0.8.0]: https://github.com/LAArino/OECP/releases/tag/v0.8.0
 [0.7.0]: https://github.com/LAArino/OECP/releases/tag/v0.7.0
 [0.6.0]: https://github.com/LAArino/OECP/releases/tag/v0.6.0
