@@ -377,7 +377,7 @@
       "rows": "Rows",
       "errors": "Errors",
       "warnings": "Warnings",
-      "referenceUnavailable": "The reference lists could not be loaded, so field-of-study and delivery-mode codes were not checked here. The server will check them.",
+      "referenceUnavailable": "The reference lists of your organization could not be loaded, so course and sub-unit codes were not checked here. The server will check them when you upload.",
       "truncated": "Only the first {shown} issues are listed; the counts above are complete.",
       "reportCaption": "Issues found in your files",
       "upload": "Upload",

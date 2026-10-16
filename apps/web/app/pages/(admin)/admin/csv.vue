@@ -6,6 +6,7 @@
 // upload, which the server revalidates. File contents are never logged.
 import {
   CSV_MAX_ROWS,
+  csvReferenceDataFromAdminCsvReference,
   type CsvFileKind,
   type CsvIssue,
   type CsvUploadResponse,
@@ -31,6 +32,7 @@ const {
   orgQuery,
 } = adminOrg;
 const reference = useAdminReference();
+const csvReference = useAdminCsvReference();
 const validator = useCsvValidator();
 const { apiBase } = useRuntimeConfig().public;
 useHead({ title: () => t('admin.csv.title') });
@@ -213,17 +215,7 @@ async function validate(focusReport: boolean) {
     if (entry.tooLarge) oversized.push(fileTooLargeIssue(entry.kind));
     else input.files[entry.kind] = new Uint8Array(await entry.file.arrayBuffer());
   }
-  try {
-    const data = await reference.load();
-    input.reference = {
-      iscedCodes: data.isced_broad_fields.map((f) => f.code),
-      deliveryModes: data.delivery_modes.map((m) => m.code),
-    };
-    referenceUnavailable.value = false;
-  } catch {
-    // Validate anyway; the reference checks are left to the server.
-    referenceUnavailable.value = true;
-  }
+  input.reference = await loadReference();
   const summary: CsvValidationSummary = Object.keys(input.files).length
     ? await validator.validate(input)
     : { files: {}, rowCount: 0, errorCount: 0, warningCount: 0, issues: [] };
@@ -239,6 +231,32 @@ async function validate(focusReport: boolean) {
     await nextTick();
     reportHeading.value?.focus();
   }
+}
+
+/**
+ * The organization's lists (`GET /api/admin/v1/reference`: course and sub-unit
+ * codes too) with the alliance attribute definitions of the public reference.
+ * When the organization's lists fail, the public ISCED fields and delivery modes
+ * only (the notice says so); when both fail, none: the server checks them all.
+ */
+async function loadReference(): Promise<CsvValidationInput['reference']> {
+  const org = orgId.value;
+  const [publicRef, orgRef] = await Promise.allSettled([
+    reference.load(),
+    org ? csvReference.load(org) : Promise.reject(new Error('No organization')),
+  ]);
+  const definitions =
+    publicRef.status === 'fulfilled' ? publicRef.value.attribute_definitions : undefined;
+  referenceUnavailable.value = orgRef.status === 'rejected';
+  if (orgRef.status === 'fulfilled') {
+    return csvReferenceDataFromAdminCsvReference(orgRef.value, definitions);
+  }
+  if (publicRef.status === 'rejected') return undefined;
+  return {
+    iscedCodes: publicRef.value.isced_broad_fields.map((f) => f.code),
+    deliveryModes: publicRef.value.delivery_modes.map((m) => m.code),
+    attributeDefinitions: publicRef.value.attribute_definitions,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -260,6 +278,7 @@ async function upload() {
       { method: 'POST', body: form },
     );
     const data = response.data;
+    csvReference.invalidate(org);
     if (response.status === 202 || !('run' in data)) {
       outcome.value = { kind: 'queued', runId: data.sync_run_id };
       schedulePoll(data.sync_run_id);
@@ -268,6 +287,8 @@ async function upload() {
     }
   } catch (error) {
     const failure = asAdminApiError(error);
+    if ((failure.problem as CsvUploadProblem | undefined)?.sync_run_id)
+      csvReference.invalidate(org);
     outcome.value =
       failure.status === 422 && failure.problem
         ? { kind: 'rejected', problem: failure.problem as CsvUploadProblem }
@@ -294,7 +315,11 @@ async function poll(runId: string) {
     if (outcome.value?.kind !== 'queued' || outcome.value.runId !== runId) return;
     queuedRun.value = detail;
     pollFailure.value = null;
-    if (TERMINAL.has(detail.status)) return;
+    // The queued run changed the catalogue only now: revalidate the lists again.
+    if (TERMINAL.has(detail.status)) {
+      csvReference.invalidate(detail.organization_id);
+      return;
+    }
   } catch (error) {
     if (outcome.value?.kind !== 'queued' || outcome.value.runId !== runId) return;
     const failure = asAdminApiError(error);

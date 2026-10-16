@@ -11,6 +11,8 @@ export interface AdminRequestOptions {
   query?: Record<string, string | number | readonly string[] | undefined>;
   /** `blob` for file downloads (CSV templates); JSON otherwise. */
   responseType?: 'json' | 'blob';
+  /** Fetch cache mode, e.g. `no-cache` to revalidate a `Cache-Control: max-age` response. */
+  cache?: RequestCache;
 }
 
 /** A successful response with its status (e.g. 201 processed inline vs 202 queued). */
@@ -78,6 +80,7 @@ export function useAdminApi(): AdminApi {
         ...(options.body ? { body: options.body } : {}),
         ...(options.query ? { query: options.query } : {}),
         ...(options.responseType === 'blob' ? { responseType: 'blob' as const } : {}),
+        ...(options.cache ? { cache: options.cache } : {}),
         headers: { authorization: `Bearer ${token}` },
       });
       return { status: response.status, data: response._data as T };

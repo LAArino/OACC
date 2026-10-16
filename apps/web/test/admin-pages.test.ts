@@ -62,6 +62,7 @@ mockNuxtImport('useAuth', () => () => ({
 
 const ME = 'GET /api/admin/v1/me';
 const REFERENCE = 'GET /api/public/v1/reference';
+const CSV_REFERENCE = 'GET /api/admin/v1/reference';
 const UPLOAD = `POST /api/admin/v1/organizations/${ORG_ID}/uploads`;
 const RUNS = `GET /api/admin/v1/organizations/${ORG_ID}/sync-runs`;
 const RUN = `GET /api/admin/v1/sync-runs/${RUN_ID}`;
@@ -75,6 +76,7 @@ function serve(routes: Record<string, Route>) {
   const fake = createFakeFetch({
     [ME]: ok(fixtures.me(['partner_admin'])),
     [REFERENCE]: ok(fixtures.reference),
+    [CSV_REFERENCE]: ok(fixtures.csvReference()),
     ...routes,
   });
   calls = fake.calls;
@@ -229,6 +231,82 @@ describe('CSV console', () => {
     expect(uploadButton(w).attributes('disabled')).toBeDefined();
     expect(w.find('#upload-hint').text()).toContain('once the check finds no errors');
     expect(await axeViolations(w.html())).toEqual([]);
+  });
+
+  it('checks course and sub-unit codes against the organization reference', async () => {
+    const w = await mountPage(CsvPage, '/en/admin/csv');
+    const offerings = csv.offerings + '1.0,TEST-999,2027S,draft,2027-02-15,2027-06-15,en,online\n';
+    await drop(w, [csvFile(offerings, 'offerings.csv')]);
+    const [request] = callsTo(CSV_REFERENCE);
+    expect(request!.query).toEqual({ org: ORG_ID });
+    expect(request!.headers).toEqual({ authorization: `Bearer ${auth.token}` });
+    expect(request!.cache).toBe('no-cache');
+    const table = w.find('[aria-labelledby="report-heading"] table');
+    const cells = table.findAll('tbody tr').map((r) => r.findAll('td').map((td) => td.text()));
+    expect(cells).toEqual([
+      [
+        'Error',
+        'offerings.csv',
+        '3',
+        'course_code',
+        'oecp.content.unknown_course',
+        expect.stringContaining('TEST-999'),
+      ],
+    ]);
+    expect(w.text()).not.toContain('could not be checked');
+    expect(uploadButton(w).attributes('disabled')).toBeDefined();
+  });
+
+  it('refetches the organization reference after an upload', async () => {
+    serve({
+      [UPLOAD]: ok(
+        {
+          sync_run_id: RUN_ID,
+          status: 'succeeded',
+          processed_inline: true,
+          run: fixtures.run(),
+          warnings: [],
+        },
+        201,
+      ),
+    });
+    const w = await mountPage(CsvPage, '/en/admin/csv');
+    await drop(w, [csvFile(csv.courses, 'courses.csv')]);
+    expect(callsTo(CSV_REFERENCE)).toHaveLength(1);
+    await uploadButton(w).trigger('click');
+    await flushPromises();
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Start over')!
+      .trigger('click');
+    await flushPromises();
+    await drop(w, [csvFile(csv.offerings, 'offerings.csv')]);
+    expect(callsTo(CSV_REFERENCE).map((c) => c.cache)).toEqual(['no-cache', 'no-cache']);
+    // Fetched again once: later checks use the page cache again.
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Remove offerings.csv')!
+      .trigger('click');
+    await drop(w, [csvFile(csv.offerings, 'offerings.csv')]);
+    expect(callsTo(CSV_REFERENCE)).toHaveLength(2);
+  });
+
+  it('falls back to the public lists when the organization reference fails', async () => {
+    serve({ [CSV_REFERENCE]: () => ({ status: 403, body: problem(403, 'oecp.auth.forbidden') }) });
+    const w = await mountPage(CsvPage, '/en/admin/csv');
+    // TEST-999 is not checked without the organization's course codes; ISCED 9999 still is.
+    const offerings = csv.offerings + '1.0,TEST-999,2027S,draft,2027-02-15,2027-06-15,en,online\n';
+    await drop(w, [
+      csvFile(csv.invalidCourses, 'courses.csv'),
+      csvFile(offerings, 'offerings.csv'),
+    ]);
+    expect(callsTo(CSV_REFERENCE)).toHaveLength(1);
+    const report = w.find('[aria-labelledby="report-heading"]');
+    expect(report.find('.notice').text()).toBe(
+      'The reference lists of your organization could not be loaded, so course and sub-unit codes were not checked here. The server will check them when you upload.',
+    );
+    const codes = report.findAll('tbody tr').map((r) => r.findAll('td')[4]!.text());
+    expect(codes).toEqual(['oecp.csv.invalid_number', 'oecp.content.unknown_isced_field']);
   });
 
   it('allows warnings', async () => {
@@ -543,6 +621,7 @@ describe('CSV console', () => {
       OTHER_ORG_ID,
     );
     await drop(w, [csvFile(csv.courses, 'courses.csv')]);
+    expect(callsTo(CSV_REFERENCE).map((c) => c.query)).toEqual([{ org: OTHER_ORG_ID }]);
     await uploadButton(w).trigger('click');
     await flushPromises();
     expect(callsTo(`POST /api/admin/v1/organizations/${OTHER_ORG_ID}/uploads`)).toHaveLength(1);

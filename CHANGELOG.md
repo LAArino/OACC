@@ -109,6 +109,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   canvases; the branding README asks for logos trimmed to the mark.
 - Docs: Guide D and the docs index say CSV template 1.3; the spec lists
   Invitations as an organization module (read-only for partner admins).
+- Admin console: the CSV console checks course codes, sub-unit codes and
+  attribute values in the browser against `GET /api/admin/v1/reference`
+  (fetched past the HTTP cache, and again after every upload); when the
+  call fails it falls back to the public lists and says so.
 
 ## [0.8.0] - 2026-10-16
 

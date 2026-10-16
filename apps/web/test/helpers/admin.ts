@@ -2,7 +2,7 @@
 // Test doubles for the admin pages: a `$fetch` replacement whose `create()`d
 // clients (used by useAdminApi and useApi) answer from route handlers, admin
 // API fixtures, and small template 1.0 CSV files.
-import type { AdminMe, SyncRun, SyncRunDetail } from '@oecp/schemas';
+import type { AdminCsvReference, AdminMe, SyncRun, SyncRunDetail } from '@oecp/schemas';
 import type {
   AdminAccount,
   AdminIntegration,
@@ -25,6 +25,7 @@ export interface FakeRequest {
   body?: unknown;
   headers?: Record<string, string>;
   responseType?: string;
+  cache?: string;
 }
 
 export interface FakeResponse {
@@ -69,6 +70,7 @@ export function createFakeFetch(routes: Record<string, Route>) {
       body: options.body,
       headers: options.headers as Record<string, string> | undefined,
       responseType: options.responseType as string | undefined,
+      cache: options.cache as string | undefined,
     };
     calls.push(request);
     const route = routes[`${request.method} ${url}`];
@@ -97,6 +99,18 @@ const brokeredReference = {
 export const fixtures = {
   reference,
   brokeredReference,
+  /** `GET /api/admin/v1/reference`: the catalogue holds `TEST-101` (the course of `csv.offerings`). */
+  csvReference(overrides: Partial<AdminCsvReference> = {}): AdminCsvReference {
+    return {
+      organization_id: ORG_ID,
+      language_tags: null,
+      delivery_modes: reference.delivery_modes.map((m) => m.code).sort(),
+      isced_broad_fields: reference.isced_broad_fields.map((f) => f.code).sort(),
+      teaching_unit_codes: ['URV-ETSE'],
+      course_codes: ['TEST-101'],
+      ...overrides,
+    };
+  },
   me(roles: AdminMe['roles'], orgId: string | null = ORG_ID): AdminMe {
     return {
       sub: 'user-1',

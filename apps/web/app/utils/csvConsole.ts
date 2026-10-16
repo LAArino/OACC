@@ -73,8 +73,12 @@ export function readCsvHeader(bytes: Uint8Array): string[] {
 export interface CsvValidationInput {
   /** File bytes by kind; at most one file per kind. */
   files: Partial<Record<CsvFileKind, Uint8Array>>;
-  /** Public reference data (`GET /api/public/v1/reference`); checks run only for lists given. */
-  reference?: { iscedCodes?: readonly string[]; deliveryModes?: readonly string[] };
+  /**
+   * Reference data: the organization's lists (`GET /api/admin/v1/reference`), or
+   * only the public ISCED fields and delivery modes when those fail. Checks run
+   * only for the lists given (arrays or sets: the input is posted to the worker).
+   */
+  reference?: CsvReferenceData;
 }
 
 export interface CsvFileSummary {
@@ -95,9 +99,12 @@ export interface CsvValidationSummary {
 
 /**
  * Decodes and validates the files as the server will (courses first, then
- * offerings), with the reference data the public API offers. The server
- * always revalidates, with its full reference data (spec §6.3).
+ * offerings), with the reference data given. The server always revalidates,
+ * with its full reference data (spec §6.3).
  */
+const notEmpty = (values: Iterable<string> | undefined): values is Iterable<string> =>
+  values !== undefined && !values[Symbol.iterator]().next().done;
+
 export function runCsvValidation(input: CsvValidationInput): CsvValidationSummary {
   const texts: Partial<Record<CsvFileKind, string>> = {};
   const decodeIssues: Partial<Record<CsvFileKind, CsvIssue[]>> = {};
@@ -109,15 +116,13 @@ export function runCsvValidation(input: CsvValidationInput): CsvValidationSummar
     else texts[kind] = decoded.text;
   }
 
-  const referenceData: CsvReferenceData = {};
-  if (input.reference?.iscedCodes?.length) referenceData.iscedCodes = input.reference.iscedCodes;
-  if (input.reference?.deliveryModes?.length) {
-    referenceData.deliveryModes = input.reference.deliveryModes;
-  }
-  const validation = validateCsvFiles(
-    texts,
-    Object.keys(referenceData).length > 0 ? { referenceData } : {},
-  );
+  // An empty ISCED or delivery-mode list is missing data, not "nothing allowed";
+  // empty course or sub-unit lists are real (an organization without any yet).
+  const { iscedCodes, deliveryModes, ...lists } = input.reference ?? {};
+  const referenceData: CsvReferenceData = { ...lists };
+  if (notEmpty(iscedCodes)) referenceData.iscedCodes = iscedCodes;
+  if (notEmpty(deliveryModes)) referenceData.deliveryModes = deliveryModes;
+  const validation = validateCsvFiles(texts, { referenceData });
 
   const summary: CsvValidationSummary = {
     files: {},

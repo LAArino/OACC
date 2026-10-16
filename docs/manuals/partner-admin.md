@@ -220,7 +220,7 @@ CSV files and the web form write the same records, matched by course and offerin
 2. Under *Templates*, download the `courses.csv` and `offerings.csv` templates (template **1.3**) and, if your IT team wants it, the JSON Schema of template 1.3. Always download them from your own portal: the courses template has one `attr_<key>` column per alliance attribute.
 3. Fill one row per course and per offering in a spreadsheet, keep the header row as it is, and save as **CSV UTF-8** with dates as text (`YYYY-MM-DD`). Several values in one cell are separated with `|`.
 4. Drop both files on the drop area (or **Or choose CSV files**). The page detects which file is which from its header; correct the *Type* if needed.
-5. Read the **check report**: the files are checked in your browser before anything is sent.
+5. Read the **check report**: the files are checked in your browser before anything is sent, course codes and sub-unit codes against your organization's catalogue included.
 
    ![Check report after choosing courses.csv and offerings.csv: 16 rows, 1 error, an invalid date in row 3 of offerings.csv, and the Upload button disabled](../images/manual-csv-check-report.png)
 
@@ -231,7 +231,7 @@ CSV files and the web form write the same records, matched by course and offerin
 
 - *Upload processed. Status: …* with any server warnings: done. Typical warning: `oecp.content.handbook_incomplete` ([section 8](#8-completeness-the-aurora-publication-rule)).
 - *The upload is queued for processing* (more than 500 rows): the page follows its progress until *Processing finished*.
-- *The server rejected the upload: N errors and M warnings. Nothing was saved.* An upload is **all or nothing**. The server checks what the browser cannot (for example an offering whose course code does not exist, or an unknown attribute value).
+- *The server rejected the upload: N errors and M warnings. Nothing was saved.* An upload is **all or nothing**. The server checks everything again against the catalogue, so it can find what the browser could not (for example when the page said the lists of your organization could not be loaded).
 - A course image given as `image_url` is fetched after the upload; a failed fetch is added to the upload's run as a warning `oecp.media.fetch_failed`, visible in the sync history.
 
 ![CSV console after an upload processed on the server](../images/admin-csv-console-uploaded.png)
