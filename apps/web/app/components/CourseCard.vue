@@ -81,7 +81,7 @@ const thumbnailSize = computed(() => (image.value ? courseThumbnailSize(image.va
           class="course-card__logo"
           :src="logo"
           alt=""
-          height="24"
+          height="32"
           loading="lazy"
           decoding="async"
         />
@@ -207,7 +207,7 @@ const thumbnailSize = computed(() => (image.value ? courseThumbnailSize(image.va
 }
 .course-card__logo {
   flex: none;
-  height: 1.5rem;
+  height: 2rem;
   width: auto;
   max-width: 6rem;
   object-fit: contain;

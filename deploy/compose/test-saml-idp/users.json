@@ -1,5 +1,5 @@
 {
-  "_comment": "Test users of the dev-only SAML IdP `test-saml-idp` (deploy/compose, profile dev). Read by authsources.php and by tools/e2e-identity/brokered-*.js. Attribute names are the SAML2 URI (urn:oid) names released by eduGAIN IdPs, which the importers of IdP `urv` in identity/keycloak/realm-oecp.yaml expect. Not real people; development only. partner.admin: the happy path. visiting.scholar: asserts another schacHomeOrganization (schac mismatch). email.collision: asserts the e-mail of the dev alliance admin (local account), to show that first-broker-login never links accounts by e-mail.",
+  "_comment": "Test users of the dev-only SAML IdP `test-saml-idp` (deploy/compose, profile dev). Read by authsources.php and by the suite in tools/e2e-identity (lib/keycloak.ts). Attribute names are the SAML2 URI (urn:oid) names released by eduGAIN IdPs, which the importers of IdP `urv` in identity/keycloak/realm-oecp.yaml expect. Not real people; development only. partner.admin: the happy path. visiting.scholar: asserts another schacHomeOrganization (schac mismatch). email.collision: asserts the e-mail of the dev alliance admin (local account), to show that first-broker-login never links accounts by e-mail.",
   "users": {
     "partner.admin": {
       "password": "urv-test-idp-2026",

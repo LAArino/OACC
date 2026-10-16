@@ -31,13 +31,20 @@ Guides for alliances and partner universities joining an OECP deployment [DL 17]
 - [onboarding/partner-with-integration-capacity.md](onboarding/partner-with-integration-capacity.md) — Guide C: build an OEAPI endpoint or automate the CSV files.
 - [onboarding/partner-manual.md](onboarding/partner-manual.md) — Guide D: web form and hand-made CSV files.
 
+## User manuals
+
+Task-oriented manuals for the person at the keyboard, with screenshots of the administration panel, accurate to release 0.8.0; they link to the onboarding and data-provider guides for the rules behind each screen.
+
+- [manuals/partner-admin.md](manuals/partner-admin.md) — for partner administrators: signing in, the dashboard, the course wizard (attributes, image, offerings, status, completeness), the CSV upload console, sync history, the Integration settings page and overrides, your account.
+- [manuals/alliance-admin.md](manuals/alliance-admin.md) — for alliance administrators: the organization modules on behalf of partners and host approval, organizations and sign-in mode, administrators, invitations, network status, maintenance and the dormancy and clean-up dry runs, branding, routine and go-live.
+
 ## Data-provider guides
 
 Technical reference for whoever supplies course data, accurate to release 0.8.0; the onboarding guides above cover process and roles.
 
 - [guides/README.md](guides/README.md) — overview of the three guides and the data-quality rules shared by every channel (English title, ISCED-F, ECTS, dates, language tags, delivery modes, status lifecycle).
 - [guides/api-integration.md](guides/api-integration.md) — for partner IT: the OEAPI v5 requests OECP sends, authentication, network requirements, the full v5 → OECP mapping, harvester codes, withdrawal by absence, testing and the mock partner.
-- [guides/csv-authoring.md](guides/csv-authoring.md) — template 1.2 column reference for `courses.csv` and `offerings.csv`, the handbook publication rule, limits, processing, browser validation, the `oecp.csv.*`/`oecp.content.*` code table and a worked example.
+- [guides/csv-authoring.md](guides/csv-authoring.md) — template 1.3 column reference for `courses.csv` and `offerings.csv`, the handbook publication rule, limits, processing, browser validation, the `oecp.csv.*`/`oecp.content.*` code table and a worked example.
 - [guides/web-form.md](guides/web-form.md) — the course wizard, offerings, status actions, overrides on harvested records, history and the admin API equivalents.
 
 ## Production

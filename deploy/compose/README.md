@@ -256,7 +256,7 @@ points at it when `.env` sets `OECP_DEV_IDP_ENABLED=true` (applied by
 browser); it reads Keycloak's SP descriptor over the `edge` network for the
 encryption certificate. Setup, design and pitfalls:
 [`identity/keycloak/README.md`](../../identity/keycloak/README.md#test-saml-idp-dev-profile);
-end-to-end scripts: [`tools/e2e-identity`](../../tools/e2e-identity/README.md).
+end-to-end suite (also run in CI): [`tools/e2e-identity`](../../tools/e2e-identity/README.md).
 
 ```sh
 docker compose --profile dev up -d test-saml-idp
@@ -270,6 +270,7 @@ docker compose --profile dev run --rm keycloak-config   # with OECP_DEV_IDP_ENAB
 | `web` (portal host, `/`) | `security-headers` (HSTS, nosniff, `X-Frame-Options: SAMEORIGIN` (silent session restore iframe), referrer and permissions policy, COOP); the nonce-based CSP is the application's job |
 | `api` (`/api`, `/oeapi`) | `security-headers` + `security-headers-api` (`Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; …`) |
 | `api-search`, `api-suggest`, `oeapi`, `api-admin` | the above plus `ratelimit-search` (20 r/s, burst 40), `ratelimit-suggest` and `ratelimit-oeapi` (10 r/s, burst 20), `ratelimit-admin` (30 r/s, burst 60); excess requests get 429 |
+| `api-docs` (`/api/public/v1/docs`, `/api/admin/v1/docs`, `/api/docs-assets/`; priority 110, above `api-admin`) | `security-headers` + `security-headers-api-docs` instead of `security-headers-api`: the OpenAPI viewer pages (vendored Redoc) need `script-src 'self'`, `style-src 'self' 'unsafe-inline'` (Redoc injects `<style>` elements), `img-src 'self' data:`, `connect-src 'self'` (the `openapi.json`) and `worker-src 'self' blob:` (search index); everything else stays `'none'`. Plus `ratelimit-docs` (10 r/s, burst 20) |
 | `auth`, `auth-admin` (auth host) | `security-headers-auth` (transport headers only; Keycloak sets its own CSP), plus the IP allowlist on `auth-admin` |
 
 ### Keycloak admin allowlist

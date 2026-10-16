@@ -72,7 +72,7 @@
     },
     {
       "name": "API description",
-      "description": "This OpenAPI document."
+      "description": "This OpenAPI document, as JSON and as a page to read in the browser."
     }
   ],
   "paths": {
@@ -905,6 +905,40 @@
         "x-oecp-roles": [
           "partner_admin",
           "alliance_admin"
+        ]
+      }
+    },
+    "/api/admin/v1/docs": {
+      "get": {
+        "operationId": "adminGetApiReference",
+        "tags": [
+          "API description"
+        ],
+        "summary": "View this document in the browser",
+        "description": "HTML page that renders this document with Redoc, served by the API itself (bundle under `/api/docs-assets/`, no third-party origin; scripts and styles from the portal origin only). Anonymous and cacheable for an hour; 10 requests/s per client address (burst 20) at the edge proxy. Not protected, like `/openapi.json`.",
+        "responses": {
+          "200": {
+            "description": "The viewer page (loads `openapi.json` from the same API).",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            },
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-oecp-roles": [
+          "anonymous"
         ]
       }
     },

@@ -108,7 +108,7 @@ All architecture decisions are recorded in [docs/adr](docs/adr/README.md).
 │   └── helm/             Helm chart (planned)
 ├── tools/
 │   ├── oeapi-mock/       Simulated OEAPI v5 partner for development and tests
-│   └── e2e-identity/     Browser checks of the administrator onboarding (local and federated)
+│   └── e2e-identity/     Playwright E2E suite of the administrator onboarding (local and federated), run in CI
 └── docs/
     ├── spec-v4.1.md      Specification as built
     ├── adr/              Architecture decision records (MADR)

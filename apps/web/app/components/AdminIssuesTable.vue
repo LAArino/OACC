@@ -36,6 +36,8 @@ const shown = computed(() =>
     ? props.issues.filter((i) => i.severity === selected.value)
     : props.issues,
 );
+/** Harvest and CSV findings carry the record's code; the column appears only when one does. */
+const hasEntity = computed(() => props.issues.some((i) => !!i.entity));
 const total = computed(
   () => props.total ?? (props.localFilter ? props.issues.length : shown.value.length),
 );
@@ -105,6 +107,9 @@ function download() {
             <th scope="col">
               {{ t('admin.issues.row') }}
             </th>
+            <th v-if="hasEntity" scope="col">
+              {{ t('admin.issues.entity') }}
+            </th>
             <th scope="col">
               {{ t('admin.issues.column') }}
             </th>
@@ -125,6 +130,9 @@ function download() {
             </td>
             <td>{{ issue.file ? `${issue.file}.csv` : '' }}</td>
             <td>{{ issue.row ?? '' }}</td>
+            <td v-if="hasEntity">
+              <code v-if="issue.entity">{{ issue.entity }}</code>
+            </td>
             <td>
               <code v-if="issue.column">{{ issue.column }}</code>
             </td>

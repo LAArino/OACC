@@ -58,3 +58,23 @@ path = "docs/api/*.json"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Lluís Alfons Ariño"
 SPDX-License-Identifier = "EUPL-1.2"
+
+# Redoc 2.5.4 standalone bundle, the OpenAPI viewer of /api/{public,admin}/v1/docs,
+# copied verbatim from the npm package `redoc@2.5.4`; see
+# apps/api/static/openapi/README.md. The bundle includes third-party packages,
+# whose notices are the *.LICENSE.txt files next to it: MIT (Redoc, React, MobX,
+# styled-components and most others), ISC (minimatch), BSD-3-Clause
+# (swagger2openapi, oas-*, reftools, url-template, hoist-non-react-statics) and
+# DOMPurify, dual-licensed Apache-2.0 OR MPL-2.0 and used here under Apache-2.0.
+[[annotations]]
+path = [
+  "apps/api/static/openapi/redoc.standalone.js",
+  "apps/api/static/openapi/*.LICENSE.txt",
+  "apps/api/static/openapi/LICENSE",
+]
+precedence = "override"
+SPDX-FileCopyrightText = [
+  "2015-present Rebilly, Inc.",
+  "The authors of the packages listed in redoc.standalone.js.LICENSE.txt",
+]
+SPDX-License-Identifier = "MIT AND ISC AND BSD-3-Clause AND Apache-2.0"

@@ -487,7 +487,7 @@ describe('course page', () => {
     expect(partner.find('img.course__logo').attributes()).toMatchObject({
       src: '/branding/partner-urv.svg',
       alt: '',
-      height: '40',
+      height: '48',
     });
     expect(partner.text()).toBe('Universitat Rovira i Virgili · Spain');
   });

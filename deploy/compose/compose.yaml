@@ -468,7 +468,7 @@ services:
       traefik.http.routers.api.priority: "50"
       traefik.http.routers.api.service: api
       traefik.http.routers.api.middlewares: security-headers@file,security-headers-api@file
-      # Per-IP rate limits, spec §10: search 20 r/s, suggest and /oeapi/v5 10 r/s, admin 30 r/s.
+      # Per-IP rate limits, spec §10: search 20 r/s, suggest, /oeapi/v5 and the API viewer 10 r/s, admin 30 r/s.
       # Explicit priorities: Traefik otherwise ranks routers by rule length.
       traefik.http.routers.api-search.rule: Host(`${OECP_PORTAL_HOST}`) && Path(`/api/public/v1/courses`)
       traefik.http.routers.api-search.entrypoints: websecure
@@ -494,6 +494,14 @@ services:
       traefik.http.routers.api-admin.priority: "100"
       traefik.http.routers.api-admin.service: api
       traefik.http.routers.api-admin.middlewares: ratelimit-admin@file,security-headers@file,security-headers-api@file
+      # Self-hosted OpenAPI viewer (HTML + the vendored Redoc bundle): its own CSP,
+      # which allows scripts and styles from the portal origin; above api-admin.
+      traefik.http.routers.api-docs.rule: Host(`${OECP_PORTAL_HOST}`) && (Path(`/api/public/v1/docs`) || Path(`/api/admin/v1/docs`) || PathPrefix(`/api/docs-assets/`))
+      traefik.http.routers.api-docs.entrypoints: websecure
+      traefik.http.routers.api-docs.tls: "true"
+      traefik.http.routers.api-docs.priority: "110"
+      traefik.http.routers.api-docs.service: api
+      traefik.http.routers.api-docs.middlewares: ratelimit-docs@file,security-headers@file,security-headers-api-docs@file
     logging: *default-logging
 
   worker:
@@ -679,7 +687,7 @@ services:
   # Local development only (profile `dev`): test SAML 2.0 IdP playing the
   # partner university URV (organization `urv`, Keycloak IdP alias `urv`), so
   # the brokered (eduGAIN-style) administrator path can be exercised end to end
-  # (tools/e2e-identity/brokered-accept.js). SimpleSAMLphp 1.19 (LGPL-2.1) in
+  # (tools/e2e-identity, also in CI). SimpleSAMLphp 1.19 (LGPL-2.1) in
   # kenchan0130/simplesamlphp (MIT), configured by ./test-saml-idp: entity ID
   # https://idp.urv.test/saml2/idp, users in test-saml-idp/users.json,
   # attributes under their urn:oid names, assertions signed and encrypted.

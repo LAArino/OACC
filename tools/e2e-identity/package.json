@@ -1,17 +1,16 @@
 {
   "name": "@oecp/e2e-identity",
-  "version": "0.5.0",
+  "version": "0.8.0",
   "private": true,
-  "description": "Manual end-to-end check of the identity path (local accounts and brokered SAML) against the local Compose stack (not part of CI).",
+  "description": "End-to-end tests of the identity path (local accounts, brokered SAML, invitations) against the Compose stack with the dev profile; run locally and by .github/workflows/e2e.yml.",
   "license": "EUPL-1.2",
   "scripts": {
-    "setup-account": "node setup-account.js",
-    "accept": "node accept-flow.js",
-    "relogin": "node relogin.js",
-    "brokered-accept": "node brokered-accept.js",
-    "brokered-negative": "node brokered-negative.js"
+    "test": "playwright test",
+    "test:local-account": "playwright test local-account",
+    "test:brokered": "playwright test brokered",
+    "test:invitations": "playwright test invitations"
   },
   "devDependencies": {
-    "playwright": "1.59.0"
+    "@playwright/test": "1.59.0"
   }
 }

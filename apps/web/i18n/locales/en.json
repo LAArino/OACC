@@ -245,7 +245,8 @@
       },
       "invitations": {
         "title": "Invitations",
-        "description": "Invite administrators by e-mail, follow the invitations and revoke or resend them."
+        "description": "Invite administrators by e-mail, follow the invitations and revoke or resend them.",
+        "descriptionPartner": "See the invitations sent to your organization and their status; only alliance administrators create, resend or revoke them."
       },
       "network": {
         "title": "Network status",
@@ -277,6 +278,7 @@
       "file": "File",
       "row": "Row",
       "column": "Column",
+      "entity": "Record",
       "code": "Code",
       "message": "Message",
       "severityLabel": {

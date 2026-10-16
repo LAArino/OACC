@@ -13,6 +13,8 @@ export default defineConfig(
     '**/.nuxt/**',
     '**/.output/**',
     'packages/schemas/json/**',
+    // Vendored third-party bundle (Redoc), see apps/api/static/openapi/README.md.
+    'apps/api/static/**',
     'docs/**',
     'deploy/**',
     'identity/**',
@@ -38,12 +40,6 @@ export default defineConfig(
   {
     files: ['**/*.{js,mjs,ts}'],
     languageOptions: { globals: { ...globals.node } },
-  },
-  {
-    // Developer tools written as CommonJS scripts (Playwright E2E helpers).
-    files: ['tools/e2e-identity/**/*.js'],
-    languageOptions: { sourceType: 'commonjs', globals: { ...globals.node } },
-    rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
   {
     rules: {

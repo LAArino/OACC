@@ -105,9 +105,13 @@ A version is closed, and may be tagged, only when all of the following hold:
    building has an ADR, and the [ADR index](adr/README.md) is complete.
 7. **Versions are bumped** in every `package.json` and in `publiccode.yml`
    (`softwareVersion`, `releaseDate`).
-8. **An annotated, signed-off tag** `vX.Y.Z` points at the release commit.
-9. **A GitHub release** carries the CHANGELOG section of the version, once the
-   repository has a public remote.
+8. **The E2E workflow is green on the release commit**: the `E2E` workflow
+   (`.github/workflows/e2e.yml`, identity suite against the Compose stack)
+   passed on exactly that commit; start it with *Run workflow* if that commit
+   has no run (a push of several commits runs only the last one).
+9. **An annotated, signed-off tag** `vX.Y.Z` points at the release commit.
+10. **A GitHub release** carries the CHANGELOG section of the version, once the
+    repository has a public remote.
 
 ## Release procedure
 

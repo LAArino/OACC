@@ -424,8 +424,10 @@ docker compose restart api        # or wait: /api/public/v1/reference caches the
 curl -sk https://oecp.localhost/api/public/v1/reference | jq '.organizations[] | select(.slug=="urv") | .idp_alias'   # "urv"
 ```
 
-Then run `tools/e2e-identity/brokered-accept.js` and `brokered-negative.js`
-(see [`tools/e2e-identity/README.md`](../../tools/e2e-identity/README.md)).
+Then run the brokered specs of the identity E2E suite, `npx playwright test
+brokered` in `tools/e2e-identity` (see
+[`tools/e2e-identity/README.md`](../../tools/e2e-identity/README.md)); CI runs
+the whole suite with the IdP enabled (`.github/workflows/e2e.yml`).
 
 **Why the IdP is in `realm-oecp.yaml` and not in a second, dev-only file.**
 keycloak-config-cli 6.5.1 (`import.managed.identity-provider=full`) deletes

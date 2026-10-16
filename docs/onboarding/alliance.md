@@ -153,6 +153,8 @@ Sign in at `https://<portal host>/en/admin`. Besides the organization modules (c
 
 The organization picker at the top of each page (kept in `?org=`) selects the organization the page works on.
 
+Screen-by-screen walkthrough with screenshots: [alliance administrator manual](../manuals/alliance-admin.md).
+
 **Scripting with the API.** Every screen calls the admin API ([spec §8.2](../spec-v4.1.md#82-admin-api-apiadminv1-implemented)), which can also be scripted for bulk work. There are no API keys or service accounts: a script needs an access token from an interactive sign-in with MFA (for example copied from the `Authorization: Bearer …` header of an `/api/admin/v1` request in the browser's developer tools), which expires after 5 minutes. Treat it as a password and never share it.
 
 ## 8. Invite partner admins

@@ -9,6 +9,20 @@ const localePath = useLocalePath();
 const auth = useAuth();
 const adminOrg = useAdminOrg();
 const { me, failure, loading, isAlliance, canManage, orgId, orgQuery } = adminOrg;
+const reference = useAdminReference();
+const { data: organizations } = useAsyncData('admin-dashboard-reference', () =>
+  reference.load().then(
+    (r) => r.organizations,
+    () => [],
+  ),
+);
+/** The administrator's own organization, by name when the reference knows it. */
+const ownOrganization = computed(() => {
+  const id = me.value?.org_id;
+  if (!id) return null;
+  const org = organizations.value?.find((o) => o.id === id);
+  return org ? { name: org.name.en ?? org.slug, slug: org.slug } : { name: id, slug: null };
+});
 useHead({ title: () => t('admin.title') });
 
 onMounted(() => {
@@ -60,7 +74,13 @@ const allianceModules = computed(() => [
               }}
             </dd>
             <dt>{{ t('admin.organization') }}</dt>
-            <dd>{{ me.org_id ?? t('admin.none') }}</dd>
+            <dd v-if="ownOrganization">
+              {{ ownOrganization.name
+              }}<span v-if="ownOrganization.slug" class="admin-muted">
+                ({{ ownOrganization.slug }})</span
+              >
+            </dd>
+            <dd v-else>{{ t('admin.none') }}</dd>
             <dt>{{ t('admin.idp') }}</dt>
             <dd>{{ me.idp }}</dd>
           </dl>
@@ -82,7 +102,13 @@ const allianceModules = computed(() => [
               <NuxtLink :to="m.to">
                 {{ t(`admin.modules.${m.key}.title`) }}
               </NuxtLink>
-              <p>{{ t(`admin.modules.${m.key}.description`) }}</p>
+              <p>
+                {{
+                  m.key === 'invitations' && !isAlliance
+                    ? t('admin.modules.invitations.descriptionPartner')
+                    : t(`admin.modules.${m.key}.description`)
+                }}
+              </p>
             </li>
           </ul>
           <template v-if="isAlliance">

@@ -8,3 +8,6 @@ export interface OpenApiJson {
   public: string;
   admin: string;
 }
+
+/** Provider token of the viewer pages and the vendored bundle. */
+export const API_DOCS = Symbol('API_DOCS');

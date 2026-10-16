@@ -30,6 +30,8 @@ export interface AdminIssue {
   file?: CsvFileKind | null;
   row?: number | null;
   column?: string | null;
+  /** Record the finding belongs to (course or offering code), when known: harvest findings have no file or row. */
+  entity?: string | null;
   message: string;
 }
 
@@ -186,6 +188,7 @@ export function issuesFromSyncErrors(errors: readonly SyncError[]): AdminIssue[]
     file: e.file,
     row: e.row_number,
     column: e.column_name ?? e.json_pointer,
+    entity: e.ext_id,
     message: e.message,
   }));
 }

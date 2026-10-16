@@ -44,7 +44,7 @@ configured.
 | Home page header (`OECP_HERO_IMAGE`) | JPEG or WebP (PNG for flat art) | 3:1 | 1800 × 600 | under 400 KB |
 | Course list header (`OECP_HERO_IMAGE_COURSES`) | JPEG or WebP (PNG for flat art) | 12:5 (2.4:1) | 1800 × 750 | under 400 KB |
 | Site header logo (`OECP_LOGO_IMAGE`) | SVG, or PNG with a transparent background | about 4:1 | 40 pixels high | under 100 KB |
-| Partner logos (`partner-<slug>.svg`) | SVG, or PNG with a transparent background | about 4:1 to 1:1 | 24 and 40 pixels high | under 50 KB |
+| Partner logos (`partner-<slug>.svg`) | SVG, or PNG with a transparent background, trimmed to the mark (no empty margins: a 2:1 canvas with a small mark renders small) | about 4:1 to 1:1 | 32 pixels high on the cards, 48 on the course page | under 50 KB |
 | Favicon (`OECP_FAVICON_IMAGE`) | SVG (or PNG, ICO) | square | 32 × 32 or larger | under 10 KB |
 
 ## Header image (home page and course list)

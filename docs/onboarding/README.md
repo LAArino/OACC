@@ -46,6 +46,8 @@ Are you the IT team that installs and runs the server for the alliance?
 | [E. Hosting operator](hosting-operator.md) | Hosting operator (the institution's IT team) | URV IT installing the Aurora pilot on `lspurv.urv.cat`: day 0 requests, installation with a check at every step, go-live, day-2 operation |
 | [Administrator lifecycle](administrator-lifecycle.md) | Alliance office, hosting operator | Invitation, sign-in mode, removal, dormancy, account clean-up and recertification: defaults and choices [DL 26] |
 
+Once your account works, the user manuals take you through the administration panel screen by screen, with screenshots: [partner administrator manual](../manuals/partner-admin.md) and [alliance administrator manual](../manuals/alliance-admin.md).
+
 The technical companions, written for the people who prepare the data, are:
 
 - [API integration guide](../guides/api-integration.md): what the harvester requests and how it maps OEAPI v5 fields.

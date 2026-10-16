@@ -1,0 +1,177 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Identity end-to-end suite (tools/e2e-identity, Playwright) against the whole
+# Compose stack built in the runner: profile `dev` (Mailpit, test SAML IdP
+# playing URV), empty database, an alliance admin bootstrapped by the suite.
+# Every secret is generated for the job and thrown away with it.
+# Third-party actions are pinned to full commit SHAs (tag in the comment);
+# Dependabot keeps them current.
+
+name: E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - "identity/**"
+      - "deploy/compose/**"
+      - "tools/e2e-identity/**"
+      - ".github/workflows/e2e.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # A newer push supersedes a pull request run; runs on main all finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  identity:
+    name: Identity E2E (Compose stack, test SAML IdP)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: deploy/compose
+    env:
+      # Read by the suite (tools/e2e-identity/README.md). Its passwords and TOTP
+      # seeds go to $RUNNER_TEMP/oecp-e2e.
+      OECP_E2E_PORTAL: https://oecp.localhost
+      # The database is empty: the bootstrap test must run, not skip.
+      OECP_E2E_REQUIRE_BOOTSTRAP: "true"
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: tools/e2e-identity/package-lock.json
+
+      - name: Configure the stack (.env from .env.example, dev block)
+        # The last definition of a variable in .env wins, so the overrides are
+        # appended; the rendered configuration is checked below.
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          cat >> .env <<EOF
+
+          # --- CI overrides (.github/workflows/e2e.yml) ---
+          COMPOSE_PROFILES=dev
+          OECP_PORTAL_HOST=oecp.localhost
+          OECP_AUTH_HOST=auth.oecp.localhost
+          OECP_SMTP_HOST=mailpit
+          OECP_SMTP_PORT=1025
+          OECP_SMTP_STARTTLS=false
+          OECP_MAIL_LOG_LINKS=true
+          OECP_DEV_IDP_ENABLED=true
+          OECP_GIT_COMMIT=${GITHUB_SHA::12}
+          EOF
+          config=$(docker compose config)
+          for expected in 'OECP_DEV_IDP_ENABLED: "true"' 'SMTP_HOST: mailpit' \
+            'KC_HOSTNAME: https://auth.oecp.localhost' 'OECP_PUBLIC_BASE_URL: https://oecp.localhost' \
+            'OECP_MAIL_LOG_LINKS: "true"'; do
+            grep -qF -- "$expected" <<<"$config" || { echo "::error::rendered config lacks: $expected"; exit 1; }
+          done
+          docker compose config --services | sort | tr '\n' ' '
+
+      - name: Generate the secrets (throwaway)
+        # As deploy/compose/secrets/README.md: no trailing newline, readable by
+        # the container users.
+        run: |
+          set -euo pipefail
+          chmod 700 secrets
+          for name in postgres_superuser_password oecp_db_password keycloak_db_password \
+                      keycloak_admin_password oecp_backend_client_secret grafana_admin_password; do
+            openssl rand -hex 32 | tr -d '\n' > "secrets/$name"
+          done
+          openssl rand -base64 32 | tr -d '\n' > secrets/oecp_master_key
+          chmod 644 secrets/*
+
+      - name: Map the portal and auth hosts to 127.0.0.1
+        run: echo "127.0.0.1 oecp.localhost auth.oecp.localhost" | sudo tee -a /etc/hosts
+
+      - name: Build and start the stack
+        run: |
+          set -euo pipefail
+          start=$SECONDS
+          docker compose up -d --build --wait --wait-timeout 900
+          # keycloak-config is a one-shot job (realm import, IdP urv); wait for it.
+          for _ in $(seq 1 120); do
+            state=$(docker compose ps -a --format '{{.State}} {{.ExitCode}}' keycloak-config)
+            case "$state" in
+              "exited 0") break ;;
+              exited*) docker compose logs keycloak-config; echo "::error::keycloak-config: $state"; exit 1 ;;
+            esac
+            sleep 5
+          done
+          [ "$state" = "exited 0" ] || { echo "::error::keycloak-config did not finish"; exit 1; }
+          echo "Build and start of the stack: $((SECONDS - start)) s" | tee -a "$GITHUB_STEP_SUMMARY"
+          docker compose ps --format 'table {{.Service}}\t{{.Status}}'
+
+      - name: Database migrations and seeds
+        run: |
+          set -euo pipefail
+          docker compose run --rm -T api pnpm db:migrate
+          docker compose run --rm -T api node dist/cli.js seed-organizations
+          docker compose run --rm -T api node dist/cli.js seed-attribute-definitions
+
+      - name: Wait for IdP urv in the public reference
+        # The api caches the realm's enabled IdPs for 5 minutes; a lookup made
+        # before keycloak-config finished would hide `urv` until it expires.
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 72); do
+            alias=$(curl -skf https://oecp.localhost/api/public/v1/reference \
+              | jq -r '.organizations[] | select(.slug == "urv") | .idp_alias // ""') || alias=""
+            [ "$alias" = "urv" ] && { echo "idp_alias urv published"; exit 0; }
+            sleep 5
+          done
+          echo "::error::the public reference does not publish idp_alias urv"; exit 1
+
+      - name: Install the suite and Chromium
+        working-directory: tools/e2e-identity
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Run the identity E2E suite
+        working-directory: tools/e2e-identity
+        run: |
+          start=$SECONDS
+          status=0
+          npx playwright test || status=$?
+          echo "Identity E2E suite: $((SECONDS - start)) s (exit $status)" | tee -a "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: Collect the container logs
+        if: failure()
+        run: |
+          mkdir -p ../../tools/e2e-identity/test-results
+          docker compose logs --no-color --timestamps \
+            > ../../tools/e2e-identity/test-results/compose-logs.txt 2>&1 || true
+
+      - name: Upload traces, screenshots and container logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-identity-${{ github.run_id }}-${{ github.run_attempt }}
+          # Throwaway credentials of this job only (passwords typed in the traces).
+          path: tools/e2e-identity/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Tear down the stack
+        if: always()
+        run: docker compose down -v --remove-orphans

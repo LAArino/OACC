@@ -206,6 +206,16 @@ describe('OpenAPI route coverage', () => {
     expect(documented).toEqual(registered);
   });
 
+  it('outside the two documented prefixes, /api only serves the viewer bundle', () => {
+    // The generator describes paths below /api/public/v1 and /api/admin/v1 only;
+    // the static files of the viewer (/api/{public,admin}/v1/docs) stay outside.
+    const outside = routes
+      .filter((r) => r.path.startsWith('/api/'))
+      .filter((r) => !APIS.some((api) => r.path.startsWith(`${PREFIX[api]}/`)))
+      .map((r) => `${r.method} ${r.path}`);
+    expect(outside).toEqual(['get /api/docs-assets/{version}/{file}']);
+  });
+
   it.each(APIS)('%s: roles and security match the guards', (api) => {
     const reflector = new Reflector();
     const ops = operations(documents[api]);

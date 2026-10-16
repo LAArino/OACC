@@ -96,6 +96,30 @@ const ANY_TOKEN: readonly Access[] = [P, A, 'role-less'];
 const OPENAPI_DESCRIPTION =
   'This document, generated at start-up from the Zod contracts of `@oecp/schemas`; the copy in the repository is `docs/api/`. Anonymous and cacheable for an hour.';
 
+const DOCS_DESCRIPTION =
+  'HTML page that renders this document with Redoc, served by the API itself (bundle under `/api/docs-assets/`, no third-party origin; scripts and styles from the portal origin only). Anonymous and cacheable for an hour; 10 requests/s per client address (burst 20) at the edge proxy.';
+
+const docsOperation = (api: ApiName): OperationSpec => ({
+  method: 'get',
+  path: '/docs',
+  operationId: `${api}GetApiReference`,
+  tag: 'API description',
+  summary: 'View this document in the browser',
+  description:
+    api === 'admin'
+      ? `${DOCS_DESCRIPTION} Not protected, like \`/openapi.json\`.`
+      : DOCS_DESCRIPTION,
+  ...(api === 'admin' ? { access: ['anonymous'] as const } : {}),
+  responses: {
+    200: {
+      description: 'The viewer page (loads `openapi.json` from the same API).',
+      contentType: 'text/html',
+      schema: { type: 'string' },
+      headers: ['Cache-Control', 'ETag'],
+    },
+  },
+});
+
 /* ------------------------------------------------------------------ public API */
 
 export const PUBLIC_OPERATIONS: readonly OperationSpec[] = [
@@ -242,6 +266,7 @@ Per-client rate limit at the edge: 20 requests/s (burst 40).`,
       },
     },
   },
+  docsOperation('public'),
 ];
 
 /* ------------------------------------------------------------------- admin API */
@@ -1075,4 +1100,5 @@ export const ADMIN_OPERATIONS: readonly OperationSpec[] = [
       },
     },
   },
+  docsOperation('admin'),
 ];

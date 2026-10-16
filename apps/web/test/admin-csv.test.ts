@@ -151,6 +151,7 @@ describe('issue rows and report', () => {
         file: 'offerings',
         row: 2,
         column: 'start_date',
+        entity: null,
         message: 'Expected YYYY-MM-DD',
       },
     ]);

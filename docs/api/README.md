@@ -5,8 +5,8 @@
 
 | File | API | Served at |
 |---|---|---|
-| [oecp-public-api.openapi.json](oecp-public-api.openapi.json) | Public catalogue API, `/api/public/v1` (spec §7): anonymous, read-only | `GET /api/public/v1/openapi.json` |
-| [oecp-admin-api.openapi.json](oecp-admin-api.openapi.json) | Admin API, `/api/admin/v1` (spec §8): bearer tokens from Keycloak | `GET /api/admin/v1/openapi.json` |
+| [oecp-public-api.openapi.json](oecp-public-api.openapi.json) | Public catalogue API, `/api/public/v1` (spec §7): anonymous, read-only | `GET /api/public/v1/openapi.json`; viewer `GET /api/public/v1/docs` |
+| [oecp-admin-api.openapi.json](oecp-admin-api.openapi.json) | Admin API, `/api/admin/v1` (spec §8): bearer tokens from Keycloak | `GET /api/admin/v1/openapi.json`; viewer `GET /api/admin/v1/docs` |
 
 The OEAPI v5-compatible read API (`/oeapi/v5`, spec §9) is not described here: it follows the [OEAPI v5.0 standard](https://openonderwijsapi.nl/) and its own OpenAPI document (vendored for the mock partner in `tools/oeapi-mock/spec/`).
 
@@ -22,10 +22,10 @@ Conventions in the documents:
 
 - **Errors** are `application/problem+json` (RFC 9457) with the shared `ProblemDetails` schema; `errors[].code` is the `ErrorCode` enumeration of the 144 stable codes (`packages/schemas/errors.json`), listed by prefix in its description. Each operation lists the statuses it can return and the codes behind them. The `reason` member of `oecp.invitation.mismatch`, the `idp_alias` member of `oecp.invitation.idp_not_enabled` and the extension members of a failed inline CSV upload (`CsvUploadProblem`) are documented.
 - **Public API:** no security; `Cache-Control` and weak `ETag` on success, 304 for a matching `If-None-Match`; repeatable filters are `style: form, explode: true` arrays; the aliases (`ectsMin`/`ects_min`, `pageSize`/`page_size`, `locale`/`lang` on suggest) are separate parameters; `attr_<key>` filters are described in the search operation (their names are not fixed); the edge rate limits are in the description and as 429 on search and suggest.
-- **Admin API:** global security `bearerAuth` (the required JWT claims are in its description); `x-oecp-roles` lists `partner_admin`, `alliance_admin`, `role-less` (a valid token without OECP roles) or `anonymous` (only the document itself); 401 and 403 are shared responses with their codes.
+- **Admin API:** global security `bearerAuth` (the required JWT claims are in its description); `x-oecp-roles` lists `partner_admin`, `alliance_admin`, `role-less` (a valid token without OECP roles) or `anonymous` (only the document itself and its viewer page); 401 and 403 are shared responses with their codes.
 - `info.version` is the release (root `package.json`), `info.license` EUPL-1.2, `info.x-oecp-spec` links the section of [the specification](../spec-v4.1.md).
 
-`apps/api/test/unit/openapi.test.ts` (part of `pnpm test`) fails when the documents are not valid OpenAPI 3.1 (`@seriousme/openapi-schema-validator`, plus every component schema compiled by Ajv 2020), when a route or method registered by the Nest application under `/api/public/v1` or `/api/admin/v1` is missing from a document or a documented one does not exist, when the roles or the success status differ from the controllers' guards and `@HttpCode`, when the error code enumeration differs from `errors.json`, and when the committed files are not what the generator produces.
+`apps/api/test/unit/openapi.test.ts` (part of `pnpm test`) fails when the documents are not valid OpenAPI 3.1 (`@seriousme/openapi-schema-validator`, plus every component schema compiled by Ajv 2020), when a route or method registered by the Nest application under `/api/public/v1` or `/api/admin/v1` is missing from a document or a documented one does not exist, when the roles or the success status differ from the controllers' guards and `@HttpCode`, when the error code enumeration differs from `errors.json`, and when the committed files are not what the generator produces. The only other `/api` route, the viewer bundle `GET /api/docs-assets/{version}/{file}`, lies outside both documents (the generator describes paths below the two API bases); the test fails if any other route appears there.
 
 ## How to regenerate
 
@@ -38,20 +38,25 @@ Run `pnpm openapi:generate` after changing a controller route, a Zod contract in
 
 ## How to view
 
-The API serves the documents built at start-up (`Cache-Control: public, max-age=3600`, anonymous for both APIs: the admin document describes the API, it grants nothing):
+**In the browser, served by the API itself** (anonymous for both APIs: the admin document describes the API, it grants nothing):
+
+- public API: `https://<portal>/api/public/v1/docs` (development: <https://oecp.localhost/api/public/v1/docs>);
+- admin API: `https://<portal>/api/admin/v1/docs` (development: <https://oecp.localhost/api/admin/v1/docs>).
+
+Each page is a small HTML document (`Cache-Control: public, max-age=3600`) that loads [Redoc](https://github.com/Redocly/redoc) 2.5.4 from `/api/docs-assets/2.5.4/redoc.standalone.js` and renders the API's own `openapi.json`. The bundle is vendored in `apps/api/static/openapi/` (MIT; upstream, SHA-256 and the licences of the bundled packages in its [README](../../apps/api/static/openapi/README.md)), checked against its SHA-256 at start-up and served with `public, max-age=31536000, immutable`. Nothing is loaded from another origin: no CDN, no web fonts (system fonts), and the "API docs by Redocly" logo, which Redoc fetches from its CDN, is replaced by an empty image in the served copy. Traefik serves these paths through the `api-docs` router with their own Content-Security-Policy (`security-headers-api-docs`: scripts from `'self'`, styles from `'self'` plus `'unsafe-inline'` for the `<style>` elements Redoc injects, `connect-src 'self'`, a `blob:` worker for the search index), instead of the `default-src 'none'` of the other `/api` responses ([deploy/compose/README.md](../../deploy/compose/README.md#security-headers-and-rate-limits)).
+
+**As JSON**, the documents built at start-up (`Cache-Control: public, max-age=3600`):
 
 ```sh
 curl -sk https://oecp.localhost/api/public/v1/openapi.json | jq '.info, (.paths | keys)'
 curl -sk https://oecp.localhost/api/admin/v1/openapi.json  | jq '.info, (.paths | keys)'
 ```
 
-There is no HTML viewer in the API: `/api` responses carry the Content-Security-Policy `default-src 'none'` from Traefik (spec §10), which a renderer page would have to relax, and vendoring a renderer is not worth it for two documents. Open a file in any OpenAPI 3.1 viewer instead, for example:
+**Other viewers**, for the committed files or a document of another deployment:
 
 - `npx @redocly/cli build-docs docs/api/oecp-public-api.openapi.json -o public-api.html` (a static Redoc page to open in a browser);
 - the Swagger Editor (`docker run -p 8080:8080 swaggerapi/swagger-editor`, then *File > Import file*);
 - an editor extension (e.g. *OpenAPI (Swagger) Editor* for VS Code).
-
-A self-hosted viewer under `/api/*/docs` is in the [backlog](../backlog.md).
 
 ## Versioning
 

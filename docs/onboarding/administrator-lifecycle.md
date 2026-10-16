@@ -38,6 +38,8 @@ Every step is audited (`invitation.*`, `admin.revoke`, `admin.dormant_revoke`,
 e-mail address for 36 months [DL 23] and the deletion rows carry the Keycloak
 user id only.
 
+**Lost password or authenticator (local accounts).** While the set-up is pending, the organization's *Administrators* panel offers *Resend set-up e-mail*. Once the account is set up, OECP has no self-service reset (no open "forgot password", decision 22): the hosting operator resets the credential in the Keycloak admin console (runbook [§6](../production/runbook.md#6-identity-operations)), or an alliance admin *removes* the administrator and invites them again, which creates a fresh set-up e-mail. Federated accounts are reset by the university.
+
 ## Defaults as shipped
 
 | Variable (`deploy/compose/.env`) | Default | Meaning |

@@ -10,7 +10,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- CI: the identity path is an end-to-end suite (`tools/e2e-identity`,
+  Playwright Test 1.59, four specs: bootstrap and local account, brokered
+  acceptance through the test SAML IdP, the e-mail / IdP / schacHomeOrganization
+  mismatches and the no-linking rule, invitation refused when the IdP is not
+  enabled) run by the new workflow `E2E` (`.github/workflows/e2e.yml`) on
+  pushes to `main`, on pull requests that touch the stack and on demand: it
+  builds and starts the Compose stack with the `dev` profile in the runner,
+  migrates, seeds, maps the two hosts, runs the suite and uploads traces and
+  logs on failure. The manual scripts are replaced by the suite (`npx
+  playwright test`).
+- API: a self-hosted OpenAPI viewer at `GET /api/public/v1/docs` and
+  `GET /api/admin/v1/docs` (Redoc 2.5.4 standalone bundle vendored under
+  `apps/api/static/openapi/`, MIT with ISC, BSD-3-Clause and Apache-2.0
+  parts recorded in `REUSE.toml`; SHA-256 checked at start-up; the Redocly
+  logo request to a CDN patched to a data URL) served with its own Traefik
+  router and Content-Security-Policy (`script-src 'self'`, no inline script,
+  styles `'unsafe-inline'` because Redoc injects them), the bundle at
+  `/api/docs-assets/<version>/redoc.standalone.js` with immutable caching and
+  a 10 r/s rate limit; no request leaves the portal origin.
+- Docs: user manuals for the partner administrator
+  (`docs/manuals/partner-admin.md`) and the alliance administrator
+  (`docs/manuals/alliance-admin.md`), task by task with 23 new annotated
+  screenshots in `docs/images/` (`manual-*.png`), linked from the onboarding
+  guides and the docs index.
+- Docs: decision 28, the Aurora Foundation permits the nine partner
+  universities' logos in the catalogue (`partner-<slug>` files in the
+  branding directory); the administrator lifecycle page documents what to do
+  when a local account's password or authenticator is lost.
+- Admin panel: the dashboard shows the administrator's organization by name
+  and slug instead of its identifier; the Invitations tile tells partner
+  administrators the module is read-only for them; sync run and upload
+  reports show a *Record* column with the course or offering code of each
+  finding (harvest findings had no file or row to identify the course).
+
+### Changed
+
+- Portal: partner logos are rendered 32 pixels high on the cards and 48 on
+  the course page (24 and 40 before), since official logos come on 2:1
+  canvases; the branding README asks for logos trimmed to the mark.
+- Docs: Guide D and the docs index say CSV template 1.3; the spec lists
+  Invitations as an organization module (read-only for partner admins).
 
 ## [0.8.0] - 2026-10-16
 

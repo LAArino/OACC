@@ -56,3 +56,33 @@ enabled and shows a warning first. None of these has a screenshot.
 | `ops-grafana-overview.png` | Grafana dashboard "OECP overview" of the `observability` profile (kiosk mode, light theme, last 3 hours), rows: Status (api and worker up and ready, database and uploads backup age, last WAL archived, firing alerts), HTTP (api), Harvests (worker), Maintenance jobs (worker), Backups and disk. The "IdP metadata: last refresh" panel shows "No data" because the development stack has no eduGAIN aggregate configured. |
 | `ops-prometheus-rules.png` | Prometheus "Rule health" page with the OECP alert rules (19 rules, every one OK and inactive on the development stack); the groups `oecp-availability`, `oecp-backup` and `oecp-harvest` are visible, the others below the fold. |
 | `api-openapi-redoc.png` | The public catalogue API OpenAPI document (release 0.5.0) rendered with Redoc, a static page built with `npx @redocly/cli build-docs docs/api/oecp-public-api.openapi.json` ([docs/api/README.md](../api/README.md#how-to-view)). |
+
+## User manuals (release 0.8.0, 2026-10-16)
+
+Taken on 2026-10-16 from the development stack (release 0.8.0) at 1200 pixels wide with Playwright, signed in as the development alliance administrator, and cropped to the relevant part of the page; used by the [partner administrator manual](../manuals/partner-admin.md) and the [alliance administrator manual](../manuals/alliance-admin.md). Data: the simulated University of Innsbruck harvest, the Aurora Virtual Campus courses of the University of Iceland and the development test accounts. Nothing was saved, uploaded, sent or run to take them; the CSV check report shows the Aurora Virtual Campus fixture files with one date deliberately reformatted, checked in the browser only. The sign-in form is empty and no one-time code is shown.
+
+| File | Shows |
+|---|---|
+| `manual-admin-signin.png` | Sign-in prompt of the administration panel, signed out: *Sign in* and the *Sign in through your university* box. |
+| `manual-login-form.png` | Login page of the login service (Keycloak) with empty e-mail and password fields. |
+| `manual-dashboard.png` | Dashboard of an alliance administrator: *Your account*, the organization list (University of Iceland), the organization modules and the *Alliance administration* tiles. |
+| `manual-courses-list.png` | Courses list of the University of Iceland: filters and the table with the *Completeness* column. |
+| `manual-course-wizard-step1.png` | Course wizard of a new course, step 1 *Basics*, with example values typed in (not saved). |
+| `manual-course-wizard-attributes.png` | Course wizard, step 3 *Attributes* of a real BIP: educational hub, SDGs, competence framework, yes/no flags, target audience. |
+| `manual-course-image-card.png` | Course wizard, step 4: the *Completeness* card (one field missing) and the *Image* card with the current image and its buttons. |
+| `manual-course-status.png` | *Summary and status* box of a published course with *Withdraw*, *Cancel*, *Back to draft* and why it cannot be deleted; the step buttons. |
+| `manual-offering-form.png` | Offering page: status actions, offering code, academic session, dates, time zone, the start of the teaching languages. |
+| `manual-csv-console.png` | CSV upload page: limits, what templates 1.2 and 1.3 add, template and JSON Schema 1.3 downloads, drop area. |
+| `manual-csv-check-report.png` | CSV upload page after choosing two files: detected types and the browser check report with one `oecp.csv.invalid_date` error; *Upload* disabled. |
+| `manual-sync-history.png` | Sync history of the University of Innsbruck: harvest and form runs with trigger, status and counters. |
+| `manual-sync-run.png` | One harvest run (*Partly succeeded*): summary, counters and the errors and warnings with codes and JSON Pointers. |
+| `manual-integration.png` | Integration settings of the University of Innsbruck: current settings, host approval (*Approved*), authoritative channel. |
+| `manual-integration-test-run.png` | Lower part of the Integration settings page: stored credential (never shown), schedule, limits, *Harvest on the schedule*, *Save settings*, *Test connection*, *Sync now*. |
+| `manual-organizations-list.png` | Organizations list with filters and the identity provider alias column. |
+| `manual-organizations-detail.png` | Organization page of Rovira i Virgili University: section links and the start of the details form. |
+| `manual-organization-identifiers.png` | *Identifiers and login* of an organization: SCHAC home organization and identity provider alias. |
+| `manual-organization-administrators.png` | *Administrators* panel: a development test administrator signing in through the university login, last sign-in, *Remove*. |
+| `manual-invitations-warning.png` | Invitations of Copenhagen Business School: the warning that its identity provider is not enabled in the login service, the form and a revoked test invitation. |
+| `manual-network.png` | Network status: health counters and the table, problems first (the right-hand columns are cut at 1200 pixels). |
+| `manual-maintenance.png` | Maintenance page: the dry-run notice and the six job cards with *Run now*. |
+| `manual-maintenance-dormancy-run.png` | Maintenance runs filtered on *Dormancy*, details of the latest dry run open (nobody listed). |

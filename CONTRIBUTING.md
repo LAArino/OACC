@@ -77,13 +77,20 @@ DATABASE_URL_TEST=postgres://postgres:oecp-test@127.0.0.1:55432/postgres \
 docker stop oecp-test-pg
 ```
 
-**Browser end-to-end checks.** [tools/e2e-identity](tools/e2e-identity/README.md)
-drives Chromium (Playwright) through the administrator onboarding against the
-running `dev` stack: `setup-account.js`, `accept-flow.js` and `relogin.js` for
-local accounts, `brokered-accept.js` and `brokered-negative.js` for the
-brokered path through the test SAML IdP. They are developer tools, not CI
-tests; install them with `npm install && npx playwright install chromium
---only-shell` inside that directory.
+**Browser end-to-end suite.** [tools/e2e-identity](tools/e2e-identity/README.md)
+is a Playwright Test suite that drives Chromium through the administrator
+onboarding: bootstrap of the first alliance admin, local accounts, the brokered
+path through the test SAML IdP (role, `idp` claim, e-mail / idp /
+schacHomeOrganization mismatches, no account linking) and the refusal of
+invitations to an organization whose IdP is not enabled. Locally it runs
+against the `dev` stack with `OECP_DEV_IDP_ENABLED=true` (`npm ci && npx
+playwright install chromium && npx playwright test` inside that directory; it
+uses the git-ignored `deploy/compose/secrets/dev_alliance_admin_*`). The
+workflow [`.github/workflows/e2e.yml`](.github/workflows/e2e.yml) builds and
+starts the whole stack in the runner with throwaway secrets, migrates and
+seeds it, and runs the suite on pushes to `main`, on pull requests that touch
+`apps/`, `packages/`, `identity/`, `deploy/compose/` or the suite, and on
+demand; on failure it keeps the traces and the container logs as an artifact.
 
 **Compose and alerting checks** (CI job "Validate Docker Compose file"), from
 the repository root:

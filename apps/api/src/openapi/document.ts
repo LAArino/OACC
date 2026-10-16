@@ -388,7 +388,7 @@ const PUBLIC_DESCRIPTION = `Anonymous, read-only catalogue API used by the porta
 
 **Caching.** Successful responses carry \`Cache-Control\` (\`public, max-age=60\` for search and suggest, \`public, max-age=300\` for course pages, reference data and the sitemap) and a weak \`ETag\`; a matching \`If-None-Match\` answers 304. Errors are not cached.
 
-**Rate limits.** Per client address at the edge proxy (spec §10): search 20 requests/s (burst 40), suggest 10/s (burst 20); other paths are not limited. Excess requests get 429 in plain text.
+**Rate limits.** Per client address at the edge proxy (spec §10): search 20 requests/s (burst 40), suggest and the viewer \`/docs\` 10/s (burst 20); other paths are not limited. Excess requests get 429 in plain text.
 
 **Versioning.** Additive only: new endpoints, optional parameters and response members may be added; nothing is removed, renamed or given a new meaning. A breaking change means \`/api/public/v2\`, served alongside v1 for at least one minor release (\`docs/RELEASING.md\`).
 
@@ -414,7 +414,7 @@ const BEARER_DESCRIPTION = `Access token (JWT, RS256) issued by the OECP Keycloa
 
 const TAG_DESCRIPTIONS: Readonly<Record<string, string>> = {
   Catalogue: 'Search, course pages, suggestions, reference data and the sitemap (spec §7.1).',
-  'API description': 'This OpenAPI document.',
+  'API description': 'This OpenAPI document, as JSON and as a page to read in the browser.',
   Account: 'The signed-in administrator (spec §4).',
   Invitations: 'Inviting administrators and accepting invitations (spec §2.1).',
   Organizations: 'Organizations of the alliance and their hierarchy (spec §8.4).',

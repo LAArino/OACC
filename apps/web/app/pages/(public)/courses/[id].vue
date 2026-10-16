@@ -248,7 +248,7 @@ useHead({
     <header class="course__header">
       <h1 id="course-title" :lang="titleLang">{{ title }}</h1>
       <p class="course__partner">
-        <img v-if="logo" class="course__logo" :src="logo" alt="" height="40" decoding="async" />
+        <img v-if="logo" class="course__logo" :src="logo" alt="" height="48" decoding="async" />
         <span
           >{{ partner }}<template v-if="country"> · {{ country }}</template></span
         >
@@ -430,7 +430,7 @@ useHead({
 }
 .course__logo {
   flex: none;
-  height: 2.5rem;
+  height: 3rem;
   width: auto;
   max-width: 10rem;
   object-fit: contain;

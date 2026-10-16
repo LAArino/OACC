@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Prettier also skips what .gitignore lists.
+
+# Vendored third-party bundle (Redoc), kept byte-identical to upstream:
+# apps/api/static/openapi/README.md.
+apps/api/static/

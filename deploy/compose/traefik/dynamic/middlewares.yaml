@@ -32,6 +32,17 @@ http:
       headers:
         contentSecurityPolicy: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 
+    # Self-hosted OpenAPI viewer (/api/{public,admin}/v1/docs and its bundle under
+    # /api/docs-assets): HTML pages rendered by the vendored Redoc bundle, served by
+    # the api from the portal origin. Replaces security-headers-api on the
+    # api-docs router. No inline script; 'unsafe-inline' styles because Redoc
+    # (styled-components) injects <style> elements at runtime; the search index
+    # runs in a blob: worker; connect-src fetches openapi.json. Nothing from a
+    # third-party origin.
+    security-headers-api-docs:
+      headers:
+        contentSecurityPolicy: "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+
     # Auth host (Keycloak). Keycloak sets its own CSP and X-Frame-Options per
     # realm (Realm settings > Security defenses), so only transport headers here.
     security-headers-auth:
@@ -69,6 +80,11 @@ http:
         average: 30
         period: 1s
         burst: 60
+    ratelimit-docs:
+      rateLimit:
+        average: 10
+        period: 1s
+        burst: 20
 
 tls:
   options:

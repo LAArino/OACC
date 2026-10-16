@@ -58,7 +58,7 @@ The credential is **write-only**. It is encrypted with AES-256-GCM (12-byte nonc
 
 ## Integration settings
 
-Set on the *Integration settings* page (`partner_admin` of the organization or `alliance_admin`), which validates every field before saving and sends `PUT /api/admin/v1/organizations/{orgId}/integration`; the page's "Test connection" and "Sync now" use the saved settings. The credential is write-only: the page shows only whether one is stored and lets you keep, replace or delete it. For scripting, the body of the `PUT` is the **full document**: an omitted member takes its default, not its current value (except `secret`). Every change is audited with from/to values.
+Set on the *Integration settings* page (`partner_admin` of the organization or `alliance_admin`), which validates every field before saving and sends `PUT /api/admin/v1/organizations/{orgId}/integration`; the page's "Test connection" and "Sync now" use the saved settings. The credential is write-only: the page shows only whether one is stored and lets you keep, replace or delete it. For scripting, the body of the `PUT` is the **full document**: an omitted member takes its default, not its current value (except `secret`). Every change is audited with from/to values. Every admin operation, with its request and response schemas and error codes, can be read in the browser at `https://<portal>/api/admin/v1/docs` (the OpenAPI document of the admin API, rendered by the portal itself; no sign-in needed to read it).
 
 ```sh
 API=https://portal.example.org/api/admin/v1

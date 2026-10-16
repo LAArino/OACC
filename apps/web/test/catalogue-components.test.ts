@@ -690,7 +690,7 @@ describe('CourseCard', () => {
     expect(img.attributes()).toMatchObject({
       src: '/branding/partner-urv.svg',
       alt: '',
-      height: '24',
+      height: '32',
       loading: 'lazy',
     });
     // Next to the name, not instead of it.

@@ -672,3 +672,8 @@ button.button.button--danger-text[aria-disabled='true'] {
   background: var(--c-notice-bg);
   padding: 0.5rem 1rem;
 }
+
+/* Secondary text next to a value (e.g. the slug after an organization name). */
+.admin-muted {
+  color: var(--c-muted);
+}
