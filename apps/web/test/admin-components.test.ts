@@ -227,4 +227,39 @@ describe('AdminStatusBadge and AdminRunSummary', () => {
     expect(w.find('a').attributes('href')).toBe('/en/admin/sync-runs/x');
     expect(await axeViolations(w.html())).toEqual([]);
   });
+
+  it('lists the original CSV file names when the run has them', async () => {
+    const w = await mountSuspended(AdminRunSummary, {
+      props: {
+        run: {
+          ...fixtures.run({ files: { courses: 'x.csv', offerings: 'y.csv' } }),
+          upload_object_key: 'org/run',
+        },
+      },
+    });
+    const files = w.findAll('dt').find((dt) => dt.text() === 'Uploaded files')!;
+    const dd = files.element.nextElementSibling as HTMLElement;
+    expect([...dd.querySelectorAll('li')].map((li) => li.textContent?.trim())).toEqual([
+      'Courses (courses.csv): x.csv',
+      'Offerings (offerings.csv): y.csv',
+    ]);
+    expect(w.text()).not.toContain('org/run');
+    expect(await axeViolations(w.html())).toEqual([]);
+  });
+
+  it('lists only the files the run has, and falls back to the upload key without names', async () => {
+    const one = await mountSuspended(AdminRunSummary, {
+      props: { run: fixtures.run({ files: { offerings: 'only-offerings.csv' } }) },
+    });
+    expect(one.findAll('.admin-run-summary__files li').map((li) => li.text())).toEqual([
+      'Offerings (offerings.csv): only-offerings.csv',
+    ]);
+    const old = await mountSuspended(AdminRunSummary, {
+      props: { run: { ...fixtures.run({ files: null }), upload_object_key: 'org/run' } },
+    });
+    expect(old.find('.admin-run-summary__files').exists()).toBe(false);
+    const dd = old.findAll('dt').find((dt) => dt.text() === 'Uploaded files')!.element
+      .nextElementSibling as HTMLElement;
+    expect(dd.textContent?.trim()).toBe('org/run');
+  });
 });

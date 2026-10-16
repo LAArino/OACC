@@ -270,6 +270,25 @@ clientScopes:
           id.token.claim: "false"
           userinfo.token.claim: "false"
           introspection.token.claim: "true"
+      # schac_home_organization = user attribute schacHomeOrganization, which the
+      # partner IdP's attribute importer sets at first broker login. Always an
+      # array (multivalued); absent for local users and for brokered users whose
+      # IdP did not release the attribute. The API checks it at invitation
+      # acceptance and falls back to the Admin API user attribute when the
+      # claim is missing (tokens issued before this mapper existed).
+      - name: schac_home_organization
+        protocol: openid-connect
+        protocolMapper: oidc-usermodel-attribute-mapper
+        config:
+          user.attribute: schacHomeOrganization
+          claim.name: schac_home_organization
+          jsonType.label: String
+          multivalued: "true"
+          aggregate.attrs: "false"
+          access.token.claim: "true"
+          id.token.claim: "false"
+          userinfo.token.claim: "false"
+          introspection.token.claim: "true"
       # roles = flat array of OECP realm roles. Only partner_admin and
       # alliance_admin are in the role scope of client oecp-admin (scopeMappings
       # below) and the clients use fullScopeAllowed: false, so default roles

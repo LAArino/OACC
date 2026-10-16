@@ -393,7 +393,12 @@ export class CanonicalWriter {
       const revived = found?.deleted_at
         ? await this.reviveCourse(trx, ctx, found, course.ext_id)
         : false;
-      const existing = found && revived ? { ...found, overrides: {}, content_hash: null } : found;
+      const dropped =
+        found && !revived
+          ? await this.dropLeftoverCourseOverrides(trx, ctx, found, course.ext_id)
+          : false;
+      const existing =
+        found && (revived || dropped) ? { ...found, overrides: {}, content_hash: null } : found;
 
       const source = {
         status: course.status as LifecycleStatus,
@@ -550,7 +555,12 @@ export class CanonicalWriter {
       const revived = found?.deleted_at
         ? await this.reviveOffering(trx, ctx, found, historyId)
         : false;
-      const existing = found && revived ? { ...found, overrides: {}, content_hash: null } : found;
+      const dropped =
+        found && !revived
+          ? await this.dropLeftoverOfferingOverrides(trx, ctx, found, historyId)
+          : false;
+      const existing =
+        found && (revived || dropped) ? { ...found, overrides: {}, content_hash: null } : found;
 
       const source = {
         status: offering.status as LifecycleStatus,
@@ -1322,10 +1332,20 @@ export class CanonicalWriter {
         is_machine_translated: effective.is_machine_translated as boolean,
         ...(hasOverrides(overrides) ? { overrides: withSources(overrides, source) } : {}),
       };
+      // Only a real change updates the row, so `course_texts.updated_at` (public
+      // `texts.<lang>.updated_at`) dates the language's last change, not the course's.
+      const columns = Object.keys(values) as (keyof typeof values)[];
       await trx
         .insertInto('course_texts')
         .values({ course_id: courseId, lang, ...values })
-        .onConflict((oc) => oc.columns(['course_id', 'lang']).doUpdateSet(values))
+        .onConflict((oc) =>
+          oc
+            .columns(['course_id', 'lang'])
+            .doUpdateSet(values)
+            .where(
+              sql<boolean>`(${sql.join(columns.map((c) => sql.ref(`course_texts.${c}`)))}) IS DISTINCT FROM (${sql.join(columns.map((c) => sql.ref(`excluded.${c}`)))})`,
+            ),
+        )
         .execute();
     }
     // Languages the source no longer has but overrides keep: no source value any more,
@@ -1432,6 +1452,93 @@ export class CanonicalWriter {
       historyId,
     );
     return true;
+  }
+
+  /**
+   * Spec §6.5: overrides exist only while the authoritative channel is `oeapi`. A
+   * CSV or form write (only possible when it is not) drops the overrides left
+   * from an `oeapi` period, the course's text overrides included, and resets the
+   * hash so the write applies; audited `course.overrides_drop`. The form drops
+   * them itself before writing (its save audit row lists them), so this applies
+   * to CSV runs in practice. Harvests keep overrides.
+   */
+  private async dropLeftoverCourseOverrides(
+    trx: Trx,
+    ctx: WriteContext,
+    course: { id: string; overrides: Record<string, unknown> | null },
+    extId: string,
+  ): Promise<boolean> {
+    if (ctx.channel === 'oeapi') return false;
+    const texts = await trx
+      .selectFrom('course_texts')
+      .select(['lang', 'overrides'])
+      .where('course_id', '=', course.id)
+      .where(sql<boolean>`overrides <> '{}'::jsonb`)
+      .orderBy('lang')
+      .execute();
+    const keys = [
+      ...Object.keys(course.overrides ?? {}),
+      ...texts.flatMap((t) => Object.keys(t.overrides).map((field) => `texts.${t.lang}.${field}`)),
+    ];
+    if (keys.length === 0) return false;
+    await trx
+      .updateTable('courses')
+      .set({ overrides: {}, content_hash: null })
+      .where('id', '=', course.id)
+      .execute();
+    if (texts.length > 0) {
+      await trx
+        .updateTable('course_texts')
+        .set({ overrides: {} })
+        .where('course_id', '=', course.id)
+        .execute();
+    }
+    await this.auditOverridesDrop(trx, ctx, 'course', course.id, keys, extId);
+    return true;
+  }
+
+  /** {@link dropLeftoverCourseOverrides} for an offering (`course_offering.overrides_drop`). */
+  private async dropLeftoverOfferingOverrides(
+    trx: Trx,
+    ctx: WriteContext,
+    offering: { id: string; overrides: Record<string, unknown> | null },
+    historyId: string,
+  ): Promise<boolean> {
+    const keys = Object.keys(offering.overrides ?? {});
+    if (ctx.channel === 'oeapi' || keys.length === 0) return false;
+    await trx
+      .updateTable('course_offerings')
+      .set({ overrides: {}, content_hash: null })
+      .where('id', '=', offering.id)
+      .execute();
+    await this.auditOverridesDrop(trx, ctx, 'course_offering', offering.id, keys, historyId);
+    return true;
+  }
+
+  private async auditOverridesDrop(
+    trx: Trx,
+    ctx: WriteContext,
+    entityType: 'course' | 'course_offering',
+    entityId: string,
+    droppedOverrides: string[],
+    extId: string,
+  ): Promise<void> {
+    await trx
+      .insertInto('audit_log')
+      .values({
+        actor_sub: ctx.actor,
+        actor_org_id: null,
+        action: `${entityType}.overrides_drop`,
+        entity_type: entityType,
+        entity_id: entityId,
+        changes: {
+          ext_id: extId,
+          channel: ctx.channel,
+          overrides_dropped: droppedOverrides,
+          sync_run_id: ctx.syncRunId,
+        },
+      })
+      .execute();
   }
 
   private async auditRevive(

@@ -11,6 +11,7 @@ import {
   type CsvFileKind,
   type CsvIssue,
   type CsvReferenceData,
+  csvReferenceDataFromAdminCsvReference,
   decodeCsvBytes,
   type LifecycleStatus,
   ERROR_CODES,
@@ -31,8 +32,8 @@ import { CanonicalContentRejected, CanonicalWriter } from '../canonical-writer.s
 import { offeringKey, type WriteContext } from '../ports/canonical-writer.js';
 import type { FinishRun, RunCounters, SyncRunRow } from '../sync-runs.repository.js';
 import { SyncRunsRepository } from '../sync-runs.repository.js';
-import { teachingUnits } from '../teaching-units.js';
 import { CSV_SYSTEM_ACTOR } from './csv.constants.js';
+import { loadCsvReferenceLists } from './csv-reference-data.js';
 import {
   CsvAdapter,
   type ExistingCourse,
@@ -506,25 +507,11 @@ export class CsvIngestionService {
   }
 
   private async referenceData(organizationId: string): Promise<CsvReferenceData> {
-    const [isced, modes, units, courses, attributeDefinitions] = await Promise.all([
-      this.db.selectFrom('isced_broad_fields').select('code').execute(),
-      this.db.selectFrom('delivery_modes').select('code').where('active', '=', true).execute(),
-      teachingUnits(this.db, organizationId),
-      this.db
-        .selectFrom('courses')
-        .select('ext_id')
-        .where('organization_id', '=', organizationId)
-        .where('deleted_at', 'is', null)
-        .execute(),
+    const [lists, attributeDefinitions] = await Promise.all([
+      loadCsvReferenceLists(this.db, organizationId),
       loadAttributeDefinitions(this.db),
     ]);
-    return {
-      attributeDefinitions,
-      iscedCodes: isced.map((r) => r.code),
-      deliveryModes: modes.map((r) => r.code),
-      teachingUnitCodes: units.keys(),
-      courseCodes: courses.map((r) => r.ext_id),
-    };
+    return csvReferenceDataFromAdminCsvReference(lists, attributeDefinitions);
   }
 
   /** Current values of the uploaded courses, for columns absent from the header. */

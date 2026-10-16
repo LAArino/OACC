@@ -4,8 +4,10 @@
  * `/api/admin/v1/organizations/{orgId}/integration…` and `/api/admin/v1/sync-runs…`.
  */
 import { z } from 'zod';
+import { csvUploadResponse } from './csv.js';
 import { orgType, sourceChannel, syncRunStatus } from './enums.js';
 import { ianaTimeZone, isoDateTime, uuid } from './primitives.js';
+import { problemError } from './problem.js';
 
 export const accessMode = z.enum(['direct', 'surfeduhub']);
 export type AccessMode = z.infer<typeof accessMode>;
@@ -148,6 +150,14 @@ export const integrationUpdateRequest = z
   });
 export type IntegrationUpdateRequest = z.infer<typeof integrationUpdateRequest>;
 
+const syncRunFileName = z.string().min(1).max(200);
+/** `SyncRun.files`: original name per uploaded CSV file. */
+export const syncRunFiles = z.strictObject({
+  courses: syncRunFileName.optional(),
+  offerings: syncRunFileName.optional(),
+});
+export type SyncRunFiles = z.infer<typeof syncRunFiles>;
+
 /** A sync run as listed by the sync monitor (spec §8.1.4). */
 export const syncRun = z.object({
   id: uuid,
@@ -167,9 +177,26 @@ export const syncRun = z.object({
   n_rejected: z.int(),
   n_withdrawn: z.int(),
   error_summary: z.string().nullable(),
+  /**
+   * Original names of the uploaded files of a CSV run (`courses`, `offerings`;
+   * at most 200 characters each, as the browser sent them); null for harvests,
+   * form saves and runs without files. Kept when the files are purged.
+   */
+  files: syncRunFiles.nullable(),
   created_at: isoDateTime,
 });
 export type SyncRun = z.infer<typeof syncRun>;
+
+/**
+ * `POST /api/admin/v1/organizations/{orgId}/uploads` → 201: the upload was
+ * processed in the request; the finished run and its warnings (spec §6.3).
+ */
+export const csvUploadInlineResponse = csvUploadResponse.extend({
+  processed_inline: z.literal(true),
+  run: syncRun,
+  warnings: z.array(problemError),
+});
+export type CsvUploadInlineResponse = z.infer<typeof csvUploadInlineResponse>;
 
 /** `GET /api/admin/v1/organizations/{orgId}/sync-runs?limit=` */
 export const syncRunListQuery = z.object({

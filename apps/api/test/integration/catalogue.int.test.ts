@@ -449,7 +449,15 @@ describe.runIf(describeWithDatabase === 'run')('public catalogue API (PostgreSQL
         seats_updated_at: '2026-10-13T08:00:00.000Z',
         application_url: 'https://uibk.example/apply/703001-2027S',
         application_instructions: {},
+        updated_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/),
       });
+      // Per-field dates of the course page: never later than the page's own date.
+      for (const stamp of [
+        ...Object.values(body.texts).map((t) => t.updated_at),
+        ...body.offerings.map((o) => o.updated_at),
+      ]) {
+        expect(Date.parse(stamp)).toBeLessThanOrEqual(Date.parse(body.updated_at));
+      }
       expect(body).toMatchObject({ kind: 'course', levels: ['master'] });
       expect(body.attributes.map((a) => [a.key, a.values.map((v) => v.value)])).toEqual([
         ['educational_hub', ['digital_society_global_citizenship']],

@@ -2,6 +2,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
+  type AdminCsvReference,
   type AttributeDefinition,
   CSV_SCHEMA_VERSION,
   CSV_UPLOADS_PER_HOUR,
@@ -9,6 +10,7 @@ import {
   decodeCsvBytes,
   parseCsvText,
   type SyncRun,
+  type SyncRunFiles,
 } from '@oecp/schemas';
 import { sql } from 'kysely';
 import { ProblemException } from '../../common/problem.js';
@@ -20,6 +22,7 @@ import {
 } from '../../ingestion/csv/csv-ingestion.service.js';
 import { CSV_INLINE_MAX_ROWS } from '../../ingestion/csv/csv.constants.js';
 import { CsvQueue } from '../../ingestion/csv/csv.queue.js';
+import { loadCsvReferenceLists } from '../../ingestion/csv/csv-reference-data.js';
 import { UploadStorage } from '../../ingestion/csv/upload-storage.js';
 import { SyncRunsRepository, toApiSyncRun } from '../../ingestion/sync-runs.repository.js';
 import type { AdminPrincipal } from '../auth/claims.js';
@@ -33,6 +36,15 @@ export class UploadRateLimited extends ProblemException {
   constructor(readonly retryAfterSeconds: number) {
     super(429, 'oecp.csv.rate_limited', `Try again in ${retryAfterSeconds} s`);
   }
+}
+
+/** `SyncRun.files` entry: the file name as sent, 1–200 characters (`<kind>.csv` if empty). */
+export function uploadedFileName(
+  file: Pick<UploadedCsvFile, 'originalname'>,
+  kind: CsvFileKind,
+): string {
+  const name = Array.from(file.originalname.trim()).slice(0, 200).join('');
+  return name.length > 0 ? name : `${kind}.csv`;
 }
 
 export type UploadResult =
@@ -58,6 +70,11 @@ export class UploadsService {
     @Optional() @Inject(UPLOADS_CLOCK) clock?: () => Date,
   ) {
     this.now = clock ?? (() => new Date());
+  }
+
+  /** `GET /api/admin/v1/reference`: what an upload of the organization is checked against. */
+  csvReference(organizationId: string): Promise<AdminCsvReference> {
+    return loadCsvReferenceLists(this.db, organizationId);
   }
 
   /** The alliance's attribute definitions (`attr_<key>` columns of `courses.csv`). */
@@ -106,6 +123,10 @@ export class UploadsService {
 
     const now = this.now();
     const id = randomUUID();
+    // Original names as sent by the browser, cut like the audit row's (spec §6.3).
+    const names = Object.fromEntries(
+      present.map(({ kind, file }) => [kind, uploadedFileName(file, kind)]),
+    ) as SyncRunFiles;
     const key = UploadStorage.key(organizationId, id);
     await this.db.transaction().execute(async (trx) => {
       await sql`select pg_advisory_xact_lock(hashtext(${'oecp-csv-upload:' + organizationId}))`.execute(
@@ -136,6 +157,7 @@ export class UploadsService {
           triggered_by: admin.sub,
           schema_version: CSV_SCHEMA_VERSION,
           upload_object_key: key,
+          files: names,
           status: 'queued',
           created_at: now,
         })
@@ -157,7 +179,7 @@ export class UploadsService {
               present.map(({ kind, file }) => [
                 kind,
                 {
-                  name: file.originalname.slice(0, 200),
+                  name: names[kind],
                   bytes: file.size,
                   sha256: createHash('sha256').update(file.buffer).digest('hex'),
                 },

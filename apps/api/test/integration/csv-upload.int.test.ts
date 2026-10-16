@@ -7,6 +7,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Logger } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
+import { adminCsvReference } from '@oecp/schemas';
 import { sql } from 'kysely';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -694,6 +695,150 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
     ]);
   });
 
+  /** Ages the organization's runs out of the upload rate window (10 per hour). */
+  const freshRateWindow = (org: string) =>
+    sql`UPDATE sync_runs SET created_at = created_at - interval '2 hours'
+      WHERE organization_id = ${org}`.execute(tdb.db);
+
+  it('drops overrides left from an oeapi period, like the form (spec §6.5)', async () => {
+    await freshRateWindow(ORG.urv);
+    const courses = `${COURSES_HEADER}\n1.0,LEFTOVER-1,draft,3,0613,Leftover course\n`;
+    const offerings = `${OFFERINGS_HEADER}\n1.0,LEFTOVER-1,L1-2027,draft,2027-03-01,2027-06-30,en,online\n`;
+    await upload(ORG.urv, { courses, offerings }).expect(201);
+    const course = await tdb.db
+      .selectFrom('courses')
+      .select('id')
+      .where('organization_id', '=', ORG.urv)
+      .where('ext_id', '=', 'LEFTOVER-1')
+      .executeTakeFirstOrThrow();
+    const entry = { by: 'kc-partner-admin', at: '2026-09-01T00:00:00Z' };
+    // As an oeapi period would have left them (the organization is csv/form now).
+    await tdb.db
+      .updateTable('courses')
+      .set({ ects: '9', overrides: { ects: { value: 9, source: 3, ...entry } } })
+      .where('id', '=', course.id)
+      .execute();
+    await tdb.db
+      .updateTable('course_texts')
+      .set({
+        title: 'Overridden',
+        overrides: { title: { value: 'Overridden', source: 'Leftover course', ...entry } },
+      })
+      .where('course_id', '=', course.id)
+      .execute();
+    await tdb.db
+      .updateTable('course_offerings')
+      .set({
+        campus: 'Tarragona',
+        overrides: { campus: { value: 'Tarragona', source: null, ...entry } },
+      })
+      .where('course_id', '=', course.id)
+      .execute();
+
+    // The same files again: without the drop the overrides would keep masking them.
+    const again = await upload(ORG.urv, { courses, offerings }).expect(201);
+    expect(again.body.run).toMatchObject({ n_updated: 2, n_unchanged: 0 });
+    const after = await tdb.db
+      .selectFrom('courses')
+      .select(['ects', 'overrides'])
+      .where('id', '=', course.id)
+      .executeTakeFirstOrThrow();
+    expect(Number(after.ects)).toBe(3);
+    expect(after.overrides).toEqual({});
+    const text = await tdb.db
+      .selectFrom('course_texts')
+      .select(['title', 'overrides'])
+      .where('course_id', '=', course.id)
+      .executeTakeFirstOrThrow();
+    expect(text).toEqual({ title: 'Leftover course', overrides: {} });
+    const offering = await tdb.db
+      .selectFrom('course_offerings')
+      .select(['id', 'campus', 'overrides'])
+      .where('course_id', '=', course.id)
+      .executeTakeFirstOrThrow();
+    // `campus` is not in the header: the field keeps the value the catalogue showed.
+    expect(offering).toMatchObject({ campus: 'Tarragona', overrides: {} });
+    const audits = await tdb.db
+      .selectFrom('audit_log')
+      .select(['action', 'entity_id', 'changes'])
+      .where('action', 'in', ['course.overrides_drop', 'course_offering.overrides_drop'])
+      .orderBy('id')
+      .execute();
+    expect(audits).toEqual([
+      {
+        action: 'course.overrides_drop',
+        entity_id: course.id,
+        changes: {
+          ext_id: 'LEFTOVER-1',
+          channel: 'csv',
+          overrides_dropped: ['ects', 'texts.en.title'],
+          sync_run_id: again.body.sync_run_id,
+        },
+      },
+      {
+        action: 'course_offering.overrides_drop',
+        entity_id: offering.id,
+        changes: {
+          ext_id: 'LEFTOVER-1#L1-2027',
+          channel: 'csv',
+          overrides_dropped: ['campus'],
+          sync_run_id: again.body.sync_run_id,
+        },
+      },
+    ]);
+    // A third upload finds nothing left to drop.
+    const third = await upload(ORG.urv, { courses, offerings }).expect(201);
+    expect(third.body.run).toMatchObject({ n_updated: 0, n_unchanged: 2 });
+  });
+
+  it('records the original file names on the run (SyncRun.files)', async () => {
+    await freshRateWindow(ORG.urv);
+    const courses = `${COURSES_HEADER}\n1.0,FILES-1,draft,3,0613,Files course\n`;
+    const response = await http()
+      .post(uploadUrl(ORG.urv))
+      .set('Authorization', auth.partner)
+      .attach('courses', Buffer.from(courses, 'utf8'), 'cursos-2027 (versió ñ).csv')
+      .expect(201);
+    expect(response.body.run.files).toEqual({ courses: 'cursos-2027 (versió ñ).csv' });
+    const row = await tdb.db
+      .selectFrom('sync_runs')
+      .select('files')
+      .where('id', '=', response.body.sync_run_id)
+      .executeTakeFirstOrThrow();
+    expect(row.files).toEqual({ courses: 'cursos-2027 (versió ñ).csv' });
+  });
+
+  it('serves the reference lists of the browser validator (GET /reference)', async () => {
+    const own = await http()
+      .get('/api/admin/v1/reference')
+      .set('Authorization', auth.partner)
+      .expect(200);
+    expect(own.headers['cache-control']).toBe('private, max-age=60');
+    expect(own.body).toMatchObject({
+      organization_id: ORG.urv,
+      language_tags: null,
+      delivery_modes: expect.arrayContaining(['online']),
+      isced_broad_fields: expect.arrayContaining(['06']),
+    });
+    expect(own.body.course_codes).toEqual(expect.arrayContaining(['FILES-1', 'LEFTOVER-1']));
+    expect([...own.body.course_codes].sort()).toEqual(own.body.course_codes);
+    expect(adminCsvReference.parse(own.body)).toEqual(own.body);
+    const other = await http()
+      .get(`/api/admin/v1/reference?org=${ORG.urv}`)
+      .set('Authorization', auth.alliance)
+      .expect(200);
+    expect(other.body).toEqual(own.body);
+    await http()
+      .get(`/api/admin/v1/reference?org=${ORG.uibk}`)
+      .set('Authorization', auth.partner)
+      .expect(403);
+    await http()
+      .get('/api/admin/v1/reference?org=not-a-uuid')
+      .set('Authorization', auth.partner)
+      .expect(400);
+    await http().get('/api/admin/v1/reference').expect(401);
+  });
+
   it('limits uploads to 10 per hour per organization', async () => {
     const now = new Date();
     await tdb.db
@@ -777,10 +922,14 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
     );
     const after = await tdb.db
       .selectFrom('sync_runs')
-      .select(['upload_object_key', 'status'])
+      .select(['upload_object_key', 'status', 'files'])
       .where('id', '=', run.id)
       .executeTakeFirstOrThrow();
-    expect(after).toEqual({ upload_object_key: null, status: 'succeeded' });
+    expect(after).toEqual({
+      upload_object_key: null,
+      status: 'succeeded',
+      files: { courses: 'courses.csv', offerings: 'offerings.csv' }, // the names stay
+    });
     const audit = await tdb.db
       .selectFrom('audit_log')
       .select('actor_sub')

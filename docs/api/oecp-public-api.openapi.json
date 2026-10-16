@@ -1720,6 +1720,11 @@
           },
           "is_machine_translated": {
             "type": "boolean"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
           }
         },
         "required": [
@@ -1735,7 +1740,8 @@
           "privacy_notice",
           "remarks",
           "keywords",
-          "is_machine_translated"
+          "is_machine_translated",
+          "updated_at"
         ],
         "additionalProperties": false
       },
@@ -2013,6 +2019,11 @@
             "additionalProperties": {
               "type": "string"
             }
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
           }
         },
         "required": [
@@ -2033,7 +2044,8 @@
           "seats_available",
           "seats_updated_at",
           "application_url",
-          "application_instructions"
+          "application_instructions",
+          "updated_at"
         ],
         "additionalProperties": false,
         "description": "Seats (DL 8): show `alliance_seats` when set and `seats_available` \"as of `seats_updated_at`\" when set; never compute remaining alliance seats."

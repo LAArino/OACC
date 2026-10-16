@@ -115,6 +115,9 @@ const iscedLabels = computed(() =>
 );
 const teachingUnit = computed(() => labelText(course.value?.teaching_unit?.name, locale.value));
 const updatedAt = computed(() => formatDateTimeAsDate(course.value?.updated_at, locale.value));
+const textUpdatedAt = computed(() =>
+  formatDateTimeAsDate(shownText.value?.updated_at, locale.value),
+);
 const levelCount = computed(() => (course.value ? courseLevels(course.value).length : 0));
 const level = computed(() => {
   const c = course.value;
@@ -306,7 +309,9 @@ useHead({
         </template>
         <template v-if="updatedAt">
           <dt>{{ t('facts.updated') }}</dt>
-          <dd>{{ updatedAt }}</dd>
+          <dd>
+            <time :datetime="course.updated_at">{{ updatedAt }}</time>
+          </dd>
         </template>
       </dl>
       <template v-if="attributes.length">
@@ -387,6 +392,10 @@ useHead({
           <h3 :lang="locale">{{ t('course.sections.privacy_notice') }}</h3>
           <p class="text-block">{{ sectionText('privacy_notice') }}</p>
         </section>
+        <p v-if="textUpdatedAt" class="course__text-updated" :lang="locale">
+          {{ t('facts.updated') }}:
+          <time :datetime="shownText.updated_at">{{ textUpdatedAt }}</time>
+        </p>
       </div>
     </section>
 
@@ -528,6 +537,11 @@ useHead({
   }
 }
 .course__dates-note {
+  color: var(--c-muted);
+  font-size: 0.9rem;
+}
+.course__text-updated {
+  margin: 1rem 0 0;
   color: var(--c-muted);
   font-size: 0.9rem;
 }

@@ -7,22 +7,29 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Res,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import {
+  type AdminCsvReference,
+  type AdminCsvReferenceQuery,
+  adminCsvReferenceQuery,
   type AttributeDefinition,
   type CsvFileKind,
   type CsvIssue,
+  type CsvUploadInlineResponse,
   type CsvUploadResponse,
   csvTemplate,
   PROBLEM_CONTENT_TYPE,
   type ProblemDetails,
   type ProblemError,
-  type SyncRun,
 } from '@oecp/schemas';
+import { CacheControlInterceptor } from '../../catalogue/cache-control.interceptor.js';
+import { ProblemException } from '../../common/problem.js';
+import { ZodValidationPipe } from '../../common/zod-validation.pipe.js';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard.js';
 import type { AdminPrincipal } from '../auth/claims.js';
 import { CurrentAdmin, RequireRoles } from '../auth/decorators.js';
@@ -35,16 +42,12 @@ interface HttpResponse {
   setHeader(name: string, value: string): unknown;
 }
 
-/** Inline upload result (201): the finished run and its warnings. */
-export interface CsvUploadInlineResponse extends CsvUploadResponse {
-  run: SyncRun;
-  warnings: ProblemError[];
-}
-
 /** Problem members of a failed inline upload (spec §6.6). */
 const MAX_PROBLEM_ERRORS = 1_000;
 
 const uuid = new ParseUUIDPipe();
+/** `GET /reference`: per administrator, briefly (course codes change with every upload). */
+export const CSV_REFERENCE_CACHE = 'private, max-age=60';
 const CSV_SCHEMA_PATH = createRequire(import.meta.url).resolve(
   '@oecp/schemas/json/csv/oecp-csv-1.3.schema.json',
 );
@@ -152,6 +155,30 @@ export class UploadsController {
   @Get('csv-template/offerings.csv')
   offeringsTemplate(@Res({ passthrough: true }) response: HttpResponse): string {
     return this.template('offerings', response);
+  }
+
+  /**
+   * Reference lists of the browser CSV validator for one organization (`org`,
+   * default the caller's `org_id`; sub-units of a partner admin's organization
+   * included): the same lists the server validates uploads against. Private
+   * cache of 60 s; clients refetch with `Cache-Control: no-cache` after an upload.
+   */
+  @Get('reference')
+  @UseInterceptors(new CacheControlInterceptor(CSV_REFERENCE_CACHE))
+  async csvReference(
+    @CurrentAdmin() admin: AdminPrincipal,
+    @Query(new ZodValidationPipe(adminCsvReferenceQuery)) query: AdminCsvReferenceQuery,
+  ): Promise<AdminCsvReference> {
+    const orgId = query.org ?? admin.orgId;
+    if (!orgId) {
+      throw new ProblemException(
+        400,
+        'oecp.request.validation_failed',
+        'Query parameter org is required',
+      );
+    }
+    await this.access.assert(admin, orgId);
+    return this.uploads.csvReference(orgId);
   }
 
   /**

@@ -10,7 +10,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- **Migrations 0009 and 0010** (`0009_course_level_trigger.sql`,
+  `0010_sync_run_files.sql`): a trigger that keeps `courses.level` equal to
+  `levels[1]` (with a backfill that does not touch `updated_at`) and a
+  `sync_runs.files` column backfilled from the `upload.create` audit rows.
+  Both additive and fast; reversible with their Down sections. Run
+  `docker compose run --rm api pnpm db:migrate` after pulling the images.
+- **Realm**: the client scope `oecp` gains the `schac_home_organization`
+  mapper; `keycloak-config` re-applies `realm-oecp.yaml` on the next
+  `docker compose up` (`docker compose wait keycloak-config` exits 0).
+- **Images must be rebuilt**: `docker compose up -d --build --wait` recreates
+  `api`, `worker` and `web`.
+- No new secret or variable.
+
 ### Added
+
+- Identity: the access token carries `schac_home_organization` (a protocol
+  mapper on the client scope `oecp`, from the Keycloak user attribute
+  `schacHomeOrganization`, always an array); invitation acceptance reads the
+  claim first and falls back to the Admin API lookup only when it is absent.
+- Public API: `texts.<lang>.updated_at` and `offerings[].updated_at`
+  (ISO 8601, never null) on the course page response; a language's texts are
+  now written only when they change, so the date is the language's last
+  change and not the course's. The portal shows the date of the shown
+  language under its texts and a *Last updated* row on each offering, as
+  `<time>` elements with the machine-readable value.
+- Admin API: `SyncRun.files` with the original file names of a CSV upload
+  (`{courses?, offerings?}`, null for harvests and form saves, kept after the
+  files are purged, backfilled by migration 0010; non-ASCII file names are
+  decoded as UTF-8); `GET /api/admin/v1/reference?org=` returning the lists
+  the server validates uploads against (delivery modes, ISCED broad fields,
+  sub-unit codes, course codes; `language_tags` null while no list is
+  enforced), scoped to the caller's organization and sub-units with a
+  60-second private cache; the inline upload 201 response has a schema
+  (`csvUploadInlineResponse`) and `adminCsvReference` has a helper that
+  turns it into the browser validator's reference data. The admin run
+  summary shows the stored file names.
+- Database: migration 0009 enforces `courses.level = levels[1]` with the
+  trigger `courses_level_from_levels` (a write of `level` alone is replaced
+  by `levels[1]`); migration 0010 adds `sync_runs.files` with a CHECK on its
+  shape.
+- Ingestion: a CSV write to a course or offering that still carries
+  overrides from an `oeapi` period drops them (the course's text overrides
+  included), resets the content hash so the row applies, and audits
+  `course.overrides_drop` / `course_offering.overrides_drop` with the keys
+  dropped; harvests keep overrides. The spec states the intended rule for
+  rejected entities: counted as seen (`absent_count` reset) but not
+  republished.
 
 - CI: the identity path is an end-to-end suite (`tools/e2e-identity`,
   Playwright Test 1.59, four specs: bootstrap and local account, brokered
@@ -48,6 +96,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- CSV JSON Schema (`/api/admin/v1/csv/schema`): single-value cells
+  (`status`, `kind`, `level` and the date columns) now `$ref` the canonical
+  schema, which the document bundles under `$defs["oecp-canonical-1"]` with
+  its own `$id` (`urn:oecp:schema:canonical:1`), so the served document stays
+  self-contained; the canonical schema gains the `$defs` `lifecycleStatus`,
+  `courseKind`, `courseLevel`, `isoDate` and `deliveryModeCode`. Dates now
+  reject non-calendar values such as 2027-02-30. The authoring guide
+  explains how to load the document with Ajv.
 - Portal: partner logos are rendered 32 pixels high on the cards and 48 on
   the course page (24 and 40 before), since official logos come on 2:1
   canvases; the branding README asks for logos trimmed to the mark.

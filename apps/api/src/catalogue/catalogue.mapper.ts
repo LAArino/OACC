@@ -258,6 +258,7 @@ export function toCourseDetail(rows: CourseDetailRows): PublicCourseDetail {
       remarks: t.remarks,
       keywords: t.keywords,
       is_machine_translated: t.is_machine_translated,
+      updated_at: t.updated_at.toISOString(),
     };
   }
   const stamps = [
@@ -325,6 +326,7 @@ export function toCourseDetail(rows: CourseDetailRows): PublicCourseDetail {
       seats_updated_at: toIso(o.seats_updated_at),
       application_url: o.application_url,
       application_instructions: o.application_instructions ?? {},
+      updated_at: o.updated_at.toISOString(),
     })),
     image: publicImage(c.id, c),
     updated_at: updated.toISOString(),

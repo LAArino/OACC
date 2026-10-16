@@ -126,6 +126,7 @@ export const fixtures = {
       n_rejected: 0,
       n_withdrawn: 0,
       error_summary: null,
+      files: null,
       created_at: '2026-10-14T08:59:59.000Z',
       ...overrides,
     };

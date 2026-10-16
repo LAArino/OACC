@@ -50,6 +50,7 @@ Keycloak image by `deploy/compose/dockerfiles/keycloak.Dockerfile`.
 | `org_id` | user attribute `oecp_org_id` |
 | `idp` | user-session note `identity_provider` (broker alias). **Absent for local users**: the API maps a missing `idp` to `local` (spec §2.1) |
 | `email`, `name` | built-in scope `email`; full-name mapper in scope `oecp` |
+| `schac_home_organization` | user attribute `schacHomeOrganization` (attribute mapper in scope `oecp`, always an array), written by the IdP attribute importer at every broker login (`syncMode: FORCE`). **Absent for local users** and when the IdP did not release the attribute. The API compares it with `organizations.schac_home_organization` at invitation acceptance and, only when the claim is missing, reads the user attribute through the Admin API (spec §2.1) |
 
 ### MFA design (spec §2.2)
 
@@ -173,6 +174,11 @@ test; `oecp-admin` itself refuses direct grants):
   `oecp-browser-mfa` a local user reaches LoA 2 and gets `acr: "mfa"`.
 - `idp` is absent for local users (no broker session note); the API maps it
   to `local`.
+- `schac_home_organization` is absent for local users (no such attribute).
+  For a user holding the attribute it is an array, e.g.
+  `"schac_home_organization": ["urv.cat"]` (checked on 2026-10-16 with the
+  Admin API's example access token of client `oecp-admin` for a temporary
+  user, deleted afterwards).
 - `auth_time` is absent from direct-grant tokens and present after a browser
   login.
 - No `realm_access`/`resource_access`: the built-in `roles` and `profile`

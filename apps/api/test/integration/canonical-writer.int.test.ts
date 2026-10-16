@@ -221,6 +221,37 @@ describe.runIf(describeWithDatabase === 'run')('CanonicalWriter (PostgreSQL)', (
     expect(history).toHaveLength(1); // same payload: no new history row
   });
 
+  it('updates a language row only when its texts change (course_texts.updated_at)', async () => {
+    // Another organization, so the absence tests below see only their own courses.
+    const urv = { ...ctx, organizationId: ORG.urv };
+    const base = course({ ext_id: 'C-TEXTS' });
+    await writer.upsertCourse(urv, base, {});
+    const stamps = async () => {
+      const { id } = await tdb.db
+        .selectFrom('courses')
+        .select('id')
+        .where('organization_id', '=', ORG.urv)
+        .where('ext_id', '=', 'C-TEXTS')
+        .executeTakeFirstOrThrow();
+      const rows = await tdb.db
+        .selectFrom('course_texts')
+        .select(['lang', 'updated_at'])
+        .where('course_id', '=', id)
+        .execute();
+      return Object.fromEntries(rows.map((r) => [r.lang, new Date(r.updated_at).getTime()]));
+    };
+    const before = await stamps();
+    const changed = course({
+      ext_id: 'C-TEXTS',
+      ects: 6,
+      texts: { ...base.texts, de: { ...base.texts['de']!, description: 'Statistik.' } },
+    });
+    expect((await writer.upsertCourse(urv, changed, {})).outcome).toBe('updated');
+    const after = await stamps();
+    expect(after['en']).toBe(before['en']); // unchanged language, untouched row
+    expect(after['de']).toBeGreaterThan(before['de']!);
+  });
+
   it('applies overrides on top of harvested values and keeps the hash of the source', async () => {
     const row = await courseRow();
     const by = { by: 'admin-sub', at: '2026-10-14T10:00:00Z' };

@@ -50,6 +50,7 @@ export function toApiSyncRun(row: SyncRunRow): SyncRun {
     n_rejected: row.n_rejected,
     n_withdrawn: row.n_withdrawn,
     error_summary: row.error_summary,
+    files: row.files ?? null,
     created_at: new Date(row.created_at).toISOString(),
   };
 }

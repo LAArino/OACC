@@ -537,6 +537,10 @@ describe('course page', () => {
       Contact: 'international@urv.cat',
       'Last updated': 'Oct 12, 2026',
     });
+    // Course-level date as machine-readable <time>.
+    const updated = w.find('.course__facts time');
+    expect(updated.attributes('datetime')).toBe(fixtures.course.updated_at);
+    expect(updated.text()).toBe('Oct 12, 2026');
     expect(w.findAll('.course__instructors li').map((li) => li.text())).toEqual([
       'Dr. Marta Puig',
       'Dr. Joan Ferrer',
@@ -655,6 +659,33 @@ describe('course page', () => {
     );
     expect(offerings[0]!.text()).toContain('Application deadline passed');
     expect(offerings[1]!.find('a[href="mailto:international@urv.cat"]').exists()).toBe(true);
+  });
+
+  it('shows when each offering was last updated as a <time>', async () => {
+    const w = await mountSuspended(CoursePage, { route: path });
+    const offerings = w.findAll('.course__offering-list > li');
+    const dates = offerings.map((o) => {
+      const time = o.find('.facts time');
+      const dt = time.element.parentElement!.previousElementSibling as HTMLElement;
+      return [dt.textContent?.trim(), time.attributes('datetime'), time.text()];
+    });
+    expect(dates).toEqual([
+      ['Last updated', fixtures.course.offerings[0]!.updated_at, 'Oct 10, 2026'],
+      ['Last updated', fixtures.course.offerings[1]!.updated_at, 'Jul 21, 2026'],
+    ]);
+  });
+
+  it('shows when the shown texts were last updated and follows the language tab', async () => {
+    const w = await mountSuspended(CoursePage, { route: path });
+    const line = () => w.find('#course-text-panel .course__text-updated');
+    expect(line().attributes('lang')).toBe('en');
+    expect(line().text()).toBe('Last updated: Oct 5, 2026');
+    expect(line().find('time').attributes('datetime')).toBe(fixtures.course.texts.en.updated_at);
+    // The tab replaces `?text_lang=` in the route; the panel follows it.
+    await w.findAll('[role="tab"]')[1]!.trigger('click');
+    await vi.waitFor(() => expect(w.find('#course-text-panel').attributes('lang')).toBe('ca'));
+    expect(line().text()).toBe('Last updated: Sep 3, 2026');
+    expect(line().find('time').attributes('datetime')).toBe(fixtures.course.texts.ca.updated_at);
   });
 
   it('lists every attribute of the course with labels [DL 18]', async () => {

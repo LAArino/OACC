@@ -41,7 +41,8 @@
       "privacy_notice": null,
       "remarks": null,
       "keywords": ["clima", "ecologia"],
-      "is_machine_translated": true
+      "is_machine_translated": true,
+      "updated_at": "2026-09-03T08:15:00Z"
     },
     "en": {
       "title": "Climate Change and Mediterranean Ecosystems",
@@ -56,7 +57,8 @@
       "privacy_notice": "Applicant data is processed by URV for admission only. <b>Not HTML</b>",
       "remarks": null,
       "keywords": ["climate", "ecology", "Mediterranean"],
-      "is_machine_translated": false
+      "is_machine_translated": false,
+      "updated_at": "2026-10-05T11:00:00Z"
     }
   },
   "isced_codes": [
@@ -233,7 +235,8 @@
       "application_instructions": {
         "en": "Contact the Aurora office of your home university before 1 October 2026; it nominates up to two students.\nThe host then sends the application form to nominated students.",
         "ca": "Contacta amb l'oficina Aurora de la teva universitat abans de l'1 d'octubre de 2026; nomina fins a dos estudiants.\nLa universitat d'acollida envia el formulari als estudiants nominats."
-      }
+      },
+      "updated_at": "2026-10-10T06:00:00Z"
     },
     {
       "id": "a1b2c3d4-0000-4000-8000-000000000012",
@@ -253,7 +256,8 @@
       "seats_updated_at": null,
       "application_url": null,
       "status": "published",
-      "application_instructions": {}
+      "application_instructions": {},
+      "updated_at": "2026-07-21T14:05:00Z"
     }
   ],
   "image": {

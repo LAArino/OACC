@@ -831,6 +831,51 @@ export const adminReference = z.strictObject({
 });
 export type AdminReference = z.infer<typeof adminReference>;
 
+/** `GET /api/admin/v1/reference?org=`; `org` defaults to the caller's `org_id`. */
+export const adminCsvReferenceQuery = z.object({ org: uuid.optional() });
+export type AdminCsvReferenceQuery = z.infer<typeof adminCsvReferenceQuery>;
+
+/**
+ * `GET /api/admin/v1/reference?org=`: the lists the server validates a CSV upload
+ * of the organization against (spec §6.3), for the browser validator. Plain codes,
+ * sorted; see {@link csvReferenceDataFromAdminCsvReference}.
+ */
+export const adminCsvReference = z.strictObject({
+  organization_id: uuid,
+  /**
+   * Allowed primary subtags of `teaching_languages`; null = no list, any
+   * well-formed BCP 47 tag passes (the server enforces none today).
+   */
+  language_tags: z.array(z.string()).nullable(),
+  /** Active `delivery_modes.code`. */
+  delivery_modes: z.array(z.string()),
+  /** ISCED-F broad fields (a code is valid if its first two digits are listed). */
+  isced_broad_fields: z.array(z.string()),
+  /** `ext_id` of the organization's non-deleted sub-units (`teaching_unit_code`). */
+  teaching_unit_codes: z.array(z.string()),
+  /** `ext_id` of the organization's non-deleted courses (`offerings.csv` `course_code`). */
+  course_codes: z.array(z.string()),
+});
+export type AdminCsvReference = z.infer<typeof adminCsvReference>;
+
+/**
+ * Reference data of the browser CSV validator from `GET /api/admin/v1/reference`;
+ * attribute definitions come from the organization reference or the public one.
+ */
+export function csvReferenceDataFromAdminCsvReference(
+  reference: AdminCsvReference,
+  attributeDefinitions?: AdminReference['attribute_definitions'],
+): CsvReferenceData {
+  return {
+    iscedCodes: reference.isced_broad_fields,
+    deliveryModes: reference.delivery_modes,
+    ...(reference.language_tags ? { languageTags: reference.language_tags } : {}),
+    teachingUnitCodes: reference.teaching_unit_codes,
+    courseCodes: reference.course_codes,
+    ...(attributeDefinitions ? { attributeDefinitions } : {}),
+  };
+}
+
 /** Reference data of the browser CSV validator from the admin reference (no course codes). */
 export function csvReferenceDataFromAdminReference(
   reference: Pick<

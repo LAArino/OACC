@@ -148,7 +148,7 @@ Every run, daily (trigger `schedule`), start-up (`startup`) or on demand (`manua
 - **Same-site auth host.** Keycloak's session cookies must reach the auth host from an iframe embedded in the portal: put the auth host on the same registrable domain as the portal (`portal.example.eu` and `auth.example.eu`; the dev stack's `oecp.localhost` and `auth.oecp.localhost` qualify). A cross-site auth host is a third-party context whose cookies current browsers block.
 - **Portal pages frameable by themselves.** The portal must send `X-Frame-Options: SAMEORIGIN` or `frame-ancestors 'self'`, never `DENY`, at least for `/en/admin/silent-callback`; the reference Traefik middleware `security-headers` sends `SAMEORIGIN` since 0.2.0 (§10). `/api` and `/oeapi` keep `frame-ancestors 'none'`. Keycloak answers `prompt=none` with a redirect, so its own framing headers do not apply.
 
-**JWT contract** (`apps/api/src/admin/auth/claims.ts`) [Implemented]: signature by the cached realm JWKS (RS256, ES256); `iss` = `KEYCLOAK_ISSUER`; `aud` ∋ `oecp-api`; `azp` = `oecp-admin`; `exp`, `iat`, `sub`, `azp`, `acr` required, 30 s tolerance; `acr` = `mfa`, else 401 `oecp.auth.insufficient_acr` with the RFC 9470 challenge `Bearer error="insufficient_user_authentication", acr_values="mfa"`; `roles` flat, non-OECP values ignored, absent = `[]`, empty → 403 `oecp.auth.no_role` except on `GET /me` and `POST /invitations/accept`; with roles, `org_id` must name a non-deleted organization (403 `oecp.auth.unknown_organization`) whose alias, or `local` when NULL, equals `idp` (absent = `local`; 403 `oecp.auth.idp_mismatch`); `email`, `name`, `schac_home_organization` for display and invitation matching.
+**JWT contract** (`apps/api/src/admin/auth/claims.ts`) [Implemented]: signature by the cached realm JWKS (RS256, ES256); `iss` = `KEYCLOAK_ISSUER`; `aud` ∋ `oecp-api`; `azp` = `oecp-admin`; `exp`, `iat`, `sub`, `azp`, `acr` required, 30 s tolerance; `acr` = `mfa`, else 401 `oecp.auth.insufficient_acr` with the RFC 9470 challenge `Bearer error="insufficient_user_authentication", acr_values="mfa"`; `roles` flat, non-OECP values ignored, absent = `[]`, empty → 403 `oecp.auth.no_role` except on `GET /me` and `POST /invitations/accept`; with roles, `org_id` must name a non-deleted organization (403 `oecp.auth.unknown_organization`) whose alias, or `local` when NULL, equals `idp` (absent = `local`; 403 `oecp.auth.idp_mismatch`); `email`, `name` for display; `schac_home_organization` (array, user attribute `schacHomeOrganization` through a mapper in client scope `oecp`; absent for local users) for invitation matching, the Keycloak user attribute being read through the Admin API only when the claim is missing.
 
 Missing bearer: 401 `oecp.auth.missing_token`; other verification failures: 401 `oecp.auth.invalid_token`; role not permitted: 403 `oecp.auth.forbidden_role`. **Phase 2** (wallet login as one more IdP): unchanged from v4.0 §4.
 
@@ -158,7 +158,7 @@ Missing bearer: 401 `oecp.auth.missing_token`; other verification failures: 401 
 
 ### 5.1 Effective schema
 
-The effective schema is the `-- Up Migration` sections of migrations 0001–0008 in order, copied verbatim by script: 0001 (extracted from v4.0 §5) followed by the deltas 0002–0008, applied by `node-pg-migrate --check-order`. Down sections are omitted.
+The effective schema is the `-- Up Migration` sections of migrations 0001–0010 in order, copied verbatim by script: 0001 (extracted from v4.0 §5) followed by the deltas 0002–0010, applied by `node-pg-migrate --check-order`. Down sections are omitted.
 
 **0001_init** (canonical schema):
 
@@ -798,9 +798,55 @@ ALTER TABLE courses
        AND (image_key IS NULL) = (image_updated_at IS NULL));
 ```
 
+**0009_course_level_trigger** (`courses.level` derived from `levels[1]` by a trigger on INSERT and on UPDATE of `levels` or `level`; backfill without touching `updated_at`; the down section drops the trigger and its function):
+
+```sql
+CREATE FUNCTION oecp_courses_level_from_levels() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.level := NEW.levels[1];
+  RETURN NEW;
+END $$;
+
+SET CONSTRAINTS courses_publishable IMMEDIATE;
+ALTER TABLE courses DISABLE TRIGGER courses_set_updated_at;
+UPDATE courses SET levels = ARRAY[level] WHERE level IS NOT NULL AND cardinality(levels) = 0;
+UPDATE courses SET level = levels[1] WHERE level IS DISTINCT FROM levels[1];
+ALTER TABLE courses ENABLE TRIGGER courses_set_updated_at;
+SET CONSTRAINTS courses_publishable DEFERRED;
+
+CREATE TRIGGER courses_level_from_levels BEFORE INSERT OR UPDATE OF levels, level ON courses
+  FOR EACH ROW EXECUTE FUNCTION oecp_courses_level_from_levels();
+```
+
+**0010_sync_run_files** (original file names of a CSV upload on its run, backfilled from the `upload.create` audit rows; the down section drops the column):
+
+```sql
+ALTER TABLE sync_runs
+  ADD COLUMN files jsonb
+    CONSTRAINT sync_runs_files_check CHECK (
+      jsonb_typeof(files) = 'object'
+      AND files - 'courses' - 'offerings' = '{}'::jsonb
+      AND files <> '{}'::jsonb
+      AND (NOT files ? 'courses' OR (jsonb_typeof(files -> 'courses') = 'string'
+           AND length(files ->> 'courses') BETWEEN 1 AND 200))
+      AND (NOT files ? 'offerings' OR (jsonb_typeof(files -> 'offerings') = 'string'
+           AND length(files ->> 'offerings') BETWEEN 1 AND 200)));
+
+UPDATE sync_runs r SET files = f.files
+FROM (
+  SELECT a.entity_id AS id,
+         jsonb_strip_nulls(jsonb_build_object(
+           'courses', left(nullif(a.changes #>> '{files,courses,name}', ''), 200),
+           'offerings', left(nullif(a.changes #>> '{files,offerings,name}', ''), 200))) AS files
+  FROM audit_log a
+  WHERE a.action = 'upload.create' AND a.entity_type = 'sync_run'
+) f
+WHERE r.id = f.id AND r.channel = 'csv' AND f.files <> '{}'::jsonb;
+```
+
 ### 5.2 Rules the database does not enforce
 
-- **`level` and `levels`** [DL 18 d]: `levels` holds every study cycle, primary first; `CanonicalWriter` keeps `level = levels[1]` (SQL 1-based) on every write, without a trigger. **Note for the owner:** `level` survives only because the OEAPI v5 read API can express one level; a manual SQL update of `levels` alone leaves `level` stale.
+- **`level` and `levels`** [DL 18 d]: `levels` holds every study cycle, primary first; `CanonicalWriter` writes `level = levels[1]` (SQL 1-based) on every write, and since migration 0009 the trigger `courses_level_from_levels` enforces it at the database: on INSERT and on any UPDATE naming `levels` or `level`, `level := levels[1]` (NULL when `levels` is empty), so a manual SQL update of `levels` keeps `level` in step and a write of `level` alone is replaced. `level` survives only because the OEAPI v5 read API can express one level.
 - **Instructors and handbook texts** [DL 21 a, b]: `instructors` holds the names (or role descriptions) of the teaching staff exactly as the university publishes them in its own catalogue, primary first; entries are trimmed and distinct (Zod `instructorList`; the DDL checks only 1–200 characters and ≤ 50 entries). None of `instructors`, `mode_of_repetition`, `methods`, `literature`, `privacy_notice`, `remarks` is required to store or to publish a course, except through the publication rule (§6.1). **GDPR** [DL 21 a]: names of teaching staff are personal data; OECP republishes only what the university already publishes for the same course and purpose (public-interest task of the alliance), keeps no other person data (no e-mail, phone or identifiers) and never looks persons up.
 - **Course images** [DL 27] [Implemented, unreleased]: the files live under `{OECP_UPLOADS_DIR}/media/courses/<course id>/` as `<image_key>.lg.webp` (fitted inside 1600×1600) and `<image_key>.sm.webp` (inside 640×640), never upscaled, WebP quality 80, every metadata dropped (EXIF orientation applied first); `image_key` is the first 16 hex characters of the SHA-256 of the lg file, so a URL never changes content. Input: JPEG, PNG or WebP sniffed from the bytes, ≤ 5 MiB, ≤ 40 megapixels; each output ≤ 2 MiB; the original is not kept (`sharp`, Apache-2.0, prebuilt libvips). Files are written to a temporary name and renamed; the row is updated after the files exist and the previous files are deleted after the commit; the `retention` job deletes the directory of every course it hard-deletes (§10). Only the media module writes the image columns: `CanonicalWriter` and the OEAPI adapter never do, so a harvest keeps the image, which is never an override and has no source value. `image_alt` keys are primary subtags (1–300 characters each). **No person data by policy:** images must show no identifiable people and the partner declares its rights for each one (`docs/production/art28-processor-checklist.md`); the credit is free text and is not copied into the audit log.
 - **Raw payloads without person data** [Implemented]: before a harvested payload is kept in `ext_metadata_history.raw_payload`, `minimiseRawPayload()` (`apps/api/src/ingestion/oeapi/raw-payload.ts`, pure) removes every `coordinators` and `persons` member at any depth and, inside `ext` objects, every member whose name contains "person"; the instructor names the mapping keeps (§6.2.4) are in the canonical record. The payload hash of the history is taken after this step (the first harvest after the upgrade stores one new history row per entity that had such members). CSV and form payloads are stored as submitted.
@@ -893,7 +939,7 @@ An offering with no usable teaching language on offering or course (`mul`, `und`
 
 **6.2.5 Withdrawal by absence.** A run is complete when every listing page answered 2xx, nothing fatal happened and at least one course came back; only complete runs count absence. If ≥ 30% of the partner's published courses are missing, nothing is counted (`oecp.oeapi.mass_absence`; no notification is sent [Deferred: not in backlog]). Otherwise absent `draft`/`published` courses and offerings (offerings with `start_date ≥ since`) get `absent_count + 1` and, at `withdraw_after_absences` (default 3), become `withdrawn` unless a `status` override exists (audit actor `system:harvester`, reason `absence`). A seen entity resets `absent_count`; a published source republishes an entity withdrawn by absence (audit `*.republish`, reason `seen_again`). A failed, empty or incomplete run never withdraws [DL 3].
 
-**Note for the owner:** v4.0 said seen entities "even rejected ones" are republished. As built, a rejected entity only resets `absent_count` and `last_seen_at` and stays withdrawn until a valid payload arrives.
+**Rejected entities** (decided 2026-10-16, replacing v4.0's "even rejected ones" are republished): an entity the source still lists but whose payload is rejected counts as seen, so it resets `absent_count` and `last_seen_at` and is never withdrawn by absence; it is not republished, because its payload is invalid, and an entity withdrawn by absence stays withdrawn until a valid payload arrives.
 
 **6.2.6 Failures and outbound security.** A rejection writes `sync_errors` (JSON Pointer into the harvested document) and a `rejected` history row, and processing continues; offerings of a rejected course are rejected without detail requests. A natural key repeated in one run (course `primaryCode.code`, or offering code within a course) is ignored with the warning `oecp.oeapi.duplicate_entity` (the first item was processed; the repeat is neither written nor counted as rejected; until 0.3.0 it was counted in `n_rejected`). Run status: `failed` (fatal error before anything was processed), `succeeded` (complete, no rejections), else `partial`. `unauthorized`, `host_not_approved`, `address_refused`, `insecure_url`, `unreachable` and `run_timeout` abort the run.
 
@@ -910,7 +956,7 @@ HTTP: 30 s per request; up to 5 retries on 429, 5xx, timeouts and network errors
 
 ¹ From template 1.1; ² from template 1.2 [DL 21]; ³ from template 1.3 [DL 27]. A row whose `template_version` is older than a column of the header fails (`oecp.csv.invalid_template_version`): `1.0` with any 1.1–1.3 column, `1.1` with any 1.2 or 1.3 column, `1.2` with any 1.3 column; 1.0, 1.1 and 1.2 files stay valid. `instructors` errors: `oecp.content.invalid_value`; so is a `title_en` longer than 500 characters (an empty one is `oecp.csv.missing_value`). A non-English language needs `title_<lang>`. `attr_<key>` cells: booleans `true/false/yes/no/1/0`, `enum` one option, `multi_enum` `\|`-separated options, `text` ≤ 500; empty removes the attribute. An unknown `academic_session_code` creates a minimal session (type `period`, name = code, dates spanning its offerings).
 
-**Templates** (any administrator): `GET /api/admin/v1/csv-template/courses.csv` (one `attr_<key>` column per definition), `…/offerings.csv`, `…/schema.json` (`oecp-csv-1.3.schema.json`, JSON Schema 2020-12 generated from the Zod row schemas; accepts 1.0, 1.1 and 1.2; the 1.0, 1.1 and 1.2 documents in `packages/schemas/json/csv/` are frozen) [Partial: no `$ref` to the canonical schema, backlog "CSV JSON Schema should $ref…"].
+**Templates** (any administrator): `GET /api/admin/v1/csv-template/courses.csv` (one `attr_<key>` column per definition), `…/offerings.csv`, `…/schema.json` (`oecp-csv-1.3.schema.json`, JSON Schema 2020-12 generated from the Zod row schemas; accepts 1.0, 1.1 and 1.2; the 1.0, 1.1 and 1.2 documents in `packages/schemas/json/csv/` are frozen); single-value cells (`status`, `kind`, `level`, the four dates) `$ref` the canonical definitions (`urn:oecp:schema:canonical:1#/$defs/…`), and the canonical schema is embedded as a bundled resource so the served document is self-contained (`docs/guides/csv-authoring.md`).
 
 **Upload contract.** `POST /api/admin/v1/organizations/{orgId}/uploads`, `multipart/form-data`, file fields `courses` and/or `offerings`, one each, no other parts, ≤ 5 MiB per file. Limits: 5,000 rows per file, 300 columns, 20,000 characters per cell, 10 uploads per hour per organization. Files go to `{OECP_UPLOADS_DIR}/{orgId}/{uploadId}/`; a `sync_runs` row (`csv`/`upload`) and an `upload.create` audit row (names, sizes, SHA-256) are written first.
 
@@ -933,7 +979,7 @@ Every response that has a run carries `Location: /api/admin/v1/sync-runs/{id}`: 
 
 **Retention** [Implemented]: a daily job deletes upload files older than 90 days (the run row stays, `upload_object_key` NULL, audit `upload.purge`), removes orphan directories and fails CSV runs stuck in `running`.
 
-**Note for the owner:** the browser cannot check `offerings.csv` course codes against the catalogue (the admin reference has no course codes); only the server does (backlog "API: … reference with … course codes").
+**Browser reference data:** `GET /api/admin/v1/reference?org=` (§8.2) returns exactly the lists the server run uses (one loader, `csv-reference-data.ts`), course codes and sub-unit codes included; `csvReferenceDataFromAdminCsvReference` of `@oecp/schemas` turns it into the validator's input. **Note for the owner:** the console still uses the public reference (ISCED and modes only) until it adopts this endpoint.
 
 ### 6.4 Channel C: web form [Implemented]
 
@@ -948,9 +994,7 @@ One `authoritative_channel` per organization (no `partner_integrations` row mean
 | `oeapi` | runs | refused (409) | `overrides`: `PATCH …/overrides` and `POST …/status` only; create, replace and delete give 409 `oecp.sync.channel_disabled` |
 | `csv` or `form` | not scheduled; "Sync now" 409 | writes | `write`: create, replace, status, delete; `PATCH …/overrides` gives 409 `oecp.content.override_not_allowed` |
 
-CSV and form write the same records; `source_channel` records the last writer. A form save in `write` mode drops overrides left from an `oeapi` period. Switching keeps every `ext_id`; the first harvest after switching to `oeapi` matches by `(organization_id, ext_id)`.
-
-**Note for the owner:** CSV uploads do **not** drop leftover overrides, so after switching from `oeapi` to `csv` an old override keeps masking the uploaded value until the record is saved in the form.
+CSV and form write the same records; `source_channel` records the last writer. Both drop the overrides left from an `oeapi` period when they write a record: a form save in `write` mode (its audit row lists `overrides_dropped`), and every CSV row through `CanonicalWriter`, which clears the overrides of the course, its texts or the offering, resets the hash so the row applies, and audits `course.overrides_drop` / `course_offering.overrides_drop` (`ext_id`, `channel`, `overrides_dropped` with text keys as `texts.<lang>.<field>`, `sync_run_id`). A column absent from the CSV header keeps the value the catalogue showed (the dropped override's value). Harvests keep overrides. Switching keeps every `ext_id`; the first harvest after switching to `oeapi` matches by `(organization_id, ext_id)`.
 
 ### 6.6 Error contract [Implemented]
 
@@ -974,7 +1018,7 @@ RFC 9457 `application/problem+json` for `/api/public/v1` and `/api/admin/v1`: `t
 | Pages (Nuxt SSR, `/{locale}` prefix) | `/{locale}/` (home; answers 200 even when the API is down), `/{locale}/courses`, `/{locale}/courses/{id}` (`?text_lang=` picks the text language) | [Implemented] |
 | Branding `/branding/{file}` (web, `NUXT_BRANDING_DIR`) | The home page and the course list show an optional deployment-provided header image (`NUXT_PUBLIC_HERO_IMAGE`, decorative by default, also the `og:image`; `NUXT_PUBLIC_HERO_IMAGE_COURSES` gives the course list its own) and the site header an optional alliance logo (`NUXT_PUBLIC_LOGO_IMAGE`, alt text = alliance name), both served from `/branding/` (image files only, `public, max-age=86400`, weak `ETag`/304, no cookies; see `deploy/compose/branding/README.md`). Partner logos follow a file convention, `partner-<slug>.svg|png|webp`, shown decoratively next to the university name on course cards and the course page and found through `/branding/index.json` (the servable file names, re-read at most once a minute); `NUXT_PUBLIC_FAVICON_IMAGE` replaces the portal's own favicon (`/favicon.svg`). The images are the deployment's own, never repository content; Aurora: own generated images and the Aurora logo with the Foundation's permission [DL 25] | [Implemented, 0.6.0] |
 | `/{locale}/partners/{slug}`, `/accessibility`, `/privacy` | — | [Deferred: not in backlog; statement template in `docs/production/accessibility-statement.md`, privacy notice written by the controller] |
-| `GET /api/public/v1/courses` · `/courses/{id}` | search with facets · course page (404 for malformed, unknown, unpublished or deleted ids) | [Implemented] |
+| `GET /api/public/v1/courses` · `/courses/{id}` | search with facets · course page (404 for malformed, unknown, unpublished or deleted ids); the page has `updated_at` (latest of course, texts, offerings) and, per language, `texts.<lang>.updated_at` (`course_texts.updated_at`, set only when that language's texts change) and, per offering, `offerings[].updated_at` (`course_offerings.updated_at`, also set by a harvest that sees the offering unchanged); ISO 8601, never null; cards unchanged | [Implemented] |
 | `GET /api/public/v1/suggest?q&limit&locale` | `q` 2–100 characters, `limit` ≤ 10 | [Implemented] |
 | `GET /api/public/v1/reference` | organizations (with `idp_alias`: the organization's `keycloak_idp_alias` when it names an IdP enabled in the realm (`GET /identity-provider/instances`, cached 5 minutes; on a Keycloak error the last known list, else null), else null; for "Sign in through your university", §2.1), active modes with `schema_org`, ISCED broad fields, teaching languages in use, levels, kinds, attribute definitions | [Implemented] |
 | `GET /api/public/v1/sitemap.xml` | proxied as `/sitemap.xml` | [Implemented] |
@@ -1051,8 +1095,9 @@ Bearer-only (§4). P = `partner_admin` (own scope), A = `alliance_admin`. Repeat
 | `POST …/integration/approve-host` | A | approves the host of the current `base_url` (direct only) |
 | `POST …/integration/test-connection` | P, A | `GET /` and `GET /courses?pageSize=1`; remote failures are 200 `{ok: false, error}`; blockers 409; 503 `oecp.secrets.unavailable` when a credential is needed and the master key is missing or invalid (a credential that does not decrypt with a readable key stays 200 `oecp.oeapi.secret_unavailable`) |
 | `POST …/integration/sync-now` | P, A | 202 `{sync_run_id, status: "queued"}`; 409 channel disabled, blocker or already running; 429 `oecp.sync.rate_limited` + `Retry-After` (15 min after the last manual run) |
-| `GET /organizations/{orgId}/sync-runs?limit` · `GET /sync-runs/{id}?page&page_size&severity` | P, A | limit ≤ 100; errors ≤ 500 per page; the detail adds `handbook_incomplete` (courses of the run with `oecp.content.handbook_incomplete`, §6.1) |
-| `POST /organizations/{orgId}/uploads` · `GET /csv-template/…` | P, A | §6.3 |
+| `GET /organizations/{orgId}/sync-runs?limit` · `GET /sync-runs/{id}?page&page_size&severity` | P, A | limit ≤ 100; errors ≤ 500 per page; the detail adds `handbook_incomplete` (courses of the run with `oecp.content.handbook_incomplete`, §6.1); every run has `files` (original names of a CSV upload's files, `{courses?, offerings?}`, migration 0010, kept after the files are purged; null for other runs) |
+| `POST /organizations/{orgId}/uploads` · `GET /csv-template/…` | P, A | §6.3; 201 body `csvUploadInlineResponse` of `@oecp/schemas` |
+| `GET /reference?org=` | P, A | the lists the server validates an upload of `org` (default the caller's `org_id`) against, for the browser validator: `delivery_modes`, `isced_broad_fields`, `teaching_unit_codes`, `course_codes` (sorted codes), `language_tags` null (no list); `Cache-Control: private, max-age=60` |
 | `GET /organizations/{orgId}/reference` | P, A | time zone, levels, kinds, modes, ISCED, form languages, attribute definitions, sessions, teaching units, `authoritative_channel`, `form_mode` |
 | `GET`, `POST /organizations/{orgId}/courses` | P, A | list: `q`, `status`, `kind`, `source_channel`, `page`, `page_size` ≤ 100; items carry `complete` (publication rule, §6.1) and `missing_count` (number of `completeness.missing` entries, 0 exactly when complete); create 201 + `Location` |
 | `GET`, `PUT`, `DELETE /courses/{id}` · `PATCH …/overrides` · `POST …/status` · `GET …/history?limit` | P, A | history ≤ 200 entries: ingest rows (no payload) and audit rows with a one-line summary |

@@ -206,6 +206,22 @@ describe('InvitationsController', () => {
       expect(select.sql).toContain('for update');
     });
 
+    it('uses the schac_home_organization claim first and skips the Admin API lookup', async () => {
+      // The user attribute would fail the check; the claim (realm mapper, an array) wins.
+      keycloak.getUser.mockResolvedValue({
+        id: SUB,
+        attributes: { schacHomeOrganization: ['example.edu'] },
+      });
+      const response = await accept({ ...roleless, schac_home_organization: ['urv.cat'] });
+      expect(response.status).toBe(200);
+      expect(keycloak.getUser).not.toHaveBeenCalled();
+
+      const refused = await accept({ ...roleless, schac_home_organization: ['example.edu'] });
+      expect(refused.status).toBe(403);
+      expect(refused.body.reason).toBe('home_organization');
+      expect(keycloak.getUser).not.toHaveBeenCalled();
+    });
+
     it('reads schacHomeOrganization from the Keycloak user when the token lacks the claim', async () => {
       keycloak.getUser.mockResolvedValue({
         id: SUB,

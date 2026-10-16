@@ -33,9 +33,11 @@ export const adminClaims = z.object({
   email: z.string().optional(),
   name: z.string().optional(),
   /**
-   * `schacHomeOrganization` asserted by the partner IdP, if a protocol mapper
-   * exposes it under this claim name; otherwise the API reads the user attribute
-   * `schacHomeOrganization` through the Admin API at invitation acceptance.
+   * `schacHomeOrganization` asserted by the partner IdP: the user attribute set
+   * by the IdP attribute importer, exposed by the mapper `schac_home_organization`
+   * of client scope `oecp` (realm-oecp.yaml; an array). Absent for local users.
+   * When it is missing the API reads the user attribute through the Admin API
+   * at invitation acceptance.
    */
   schac_home_organization: z
     .union([z.string(), z.array(z.string())])

@@ -401,11 +401,13 @@ describe('toCourseDetail', () => {
       literature: null,
       privacy_notice: null,
       remarks: null,
+      updated_at: '2026-03-01T00:00:00.000Z', // per language
     });
     expect(body.offerings[0]).toMatchObject({
       status: 'cancelled',
       delivery_modes: ['hybrid'],
       application_instructions: { en: 'Nomination by the home university.' },
+      updated_at: '2026-02-01T00:00:00.000Z', // per offering
     });
     expect(body.levels).toEqual(['master']);
     expect(body.image).toBeNull();

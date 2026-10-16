@@ -2,9 +2,9 @@
 <script setup lang="ts">
 // One offering on the course page (spec §7): session, dates, enrolment window,
 // application deadline in the offering time zone, modes, languages, campus,
-// seats [DL 8] and how to apply: the partner's instructions [DL 18] (plain
-// text in the language of the course texts, English fallback) above the
-// application link or contact note.
+// last update, seats [DL 8] and how to apply: the partner's instructions
+// [DL 18] (plain text in the language of the course texts, English fallback)
+// above the application link or contact note.
 import type { Offering } from '../types/catalogue';
 import type { MaybeReference } from '../composables/useCatalogueLabels';
 
@@ -22,6 +22,7 @@ const labels = useCatalogueLabels(() => props.reference);
 
 const o = computed(() => props.offering);
 const fmt = (d: string | null | undefined) => formatDate(d, locale.value);
+const updatedAt = computed(() => formatDateTimeAsDate(o.value.updated_at, locale.value));
 const heading = computed(() => `h${props.headingLevel ?? 3}`);
 const subheading = computed(() => `h${Math.min(6, (props.headingLevel ?? 3) + 1)}`);
 const headingId = computed(() => `offering-${o.value.id}`);
@@ -93,6 +94,12 @@ const instructions = computed(() =>
       <template v-if="o.campus">
         <dt>{{ t('offering.campus') }}</dt>
         <dd>{{ o.campus }}</dd>
+      </template>
+      <template v-if="updatedAt">
+        <dt>{{ t('facts.updated') }}</dt>
+        <dd>
+          <time :datetime="o.updated_at">{{ updatedAt }}</time>
+        </dd>
       </template>
     </dl>
     <SeatsLine v-if="!cancelled" :offering="o" :time-zone="o.timezone" />

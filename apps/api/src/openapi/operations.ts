@@ -9,6 +9,7 @@
  */
 import {
   adminCourseHistoryQuery,
+  adminCsvReferenceQuery,
   adminCourseListQuery,
   adminOrganizationListQuery,
   COURSE_IMAGE_MAX_BYTES,
@@ -770,6 +771,33 @@ export const ADMIN_OPERATIONS: readonly OperationSpec[] = [
         schema: { type: 'object' },
         headers: ['Content-Disposition'],
       },
+    },
+  },
+  {
+    method: 'get',
+    path: '/reference',
+    operationId: 'adminGetCsvReference',
+    tag: 'CSV uploads',
+    summary: 'Get the reference lists of the browser CSV validator',
+    description:
+      'The lists an upload of the organization is validated against on the server (spec §6.3), as plain sorted codes: ISCED-F broad fields, active delivery modes, `ext_id` of the non-deleted sub-units (`teaching_unit_code`) and of the non-deleted courses (`offerings.csv` `course_code`); `language_tags` is null (no list: any well-formed BCP 47 tag). Attribute definitions are in `GET /organizations/{orgId}/reference`. `Cache-Control: private, max-age=60`: refetch with `Cache-Control: no-cache` after an upload.',
+    access: PA,
+    query: {
+      schema: adminCsvReferenceQuery,
+      descriptions: {
+        org: "Organization id; default the caller's `org_id`. A partner administrator may name its organization or one of its sub-units.",
+      },
+    },
+    responses: {
+      200: {
+        description: 'Reference lists.',
+        schema: 'AdminCsvReference',
+        headers: ['Cache-Control'],
+      },
+    },
+    errors: {
+      400: 'Invalid `org` (not a UUID): `oecp.request.validation_failed`.',
+      404: SCOPE_404,
     },
   },
 

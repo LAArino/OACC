@@ -3382,6 +3382,76 @@
         ]
       }
     },
+    "/api/admin/v1/reference": {
+      "get": {
+        "operationId": "adminGetCsvReference",
+        "tags": [
+          "CSV uploads"
+        ],
+        "summary": "Get the reference lists of the browser CSV validator",
+        "description": "The lists an upload of the organization is validated against on the server (spec §6.3), as plain sorted codes: ISCED-F broad fields, active delivery modes, `ext_id` of the non-deleted sub-units (`teaching_unit_code`) and of the non-deleted courses (`offerings.csv` `course_code`); `language_tags` is null (no list: any well-formed BCP 47 tag). Attribute definitions are in `GET /organizations/{orgId}/reference`. `Cache-Control: private, max-age=60`: refetch with `Cache-Control: no-cache` after an upload.",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "query",
+            "required": false,
+            "description": "Organization id; default the caller's `org_id`. A partner administrator may name its organization or one of its sub-units.",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reference lists.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCsvReference"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid `org` (not a UUID): `oecp.request.validation_failed`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "Unknown organization (or one outside the caller scope): `oecp.request.not_found`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-oecp-roles": [
+          "partner_admin",
+          "alliance_admin"
+        ]
+      }
+    },
     "/api/admin/v1/sync-runs/{id}": {
       "get": {
         "operationId": "adminGetSyncRun",
@@ -4020,6 +4090,63 @@
           "next_start_date"
         ],
         "additionalProperties": false
+      },
+      "AdminCsvReference": {
+        "type": "object",
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "language_tags": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delivery_modes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isced_broad_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "teaching_unit_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "course_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "organization_id",
+          "language_tags",
+          "delivery_modes",
+          "isced_broad_fields",
+          "teaching_unit_codes",
+          "course_codes"
+        ],
+        "additionalProperties": false,
+        "description": "The lists the server validates a CSV upload of the organization against, for the browser validator (`csvReferenceDataFromAdminCsvReference` of `@oecp/schemas`)."
       },
       "AdminHistoryEntry": {
         "type": "object",
@@ -5514,7 +5641,8 @@
             "$ref": "#/components/schemas/SyncRunStatus"
           },
           "processed_inline": {
-            "type": "boolean"
+            "type": "boolean",
+            "const": true
           },
           "run": {
             "$ref": "#/components/schemas/SyncRun"
@@ -7457,6 +7585,16 @@
               "null"
             ]
           },
+          "files": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SyncRunFiles"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -7481,6 +7619,7 @@
           "n_rejected",
           "n_withdrawn",
           "error_summary",
+          "files",
           "created_at"
         ],
         "additionalProperties": false,
@@ -7593,6 +7732,16 @@
               "null"
             ]
           },
+          "files": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SyncRunFiles"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -7655,11 +7804,29 @@
           "n_rejected",
           "n_withdrawn",
           "error_summary",
+          "files",
           "created_at",
           "handbook_incomplete",
           "errors"
         ],
         "additionalProperties": false
+      },
+      "SyncRunFiles": {
+        "type": "object",
+        "properties": {
+          "courses": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "offerings": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "additionalProperties": false,
+        "description": "Original names of the files of a CSV upload, per file kind."
       },
       "SyncRunList": {
         "type": "object",

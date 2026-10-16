@@ -15,6 +15,7 @@ import type {
   MaintenanceRunStatus,
   MaintenanceTrigger,
   SourceChannel,
+  SyncRunFiles,
   SyncRunStatus,
 } from '@oecp/schemas';
 import type { ColumnType, Generated } from 'kysely';
@@ -222,6 +223,8 @@ export interface SyncRunsTable {
   n_rejected: Generated<number>;
   n_withdrawn: Generated<number>;
   error_summary: string | null;
+  /** Original CSV file names (migration 0010); NULL for other runs. */
+  files: ColumnType<SyncRunFiles | null, SyncRunFiles | null | undefined, SyncRunFiles | null>;
   created_at: Timestamp;
 }
 

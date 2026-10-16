@@ -31,6 +31,9 @@ const MultipartFields = FileFieldsInterceptor(
   {
     // Memory storage; spec §6.3: 5 MB per file. No other parts are accepted.
     limits: { fileSize: CSV_MAX_FILE_BYTES, files: 2, fields: 0, parts: 2, headerPairs: 50 },
+    // Browsers send the file name as raw UTF-8 (no `filename*`); busboy's default
+    // latin1 would garble non-ASCII names in SyncRun.files and the audit row.
+    defParamCharset: 'utf8',
   },
 );
 

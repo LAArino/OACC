@@ -167,6 +167,8 @@ export const publicCourseText = z.strictObject({
   remarks: nullable(z.string()),
   keywords: z.array(z.string()),
   is_machine_translated: z.boolean(),
+  /** Last change of this language's texts (`course_texts.updated_at`). */
+  updated_at: timestamp,
 });
 export type PublicCourseText = z.infer<typeof publicCourseText>;
 
@@ -214,6 +216,11 @@ export const publicOffering = z.strictObject({
   application_url: nullable(z.string()),
   /** How to apply (e.g. a nomination process), keyed by primary language subtag; may be empty. */
   application_instructions: z.record(z.string(), z.string()),
+  /**
+   * Last write of the offering row (`course_offerings.updated_at`); a harvest
+   * that sees the offering unchanged also sets it (`last_seen_at` is in the row).
+   */
+  updated_at: timestamp,
 });
 export type PublicOffering = z.infer<typeof publicOffering>;
 

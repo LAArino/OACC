@@ -17,6 +17,7 @@ import {
   adminOffering,
   adminOrganization,
   adminOrganizationList,
+  adminCsvReference,
   adminReference,
   adminRole,
   acceptInvitationRequest,
@@ -35,6 +36,7 @@ import {
   courseSearchResponse,
   createInvitationRequest,
   createOrganizationInvitationRequest,
+  csvUploadInlineResponse,
   csvUploadResponse,
   ERROR_CODES,
   type ErrorCode,
@@ -81,6 +83,7 @@ import {
   syncError,
   syncNowResponse,
   syncRun,
+  syncRunFiles,
   syncRunDetail,
   syncRunList,
   syncRunStatus,
@@ -150,9 +153,8 @@ const problemDetailsDoc = z.looseObject({
   idp_alias: z.string().optional(),
 });
 
-/** Inline upload result (201): `CsvUploadInlineResponse` of the uploads controller. */
-const csvUploadInlineResponse = csvUploadResponse.extend({
-  run: syncRun,
+/** Inline upload result (201), `csvUploadInlineResponse` with the codes narrowed. */
+const csvUploadInlineResponseDoc = csvUploadInlineResponse.extend({
   warnings: z.array(problemErrorDoc),
 });
 
@@ -315,7 +317,7 @@ const RESPONSES: readonly ComponentDef[] = [
   },
   {
     id: 'CsvUploadInlineResponse',
-    schema: csvUploadInlineResponse,
+    schema: csvUploadInlineResponseDoc,
     description: 'Upload processed in the request (201): the finished run and its warnings.',
   },
   { id: 'AttributeDefinition', schema: attributeDefinition },
@@ -327,6 +329,17 @@ const RESPONSES: readonly ComponentDef[] = [
       'The stored course image (decision 27). `source_url` is the CSV `image_url` it was fetched from (null for an upload). Never harvested, never an override.',
   },
   { id: 'AdminReference', schema: adminReference },
+  {
+    id: 'AdminCsvReference',
+    schema: adminCsvReference,
+    description:
+      'The lists the server validates a CSV upload of the organization against, for the browser validator (`csvReferenceDataFromAdminCsvReference` of `@oecp/schemas`).',
+  },
+  {
+    id: 'SyncRunFiles',
+    schema: syncRunFiles,
+    description: 'Original names of the files of a CSV upload, per file kind.',
+  },
   {
     id: 'AdminOffering',
     schema: adminOffering,
