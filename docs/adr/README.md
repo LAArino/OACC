@@ -6,7 +6,8 @@
 An architecture decision record (ADR) captures one significant decision: the
 context that forced it, the options considered, the choice made and its
 consequences. OECP writes ADRs in the [MADR](https://adr.github.io/madr/)
-(Markdown Architectural Decision Records) format, in English.
+(Markdown Architectural Decision Records) format, in English. For the
+architecture these decisions add up to, see [architecture.md](../architecture.md).
 
 ## Index
 

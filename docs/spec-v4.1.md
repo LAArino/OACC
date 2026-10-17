@@ -115,6 +115,8 @@ A **modular monolith** [R03 §0]: one NestJS codebase and image (`oecp/api`), tw
  worker ──(network `egress`, approved host only)──> partner OEAPI endpoints | SURFeduhub gateway
 ```
 
+The same architecture as diagrams: [docs/architecture.md](architecture.md).
+
 Compose versions: Traefik 3.7.14, Nuxt 4.6.1, NestJS 12.1, PostgreSQL 16.15 (Keycloak uses database `keycloak` in the same cluster), Keycloak 26.8.1 with keycloak-config-cli 6.5.1, Valkey 8.1.10 with BullMQ 6.3, local volume `/data/uploads` (S3 in v1).
 
 **Queues.** `harvest-schedule`: one job scheduler per harvestable partner (`schedule_cron` in `schedule_timezone`), re-registered at worker start and every 15 minutes, so Valkey state is rebuildable. `harvest`: job id `harvest-{organization_id}` (BullMQ forbids `:`), one run per partner at a time, concurrency 2. `csv`: queued uploads (`csv-{syncRunId}`) and the daily upload retention job `csv-retention` (04:30 UTC). `maintenance`: `history-partitions` (00:10 UTC and at worker start), `idp-metadata-refresh` (04:15 and about 60 s after worker start, §4), `retention` (04:45), `dormancy` (05:00), `account-cleanup` (05:15) and every on-demand run of `POST /maintenance/jobs/{name}/run` (§10); concurrency 1, lock 10 minutes. The queue `idp-metadata-refresh` of 0.3.0 is removed at worker start. All schedules are UTC job schedulers re-registered at every worker start.

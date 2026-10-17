@@ -10,7 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- Docs: `docs/architecture.md`, four Mermaid diagrams (solution context with
+  the three channels, Compose deployment, API modules and queues, course data
+  flow), linked from the docs index, the spec and the README.
 
 ## [0.9.0] - 2026-10-16
 

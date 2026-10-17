@@ -89,7 +89,9 @@ university is an independent controller of the data it supplies.
 - **Operations:** pgBackRest backups (profile `backup`) and Prometheus, Alertmanager, Loki with Grafana Alloy, and Grafana (profile `observability`) in the same Compose file.
 - **Alliance-agnostic:** the alliance name, branding images, partners, attributes and hosts are configuration (the portal interface is English-only in 0.9.0); one deployment serves one alliance. The first deployment targets the Aurora European Universities Alliance.
 
-All architecture decisions are recorded in [docs/adr](docs/adr/README.md).
+The same architecture as four diagrams (context, deployment, API modules,
+course data flow) is in [docs/architecture.md](docs/architecture.md). All
+architecture decisions are recorded in [docs/adr](docs/adr/README.md).
 
 ## Repository layout
 
