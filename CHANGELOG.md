@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rules, Alertmanager, the IdP certificate field in Keycloak); four new and
   two retaken screenshots; the runbook names the Keycloak field "Validating
   X509 certificates".
+- Docs: `docs/production/go-public-checklist.md` (GitHub settings and checks
+  before making the repository public), SECURITY.md prefers private
+  vulnerability reporting, `tools/scripts/github-releases.sh` creates the
+  GitHub releases from the CHANGELOG.
 
 ## [0.9.0] - 2026-10-16
 

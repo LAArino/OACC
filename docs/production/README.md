@@ -25,6 +25,7 @@ Another alliance can reuse the set: replace the names of the Aurora Foundation, 
 | [accessibility-statement.md](accessibility-statement.md) | Accessibility statement template for the public portal and the administration panel | Directive (EU) 2016/2102, EN 301 549 |
 | [accessibility-audit-2026-10.md](accessibility-audit-2026-10.md) | Accessibility audit of release 0.7.0 (October 2026): method, scope, findings with fixes, automated results before and after, the screen-reader session script and the known limitations for the statement | WCAG 2.1 AA, EN 301 549 |
 | [runbook.md](runbook.md) | Production runbook: topology, secrets, backups and restore, upgrades, identity operations, monitoring, incidents, capacity, housekeeping | spec §3, §4, §10 |
+| [go-public-checklist.md](go-public-checklist.md) | GitHub settings and checks before making the repository public: history secret scan, data consent, screenshots, features, security settings, the `main` ruleset, description and topics, the releases afterwards | — |
 
 A **privacy notice** (GDPR art. 13 and 14) is not part of the set: it is written for the public by the controller, from the RoPA. The portal has no `/privacy` or `/accessibility` page in 0.9.0 (spec §7.1, deferred), so both texts are published on the alliance website and linked from the portal footer once that exists. The federation registration of the service provider also needs the privacy notice URL ([Guide A, step 3](../onboarding/alliance.md#3-identity)).
 

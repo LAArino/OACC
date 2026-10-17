@@ -22,9 +22,14 @@ Until 1.0 only the latest minor version is supported; the support window after
 **Do not open a public issue, pull request or discussion for a security
 problem.**
 
-Report it privately by email to **`security@<alliance-domain>`** (placeholder,
-to be replaced before the first production deployment). If private vulnerability reporting
-is enabled on the repository hosting platform, you may use it instead.
+Report it privately through **GitHub private vulnerability reporting**:
+<https://github.com/LAArino/OECP/security/advisories/new> (*Security* tab →
+*Report a vulnerability*). This is the preferred channel: the report, the
+discussion and the fix stay in a private advisory until it is published. It is
+available once the repository is public.
+
+If you cannot use it, report by email to **`security@<alliance-domain>`**
+(placeholder, to be replaced before the first production deployment).
 
 Please include:
 

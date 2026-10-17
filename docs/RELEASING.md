@@ -111,7 +111,9 @@ A version is closed, and may be tagged, only when all of the following hold:
    has no run (a push of several commits runs only the last one).
 9. **An annotated, signed-off tag** `vX.Y.Z` points at the release commit.
 10. **A GitHub release** carries the CHANGELOG section of the version, once the
-    repository has a public remote.
+    repository has a public remote. The releases of v0.1.0 to v0.9.0 are
+    created after the switch by `tools/scripts/github-releases.sh`, step (f)
+    of the [go-public checklist](production/go-public-checklist.md).
 
 ## Release procedure
 
