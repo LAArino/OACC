@@ -91,6 +91,10 @@ administrators sign in; there is no mixed mode within one organization:
   university's IdP through eduGAIN, then TOTP enrolled by OECP after the first
   login (`oecp-post-broker-mfa`).
 
+Which mode for a university, both onboarding paths with who does what, and
+what a partner's identity team must provide:
+[docs/onboarding/identity-paths.md](../../docs/onboarding/identity-paths.md).
+
 The API refuses an invitation to a federated organization whose alias is
 missing from the realm or disabled there (409
 `oecp.invitation.idp_not_enabled`, extension member `idp_alias`): Keycloak

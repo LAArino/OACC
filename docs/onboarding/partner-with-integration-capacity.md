@@ -8,6 +8,7 @@ For universities whose IT team can spend some days or weeks on an integration bu
 > **Before you start**
 >
 > - The alliance has finished [Guide A](alliance.md) and invited your partner admin, who has accepted (password plus TOTP app, or your university login once it is connected).
+>   - **Local accounts** (your university is outside eduGAIN, or its identity provider is not connected yet): two e-mails, Keycloak's set-up e-mail and OECP's invitation link. **Federated**: one e-mail, the invitation link, which takes you to your university's login. Which one applies, and what your identity team must provide: [identity-paths.md](identity-paths.md).
 > - You know where course and offering data lives: the student information system (SIS), a course catalogue database, or both.
 > - Someone in IT can query that system and someone in the international or education office can check the result.
 > - Elapsed time: 1–3 weeks for automated CSV; 1–3 months for an OEAPI endpoint, including the access agreement.

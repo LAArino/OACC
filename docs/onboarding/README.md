@@ -45,6 +45,7 @@ Are you the IT team that installs and runs the server for the alliance?
 | [D. Partner without integration capacity](partner-manual.md) | Partner admin | A small international office maintaining a handful of courses |
 | [E. Hosting operator](hosting-operator.md) | Hosting operator (the institution's IT team) | URV IT installing the Aurora pilot on `lspurv.urv.cat`: day 0 requests, installation with a check at every step, go-live, day-2 operation |
 | [Administrator lifecycle](administrator-lifecycle.md) | Alliance office, hosting operator | Invitation, sign-in mode, removal, dormancy, account clean-up and recertification: defaults and choices [DL 26] |
+| [Sign-in paths](identity-paths.md) | Alliance admin, hosting operator, partner admin and partner identity team | Federated (eduGAIN) or local accounts: which mode for a university, both paths step by step, what the identity team must provide [DL 22] |
 
 Once your account works, the user manuals take you through the administration panel screen by screen, with screenshots: [partner administrator manual](../manuals/partner-admin.md) and [alliance administrator manual](../manuals/alliance-admin.md).
 
@@ -69,7 +70,7 @@ The technical companions, written for the people who prepare the data, are:
 
 Nobody signs up. Administrators are **invited** by e-mail; the first alliance admin is created from the command line. Roles are never derived from what a university's login system says.
 
-**Sign-in mode per organization** [DL 22]. Each organization signs in one way, set by its *Identity provider alias*: none means local OECP accounts (the alliance organization, and universities outside eduGAIN or not connected yet); an alias means the university's own login through eduGAIN. An organization can move from local to federated later; a mix of local and federated administrators within one organization is not supported ([Guide A, step 3](alliance.md#3-identity)).
+**Sign-in mode per organization** [DL 22]. Each organization signs in one way, set by its *Identity provider alias*: none means local accounts (the panel's *OECP accounts*), the permanent mode of the alliance organization and of universities outside eduGAIN, and the interim mode of universities in eduGAIN whose identity provider is not connected yet; an alias means the university's own login through eduGAIN. An organization can move from local to federated later; a mix of local and federated administrators within one organization is not supported ([Guide A, step 3](alliance.md#3-identity)). Both paths side by side, with who does what: [sign-in paths](identity-paths.md).
 
 **Three channels.** A university feeds its courses through one of:
 

@@ -36,8 +36,10 @@ The screenshots come from the development stack with simulated data (University 
 
 Your organization signs in in **one** of two ways, decided by the alliance [DL 22]:
 
-- **OECP account** (local): an e-mail address, a password of at least 12 characters and a one-time code from your authenticator app. This is the mode of every university whose identity provider is not connected to OECP yet.
+- **OECP account** (local): an e-mail address, a password of at least 12 characters and a one-time code from your authenticator app. This is the mode of every university outside eduGAIN, and of those whose identity provider is not connected to OECP yet.
 - **Through your university**: your usual university login (through eduGAIN), followed by a one-time code from your authenticator app.
+
+Which mode applies to your university, and what its identity team must provide for the second: [sign-in paths](../onboarding/identity-paths.md).
 
 ### The first time: accept your invitation
 

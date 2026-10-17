@@ -259,7 +259,7 @@ Check:
 
 ### 2.13 Connect an identity provider
 
-Until a university's IdP is connected and tested, its administrators use local accounts (alias `null`, step 2.6). To connect one (procedure: [identity/keycloak/README.md, "Adding a partner IdP"](../../identity/keycloak/README.md#adding-a-partner-idp); runbook [§6](../production/runbook.md#6-identity-operations)):
+Local accounts (alias `null`, step 2.6) are the permanent mode of a university outside eduGAIN, and the interim mode of one in eduGAIN until its IdP is connected and tested ([sign-in paths](identity-paths.md)). To connect one (procedure: [identity/keycloak/README.md, "Adding a partner IdP"](../../identity/keycloak/README.md#adding-a-partner-idp); runbook [§6](../production/runbook.md#6-identity-operations)):
 
 1. **Send** the institution's identity team the SP entity ID `https://<auth host>/realms/oecp`, the descriptor `https://<auth host>/realms/oecp/broker/<alias>/endpoint/descriptor` (alias = organization slug; it lists that IdP's assertion consumer service and the realm's signing and encryption certificates) and the attributes of Day 0. Assertions must be signed and encrypted. The combined multi-ACS metadata for the federation registration (SIR/RedIRIS for Aurora [DL 15]) is a design only in 0.9.0 ([sp-metadata.md](../../identity/keycloak/scripts/sp-metadata.md)).
 2. **Receive** the IdP's entity ID, SSO URL, logout URL if any and signing certificates; write them in the IdP block of `identity/keycloak/realm-oecp.yaml` (for URV: replace the values of the development block `urv` and its `enabled` line, keeping the alias and the mappers) and apply with `docker compose run --rm keycloak-config`. Edit the file, never the console.

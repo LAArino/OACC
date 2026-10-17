@@ -111,7 +111,7 @@ Choose a slug in the list.
 
 ### 6. Sign-in mode: OECP accounts or the university's login
 
-Each organization signs in **one** way, decided by its *Identity provider alias* [DL 22]. There is no mixed mode.
+Each organization signs in **one** way, decided by its *Identity provider alias* [DL 22]. There is no mixed mode. Which mode suits a university, and both onboarding paths step by step: [sign-in paths](../onboarding/identity-paths.md).
 
 ![Identifiers and login: SCHAC home organization urv.cat and identity provider alias urv](../images/manual-organization-identifiers.png)
 

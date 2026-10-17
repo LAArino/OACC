@@ -65,7 +65,9 @@ OECP provides no agreement template in 0.9.0; the same items, with the controlle
 
 **Who:** partner admin. **Time:** 15 minutes.
 
-Follow the two e-mails: Keycloak's (set a password of at least 12 characters and enrol a TOTP app), then OECP's invitation link (sign in; the page confirms the acceptance; sign out and in again). Until your university's identity provider is connected to OECP and tested, partner admins use local OECP accounts; once it is, the invitation e-mail is the only one and its link takes you to *Sign in through your university*. A page reload keeps you signed in while your login session is alive (30 minutes idle, 8 hours at most).
+> **Local accounts** (your university is outside eduGAIN, or its identity provider is not connected yet): two e-mails, Keycloak's set-up e-mail and OECP's invitation link. **Federated**: one e-mail, the invitation link, which takes you to your university's login. Which one applies, and what your identity team must provide: [identity-paths.md](identity-paths.md).
+
+With local accounts, follow the two e-mails: Keycloak's (set a password of at least 12 characters and enrol a TOTP app), then OECP's invitation link (sign in; the page confirms the acceptance; sign out and in again). Local accounts are the permanent mode of a university outside eduGAIN, and the interim mode of one in eduGAIN until its identity provider is connected to OECP and tested; once it is, the invitation e-mail is the only one and its link takes you to *Sign in through your university*. A page reload keeps you signed in while your login session is alive (30 minutes idle, 8 hours at most).
 
 ## 5. Enter the integration settings
 
