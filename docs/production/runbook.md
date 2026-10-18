@@ -107,9 +107,13 @@ Back up = `docker compose exec backup oecp-backup backup full` (or `diff`), and 
 
 **Certificate expiry.** The refresh drops expired IdP certificates and warns 30 days ahead in the worker log; an IdP without a valid certificate fails the run (alert `OecpIdpMetadataRefreshFailed`, section 7). Independently, the worker reads the signing certificates of every IdP in the realm (at start, after each refresh and hourly; client `oecp-backend` needs `view-identity-providers`) and the alerts `OecpIdpCertificateExpiring` (30 and 7 days), `OecpIdpCertificateExpired` and `OecpIdpCertificateCheckStale` fire on them (section 7). Federation signing key: section 2. TLS: Traefik renews; the blackbox exporter probes the certificate Traefik serves on 443 (`OecpTlsCertificateExpiring` at 21 and 7 days), which in production must be the ACME certificate made Traefik's default ([Compose README, Alerting](../../deploy/compose/README.md#alerting)).
 
+![Keycloak admin console, realm oecp, Identity providers, the urv test identity provider, scrolled to the SAML settings: Validate Signatures on, the metadata descriptor URL, the Validating X509 certificates field with the certificate value, Sign service provider metadata on and the allowed clock skew](../images/ops-keycloak-idp-certificate.png)
+
 ## 7. Monitoring and alerts
 
 Profile `observability` ([Compose README, Alerting](../../deploy/compose/README.md#alerting)): Prometheus scrapes the api and worker `/metrics` (internal network only), their `/ready` (blackbox exporter), node-exporter (disk of the data volumes, backup metrics), Traefik, Keycloak, the monitoring services themselves and the TLS certificate on 443 (blackbox exporter); the worker also exports the expiry of the partner IdP signing certificates; `observability/alert-rules.yml` defines the alerts; Alertmanager sends them by e-mail (`OECP_ALERT_EMAIL_TO`, through `OECP_ALERT_SMTP_*` or the application relay) and/or to a webhook (`OECP_ALERT_WEBHOOK_URL`); Alloy ships every container's log to Loki through a read-only Docker socket proxy; Grafana shows the dashboards *OECP overview* and *OECP logs* (log volume by service and level, logs by service with a search box, Traefik access log) and the active alerts. In an incident, search the logs there (or *Explore*, data source Loki, e.g. `{service="api"} |= "error"`) rather than with `docker compose logs`, which only reaches back as far as the json-file rotation. Receivers: `[TO COMPLETE: alert mailbox or on-call address, webhook target]`. After set-up and after every change send a test alert (`amtool alert add`, Compose README) and check that it arrives.
+
+![Grafana dashboard "OECP overview" in kiosk mode, last 3 hours: the Status row (api and worker up, /ready up, database and uploads backup age, last WAL archived, firing alerts), then the HTTP (api), Harvests (worker), Maintenance jobs (worker) and Backups and disk rows, and the Certificates row with the days to IdP and TLS certificate expiry at the bottom; the backup panels show No data on the development stack](../images/ops-grafana-overview.png)
 
 | Alert | Severity | First actions |
 |---|---|---|
@@ -122,10 +126,16 @@ Profile `observability` ([Compose README, Alerting](../../deploy/compose/README.
 | `OecpBackupTooOld` (> 26 h), `OecpBackupFailed`, `OecpBackupMissing`, `OecpBackupMetricsStale`, `OecpBackupNoRecentFull` | critical / warning | `docker compose --profile backup ps backup`, `docker compose logs backup`; `docker compose exec backup pgbackrest --stanza=oecp check`; run `oecp-backup backup diff` once fixed |
 | `OecpWalArchivingFailing` | critical | `docker compose logs postgres` (archive-push errors), repository space or repo2 reachability; `pg_wal` grows meanwhile (disk alert next) |
 | `OecpDiskSpaceLow` (> 80 % warning, > 90 % critical) | warning / critical | `docker system df -v`; volumes `postgres_data`, `pgbackrest-repo` (backups, WAL), `uploads`, Docker logs; grow the disk before PostgreSQL stops |
-| `OecpIdpCertificateExpiring` (< 30 d warning, < 7 d critical), `OecpIdpCertificateExpired` | warning / critical | The partner IdP's SAML signing certificate in Keycloak (*Identity providers* > alias > *Signing certificate*); *Maintenance* page, last *IdP metadata refresh* run (does the federation metadata publish the successor?); ask the partner for its key rollover; by hand: add the new certificate comma-separated in Keycloak; disable the IdP if the partner has left |
+| `OecpIdpCertificateExpiring` (< 30 d warning, < 7 d critical), `OecpIdpCertificateExpired` | warning / critical | The partner IdP's SAML signing certificate in Keycloak (*Identity providers* > alias > *Validating X509 certificates*); *Maintenance* page, last *IdP metadata refresh* run (does the federation metadata publish the successor?); ask the partner for its key rollover; by hand: add the new certificate comma-separated in Keycloak; disable the IdP if the partner has left |
 | `OecpIdpCertificateCheckStale` | warning | Worker log `IdP signing certificates not checked`: Keycloak reachable from the worker, client `oecp-backend` has `view-identity-providers` |
 | `OecpTlsCertificateExpiring` (< 21 d warning, < 7 d critical), `OecpTlsProbeFailing` | warning / critical | `docker compose logs traefik \| grep -i acme` (port 443 reachable for the TLS-ALPN challenge, DNS, Let's Encrypt rate limits), `traefik_acme` volume; probe failing: Traefik down on 443 or `blackbox-exporter` not on the `edge` network |
 | `OecpMonitoringTargetDown` | warning | The exporter or Traefik/Keycloak metrics endpoint; the alerts depending on it cannot fire |
+
+The Prometheus rule health page shows every alert rule and its state; Alertmanager lists the firing alerts and holds the silences.
+
+![Prometheus Rule health page with the groups oecp-availability (3 rules), oecp-backup (6 rules) and the start of oecp-certificates, every rule OK; the stack has 26 rules in 7 groups, the rest below the fold](../images/ops-prometheus-rules.png)
+
+![Alertmanager Alerts page with the filter and group controls and one group for the receiver oecp-operators holding the delivery test alert OecpTestAlert (component monitoring, severity warning) with its Silence and Link actions](../images/ops-alertmanager.png)
 
 Still manual:
 

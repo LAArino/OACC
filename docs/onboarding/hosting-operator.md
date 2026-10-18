@@ -245,9 +245,7 @@ Check:
 
 ![The Alertmanager delivery test as it arrives: subject "[OECP local] FIRING:1 OecpTestAlert (warning)", one firing alert with its labels alertname, component and severity, and the View In Alertmanager button; caught by Mailpit on the development stack](../images/ops-alert-email.png)
 
-![Grafana dashboard "OECP overview": Status row with api and worker up and ready, backup ages and firing alerts, then the HTTP, Harvests, Maintenance jobs and Backups rows](../images/ops-grafana-overview.png)
-
-The dashboard screenshot predates the *Certificates* row (it is from release 0.5.0); the row sits under *Status* in 0.7.0 and later.
+![Grafana dashboard "OECP overview": Status row with api and worker up and ready, backup ages and firing alerts, then the HTTP, Harvests, Maintenance jobs and Backups rows, and the Certificates row with the days to IdP and TLS certificate expiry at the bottom](../images/ops-grafana-overview.png)
 
 ### 2.11 Branding
 

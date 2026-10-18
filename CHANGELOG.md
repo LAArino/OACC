@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docs: the repository README shows the public catalogue and the home page
   (two unbranded screenshots, `docs/images/readme-*.png`), and
   `publiccode.yml` lists them as `screenshots`.
+- Docs: the web form guide and the production runbook show the screens they
+  describe (course wizard, status override box, course history; Grafana
+  overview with the Certificates row, Prometheus rule health with the 26
+  rules, Alertmanager, the IdP certificate field in Keycloak); four new and
+  two retaken screenshots; the runbook names the Keycloak field "Validating
+  X509 certificates".
 
 ## [0.9.0] - 2026-10-16
 

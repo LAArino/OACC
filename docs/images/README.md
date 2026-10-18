@@ -11,14 +11,15 @@ page and another on the course list, all three the deployment's own files, see
 and the real course data of the Aurora Virtual Campus 2026-27 next to the
 simulated Innsbruck partner. The **administration panel** screenshots date
 from 2026-10-14 (release 0.3.0, simulated data; `admin-maintenance.png` from
-the Maintenance page released in 0.4.0) and the three **operations and API**
-screenshots from 2026-10-15 (release 0.5.0). They illustrate the
+the Maintenance page released in 0.4.0) and the **operations and API** screenshots
+from 2026-10-15 (release 0.5.0, now only `api-openapi-redoc.png`; the others
+were retaken on 2026-10-18, release 0.9.0). They illustrate the
 documentation; the product may change. None contains credentials.
 
-Not retaken since: in 0.7.0 the alert rules grew to 26 (group
-`oecp-certificates`) and "OECP overview" gained a *Certificates* row, so
-`ops-prometheus-rules.png` and `ops-grafana-overview.png` predate them. The
-second dashboard, "OECP logs" (the container logs shipped to Loki), and the
+Not retaken since 0.5.0: `api-openapi-redoc.png`. The 26 alert rules (group
+`oecp-certificates` included) and the *Certificates* row of "OECP overview"
+are now captured in `ops-prometheus-rules.png` and `ops-grafana-overview.png`.
+The second dashboard, "OECP logs" (the container logs shipped to Loki), and the
 admin panel's warning for an organization whose identity provider is not
 enabled have their own screenshots below (`ops-grafana-logs.png`,
 `manual-invitations-warning.png`).
@@ -55,9 +56,11 @@ enabled have their own screenshots below (`ops-grafana-logs.png`,
 
 | File | Shows |
 |---|---|
-| `ops-grafana-overview.png` | Grafana dashboard "OECP overview" of the `observability` profile (kiosk mode, light theme, last 3 hours), rows: Status (api and worker up and ready, database and uploads backup age, last WAL archived, firing alerts), HTTP (api), Harvests (worker), Maintenance jobs (worker), Backups and disk. The "IdP metadata: last refresh" panel shows "No data" because the development stack has no eduGAIN aggregate configured. |
+| `ops-grafana-overview.png` | Retaken on 2026-10-18 (release 0.9.0), 1400 x 1750 pixels. Grafana dashboard "OECP overview" of the `observability` profile (kiosk mode, light theme, last 3 hours), rows: Status (api and worker up, /ready up, database and uploads backup age, last WAL archived, firing alerts), HTTP (api), Harvests (worker) with the Innsbruck partner at 0 consecutive failures, Maintenance jobs (worker), Backups and disk, and the Certificates row (days to IdP and TLS certificate expiry) at the bottom. The backup panels show "No data" because the backup profile is not running on the development stack. |
 | `ops-grafana-logs.png` | Grafana dashboard "OECP logs" of the `observability` profile (kiosk mode, light theme, last 3 hours), taken on 2026-10-18 from the development stack (release 0.9.0): the *Service* and *Line contains (regex)* filters, the Volume row (log lines by service and by level, errors and warnings by service and level), the Logs panel with the api JSON lines and Grafana's own lines, and the Traefik access log panel, which shows "No data" on the development stack. |
-| `ops-prometheus-rules.png` | Prometheus "Rule health" page with the OECP alert rules (19 rules, every one OK and inactive on the development stack); the groups `oecp-availability`, `oecp-backup` and `oecp-harvest` are visible, the others below the fold. |
+| `ops-prometheus-rules.png` | Retaken on 2026-10-18 (release 0.9.0), 1400 x 1000 pixels. Prometheus "Status > Rule health" page with the groups `oecp-availability` (3 rules), `oecp-backup` (6) and the start of `oecp-certificates`, every rule OK; the stack has 26 rules in 7 groups (availability, backup, certificates, harvest, host, http, maintenance), the rest below the fold. |
+| `ops-alertmanager.png` | Alertmanager "Alerts" page (release 0.9.0, 2026-10-18, 1400 x 800 pixels) with the filter and group controls and one group for the receiver `oecp-operators` holding the delivery test `OecpTestAlert` (component=monitoring, severity=warning) with its Silence and Link actions. |
+| `ops-keycloak-idp-certificate.png` | Keycloak admin console, realm `oecp`, Identity providers > `urv` (the development test IdP) > settings, scrolled to the SAML settings (release 0.9.0, 2026-10-18, 1400 x 620 pixels): Validate Signatures on, Metadata descriptor URL, "Validating X509 certificates" with the certificate value, Sign service provider metadata on, Allowed clock skew. |
 | `api-openapi-redoc.png` | The public catalogue API OpenAPI document (release 0.5.0) rendered with Redoc, a static page built with `npx @redocly/cli build-docs docs/api/oecp-public-api.openapi.json` ([docs/api/README.md](../api/README.md#how-to-view)). |
 
 Three more, taken on 2026-10-18 from the development stack (release 0.9.0, profiles `dev` and `observability`, Mailpit as the SMTP relay for Keycloak and Alertmanager) at 1400 pixels wide with Playwright, for the [hosting operator guide](../onboarding/hosting-operator.md) (Guide E, steps 2.7, 2.10 and 2.12). The e-mails show only example addresses; the account update link is shown as link text, its token is not on screen.
@@ -76,6 +79,15 @@ Taken on 2026-10-18 from the development stack (release 0.9.0) at 1200 pixels wi
 |---|---|
 | `readme-catalogue.png` | Course list filtered by the educational hub "Social Entrepreneurship & Innovation": filter sidebar with facet counts, the active filter chip, and course cards (a BIP and a course from different universities) with key facts and alliance tags. |
 | `readme-home.png` | Home page: text brand, search box, "Browse 30 courses with upcoming offerings", quick links by field of study and by university with course counts. |
+
+## Data-provider guides (release 0.9.0, 2026-10-18)
+
+Taken on 2026-10-18 from the development stack (release 0.9.0) at 1400 pixels wide, for the [web form guide](../guides/web-form.md). The data is the simulated University of Innsbruck partner harvested from the OEAPI mock (`tools/oeapi-mock`); a status override was set on one harvested course and reverted for the capture, so nothing was left changed.
+
+| File | Shows |
+|---|---|
+| `guide-status-override.png` | Course page of a harvested course (University of Innsbruck, code 609010) in overrides mode, 1400 x 499 pixels: the "Summary and status" card with code, type, source "OEAPI harvest", last updated, last seen in a harvest and Status "Withdrawn" with the Publish and Back to draft buttons, then the "Status override" box ("The status Withdrawn is set here as an override. The partner's value is Published.") with the button "Revert status to the partner's value" and the note that harvested records cannot be deleted here. |
+| `guide-course-history.png` | The "History" card at the end of the same course page, 1400 x 424 pixels: "Latest 4 changes, newest first", columns When, By (account id), Type, Action and Summary, with an Ingestion `ingest.accepted` entry, an Admin change `course.status` "Status published → withdrawn", and two Ingestion entries for the accepted OEAPI payloads of the course and its offering. |
 
 ## Onboarding guides (release 0.9.0, 2026-10-18)
 

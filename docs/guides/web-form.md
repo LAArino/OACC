@@ -20,9 +20,13 @@ The mode follows the organization's authoritative channel (`GET …/reference` r
 
 **Courses** lists every course of the organization, any status, with filters for text (code or any title), status, type and source channel, 25 per page. Each row shows code, title (English, else the first language), status, source, ECTS, offerings, last update, whether overrides exist and **Completeness** against the [publication rule](#publication-rule-completeness): a tick for a complete course, else a badge with the number of obligatory fields still missing ("*3 missing*"; the course's Completeness card lists them). **New course** opens the wizard (write mode only).
 
+![Courses list of the University of Iceland in the administration panel: filters for text, status, type and source channel, and the table of courses with the Completeness column showing a tick or the number of missing fields](../images/manual-courses-list.png)
+
 ## The course wizard
 
 Four steps. A new course is filled in order and each step is checked before **Next**; an existing course opens on any step and can be saved from any of them. Server errors are mapped back to their fields and listed in an error summary at the top.
+
+![Course wizard of a new course, step 1 Basics, with example values typed in and not yet saved: course code, type of course, levels, ECTS credits and the other basic fields](../images/manual-course-wizard-step1.png)
 
 **1. Basics**
 
@@ -44,9 +48,13 @@ Four steps. A new course is filled in order and each step is checked before **Ne
 
 **4. Review and status.** A summary of everything entered and, for a saved course, the **Completeness** card: *Complete*, or the list of fields the Aurora catalogue requires that are still missing (for the last saved version, offerings included), and the **Image** card ([below](#course-image); for a new course it only says to save the course first). Then the status: **Draft** (not shown in the public catalogue) or **Published** (requires the English title). A new course starts as draft. For an existing course that is withdrawn or cancelled the choice stays empty and saving keeps that status; use the status actions to change it. **Create course** sends `POST`, **Save** sends `PUT` (a full replace of the record).
 
+![Course wizard, step 4 of 4, Review and status, of the course URB-301: the Image card asking to save the course first, the summary of what was entered, the status choice with Draft selected and Published, and the Back and Create course buttons](../images/onboarding-course-wizard-review.png)
+
 ## Course image
 
 One image per course (decision 27), shown on the course card and above *About this course* on the public course page; without one the portal shows the partner logo line as before. It is set in the **Image** card of the Review step, which appears once the course exists (save a new course first). Its buttons act **at once**: they do not wait for **Save**, and they keep what you have typed but not yet saved in the other steps.
+
+![Course wizard, step 4: the Completeness card with one obligatory field missing, and the Image card showing the current course image with its alternative text, credit and the Replace image, Save text and Remove image buttons](../images/manual-course-image-card.png)
 
 - **Image file.** JPEG, PNG or WebP, at most **5 MB**; the browser checks the type and the size before anything is sent. Use a landscape image at least 1600 pixels wide: cards crop it to 16:9. OECP stores its own copy, re-encoded to WebP without metadata (no EXIF, location or camera data): a large version inside 1600×1600 and a card version inside 640×640, never enlarged. The original file is not kept.
 - **Alternative text (English).** Required, at most 300 characters: what the image shows, for people who cannot see it. Tick **Decorative image (no alternative text)** only when the image adds no information; the text field is then disabled and emptied.
@@ -67,6 +75,8 @@ The Aurora IT Handbook shows a course only when every obligatory field is filled
 
 A save is never refused because of this rule. In `enforce` mode, withdrawing or deleting the last published offering of a published course, or emptying an obligatory field, turns the course back to draft. The Completeness column and card always show the result for the saved version, whatever the status and the mode.
 
+![Course editor, review step, with the Completeness card listing the obligatory fields of the publication rule that are still missing](../images/admin-course-editor-completeness.png)
+
 ## Offerings
 
 The course page lists its offerings; **Add offering** (write mode) opens the offering form, which has five sections:
@@ -81,6 +91,8 @@ The course page lists its offerings; **Add offering** (write mode) opens the off
 
 Date rules: end ≥ start, deadline ≤ end, application period start ≤ deadline.
 
+![Offering page of a course: the status actions, the offering code, the academic session, the start and end dates, the time zone and the start of the teaching languages](../images/manual-offering-form.png)
+
 ## Status actions
 
 Course and offering pages show the current status and the actions available from it; each asks for confirmation.
@@ -91,6 +103,8 @@ Course and offering pages show the current status and the actions available from
 | Published | Withdraw, Cancel, Back to draft |
 | Withdrawn | Publish, Back to draft |
 | Cancelled | Publish, Back to draft |
+
+![Summary and status box of a published course with the Withdraw, Cancel and Back to draft actions and the reason why it cannot be deleted, above the step buttons](../images/manual-course-status.png)
 
 What each state means for the public portal:
 
@@ -124,6 +138,10 @@ When the organization is harvested from its OEAPI endpoint, course and offering 
 - The status actions store a **`status` override**. It wins over the harvested status and over withdrawal by absence, so "Withdraw" is the immediate way to take a harvested course down.
 - While a status override exists, the course or offering page shows a **Status override** box with the overridden status and the partner's value. **Revert status to the partner's value** asks for confirmation and removes the override (`PATCH …/overrides {"clear": ["status"]}`): the record takes the harvested status at once.
 
+![Course editor in overrides mode on a harvested course: every overridable field shows its source value from the partner's OEAPI endpoint next to an Override checkbox](../images/admin-course-editor-overrides.png)
+
+![Course page of a harvested course of the University of Innsbruck (code 609010) in overrides mode: the Summary and status card with source OEAPI harvest, status Withdrawn and the Publish and Back to draft buttons, and the Status override box stating that Withdrawn is set here as an override while the partner's value is Published, with the button Revert status to the partner's value](../images/guide-status-override.png)
+
 Overridable: course type, levels, ECTS, teaching hours, information page, contact e-mail, instructors (as one list), attributes (as one value), ISCED codes and every text field per language, the five optional texts included (adding a title in a new language adds that language until the title override is cleared); offering dates, time zone, teaching languages, delivery modes, campus, seat figures, application page and instructions.
 
 **What survives a harvest.** Every override. The harvester compares payloads before overrides are applied, keeps writing the latest source value next to each override (that is the value displayed and restored when you revert) and never removes an override. Partners cannot send course types or alliance attributes through OEAPI, and most endpoints do not return named coordinators, so overrides are the way to add course types, attributes and instructors to harvested courses (an `instructors` override is often what makes a harvested course complete). If the organization later switches to `form` or `csv`, the first save of a record in the wizard drops its leftover overrides; CSV uploads do not.
@@ -143,6 +161,8 @@ Overridable: course type, levels, ECTS, teaching hours, information page, contac
 ## History
 
 The course page ends with **History**: the latest 50 changes of the course and its offerings, newest first, with when, by whom (the administrator's account id, or `system:harvester`), type, action and a one-line summary. "Admin change" entries come from the audit log (created, updated with the changed fields, status from → to, overrides set or removed, deleted, withdrawn after N absences, republished when seen again); "Ingestion" entries record each accepted or rejected payload of a channel, only when its content changed. Payload bodies are never shown.
+
+![The History card at the end of the same course page, Latest 4 changes newest first, with the columns When, By, Type, Action and Summary: an Ingestion entry ingest.accepted, an Admin change course.status "Status published → withdrawn", and two Ingestion entries for the accepted OEAPI payloads of the course and its offering](../images/guide-course-history.png)
 
 ## Admin API equivalents
 
