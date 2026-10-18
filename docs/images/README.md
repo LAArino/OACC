@@ -57,6 +57,14 @@ enabled and shows a warning first. None of these has a screenshot.
 | `ops-prometheus-rules.png` | Prometheus "Rule health" page with the OECP alert rules (19 rules, every one OK and inactive on the development stack); the groups `oecp-availability`, `oecp-backup` and `oecp-harvest` are visible, the others below the fold. |
 | `api-openapi-redoc.png` | The public catalogue API OpenAPI document (release 0.5.0) rendered with Redoc, a static page built with `npx @redocly/cli build-docs docs/api/oecp-public-api.openapi.json` ([docs/api/README.md](../api/README.md#how-to-view)). |
 
+Three more, taken on 2026-10-18 from the development stack (release 0.9.0, profiles `dev` and `observability`, Mailpit as the SMTP relay for Keycloak and Alertmanager) at 1400 pixels wide with Playwright, for the [hosting operator guide](../onboarding/hosting-operator.md) (Guide E, steps 2.7, 2.10 and 2.12). The e-mails show only example addresses; the account update link is shown as link text, its token is not on screen.
+
+| File | Shows |
+|---|---|
+| `ops-setup-email.png` | Mailpit with the Keycloak "Update Your Account" e-mail of the first alliance admin open: sender, recipient, the Update Password and Configure OTP actions, the account update link and the two-day expiry. |
+| `ops-alert-email.png` | Mailpit with the Alertmanager delivery test open: subject "[OECP local] FIRING:1 OecpTestAlert (warning)", the firing alert with its three labels and the *View In Alertmanager* button. |
+| `ops-keycloak-admin-console.png` | Keycloak admin console, `master` realm, Users list with the single `admin` service account (warning icon, no e-mail) and the "temporary admin user" banner. |
+
 ## User manuals (release 0.8.0, 2026-10-16)
 
 Taken on 2026-10-16 from the development stack (release 0.8.0) at 1200 pixels wide with Playwright, signed in as the development alliance administrator, and cropped to the relevant part of the page; used by the [partner administrator manual](../manuals/partner-admin.md) and the [alliance administrator manual](../manuals/alliance-admin.md). Data: the simulated University of Innsbruck harvest, the Aurora Virtual Campus courses of the University of Iceland and the development test accounts. Nothing was saved, uploaded, sent or run to take them; the CSV check report shows the Aurora Virtual Campus fixture files with one date deliberately reformatted, checked in the browser only. The sign-in form is empty and no one-time code is shown.

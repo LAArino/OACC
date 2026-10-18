@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a partner's identity team must provide; Guides B and C branch on the mode;
   local accounts are documented as the permanent mode for universities
   outside eduGAIN.
+- Docs: Guide E (hosting operator) steps 2.7, 2.10, 2.11 and 2.12 show the
+  screens their checks describe: the Keycloak set-up e-mail, the Alertmanager
+  delivery test, the Grafana overview, the branded home page and the Keycloak
+  admin console with its "temporary admin" banner; three new screenshots in
+  `docs/images/ops-*.png`, catalogued in `docs/images/README.md`.
 
 ## [0.9.0] - 2026-10-16
 

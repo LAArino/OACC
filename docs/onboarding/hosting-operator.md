@@ -176,6 +176,10 @@ The command prints an invitation link (24 hours by default, at most 168) and wor
 
 Check: the Keycloak set-up e-mail arrives (the first proof that the relay accepts Keycloak's mail; if the command prints `No set-password e-mail was sent; check the realm SMTP settings or send it from the Keycloak admin console.`, see [Keycloak "Failed to send email"](../../deploy/compose/README.md#troubleshooting)); the person signs in at `https://<portal host>/en/admin` and the page shows the alliance administration screens.
 
+![The Keycloak "Update Your Account" e-mail as it arrives, here caught by Mailpit on the development stack: sender, the named person as recipient, the Update Password and Configure OTP actions, the account update link and the two-day expiry](../images/ops-setup-email.png)
+
+What the new admin sees after signing in is the dashboard of the [alliance administrator manual](../manuals/alliance-admin.md) (`manual-dashboard.png`): *Your account*, the organization list and the *Alliance administration* tiles.
+
 ### 2.8 Smoke test
 
 The [smoke test of the Compose README](../../deploy/compose/README.md#smoke-test), with your hosts and without `-k` (the certificate must now verify):
@@ -239,17 +243,29 @@ Check:
 - The TLS probe reports the expiry of the ACME certificate, not of Traefik's self-generated one: the *Certificates* row of the dashboard *OECP overview* shows it. If not, the default-certificate labels of step 2.4 are not in effect.
 - The dashboard *OECP logs* shows recent lines for every service (else `docker compose logs alloy docker-socket-proxy loki`). Loki keeps the Traefik access log 30 days and everything else 90 days; the json-file sizes of step 2.2 only need to bridge an outage. Record the chosen sizes in runbook §10.
 
+![The Alertmanager delivery test as it arrives: subject "[OECP local] FIRING:1 OecpTestAlert (warning)", one firing alert with its labels alertname, component and severity, and the View In Alertmanager button; caught by Mailpit on the development stack](../images/ops-alert-email.png)
+
+![Grafana dashboard "OECP overview": Status row with api and worker up and ready, backup ages and firing alerts, then the HTTP, Harvests, Maintenance jobs and Backups rows](../images/ops-grafana-overview.png)
+
+The dashboard screenshot predates the *Certificates* row (it is from release 0.5.0); the row sits under *Status* in 0.7.0 and later.
+
 ### 2.11 Branding
 
 Optional. Put the alliance's header image and logo (the alliance holds their rights; for Aurora [DL 25]) in `branding/` (or `OECP_BRANDING_DIR`), readable by uid 1000, with the file names, sizes and variables of [branding/README.md](../../deploy/compose/branding/README.md); then `docker compose up -d web`. Partner logos (`partner-<slug>.svg`, `.png` or `.webp`) need no variable and the favicon is set with `OECP_FAVICON_IMAGE`; `curl -s "https://$PORTAL/branding/index.json"` lists the files the portal sees.
 
 Check: `curl -sI "https://$PORTAL/branding/<file>" | head -1` answers 200 for each file, and the home page shows the image and logo.
 
+![Home page of the public portal with the deployment branding in place: the alliance logo in the header, the header image above the search box, the course count and the quick links by field and by university](../images/public-home.png)
+
 ### 2.12 Keycloak admin console
 
 The admin console (`/admin`) and the `master` realm are reachable only from `KEYCLOAK_ADMIN_ALLOWLIST` ([Compose README, Keycloak admin allowlist](../../deploy/compose/README.md#keycloak-admin-allowlist)). Changing the value recreates `keycloak`.
 
 The `master` realm has one account that is not a person: `KEYCLOAK_ADMIN_USER` (default `admin`), created at first start from `secrets/keycloak_admin_password`. It is the **configuration service account**: `keycloak-config` signs in with it on every `docker compose up` to re-apply `realm-oecp.yaml`, so it cannot carry MFA and must not be deleted (Keycloak's console labels it "temporary" because it was created by the bootstrap variables; that label is harmless here). Keep its password only in the secret file, rotate it with the procedure of [secrets/README.md, Rotation](../../deploy/compose/secrets/README.md#rotation), and rely on the allowlist to keep the console off the Internet. For the people who need the console, create separate permanent `master` administrators with MFA (checklist item 3) and never share the service account.
+
+![Keycloak admin console, master realm, Users list: the single admin account with a warning icon and no e-mail, and the yellow banner "You are logged in as a temporary admin user. To harden security, create a permanent admin account and delete the temporary one."](../images/ops-keycloak-admin-console.png)
+
+The banner is Keycloak's advice for a human bootstrap account. Here the account is the service account, so create the permanent administrators it asks for but do **not** delete this one.
 
 Check:
 
