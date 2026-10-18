@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   screens their steps describe; ten new screenshots
   (`docs/images/onboarding-*.png` and `ops-grafana-logs.png`), catalogued in
   `docs/images/README.md`; Guide C now says template 1.3.
+- Docs: the repository README shows the public catalogue and the home page
+  (two unbranded screenshots, `docs/images/readme-*.png`), and
+  `publiccode.yml` lists them as `screenshots`.
 
 ## [0.9.0] - 2026-10-16
 

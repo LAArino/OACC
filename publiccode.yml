@@ -98,6 +98,9 @@ description:
       The reference Docker Compose deployment includes scheduled backups with
       point-in-time recovery, alerting and log retention; a Helm chart is
       planned.
+    screenshots:
+      - docs/images/readme-catalogue.png
+      - docs/images/readme-home.png
     features:
       - Public course catalogue with server-side rendering and no cookies
       - Multilingual full-text search with typo-tolerant suggestions

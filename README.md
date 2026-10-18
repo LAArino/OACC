@@ -16,6 +16,8 @@ dependence on an external managed platform.
 The full specification is [docs/spec-v4.1.md](docs/spec-v4.1.md). An index of
 all documentation is in [docs/README.md](docs/README.md).
 
+![Course list of the public catalogue filtered by one alliance attribute (educational hub): the filter sidebar with facet counts, the active filter chip, and course cards from several universities with ECTS, level, delivery mode, next offering, application deadline and the alliance tags](docs/images/readme-catalogue.png)
+
 ## The problem it solves
 
 An alliance of universities wants one place where students can find every
@@ -49,6 +51,8 @@ without forcing every partner into the same tooling:
   partner's own application process. It never handles applications,
   enrolment or student records, which keeps its data-protection footprint
   small.
+
+![Home page of the public portal: search box, the number of courses with upcoming offerings, and the quick links by field of study and by university](docs/images/readme-home.png)
 
 ## Main modules
 

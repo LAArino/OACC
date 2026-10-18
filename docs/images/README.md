@@ -68,6 +68,15 @@ Three more, taken on 2026-10-18 from the development stack (release 0.9.0, profi
 | `ops-alert-email.png` | Mailpit with the Alertmanager delivery test open: subject "[OECP local] FIRING:1 OecpTestAlert (warning)", the firing alert with its three labels and the *View In Alertmanager* button. |
 | `ops-keycloak-admin-console.png` | Keycloak admin console, `master` realm, Users list with the single `admin` service account (warning icon, no e-mail) and the "temporary admin user" banner. |
 
+## Repository README (release 0.9.0, 2026-10-18)
+
+Taken on 2026-10-18 from the development stack (release 0.9.0) at 1200 pixels wide with Playwright, viewport only, with no branding images and a neutral alliance name (`OECP_ALLIANCE_NAME=European University Alliance`), so that the product looks generic; the data is the Aurora Virtual Campus 2026-27 CSV snapshot of `docs/data/` next to the simulated Innsbruck partner. Used by the repository [README](../../README.md) and listed as `screenshots` in `publiccode.yml`.
+
+| File | Shows |
+|---|---|
+| `readme-catalogue.png` | Course list filtered by the educational hub "Social Entrepreneurship & Innovation": filter sidebar with facet counts, the active filter chip, and course cards (a BIP and a course from different universities) with key facts and alliance tags. |
+| `readme-home.png` | Home page: text brand, search box, "Browse 30 courses with upcoming offerings", quick links by field of study and by university with course counts. |
+
 ## Onboarding guides (release 0.9.0, 2026-10-18)
 
 Ten new screenshots, taken on 2026-10-18 from the development stack (release 0.9.0) at 1400 pixels wide with Playwright, for the [onboarding guides](../onboarding/README.md) (A to D, Guide E steps 2.13 and 3, and the [sign-in paths](../onboarding/identity-paths.md) page): the nine `onboarding-*` files below and `ops-grafana-logs.png`, which is listed in the operations table above. They use development test accounts and example addresses. The QR code and the invitation link are masked and no token is on screen. The University of Innsbruck is the simulated partner of the development stack, reached over plain http against the OEAPI mock (`tools/oeapi-mock`).
