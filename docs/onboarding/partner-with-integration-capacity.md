@@ -57,12 +57,20 @@ Choose (a) if your university wants an OEAPI endpoint anyway (national registrie
 
 **Who:** partner IT builds the export; partner admin uploads and checks.
 
-1. **Download the templates** from the admin console (*CSV upload* > Templates): `courses.csv`, `offerings.csv` and the JSON Schema of template 1.2. The courses template has one `attr_<key>` column for each alliance attribute, so download it from your own deployment.
+1. **Download the templates** from the admin console (*CSV upload* > Templates): `courses.csv`, `offerings.csv` and the JSON Schema of template 1.3. The courses template has one `attr_<key>` column for each alliance attribute, so download it from your own deployment.
+
+   ![CSV upload page: limits, what templates 1.2 and 1.3 add, the template download links, the drop area and the Upload button](../images/manual-csv-console.png)
+
 2. **Map your SIS fields** to the columns, using the [CSV authoring guide](../guides/csv-authoring.md). Required course columns: `template_version`, `course_code`, `status`, `ects`, `isced_codes`, `title_en`. Required offering columns: `template_version`, `course_code`, `offering_code`, `status`, `start_date`, `end_date`, `teaching_languages`, `delivery_modes`.
 3. **Keep codes stable.** `course_code` and `offering_code` identify records forever; never reuse a code for a different course.
 4. **Write status explicitly.** Leaving a row out changes nothing; to remove a course or offering, export it with `status` `withdrawn` (or `cancelled` for an offering that will not take place).
 5. **Generate** UTF-8 files, comma-separated, dates as `YYYY-MM-DD`, decimals with a dot, multiple values separated by `|`. Limits: 5 MiB and 5,000 rows per file; up to 10 uploads per hour.
 6. **Upload** in the console: the files are checked in the browser first, then on the server. An upload is all or nothing: one error and nothing is written. Files above 500 rows are processed in the background. The steps are the same as in [Guide D](partner-manual.md#3-upload-csv-files).
+
+   ![Check report after choosing courses.csv and offerings.csv: 16 rows, 1 error, an invalid date in row 3 of offerings.csv, and the Upload button disabled](../images/manual-csv-check-report.png)
+
+   ![CSV console after an upload processed on the server](../images/admin-csv-console-uploaded.png)
+
 7. **Schedule** the export and an upload routine before each application round, and at least monthly.
 
 A scripted upload, without the console, is technically possible: the console calls `POST /api/admin/v1/organizations/{orgId}/uploads` with a bearer token. In 0.9.0, however, tokens come only from an interactive login with MFA and last 5 minutes, and there is no service account or API key, so unattended upload is not yet documented or supported.

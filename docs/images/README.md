@@ -16,10 +16,12 @@ screenshots from 2026-10-15 (release 0.5.0). They illustrate the
 documentation; the product may change. None contains credentials.
 
 Not retaken since: in 0.7.0 the alert rules grew to 26 (group
-`oecp-certificates`), "OECP overview" gained a *Certificates* row and a second
-dashboard, "OECP logs", shows the container logs shipped to Loki; the admin
-panel refuses invitations to an organization whose identity provider is not
-enabled and shows a warning first. None of these has a screenshot.
+`oecp-certificates`) and "OECP overview" gained a *Certificates* row, so
+`ops-prometheus-rules.png` and `ops-grafana-overview.png` predate them. The
+second dashboard, "OECP logs" (the container logs shipped to Loki), and the
+admin panel's warning for an organization whose identity provider is not
+enabled have their own screenshots below (`ops-grafana-logs.png`,
+`manual-invitations-warning.png`).
 
 ## Public portal
 
@@ -54,6 +56,7 @@ enabled and shows a warning first. None of these has a screenshot.
 | File | Shows |
 |---|---|
 | `ops-grafana-overview.png` | Grafana dashboard "OECP overview" of the `observability` profile (kiosk mode, light theme, last 3 hours), rows: Status (api and worker up and ready, database and uploads backup age, last WAL archived, firing alerts), HTTP (api), Harvests (worker), Maintenance jobs (worker), Backups and disk. The "IdP metadata: last refresh" panel shows "No data" because the development stack has no eduGAIN aggregate configured. |
+| `ops-grafana-logs.png` | Grafana dashboard "OECP logs" of the `observability` profile (kiosk mode, light theme, last 3 hours), taken on 2026-10-18 from the development stack (release 0.9.0): the *Service* and *Line contains (regex)* filters, the Volume row (log lines by service and by level, errors and warnings by service and level), the Logs panel with the api JSON lines and Grafana's own lines, and the Traefik access log panel, which shows "No data" on the development stack. |
 | `ops-prometheus-rules.png` | Prometheus "Rule health" page with the OECP alert rules (19 rules, every one OK and inactive on the development stack); the groups `oecp-availability`, `oecp-backup` and `oecp-harvest` are visible, the others below the fold. |
 | `api-openapi-redoc.png` | The public catalogue API OpenAPI document (release 0.5.0) rendered with Redoc, a static page built with `npx @redocly/cli build-docs docs/api/oecp-public-api.openapi.json` ([docs/api/README.md](../api/README.md#how-to-view)). |
 
@@ -64,6 +67,22 @@ Three more, taken on 2026-10-18 from the development stack (release 0.9.0, profi
 | `ops-setup-email.png` | Mailpit with the Keycloak "Update Your Account" e-mail of the first alliance admin open: sender, recipient, the Update Password and Configure OTP actions, the account update link and the two-day expiry. |
 | `ops-alert-email.png` | Mailpit with the Alertmanager delivery test open: subject "[OECP local] FIRING:1 OecpTestAlert (warning)", the firing alert with its three labels and the *View In Alertmanager* button. |
 | `ops-keycloak-admin-console.png` | Keycloak admin console, `master` realm, Users list with the single `admin` service account (warning icon, no e-mail) and the "temporary admin user" banner. |
+
+## Onboarding guides (release 0.9.0, 2026-10-18)
+
+Ten new screenshots, taken on 2026-10-18 from the development stack (release 0.9.0) at 1400 pixels wide with Playwright, for the [onboarding guides](../onboarding/README.md) (A to D, Guide E steps 2.13 and 3, and the [sign-in paths](../onboarding/identity-paths.md) page): the nine `onboarding-*` files below and `ops-grafana-logs.png`, which is listed in the operations table above. They use development test accounts and example addresses. The QR code and the invitation link are masked and no token is on screen. The University of Innsbruck is the simulated partner of the development stack, reached over plain http against the OEAPI mock (`tools/oeapi-mock`).
+
+| File | Shows |
+|---|---|
+| `onboarding-test-idp-login.png` | SimpleSAMLphp "Enter your username and password" form of the development test identity provider (Rovira i Virgili University), empty, reached from the university chooser on the portal sign-in prompt. |
+| `onboarding-keycloak-set-password.png` | Keycloak *Update password* page with the empty *New Password* and *Confirm password* fields, the *Sign out from other devices* box and *Submit*. The token of the link is not on screen. |
+| `onboarding-keycloak-totp.png` | Keycloak *Mobile Authenticator Setup*: the warning that the account needs it, the list of apps, the barcode step with the QR code masked as a black square, *Unable to scan?*, the empty *One-time code* and *Device Name* fields and *Submit*. On release 0.9.0 Keycloak asks for the authenticator first and the password second. |
+| `onboarding-invitation-email.png` | Mailpit, *Text* tab (the invitation is plain text), with the invitation e-mail open: subject "Invitation: Aurora European Universities Alliance administrator, Open European Campus Portal" to `deputy@alliance.example`, the invitation sentence, the link line masked with a black bar, the expiry and the note about the separate set-up e-mail for organizations without institutional login. |
+| `onboarding-administrators-resend.png` | *Administrators* panel of the alliance organization, "1 administrator": `platform@alliance.example` (you), signs in with OECP account, *Set-up pending: set a password*, and the *Resend set-up e-mail* button with the note "You cannot remove yourself". The button appears only while a local account has a pending set-up. |
+| `onboarding-host-waiting-approval.png` | *Integration settings* of the University of Innsbruck: current settings (OEAPI harvest, Direct, harvesting No, last run None) and the *Host approval* card with host `oeapi-mock:8090`, *Waiting for approval* and the button *Approve host oeapi-mock:8090*. |
+| `onboarding-integration-test-ok.png` | The same page after the approval, full page: *Approved* with the approval time, the *Settings* form (base URL `http://oeapi-mock:8090`, consumer `eduxchange`, a stored Basic credential, daily schedule, limits, *Harvest on the schedule* unchecked), *Test and run* with *Test connection* and *Sync now*, and the result "The connection works" (target, 17 ms, service contact, specification and documentation links, courses available, first course code `201420`). |
+| `onboarding-course-wizard-texts.png` | Course wizard of Rovira i Virgili University, "Step 2 of 4: Texts": *Add a language* and the English (required) tab with the example title "Introduction to Sustainable Urban Planning", abstract and description typed in (not saved). |
+| `onboarding-course-wizard-review.png` | Course wizard, "Step 4 of 4: Review and status" of course `URB-301` (Course, Bachelor, 5 ECTS, ISCED-F 0731): the *Image* card ("Save the course first"), the summary, the status choice (*Draft* selected, *Published*) and the *Back* and *Create course* buttons, not pressed. |
 
 ## User manuals (release 0.8.0, 2026-10-16)
 

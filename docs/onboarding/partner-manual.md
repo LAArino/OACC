@@ -19,8 +19,18 @@ Screen-by-screen walkthrough with screenshots: [partner administrator manual](..
 
 You are a `partner_admin`: you manage the courses, offerings and uploads of your own university only. The alliance admin can see and help with everything.
 
-1. Open the e-mail from the login service, set a password of at least 12 characters and scan the QR code with your authenticator app.
+1. Open the e-mail from the login service, scan the QR code with your authenticator app and enter the one-time code, then set a password of at least 12 characters.
+
+   ![The Keycloak "Update Your Account" e-mail as it arrives, here caught by Mailpit on the development stack: sender, the named person as recipient, the Update Password and Configure OTP actions, the account update link and the two-day expiry](../images/ops-setup-email.png)
+
+   ![Keycloak "Mobile Authenticator Setup": the warning that you need to set up Mobile Authenticator to activate your account, the list of apps, the barcode step with the QR code masked as a black square, Unable to scan?, and the empty One-time code and Device Name fields with Submit](../images/onboarding-keycloak-totp.png)
+
+   ![Keycloak "Update password" page with the empty New Password and Confirm password fields, the Sign out from other devices box and the Submit button](../images/onboarding-keycloak-set-password.png)
+
 2. Open the OECP invitation link and sign in with password and code; the page shows "Invitation accepted". Choose *Sign out and sign in again*: your new session carries the role.
+
+   ![Invitation accepted, with the role and organization granted and the button to sign in again](../images/admin-invitation-accepted.png)
+
 3. Ask the alliance admin to invite a second colleague, so your university is never blocked by one absence. Each person can administer one organization. The *Invitations* page shows your organization's invitations; only alliance admins send, revoke or resend them.
 
 A page reload keeps you signed in while your login session is alive (30 minutes idle, 8 hours at most); after that, sign in again. If your university's identity provider is connected to OECP, your invitation link takes you to *Sign in through your university* and there is no separate password e-mail; later, choose your university under *Sign in through your university* on the sign-in page. Until it is connected, you use the OECP account from step 1.
@@ -45,7 +55,13 @@ Both write the same records, so you can mix them freely.
 4. Save as **CSV UTF-8** (Excel: "CSV UTF-8 (Comma delimited)"; LibreOffice: character set UTF-8). Format date columns as text so the spreadsheet keeps `YYYY-MM-DD`. Separate several values in one cell with `|`, for example `en|de`.
 5. Drop both files on the upload area (or choose them). The page detects which is which from the header; correct it if needed.
 6. Read the **check report**: the files are checked in your browser before anything is sent. Each issue shows severity, file, row, column, code and message; you can filter and download it as CSV. Fix every **error**; **warnings** do not block. A CSV upload has three warnings: `oecp.csv.language_deleted` (every cell of a language is empty on a row, so that language is removed from the course), `oecp.csv.no_data_rows` (a file with a header only) and, from the server, `oecp.content.handbook_incomplete` (step 3). The browser cannot check whether an offering's `course_code` already exists in the catalogue: the server does that.
+
+   ![Check report after choosing courses.csv and offerings.csv: 16 rows, 1 error, an invalid date in row 3 of offerings.csv, and the Upload button disabled](../images/manual-csv-check-report.png)
+
 7. Press **Upload**. The server checks again. Either it reports the status and any warnings, or (above 500 rows) it queues the upload and the page follows its progress, or it rejects the files with a list of errors. An upload is **all or nothing**: one error and nothing is saved.
+
+   ![CSV console after an upload processed on the server](../images/admin-csv-console-uploaded.png)
+
 8. Later, every upload appears in **Sync history** with its counters and messages.
 
 Limits: 5 MB and 5,000 rows per file, 10 uploads per hour.
@@ -57,10 +73,19 @@ Limits: 5 MB and 5,000 rows per file, 10 uploads per hour.
 1. Open **Courses** > **New course**. The wizard has four steps.
 2. **Basics.** Course code (your own code, for example `MATH-101`; it cannot be changed later), type of course (course, Blended Intensive Programme, lecture series, other), levels (the first ticked is the primary one), ECTS (use a dot: `7.5`), teaching hours, ISCED-F codes with one marked primary, teaching unit, information page (`https://` only) and a functional contact e-mail.
 3. **Texts.** English is required: title, abstract, description, learning outcomes, prerequisites, assessment, keywords. Add other languages with *Add a language*; each needs at least its own title. OECP never translates automatically.
+
+   ![New course for Rovira i Virgili University, "Step 2 of 4: Texts": the Add a language control and the English (required) tab with the title "Introduction to Sustainable Urban Planning" and an example abstract and description typed in, not saved](../images/onboarding-course-wizard-texts.png)
+
 4. **Attributes.** The alliance's own tags, for example educational hub or Sustainable Development Goals. Yes/no attributes (such as *Free course*) have three choices: *Not set*, *Yes* or *No*.
 5. **Review and status.** Choose *Draft* or *Published* and press **Create course**. Publishing needs the English title.
+
+   !["Step 4 of 4: Review and status" of course URB-301 (Course, Bachelor, 5 ECTS, ISCED-F 0731): the Image card ("Save the course first"), the summary, Status with "Draft: not shown in the public catalogue" selected and "Published: shown in the public catalogue once it has a current published offering", and the Back and Create course buttons, not pressed](../images/onboarding-course-wizard-review.png)
+
 6. On the course page, **Add offering** for each edition: offering code (for example `2027S`), academic session, start and end dates, application period start and deadline (inclusive, in the offering's time zone), teaching languages, delivery modes, campus, seats (maximum, reserved for the alliance, available now) and **How to apply**: an application page and/or instructions per language, for example "Nomination by the Aurora office of your home university".
 7. **Publish and withdraw** with the status buttons: *Publish*, *Withdraw*, *Cancel* (an offering that will not take place stays visible, labelled, until its start date) and *Back to draft*. A course appears in the catalogue once it is published **and** has a published offering that has not ended.
+
+   ![Summary and status box of a published course with the Withdraw, Cancel and Back to draft buttons and the reason it cannot be deleted](../images/manual-course-status.png)
+
 8. **Delete** only records created by mistake. Published courses and offerings, and courses with published offerings, cannot be deleted: withdraw or cancel them instead (the page then shows why instead of the *Delete* button). A deleted code comes back if you create it again in the form or upload a CSV row with it, without its old overrides; deleted records are purged for good after 12 months. Each course page shows its history of changes.
 
 ## 5. Keep the data fresh

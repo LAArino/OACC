@@ -45,12 +45,20 @@ Follow [deploy/compose/README.md](../../deploy/compose/README.md) ("Quick start"
    ```
 
 5. Replace the temporary Keycloak bootstrap admin of the `master` realm by a permanent one with MFA.
+
+   ![Keycloak admin console, master realm, Users list: the single admin account with a warning icon and no e-mail, and the yellow banner "You are logged in as a temporary admin user. To harden security, create a permanent admin account and delete the temporary one."](../images/ops-keycloak-admin-console.png)
+
 6. Note the server's **public outbound IP address**. Partners with an OEAPI endpoint will put it on their allowlist.
 7. Keep the login host on the **same site** as the portal (for example `courses.alliance.example` and `auth.courses.alliance.example`, as above) and keep the portal's `X-Frame-Options: SAMEORIGIN` from `deploy/compose/traefik/dynamic/middlewares.yaml` (never `DENY`). Both are needed for the admin session to survive a page reload (spec [§4](../spec-v4.1.md#4-identity)); with a login host on another domain administrators must sign in again after every reload.
 8. **Log retention.** Spec §10 keeps application logs 90 days and access logs 30 days. With the `observability` profile (item 10; since 0.7.0) Grafana Alloy ships every container's log to Loki through a read-only Docker socket proxy, and Loki deletes the Traefik access log after 30 days and everything else after 90 days; the logs are searched in Grafana (dashboard *OECP logs*). Compose also rotates every container's log by size (`OECP_LOG_MAX_SIZE` × `OECP_LOG_MAX_FILE`, default 10m × 5; Traefik `OECP_TRAEFIK_LOG_MAX_SIZE` × `_MAX_FILE`, 20m × 10), the local copy and the only bound without the profile: then, after a week of real traffic, size them for 90 days of each container's volume, as the Compose README's [Log retention](../../deploy/compose/README.md#log-retention) section shows. Traefik's access log is off by default; enable it (`OECP_TRAEFIK_ACCESS_LOG=true`) only with a 30-day bound, since it records client addresses. The api's request logs carry no client address or User-Agent (`OECP_LOG_CLIENT_ADDRESSES=false`).
+
+   ![Grafana dashboard "OECP logs" (kiosk mode, light theme, last 3 hours): the Service and "Line contains (regex)" filters, the Volume row (log lines by service, by level, errors and warnings by service and level), the Logs panel with api JSON lines and Grafana's own lines, and the Traefik access log panel showing "No data" on the development stack](../images/ops-grafana-logs.png)
+
 9. Size the server for the **worker**: with the IdP metadata refresh on the eduGAIN aggregate (step 3) the worker needs at least **2 GB** of memory of its own (about 750 MB measured for a 75 MB aggregate; eduGAIN is about 94 MB). Compose sets no memory limit; if you add one, keep it at 2 GB or more.
 10. **Backups and alerting.** Add `COMPOSE_PROFILES=backup,observability` to `.env` (or pass `--profile backup --profile observability` to every `docker compose` command) and set `OECP_ALERT_EMAIL_TO` (and/or `OECP_ALERT_WEBHOOK_URL`) before you start, so the `backup` service and the monitoring stack run with the rest. What they do and what to check: step 9, *Backups* and *Alerts*.
 11. **Branding: header image and logo** (optional). Put the alliance's own header image and logo (the alliance holds their rights; they never go into the repository; for Aurora: own generated images and the Aurora logo with the Foundation's permission [DL 25]) in `deploy/compose/branding/` (or the directory named by `OECP_BRANDING_DIR`) and set `OECP_HERO_IMAGE` (e.g. `/branding/hero.jpg`; `OECP_HERO_IMAGE_ALT` empty = decorative; shown on the home page and the course list), optionally `OECP_HERO_IMAGE_COURSES` and `OECP_HERO_IMAGE_COURSES_ALT` (a different image for the course list), and `OECP_LOGO_IMAGE` (e.g. `/branding/logo.svg`; its text alternative is `OECP_ALLIANCE_NAME`) in `.env`. Partner logos need no variable: add `partner-<slug>.svg` (or `.png`, `.webp`) per university, and optionally a square favicon with `OECP_FAVICON_IMAGE=/branding/favicon.svg`. File names, sizes and permissions: [branding/README.md](../../deploy/compose/branding/README.md); see also the Compose README's [Branding](../../deploy/compose/README.md#branding) section.
+
+   ![Home page of the public portal with the deployment branding in place: the alliance logo in the header, the header image above the search box, the course count and the quick links by field and by university](../images/public-home.png)
 
 Check: `https://<portal host>/en` shows the empty catalogue; `https://<auth host>/realms/oecp/.well-known/openid-configuration` answers; `docker compose ps` shows `api` and `worker` as *healthy* (the worker's healthcheck calls its internal `/ready`, which checks PostgreSQL and Valkey).
 
@@ -60,10 +68,19 @@ Check: `https://<portal host>/en` shows the empty catalogue; `https://<auth host
 
 - **Realm as code.** `identity/keycloak/realm-oecp.yaml` is applied on every `docker compose up`; edit the file, never the console. See [identity/keycloak/README.md](../../identity/keycloak/README.md).
 - **One sign-in mode per organization** [DL 22]. The organization's *Identity provider alias* (`keycloak_idp_alias`) decides how all of its administrators sign in:
-  - **Local accounts** (no alias, seed `null`): Keycloak accounts with a password of at least 12 characters plus a TOTP app, set up from the e-mail Keycloak sends at invitation time. Nobody can self-register and there is no open password reset: if the set-up is lost or expires, an alliance admin uses *Resend set-up e-mail* on the organization's *Administrators* panel. This is the permanent mode of the alliance organization and of every university that is not in eduGAIN, and the interim mode of a university in eduGAIN whose identity provider is not connected and tested yet ([which mode for a university](identity-paths.md#which-mode-for-a-university)).
+  - **Local accounts** (no alias, seed `null`): Keycloak accounts with a password of at least 12 characters plus a TOTP app, set up from the e-mail Keycloak sends at invitation time. Nobody can self-register and there is no open password reset: if the set-up is lost or expires, an alliance admin uses *Resend set-up e-mail* on the organization's *Administrators* panel (the button appears only while a local account's set-up is pending). This is the permanent mode of the alliance organization and of every university that is not in eduGAIN, and the interim mode of a university in eduGAIN whose identity provider is not connected and tested yet ([which mode for a university](identity-paths.md#which-mode-for-a-university)).
+
+    ![Administrators panel of Aurora European Universities Alliance, 1 administrator: platform@alliance.example (you), Alliance administrator, signs in with OECP account, Account "Set-up pending: set a password", last sign-in, the Resend set-up e-mail button and the note "You cannot remove yourself"](../images/onboarding-administrators-resend.png)
+
   - **Federated** (alias set): administrators sign in through their university's identity provider (SAML, through eduGAIN), brokered by Keycloak; OECP enrols a TOTP app after the first sign-in and asks for the code at every sign-in.
+
+    ![Sign-in prompt of the administration panel at /en/admin: the Sign in button and the Sign in through your university box with the Choose your university select and the Continue to your university button](../images/manual-admin-signin.png)
+
   - **From local to federated.** An organization can move later: enable its IdP in the realm, set the alias, re-invite its administrators (procedure under *Partner identity providers* below). An invitation accepted in the wrong mode is refused with `oecp.invitation.mismatch`.
   - **Alias without an enabled IdP.** OECP refuses to invite administrators of an organization whose alias is missing or disabled in the realm (`oecp.invitation.idp_not_enabled`, step 8), since they could not sign in.
+
+    ![Invitations page of Copenhagen Business School with the warning that its identity provider cbs is not enabled in the login service, a link to the organization's settings, and one revoked invitation](../images/manual-invitations-warning.png)
+
   - **No mixed mode.** Some administrators local and others federated within one organization is not supported and not planned [DL 22].
 - **Federation registration.** OECP registers one SAML service provider, entityID `https://<auth host>/realms/oecp`, in the hosting institution's national federation with export to eduGAIN (Aurora: SIR/RedIRIS [DL 15]), requesting the entity categories **REFEDS Personalized Access** and **REFEDS Data Protection Code of Conduct (CoCo) v2** and the **Sirtfi** assurance (no Research and Scholarship). Prepare contacts, names, logo and privacy notice URL now. The generator of the combined multi-ACS metadata ([scripts/sp-metadata.md](../../identity/keycloak/scripts/sp-metadata.md)) is a design only: **not yet available in 0.9.0**.
 - **IdP metadata refresh.** Partner IdPs carry a copy of their signing certificates and sign-in endpoints, which universities change. The worker job `idp-metadata-refresh` updates them every day at 04:15 UTC from the federation's signed metadata aggregate (spec [§4](../spec-v4.1.md#4-identity), [identity/keycloak/README.md](../../identity/keycloak/README.md#metadata-refresh-owned-by-the-api)). It is off until you configure it, and it is only needed once a partner IdP is connected:
@@ -132,9 +149,19 @@ The command prints the invitation link (valid 24 hours by default, at most 168) 
 
 The new admin then:
 
-1. Opens the Keycloak e-mail, sets a password and scans the TOTP QR code with an authenticator app.
+1. Opens the Keycloak e-mail and follows its link. Keycloak first asks to set up the authenticator app (scan the QR code, enter a one-time code) and then to set a password of at least 12 characters.
+
+   ![Keycloak "Mobile Authenticator Setup": the warning that you need to set up Mobile Authenticator to activate your account, the list of apps, the barcode step with the QR code masked as a black square, Unable to scan?, and the empty One-time code and Device Name fields with Submit](../images/onboarding-keycloak-totp.png)
+
+   ![Keycloak "Update password" page with the empty New Password and Confirm password fields, the Sign out from other devices box and the Submit button](../images/onboarding-keycloak-set-password.png)
+
 2. Opens the invitation link and signs in with password and code; the page shows "Invitation accepted".
+
+   ![Invitation accepted, with the role and organization granted and the button to sign in again](../images/admin-invitation-accepted.png)
+
 3. Signs out and in again: the new session carries the `alliance_admin` role.
+
+   ![Dashboard of an alliance administrator: Your account, the Organization list set to University of Iceland, the organization modules and the Alliance administration tiles](../images/manual-dashboard.png)
 
 Tokens are kept in memory only. A page reload restores the session without asking again while the login session is alive (30 minutes idle, 8 hours at most) and the requirements of step 2, item 7, are met; otherwise the page asks you to sign in again.
 
@@ -164,6 +191,8 @@ Screen-by-screen walkthrough with screenshots: [alliance administrator manual](.
 1. Open *Invitations* (or *Organizations* > the organization > *Invitations*) and pick the partner organization.
 2. Under *Invite an administrator* enter the e-mail address, choose the role (`partner_admin`) and the validity (7 days by default, or 3 or 1), and choose *Send invitation*.
 
+   ![Invitations page: the form to invite an administrator and the list of invitations with their status, with revoke and resend](../images/admin-invitations.png)
+
 OECP e-mails the invitation link; for local-account organizations Keycloak also sends the password and TOTP set-up mail. For an organization with an identity provider alias, the link carries the alias and the person signs in through their university. That identity provider must be enabled in the realm (section 3): otherwise OECP refuses the invitation (`oecp.invitation.idp_not_enabled`) and the *Invitations* panel shows a warning with a link to the organization, where you can clear the alias to use a local account instead. The address must be the one the person signs in with, and one person can administer only one organization.
 
 The list shows each invitation as *Pending*, *Accepted*, *Expired* or *Revoked*. *Revoke* stops a pending link at once; *Resend* replaces a lost or expired link with a new one (the old link stops working). If a local account never finished its password and TOTP set-up, use *Resend set-up e-mail* on the organization's *Administrators* panel. Agree with each partner which guide applies (B, C or D).
@@ -171,12 +200,20 @@ The list shows each invitation as *Pending*, *Accepted*, *Expired* or *Revoked*.
 ## 9. Operate
 
 - **Network status and sync monitor.** *Network status* shows every organization's health at a glance; check it weekly, and open an organization's *Sync history* for the runs of every channel with counters, errors and warnings. The alerts (below) report harvests that fail twice in a row, but OECP sends no notification for data warnings, for example when the mass-absence guard (`oecp.oeapi.mass_absence`) stops withdrawals: look at these screens regularly.
+
+  ![Network status: health of every organization's data feed with channel, host approval and last run, problems first](../images/admin-network-status.png)
+
 - **Approve partner hosts.** Before a partner can be harvested, check with the partner, through a channel you already trust, that the `base_url` host is theirs, then open the partner's *Integration settings* and choose *Approve host …* in the *Host approval* card. Any later change of host clears the approval ([Guide B, step 6](partner-with-oeapi.md#6-approve-the-host)).
+
+  ![Integration settings of the University of Innsbruck on the development stack: Current settings (OEAPI harvest, Direct, harvesting No, last run None) and the Host approval card with host oeapi-mock:8090, Approval "Waiting for approval" and the button "Approve host oeapi-mock:8090"](../images/onboarding-host-waiting-approval.png)
+
 - **Remove an administrator.** *Organizations* > the organization > *Administrators* > *Remove*: the role is taken away and the person's sessions end. You cannot remove yourself or the last alliance admin. An access token already issued stays valid for up to 5 minutes. The Keycloak account is kept; the `account-cleanup` job deletes it 12 months later, once that job is enabled (below).
-- **Maintenance jobs.** The worker runs, every day (UTC): `history-partitions` at 00:10 (and at every start: monthly partitions of the raw payload history), `idp-metadata-refresh` at 04:15 (and about a minute after every start; step 3), `csv-retention` at 04:30 (uploaded files after 90 days), `retention` at 04:45 (old run errors, runs, audit entries, invitations, maintenance runs and deleted records, below), `dormancy` at 05:00 and `account-cleanup` at 05:15. Every run is recorded. Open **Maintenance** (`/en/admin/maintenance`, alliance admins only; screenshot `docs/images/admin-maintenance.png`):
+- **Maintenance jobs.** The worker runs, every day (UTC): `history-partitions` at 00:10 (and at every start: monthly partitions of the raw payload history), `idp-metadata-refresh` at 04:15 (and about a minute after every start; step 3), `csv-retention` at 04:30 (uploaded files after 90 days), `retention` at 04:45 (old run errors, runs, audit entries, invitations, maintenance runs and deleted records, below), `dormancy` at 05:00 and `account-cleanup` at 05:15. Every run is recorded. Open **Maintenance** (`/en/admin/maintenance`, alliance admins only):
   - *Jobs*: one card per job with what it does, its schedule, its latest run and **Run now**. A run requested this way is queued for the worker and appears in the runs table once it starts; if a run of that job is already waiting or running, the page says so and adds none. Requests are audited (`maintenance.run_requested`).
   - *Dry run*: whether `dormancy` and `account-cleanup` still run in dry run, read from their latest run, and the variable that enables each.
   - *Runs*: newest first, filtered by job, the latest 50 or 200, with start, job, trigger (*Scheduled*, *Worker start*, *Run now*), status (*Succeeded*, *Failed*, *Skipped (already running)*, *Running*), duration, counters and the start of any error. *Show details* opens the run: who requested it, when it finished, the full error and every detail the job recorded.
+
+  ![Maintenance page: the Dry run notice for dormancy and account clean-up, and one card per job with its description, schedule, latest run and Run now](../images/manual-maintenance.png)
 
   Check once a week that the latest run of every job *Succeeded*. The same data is available to scripts through `GET /api/admin/v1/maintenance/runs?limit=&job=` and `POST /api/admin/v1/maintenance/jobs/{name}/run` (step 7, "Scripting with the API").
 - **The administrator lifecycle on one page**, with the choices and the defaults, is in [administrator-lifecycle.md](administrator-lifecycle.md) [DL 26].

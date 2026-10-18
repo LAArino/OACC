@@ -282,7 +282,13 @@ Local accounts (alias `null`, step 2.6) are the permanent mode of a university o
 3. **Configure the metadata refresh** (Guide A step 3, "IdP metadata refresh": aggregate URL, signing certificate checked against a second source and mounted into the worker, dry run).
 4. **Hand over:** to an alliance admin, who sets the organization's *Identity provider alias* and invites one administrator of that university (Guide A [step 8](alliance.md#8-invite-partner-admins)).
 
+   ![Sign-in prompt of the administration panel at /en/admin: the Sign in button and the Sign in through your university box with the Choose your university select and the Continue to your university button](../images/manual-admin-signin.png)
+
+   ![SimpleSAMLphp "Enter your username and password" form of the development test identity provider (Rovira i Virgili University), empty, as reached from the university chooser on the portal sign-in prompt](../images/onboarding-test-idp-login.png)
+
 Check: the invitation is accepted through the university's login plus TOTP enrolment; the worker log shows the metadata refresh about a minute after the worker starts. No real partner IdP has been connected in 0.9.0: the brokered path is verified against the development test IdP only.
+
+![Invitation accepted, with the role and organization granted and the button to sign in again](../images/admin-invitation-accepted.png)
 
 ### 2.14 Hardening recap
 
@@ -313,6 +319,9 @@ Tick these before the alliance ticks its own [go-live checklist](alliance.md#go-
 - [ ] Every secret in the offline store, `pgbackrest_repo2_cipher_pass` included
 - [ ] Backups: full backup taken, `OECP_WAL_ARCHIVE=on`, repo2 configured, uploads archives copied off the host, restore drill PASS (and from repo2)
 - [ ] Logs in Loki for every service; json-file sizes recorded
+
+  ![Grafana dashboard "OECP logs" (kiosk mode, light theme, last 3 hours): the Service and "Line contains (regex)" filters, the Volume row (log lines by service, by level, errors and warnings by service and level), the Logs panel with api JSON lines and Grafana's own lines, and the Traefik access log panel showing "No data" on the development stack](../images/ops-grafana-logs.png)
+
 - [ ] Off-host availability probe running, or its absence accepted in writing
 - [ ] Public outbound IP given to the alliance
 - [ ] Runbook `[TO COMPLETE]` items filled ([section 4.4](#44-what-to-fill-in-the-runbook-before-go-live))

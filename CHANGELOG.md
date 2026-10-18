@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   delivery test, the Grafana overview, the branded home page and the Keycloak
   admin console with its "temporary admin" banner; three new screenshots in
   `docs/images/ops-*.png`, catalogued in `docs/images/README.md`.
+- Docs: Guides A to D, Guide E 2.13 and 3, and the sign-in paths page show the
+  screens their steps describe; ten new screenshots
+  (`docs/images/onboarding-*.png` and `ops-grafana-logs.png`), catalogued in
+  `docs/images/README.md`; Guide C now says template 1.3.
 
 ## [0.9.0] - 2026-10-16
 

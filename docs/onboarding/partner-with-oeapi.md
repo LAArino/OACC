@@ -67,7 +67,13 @@ OECP provides no agreement template in 0.9.0; the same items, with the controlle
 
 > **Local accounts** (your university is outside eduGAIN, or its identity provider is not connected yet): two e-mails, Keycloak's set-up e-mail and OECP's invitation link. **Federated**: one e-mail, the invitation link, which takes you to your university's login. Which one applies, and what your identity team must provide: [identity-paths.md](identity-paths.md).
 
-With local accounts, follow the two e-mails: Keycloak's (set a password of at least 12 characters and enrol a TOTP app), then OECP's invitation link (sign in; the page confirms the acceptance; sign out and in again). Local accounts are the permanent mode of a university outside eduGAIN, and the interim mode of one in eduGAIN until its identity provider is connected to OECP and tested; once it is, the invitation e-mail is the only one and its link takes you to *Sign in through your university*. A page reload keeps you signed in while your login session is alive (30 minutes idle, 8 hours at most).
+With local accounts, follow the two e-mails: Keycloak's (enrol a TOTP app, then set a password of at least 12 characters), then OECP's invitation link (sign in; the page confirms the acceptance; sign out and in again). Local accounts are the permanent mode of a university outside eduGAIN, and the interim mode of one in eduGAIN until its identity provider is connected to OECP and tested; once it is, the invitation e-mail is the only one and its link takes you to *Sign in through your university*. A page reload keeps you signed in while your login session is alive (30 minutes idle, 8 hours at most).
+
+![Keycloak "Mobile Authenticator Setup": the warning that you need to set up Mobile Authenticator to activate your account, the list of apps, the barcode step with the QR code masked as a black square, Unable to scan?, and the empty One-time code and Device Name fields with Submit](../images/onboarding-keycloak-totp.png)
+
+![Keycloak "Update password" page with the empty New Password and Confirm password fields, the Sign out from other devices box and the Submit button](../images/onboarding-keycloak-set-password.png)
+
+![Accept invitation page with the Sign in button, before signing in](../images/admin-invitation-accept.png)
 
 ## 5. Enter the integration settings
 
@@ -86,17 +92,23 @@ Open the admin dashboard > *Integration settings* (an alliance admin first picks
 
 Choose *Save settings*. The form checks every field before saving and lists what to fix. The credential is stored encrypted and never shown again: the page only says *A credential is stored*, and later you can keep, replace or delete it.
 
+![Integration settings of the University of Innsbruck with the Host approval card showing the approved host](../images/manual-integration.png)
+
 ## 6. Approve the host
 
 **Who:** alliance admin. **Time:** 5 minutes.
 
 The *Host approval* card on the *Integration settings* page shows the host of your base URL as *Waiting for approval*. The alliance admin confirms with you, through a known contact, that the host is yours, then opens the same page and chooses *Approve host …* and confirms. Partner admins see a request to ask an alliance admin instead of the button. Nothing is requested from your endpoint before this. Changing the host later clears the approval; changing only the path keeps it.
 
+![Integration settings of the University of Innsbruck on the development stack: Current settings (OEAPI harvest, Direct, harvesting No, last run None) and the Host approval card with host oeapi-mock:8090, Approval "Waiting for approval" and the button "Approve host oeapi-mock:8090"](../images/onboarding-host-waiting-approval.png)
+
 ## 7. Test the connection
 
 **Who:** partner admin or alliance admin, with partner IT on call. **Time:** 15 minutes.
 
 Under *Test and run*, choose *Test connection*. OECP calls `GET /` and `GET /courses?pageSize=1` with the **saved** settings (save your changes first). *The connection works* shows the service contact and documentation, the number of courses if your endpoint reports it and the first course code; *The connection failed* shows the error code, the HTTP status and a hint:
+
+![The same page after approval, full page: Host approval "Approved" with the approval time, the Settings form (OEAPI harvest, Direct, base URL http://oeapi-mock:8090, consumer eduxchange, a stored Basic credential, daily schedule, limits, Harvest on the schedule unchecked), Test and run with Test connection and Sync now, and the result "The connection works" with the target, 17 ms, service contact oeapi-mock@uibk.example, specification and documentation links, courses available Yes and first course code 201420](../images/onboarding-integration-test-ok.png)
 
 | `error.code` | Usual cause |
 |---|---|
@@ -112,7 +124,13 @@ Under *Test and run*, choose *Test connection*. OECP calls `GET /` and `GET /cou
 **Who:** partner admin. **Time:** an hour, plus fixes at the source.
 
 1. Choose *Sync now* under *Test and run*. It works while *Harvest on the schedule* is still off, needs *OEAPI harvest* as the saved channel and an approved host, and is limited to once every 15 minutes (the page says when you can try again) and to one run at a time.
+
+   ![Lower part of the Integration settings page: stored credential, schedule, limits, Harvest on the schedule, Save settings, Test connection and Sync now](../images/manual-integration-test-run.png)
+
 2. Choose *Follow the run*, or open *Sync history* and the run. Status is `succeeded` (nothing rejected), `partial` (some records rejected) or `failed` (nothing processed). Counters show created, updated, unchanged, rejected and withdrawn records.
+
+   ![Sync run page: summary with status, channel, trigger, times and counters, then the list of errors and warnings](../images/manual-sync-run.png)
+
 3. Read the errors and warnings, each with a JSON Pointer into your data. Errors reject the course or offering (or stop the run); warnings only report what OECP ignored or adjusted. The most common ones:
 
 | Code | Severity | Meaning and fix |
@@ -158,6 +176,9 @@ The alliance applies the Aurora IT Handbook's publication rule: a course is show
 
 - **Withdrawal by absence.** A course or offering missing from three complete daily harvests in a row is withdrawn; it comes back when it reappears. Failed or incomplete harvests never withdraw anything, and if 30% or more of your published courses vanish at once, absences are not counted.
 - **Overrides.** In the admin dashboard, open a course: each field shows the harvested value with an *Override* box. Ticked values survive every harvest until you untick them. Use this for alliance attributes, kind, instructors and instructions, not to correct errors your own system should fix. See the [web form guide](../guides/web-form.md).
+
+  ![Course page of a harvested course: banner, source values from the partner's OEAPI and an Override checkbox per field](../images/admin-course-editor-overrides.png)
+
 - **Unpublishing.** Change the status in your own system, or set a status override in OECP (a status action on the course page). The override wins over every harvest until an administrator chooses **Revert status to the partner's value** on the same page; the course then takes your system's status again.
 - **Credential rotation.** On *Integration settings* choose *Replace it* under *Stored credential*, enter the new credential and save; then *Test connection*.
 
