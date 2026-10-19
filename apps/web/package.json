@@ -26,9 +26,9 @@
     "@nuxt/test-utils": "4.3.3",
     "@vue/test-utils": "2.5.1",
     "axe-core": "4.14.0",
-    "happy-dom": "21.0.1",
+    "happy-dom": "21.0.3",
     "typescript": "6.0.3",
-    "vitest": "5.0.4",
+    "vitest": "5.0.5",
     "vue-tsc": "3.3.13"
   }
 }
