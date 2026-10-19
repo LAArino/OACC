@@ -9,7 +9,7 @@ import {
   type CourseImageVariant,
   type ErrorCode,
 } from '@oecp/schemas';
-import sharp from 'sharp';
+import sharp, { type Metadata } from 'sharp';
 import { MEDIA_PROCESS_TIMEOUT_SECONDS } from './media.constants.js';
 
 /** A refused image, with the stable code and the HTTP status of the admin API. */
@@ -49,7 +49,7 @@ export async function processCourseImage(input: Buffer): Promise<ProcessedImage>
   if (input.length > COURSE_IMAGE_MAX_BYTES) {
     throw new MediaError('oecp.media.too_large', 413, `${input.length} bytes`);
   }
-  let metadata: sharp.Metadata;
+  let metadata: Metadata;
   try {
     metadata = await sharp(input, { limitInputPixels: false }).metadata();
   } catch {

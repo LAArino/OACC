@@ -6,5 +6,6 @@ allowBuilds:
   '@swc/core': true
   esbuild: true
   msgpackr-extract: true
-  # Prebuilt libvips binaries (@img/sharp-*); the install script only builds from source.
+  # Prebuilt libvips binaries (@img/sharp-*); sharp 0.35 dropped its install script (it only
+  # built from source): kept denied should one come back.
   sharp: false

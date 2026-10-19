@@ -215,7 +215,7 @@ export class MetadataAggregateSource {
     try {
       const reader = response.body.getReader();
       for (;;) {
-        let chunk: ReadableStreamReadResult<Uint8Array>;
+        let chunk: Awaited<ReturnType<typeof reader.read>>;
         try {
           chunk = await reader.read();
         } catch (error) {

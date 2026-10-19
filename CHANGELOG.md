@@ -43,6 +43,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vulnerability reporting, `tools/scripts/github-releases.sh` creates the
   GitHub releases from the CHANGELOG.
 
+### Changed
+
+- API: `@xmldom/xmldom` 0.9 (new `onError` parser API; every parse
+  diagnostic still aborts the metadata verification), `sharp` 0.35 (typed
+  imports), `bullmq` 6.3.15, `nodemailer` 10.1.1, `xml-crypto` 6.4.0.
+
 ## [0.9.0] - 2026-10-16
 
 ### Upgrade notes

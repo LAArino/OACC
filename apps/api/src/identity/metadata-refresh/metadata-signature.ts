@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 import { createHash, X509Certificate } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { DOMParser } from '@xmldom/xmldom';
+import { DOMParser, type Element, MIME_TYPE } from '@xmldom/xmldom';
 import { SignedXml } from 'xml-crypto';
 import { DS_NS, MD_NS } from './idp-metadata-refresh.constants.js';
 
@@ -88,14 +88,7 @@ export function checkSignature(xml: string, pinned: PinnedCertificate): void {
   let rootId: string | null;
   {
     // Scoped so this DOM can be collected before xml-crypto parses its own.
-    const doc = new DOMParser({
-      errorHandler: {
-        warning: () => undefined,
-        error: (message: string) => fail(`Malformed XML: ${message}`),
-        fatalError: (message: string) => fail(`Malformed XML: ${message}`),
-      },
-    }).parseFromString(xml, 'application/xml');
-    const root = doc.documentElement;
+    const root = parseStrict(xml, fail).documentElement;
     if (
       !root ||
       root.namespaceURI !== MD_NS ||
@@ -145,6 +138,33 @@ export function checkSignature(xml: string, pinned: PinnedCertificate): void {
   // References as re-read by checkSignature from the verified SignedInfo.
   checkReferences(sig, rootId, fail);
   if (sig.getSignedReferences().length !== 1) fail('Signature does not cover the document');
+}
+
+/**
+ * xmldom 0.9 reports what it recovers from through `onError(level, message)`,
+ * and only throws on its own for a `fatalError`; any diagnostic at any level
+ * (`warning`, `error`, `fatalError`) aborts here, on the first one, except the
+ * U+FFFD heuristic below. A throw from `onError` reaches the caller wrapped in
+ * a `ParseError`, so the first diagnostic is recorded and reported instead.
+ *
+ * The one tolerated warning is the "Unicode replacement character detected"
+ * hint: the bytes were already decoded as strict UTF-8, so a U+FFFD is a
+ * literal, well-formed character of the signed content (e.g. a mis-encoded
+ * display name upstream), not an encoding problem of this file.
+ */
+function parseStrict(xml: string, fail: (message: string) => never) {
+  let diagnostic: string | undefined;
+  try {
+    return new DOMParser({
+      onError: (level, message) => {
+        if (level === 'warning' && message.startsWith('Unicode replacement character')) return;
+        diagnostic = `${level}: ${message}`;
+        throw new MetadataSignatureError(diagnostic);
+      },
+    }).parseFromString(xml, MIME_TYPE.XML_APPLICATION);
+  } catch (error) {
+    return fail(`Malformed XML: ${diagnostic ?? (error as Error).message}`);
+  }
 }
 
 function checkReferences(

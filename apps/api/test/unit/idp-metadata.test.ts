@@ -121,6 +121,20 @@ describe('aggregate signature (pinned certificate, exc-c14n, RSA-SHA256)', () =>
     expect(() => checkSignature(inclusive, pinned)).toThrow(/Unexpected signature transforms/);
   });
 
+  it('aborts on any XML parse diagnostic, warnings included', () => {
+    const signed = signXml(aggregateXml(entities), federation);
+    const mismatched = signed.replace('</md:IDPSSODescriptor>', '</md:IDPSSODescriptorX>');
+    expect(() => checkSignature(mismatched, pinned)).toThrow(/Malformed XML: fatalError/);
+    expect(() => checkSignature(`${signed}junk`, pinned)).toThrow(/Malformed XML: error/);
+    const unquoted = signed.replace('Name="urn:test:federation"', 'Name=urn:test:federation');
+    expect(() => checkSignature(unquoted, pinned)).toThrow(/Malformed XML: warning/);
+  });
+
+  it('accepts a literal U+FFFD in the signed content', () => {
+    const xml = aggregateXml(entities).replace('urn:test:federation', 'urn:test:f�d');
+    expect(() => checkSignature(signXml(xml, federation), pinned)).not.toThrow();
+  });
+
   it('pins exactly one PEM certificate', async () => {
     await expect(
       loadPinnedCertificate(write('two.pem', federation.pem + attacker.pem)),
