@@ -97,8 +97,11 @@ for use in sig enc; do
   fi
   openssl genpkey -algorithm RSA -pkeyopt "rsa_keygen_bits:$bits" -out "$work/$use.pem" 2>/dev/null
   openssl req -new -x509 -sha256 -days "$days" -key "$work/$use.pem" -subj "$dn" -out "$work/$use.crt"
-  openssl pkey -in "$work/$use.pem" -outform DER | openssl base64 -A >"$work/keycloak_saml_${use}_key"
-  openssl x509 -in "$work/$use.crt" -outform DER | openssl base64 -A >"$work/keycloak_saml_${use}_cert"
+  # PKCS#8 explicitly: `openssl pkey -outform DER` writes the PKCS#1 form on
+  # OpenSSL 3.0 (Ubuntu 22.04/24.04) and PKCS#8 on LibreSSL and OpenSSL 3.6.
+  # base64 + tr instead of `openssl base64 -A`: one line on BSD and GNU alike.
+  openssl pkcs8 -topk8 -nocrypt -in "$work/$use.pem" -outform DER | base64 | tr -d '\n' >"$work/keycloak_saml_${use}_key"
+  openssl x509 -in "$work/$use.crt" -outform DER | base64 | tr -d '\n' >"$work/keycloak_saml_${use}_cert"
 done
 
 for name in $names; do
@@ -113,7 +116,7 @@ done
 
 echo "Written to $dir:"
 for use in sig enc; do
-  fingerprint=$(openssl base64 -d -A <"$dir/keycloak_saml_${use}_cert" |
+  fingerprint=$(base64 --decode <"$dir/keycloak_saml_${use}_cert" |
     openssl x509 -inform DER -noout -fingerprint -sha256 -enddate | tr '\n' ' ')
   echo "  $use: $fingerprint"
 done
