@@ -26,7 +26,7 @@ import { ZodValidationPipe } from '../../common/zod-validation.pipe.js';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard.js';
 import type { AdminPrincipal } from '../auth/claims.js';
 import { AllowRoleless, CurrentAdmin, RequireRoles } from '../auth/decorators.js';
-import { InvitationsService, toApiInvitation } from './invitations.service.js';
+import { InvitationsService } from './invitations.service.js';
 
 /** Admin invitations (spec §2.1, §8 "Administrators"). */
 @Controller('api/admin/v1/invitations')
@@ -72,7 +72,7 @@ export class InvitationsController {
       invitedByOrgId: admin.orgId ?? null,
       ttlHours: body.ttl_hours,
     });
-    return toApiInvitation(invitation, new Date());
+    return this.invitations.toApi(invitation);
   }
 
   /** alliance_admin: every invitation; partner_admin: those of its organization. */
@@ -101,7 +101,7 @@ export class InvitationsController {
       { sub: admin.sub, orgId: admin.orgId },
       body.ttl_hours,
     );
-    return toApiInvitation(invitation, new Date());
+    return this.invitations.toApi(invitation);
   }
 
   @Delete(':id')

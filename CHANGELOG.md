@@ -10,7 +10,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **Alertmanager link in alert mails.** The "View In Alertmanager" button
+  pointed at `http://<container id>:9093/...`, which resolves nowhere.
+  `alertmanager` now starts with `--web.external-url=http://127.0.0.1:${ALERTMANAGER_PORT:-9093}`
+  and `--web.route-prefix=/`, and publishes that port on the server's loopback
+  only (new `ALERTMANAGER_PORT=9093` in `.env.example`; before, Alertmanager had no
+  published port). The link opens through an SSH tunnel next to Grafana:
+  `ssh -N -L 3001:127.0.0.1:3001 -L 9093:127.0.0.1:9093 <operator>@<host>`
+  (Compose README, Guide E step 2.10, runbook section 7).
+- **`deploy/compose/secrets/README.md`: SAML key commands.** The "equivalent openssl
+  commands" and the inspection one-liner still used `openssl pkey -outform DER`
+  and `openssl base64 -A`; they now match `tools/scripts/gen-saml-keys.sh`
+  (`openssl pkcs8 -topk8 -nocrypt -outform DER | base64 | tr -d '\n'`,
+  `base64 --decode`), since OpenSSL 3.0 writes PKCS#1 with `pkey -outform DER`.
+- **Check of the realm import.** `docker compose wait keycloak-config` fails
+  with "no containers for project" (exit 1) on Compose v2.27 once the one-shot
+  container has exited. The Compose README, `compose.yaml`, Guide A step 2 and
+  Guide E step 2.5 now check `docker compose ps -a keycloak-config --format '{{.Status}}'`
+  (`Exited (0)`) and `docker compose logs keycloak-config | grep -i import`.
+- The invitation acceptance page shows the organization by name and slug
+  (for example "University of Iceland (uice)") instead of its id; the id
+  remains as a fallback while the public reference loads or when it does
+  not contain the organization.
+- `SMTP_STARTTLS` now defaults to `true` in the API, matching
+  `OECP_SMTP_STARTTLS` in `deploy/compose/compose.yaml` and `.env.example`
+  (STARTTLS required unless set to `false`).
+- The invitation create and resend endpoints derived the returned `status`
+  with the wall clock instead of the service clock, so the response could
+  say `expired` for an invitation the service had just created with a
+  shorter test clock; `InvitationsService.toApi` now maps rows with its own
+  clock (the controllers no longer import the mapper).
+
+### Changed
+
+- **Docs from the first production deployment (Aurora pilot at URV).**
+  `secrets/README.md`: rotation of `grafana_admin_password` (read only at
+  Grafana's first start; `grafana cli admin reset-admin-password`, verified
+  with `/api/user`) and a warning never to `cat` a secret into a shared terminal.
+  Guide E: step 2.12 states that the console sign-in is the `master` realm's
+  service account (`KEYCLOAK_ADMIN_USER`, `secrets/keycloak_admin_password`), not
+  an OECP administrator account; step 2.13 notes the SIR2 proxy-IdP option
+  (decision pending); section 5 records the pilot's public outbound IP, host
+  and the URV answer on IdP metadata.
 
 ## [0.10.0] - 2026-10-21
 

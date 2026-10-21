@@ -33,7 +33,7 @@ import { AdminJwtGuard } from '../auth/admin-jwt.guard.js';
 import type { AdminPrincipal } from '../auth/claims.js';
 import { CurrentAdmin, RequireRoles } from '../auth/decorators.js';
 import { OrganizationAccess } from '../integrations/organization-access.js';
-import { InvitationsService, toApiInvitation } from '../invitations/invitations.service.js';
+import { InvitationsService } from '../invitations/invitations.service.js';
 import { OrganizationAdminsService } from './organization-admins.service.js';
 import { OrganizationsService } from './organizations.service.js';
 
@@ -184,7 +184,7 @@ export class OrganizationsController {
       invitedByOrgId: admin.orgId ?? null,
       ttlHours: body.ttl_hours,
     });
-    return toApiInvitation(invitation, new Date());
+    return this.invitations.toApi(invitation);
   }
 
   /** The organization's invitations, most recent first, with derived `status`. */

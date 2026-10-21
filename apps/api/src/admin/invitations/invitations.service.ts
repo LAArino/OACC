@@ -109,6 +109,11 @@ export class InvitationsService {
     this.now = options.now ?? (() => new Date());
   }
 
+  /** API shape of a stored invitation, its status derived with the service clock. */
+  toApi(invitation: InvitationRow): Invitation {
+    return toApiInvitation(invitation, this.now());
+  }
+
   async create(input: CreateInvitationInput): Promise<CreatedInvitation> {
     const email = input.email.trim().toLowerCase();
     const organization = await this.db

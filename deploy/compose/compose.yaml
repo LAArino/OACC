@@ -7,7 +7,7 @@
 # Quick start: see README.md in this directory (verified commands).
 #   cp .env.example .env && (create secrets, see secrets/README.md)
 #   docker compose up -d --build --wait
-#   docker compose wait keycloak-config          # realm import, exit code 0
+#   docker compose ps -a keycloak-config --format '{{.Status}}'   # realm import: Exited (0)
 #   docker compose run --rm api pnpm db:migrate
 #
 # Optional observability stack (OpenTelemetry Collector, Prometheus, Loki, Alloy, Grafana):
@@ -855,6 +855,15 @@ services:
     # OECP_ALERT_* values below (Alertmanager does not expand variables), then
     # starts Alertmanager on the result.
     entrypoint: ["/bin/sh", "/etc/alertmanager/oecp/entrypoint.sh"]
+    # Appended to the alertmanager command line by the entrypoint. The external
+    # URL is the address of the "View In Alertmanager" button in alert mails:
+    # the server's loopback (published below), reached through an SSH tunnel
+    # (`ssh -N -L 9093:127.0.0.1:9093 <operator>@<host>`), like Grafana.
+    command:
+      - --web.external-url=http://127.0.0.1:${ALERTMANAGER_PORT:-9093}
+      - --web.route-prefix=/
+    ports:
+      - "127.0.0.1:${ALERTMANAGER_PORT:-9093}:9093"
     environment:
       # Receivers: either or both; with neither, alerts are only shown in
       # Alertmanager and Grafana.

@@ -257,6 +257,26 @@ describe('invitation acceptance with an IdP alias', () => {
     expect(w.text()).toContain('Invitation accepted');
     expect(window.sessionStorage.length).toBe(0);
     expect(auth.restoreSession).not.toHaveBeenCalled();
+    // The organization is shown by name and slug, not by its id.
+    expect(callsTo(REFERENCE)).toHaveLength(1);
+    expect(w.text()).toContain('Organization: Vrije Universiteit Amsterdam (vu-amsterdam)');
+    expect(w.text()).not.toContain(OTHER_ORG_ID);
+    expect(await axeViolations(w.html(), 'div')).toEqual([]);
+  });
+
+  it('shows the organization id when the public reference does not contain it', async () => {
+    const unknownOrgId = '0b9f6c1e-1d7a-4f39-9a51-6c1e0f0affff';
+    window.sessionStorage.setItem('oecp.admin.pendingInvitation', TOKEN);
+    serve({
+      [`POST ${API}/invitations/accept`]: ok({
+        role: 'partner_admin',
+        org_id: unknownOrgId,
+        relogin_required: true,
+      }),
+    });
+    const w = await openLink('');
+    expect(callsTo(REFERENCE)).toHaveLength(1);
+    expect(w.text()).toContain(`Organization: ${unknownOrgId}`);
   });
 
   it('accepts at once when the Keycloak session can be restored', async () => {

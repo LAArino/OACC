@@ -49,10 +49,13 @@ export const envSchema = z.object({
     .string()
     .optional()
     .or(z.literal('').transform(() => undefined)),
-  /** true: require STARTTLS (fail if not offered); false: STARTTLS when offered. */
+  /**
+   * true (the default): require STARTTLS (fail if not offered); false: STARTTLS
+   * when offered. Agrees with `OECP_SMTP_STARTTLS` in deploy/compose.
+   */
   SMTP_STARTTLS: z
     .enum(['true', 'false'])
-    .default('false')
+    .default('true')
     .transform((v) => v === 'true'),
   /**
    * Escape hatch: with `NODE_ENV=production` an empty `SMTP_HOST` stops the

@@ -190,14 +190,15 @@ Check:
 
 ```sh
 docker compose up -d --build --wait
-docker compose wait keycloak-config       # realm applied: prints exit status 0
+docker compose ps -a keycloak-config --format '{{.Status}}'   # Exited (0): realm applied
+docker compose logs keycloak-config | grep -i import          # the realm file imported, no error
 ```
 
 The first run builds the images (`oecp/api`, `oecp/web`, `oecp/keycloak`, `oecp/postgres`) and, with `COMPOSE_PROFILES`, also starts `backup` and the monitoring stack.
 
 Check:
 
-- `docker compose ps` shows every long-running service *healthy* (or running, for those without a healthcheck) and `keycloak-config` exited with 0. If the api restarts, read `docker compose logs api`: an empty `OECP_SMTP_HOST` stops it in production.
+- `docker compose ps` shows every long-running service *healthy* (or running, for those without a healthcheck) and `keycloak-config` exited with 0 (`Exited (0)` in the status above; `docker compose wait keycloak-config` is not a reliable check: on Compose v2.27 it fails with "no containers for project" once the one-shot container has exited). The `grep -i import` shows the realm file imported and no error. If the api restarts, read `docker compose logs api`: an empty `OECP_SMTP_HOST` stops it in production.
 - `docker compose logs traefik | grep -i acme` shows no error (with institution certificates: `grep -E 'ERR'`, see 2.4b); `https://<portal host>/` and `https://<auth host>/` present a valid certificate in a browser (no warning).
 - Problems: [Compose README, Troubleshooting](../../deploy/compose/README.md#troubleshooting).
 
@@ -286,7 +287,14 @@ docker compose exec prometheus wget -qO- localhost:9090/api/v1/alerts
 docker compose exec prometheus wget -qO- 'localhost:9090/api/v1/query?query=probe_ssl_earliest_cert_expiry'
 ```
 
-Grafana listens on `127.0.0.1:3001` of the server only (user `admin`, password in `secrets/grafana_admin_password`); reach it through the server's loopback. The sources do not prescribe how (an SSH port forward is the usual way).
+Grafana listens on `127.0.0.1:3001` and Alertmanager on `127.0.0.1:9093` of the server only (Grafana: user `admin`, password in `secrets/grafana_admin_password`). Reach both from your workstation with one SSH port forward, and leave it open while you work:
+
+```sh
+ssh -N -L 3001:127.0.0.1:3001 -L 9093:127.0.0.1:9093 <operator>@<host>
+# Grafana: http://127.0.0.1:3001    Alertmanager: http://127.0.0.1:9093
+```
+
+The "View In Alertmanager" button of an alert mail points at `http://127.0.0.1:9093` (Alertmanager's `--web.external-url`), so it opens only while this tunnel is up. If you change `ALERTMANAGER_PORT` or `GRAFANA_PORT` in `.env`, use the same numbers on the local side.
 
 Check:
 
@@ -319,15 +327,15 @@ The banner is Keycloak's advice for a human bootstrap account. Here the account 
 
 Check:
 
-- From an allowlisted network, `https://<auth host>/admin/` opens the console.
+- From an allowlisted network, `https://<auth host>/admin/` opens the console. The sign-in is the `master` realm's service account: user `admin` (`KEYCLOAK_ADMIN_USER`) and the password in `secrets/keycloak_admin_password`. An OECP administrator account (alliance or partner admin) does not work here: those users live in the `oecp` realm.
 - From outside it, `curl -s -o /dev/null -w '%{http_code}\n' "https://$AUTH/admin/"` and the same for `/realms/master/` print 403, while `/realms/oecp/.well-known/openid-configuration` answers 200.
 - After creating the human administrators and rotating the service account's password, `docker compose run --rm keycloak-config` still exits 0.
 
 ### 2.13 Connect an identity provider
 
-Local accounts (alias `null`, step 2.6) are the permanent mode of a university outside eduGAIN, and the interim mode of one in eduGAIN until its IdP is connected and tested ([sign-in paths](identity-paths.md)). To connect one (procedure: [identity/keycloak/README.md, "Adding a partner IdP"](../../identity/keycloak/README.md#adding-a-partner-idp); runbook [§6](../production/runbook.md#6-identity-operations)):
+Local accounts (alias `null`, step 2.6) are the permanent mode of a university outside eduGAIN, and the interim mode of one in eduGAIN until its IdP is connected and tested ([sign-in paths](identity-paths.md)). When the federation offers a proxy IdP (SIR2 for Spanish institutions), the alliance may connect that single IdP instead of one per university; this is pending for Aurora. To connect one (procedure: [identity/keycloak/README.md, "Adding a partner IdP"](../../identity/keycloak/README.md#adding-a-partner-idp); runbook [§6](../production/runbook.md#6-identity-operations)):
 
-1. **Send** the institution's identity team the SP entity ID `https://<auth host>/realms/oecp`, the descriptor `https://<auth host>/realms/oecp/broker/<alias>/endpoint/descriptor` (alias = organization slug; it lists that IdP's assertion consumer service and the realm's signing and encryption certificates) and the attributes of Day 0. Assertions must be signed and encrypted. The combined multi-ACS metadata for the federation registration (SIR/RedIRIS for Aurora [DL 15]) is produced by `tools/scripts/sp-metadata.mjs` ([identity/keycloak/scripts/sp-metadata.md](../../identity/keycloak/scripts/sp-metadata.md)); it needs the SAML key pairs of step 2.3 (not the server), so it can be sent to the institution's identity team **before the server has DNS and TLS**, which lets the (slow) federation registration run in parallel with the installation:
+1. **Send** the institution's identity team the SP entity ID `https://<auth host>/realms/oecp`, the descriptor `https://<auth host>/realms/oecp/broker/<alias>/endpoint/descriptor` (alias = organization slug; it lists that IdP's assertion consumer service and the realm's signing and encryption certificates) and the attributes of Day 0. Assertions must be signed and encrypted. The combined multi-ACS metadata for the federation registration (SIR/RedIRIS for Aurora [DL 15]) is produced by `tools/scripts/sp-metadata.mjs` ([identity/keycloak/scripts/sp-metadata.md](../../identity/keycloak/scripts/sp-metadata.md)); it needs the SAML key pairs of step 2.3 (not the server), so it can be sent to the institution's identity team **before the server has DNS and TLS**, which lets the (slow) federation registration run in parallel with the installation.
 
    ```sh
    bash tools/scripts/gen-saml-keys.sh                 # once; skip if step 2.3 already created the four files
@@ -462,13 +470,13 @@ The values below are those the sources and the decisions log give for the Aurora
 | Branding | Generated header images and the Aurora logo with the Foundation's permission [DL 25] |
 | Federation | One SP in SIR (RedIRIS) with export to eduGAIN [DL 15]; multi-ACS generator not built |
 | Host exposure | `[TO DECIDE: open to the Internet or URV networks only]`. With URV-only access Let's Encrypt cannot reach port 443, so the ACME path of step 2.4 does not apply; URV issues the certificates, [step 2.4b](#24b-tls-with-certificates-issued-by-the-institution) |
-| Hosts | `[TO DECIDE: one host (production only) or two (production and a staging host for upgrade rehearsals and restore drills, runbook §1)]` |
+| Hosts | One host (`dc4eu.cpd1.urv.cat`, AlmaLinux, Docker 26.1.3, Compose v2.27, OpenSSL 1.1.1k FIPS), staging to decide (a second host for upgrade rehearsals and restore drills, runbook §1) |
 | Server size | `[TO DECIDE]`; the measured footprint suggests 4 vCPU, 8 GB of RAM, 60 GB of disk ([section 1.2](#12-the-host)) |
 | SMTP relay | `mail.cpd1.urv.cat`, port 25, STARTTLS, no authentication (the relay authorises the server by source address; the From must be an `@urv.cat` address). URV IT, 2026-10-21. During the pilot `OECP_SMTP_FROM=lluisalfons.arino@urv.cat` (a real mailbox, so bounces and replies reach someone: OECP sets no Reply-To); a functional mailbox can replace it later |
 | `ACME_EMAIL`, alert recipient | `[TO DECIDE]` |
-| URV IdP metadata | `[TO DECIDE]`: requested from URV; until then `urv` administrators use local accounts |
+| URV IdP metadata | URV answered on 2026-10-21: the SP will be registered in SIR2 and federate through the SIR2 proxy (single IdP), decision pending (candidate decision 29); until then `urv` administrators use local accounts |
 | Second backup site, off-host probe | `[TO DECIDE]`: to ask URV IT (backlog "Off-host availability probe") |
-| Public outbound IP | `[TO DECIDE]` |
+| Public outbound IP | `84.88.193.55` (measured on 2026-10-21 from the host) |
 
 ## 6. What is not covered
 

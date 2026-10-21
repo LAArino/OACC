@@ -96,7 +96,7 @@ describe('mail environment', () => {
     ).toMatchObject({ SMTP_HOST: '', OECP_MAIL_LOG_LINKS: true });
     expect(
       validateEnv({ ...base, NODE_ENV: 'production', SMTP_HOST: 'smtp.urv.cat' }),
-    ).toMatchObject({ SMTP_HOST: 'smtp.urv.cat', SMTP_STARTTLS: false, SMTP_USER: '' });
+    ).toMatchObject({ SMTP_HOST: 'smtp.urv.cat', SMTP_STARTTLS: true, SMTP_USER: '' });
     // Outside production the link is only logged (debug level).
     expect(validateEnv({ ...base, NODE_ENV: 'development' }).SMTP_HOST).toBe('');
   });
@@ -111,6 +111,7 @@ describe('mail environment', () => {
       SMTP_STARTTLS: 'true',
     });
     expect(env).toMatchObject({ SMTP_USER: 'oecp', SMTP_STARTTLS: true, SMTP_PORT: 587 });
+    expect(validateEnv({ ...base, SMTP_STARTTLS: 'false' }).SMTP_STARTTLS).toBe(false);
     expect(() => validateEnv({ ...base, SMTP_USER: 'oecp' })).toThrow(/SMTP_PASSWORD_FILE/);
     expect(() => validateEnv({ ...base, SMTP_PASSWORD_FILE: '/run/secrets/x' })).toThrow(
       /SMTP_USER/,

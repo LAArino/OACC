@@ -47,6 +47,9 @@ and keycloak-config-cli read them verbatim) and must be readable by the
 container users (postgres uid 999, keycloak uid 1000, node uid 1000), so the
 directory is private and the files are world-readable inside it:
 
+**Never `cat` a secret into a terminal whose output will be shared** (screen
+share, pasted session, ticket): check one with `less` or `wc -c`.
+
 ```sh
 cd deploy/compose
 chmod 700 secrets
@@ -77,13 +80,18 @@ The equivalent openssl commands, for one pair (`sig`; repeat with `enc`):
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out sig.pem
 openssl req -new -x509 -sha256 -days 3650 -key sig.pem \
   -subj '/O=Open European Campus Portal/CN=OECP SAML signing' -out sig.crt
-openssl pkey -in sig.pem -outform DER | openssl base64 -A > secrets/keycloak_saml_sig_key
-openssl x509 -in sig.crt -outform DER | openssl base64 -A > secrets/keycloak_saml_sig_cert
+openssl pkcs8 -topk8 -nocrypt -in sig.pem -outform DER | base64 | tr -d '\n' > secrets/keycloak_saml_sig_key
+openssl x509 -in sig.crt -outform DER | base64 | tr -d '\n' > secrets/keycloak_saml_sig_cert
 shred -u sig.pem sig.crt 2>/dev/null || rm -P sig.pem sig.crt   # or keep them in the offline copy
 ```
 
 To inspect a certificate again:
-`openssl base64 -d -A < secrets/keycloak_saml_sig_cert | openssl x509 -inform DER -noout -subject -enddate -fingerprint -sha256`.
+`base64 --decode < secrets/keycloak_saml_sig_cert | openssl x509 -inform DER -noout -subject -enddate -fingerprint -sha256`.
+
+PKCS#8 is written explicitly (`openssl pkcs8 -topk8 -nocrypt`) because
+`openssl pkey -outform DER` produces the PKCS#1 form on OpenSSL 3.0, and the
+key provider expects PKCS#8. `base64 | tr -d '\n'`
+gives one line on BSD and GNU alike.
 
 Why they exist: Keycloak generates its own realm keys when it creates the
 realm, so the SAML certificates in the SP metadata registered at the
@@ -111,6 +119,18 @@ On a shared host, prefer restricting the files to the container uids
 - **`keycloak_admin_password`:** only used when Keycloak first creates the
   temporary admin. Replace that admin by a permanent one with MFA, then keep
   the file in sync with whatever account keycloak-config-cli uses.
+
+- **`grafana_admin_password`:** Grafana reads it only at its first start
+  (`GF_SECURITY_ADMIN_PASSWORD__FILE`); changing the file alone changes
+  nothing afterwards. To rotate, write the new value to the file (one line, no
+  newline, mode 644) and reset the password inside Grafana:
+
+  ```sh
+  docker compose exec -T grafana grafana cli admin reset-admin-password --password-from-stdin < secrets/grafana_admin_password
+  curl -s -o /dev/null -w '%{http_code}\n' -u "admin:$(cat secrets/grafana_admin_password)" http://127.0.0.1:3001/api/user   # 200
+  ```
+
+  The CLI prints nothing on success (verified on the pilot on 2026-10-21).
 
 - **`keycloak_saml_*`:** only on purpose. A new pair changes the SP
   certificates that the federation (SIR/RedIRIS, eduGAIN) and every partner IdP

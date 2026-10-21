@@ -83,7 +83,8 @@ git status --short --ignored .            # .env and secrets/* are listed as ign
 
 # 3. Build and start everything; --wait returns when every service is healthy
 docker compose up -d --build --wait
-docker compose wait keycloak-config       # realm import finished: prints exit status 0
+docker compose ps -a keycloak-config --format '{{.Status}}'   # Exited (0): realm import finished
+docker compose logs keycloak-config | grep -i import          # the realm file imported, no error
 
 # 4. Database schema (node-pg-migrate, forward-only SQL migrations)
 docker compose run --rm api pnpm db:migrate
@@ -552,9 +553,23 @@ and **OECP overview** (folder OECP: status,
 requests and 5xx ratio, p95 latency by route, harvest status per partner,
 maintenance jobs, IdP metadata, backup age and duration, disk, days to the
 IdP and TLS certificate expiry) and an
-Alertmanager data source (Alerting > Alert list, silences). Prometheus and
-Alertmanager have no published port: use Grafana, or
-`docker compose exec prometheus wget -qO- localhost:9090/api/v1/alerts`.
+Alertmanager data source (Alerting > Alert list, silences). Grafana
+(`127.0.0.1:${GRAFANA_PORT}`, default 3001) and Alertmanager
+(`127.0.0.1:${ALERTMANAGER_PORT}`, default 9093) listen on the server's loopback
+only; Prometheus has no published port
+(`docker compose exec prometheus wget -qO- localhost:9090/api/v1/alerts`).
+Alertmanager is started with `--web.external-url=http://127.0.0.1:${ALERTMANAGER_PORT}`,
+so the "View In Alertmanager" button of an alert mail points at that loopback
+address (without it the button carries the container id, which resolves nowhere).
+From your workstation it opens through an SSH tunnel, together with Grafana:
+
+```sh
+ssh -N -L 3001:127.0.0.1:3001 -L 9093:127.0.0.1:9093 <operator>@<host>
+# then http://127.0.0.1:3001 (Grafana) and http://127.0.0.1:9093 (Alertmanager, and the link in the mail)
+```
+
+If you change a port in `.env`, change the same number on the local side of the
+tunnel, because the link in the mail keeps `${ALERTMANAGER_PORT}`.
 
 Validate after editing (CI runs the three checks on every push; the delivery test is manual):
 

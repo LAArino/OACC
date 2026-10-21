@@ -15,6 +15,7 @@ const { t } = useI18n();
 const localePath = useLocalePath();
 const auth = useAuth();
 const adminApi = useAdminApi();
+const reference = useAdminReference();
 useHead({ title: () => t('accept.title') });
 
 type Phase = 'init' | 'restoring' | 'missing' | 'signIn' | 'accepting' | 'accepted' | 'failed';
@@ -22,6 +23,8 @@ const phase = ref<Phase>('init');
 const me = ref<AdminMe | null>(null);
 const result = ref<AcceptInvitationResponse | null>(null);
 const failure = ref<AdminApiError | null>(null);
+/** Public reference organizations, loaded after a successful acceptance (names for the id). */
+const organizations = ref<AdminOrganization[]>([]);
 const signInFailed = ref(false);
 // Plain variable, not reactive state: nothing renders or watches the token;
 // the template only needs to know whether one is held.
@@ -51,6 +54,17 @@ const MISMATCH_MESSAGES = {
 const failureMessageKey = computed(() =>
   mismatchReason.value ? MISMATCH_MESSAGES[mismatchReason.value] : undefined,
 );
+
+/**
+ * The organization the invitation belongs to, as "Name (slug)"; the plain id
+ * while the reference is loading or when it does not contain the organization.
+ */
+const acceptedOrganization = computed(() => {
+  const id = result.value?.org_id;
+  if (!id) return '';
+  const org = organizations.value.find((o) => o.id === id);
+  return org ? `${organizationName(org)} (${org.slug})` : id;
+});
 
 const needsSignIn = computed(() => {
   if (!failure.value) return false;
@@ -93,6 +107,13 @@ async function accept(invitationToken: string) {
     });
     setToken(null);
     phase.value = 'accepted';
+    // The name is a nicety: a failed lookup keeps the id on screen.
+    void reference.load().then(
+      (r) => {
+        organizations.value = r.organizations;
+      },
+      () => undefined,
+    );
   } catch (error) {
     failure.value = error instanceof AdminApiError ? error : toAdminApiError(undefined, undefined);
     phase.value = 'failed';
@@ -187,7 +208,7 @@ function signOut(returnTo?: string) {
       <AdminMessage>
         <h2>{{ t('accept.accepted') }}</h2>
         <p>{{ t('accept.acceptedRole', { role: t(`roles.${result.role}`) }) }}</p>
-        <p>{{ t('accept.acceptedOrganization', { org: result.org_id }) }}</p>
+        <p>{{ t('accept.acceptedOrganization', { org: acceptedOrganization }) }}</p>
         <p>{{ t('accept.reloginRequired') }}</p>
       </AdminMessage>
       <button type="button" @click="signOut(localePath('/admin'))">

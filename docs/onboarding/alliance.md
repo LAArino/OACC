@@ -40,7 +40,8 @@ Follow [deploy/compose/README.md](../../deploy/compose/README.md) ("Quick start"
 
    ```sh
    docker compose up -d --build --wait
-   docker compose wait keycloak-config      # realm applied: exit status 0
+   docker compose ps -a keycloak-config --format '{{.Status}}'   # realm applied: Exited (0)
+   docker compose logs keycloak-config | grep -i import          # realm file imported, no error
    docker compose run --rm api pnpm db:migrate
    ```
 
