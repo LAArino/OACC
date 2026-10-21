@@ -245,3 +245,4 @@ The list shows each invitation as *Pending*, *Accepted*, *Expired* or *Revoked*.
 - [ ] `OECP_PUBLISH_RULE` decided (`warn` during the transition, `enforce` when the catalogue is complete enough)
 - [ ] If partner IdPs are connected: IdP metadata refresh configured (aggregate URL, verified signing certificate, worker memory ≥ 2 GB) and a dry run clean
 - [ ] Federation registration submitted, if partner IdP login is wanted later
+- [ ] Acceptance test plan executed and signed ([acceptance-test-plan.md](../production/acceptance-test-plan.md))

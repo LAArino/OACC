@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`docs/production/privacy-notice-draft.md`), built from the RoPA for the
   Foundation's review; the accessibility statement template says where to
   publish.
+- Docs: acceptance test plan for the pilot (`docs/production/acceptance-test-plan.md`),
+  nine scenario groups in local-account mode with result and sign-off tables.
 
 ### Fixed
 
