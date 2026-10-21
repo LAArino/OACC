@@ -464,7 +464,7 @@ The values below are those the sources and the decisions log give for the Aurora
 | Host exposure | `[TO DECIDE: open to the Internet or URV networks only]`. With URV-only access Let's Encrypt cannot reach port 443, so the ACME path of step 2.4 does not apply; URV issues the certificates, [step 2.4b](#24b-tls-with-certificates-issued-by-the-institution) |
 | Hosts | `[TO DECIDE: one host (production only) or two (production and a staging host for upgrade rehearsals and restore drills, runbook §1)]` |
 | Server size | `[TO DECIDE]`; the measured footprint suggests 4 vCPU, 8 GB of RAM, 60 GB of disk ([section 1.2](#12-the-host)) |
-| SMTP relay | `[TO DECIDE: URV relay host, port, STARTTLS, relay by source address for Keycloak]` |
+| SMTP relay | `mail.cpd1.urv.cat`, port 25, STARTTLS, no authentication (the relay authorises the server by source address; the From must be an `@urv.cat` address). URV IT, 2026-10-21. During the pilot `OECP_SMTP_FROM=lluisalfons.arino@urv.cat` (a real mailbox, so bounces and replies reach someone: OECP sets no Reply-To); a functional mailbox can replace it later |
 | `ACME_EMAIL`, alert recipient | `[TO DECIDE]` |
 | URV IdP metadata | `[TO DECIDE]`: requested from URV; until then `urv` administrators use local accounts |
 | Second backup site, off-host probe | `[TO DECIDE]`: to ask URV IT (backlog "Off-host availability probe") |
