@@ -77,6 +77,7 @@ for name in postgres_superuser_password oecp_db_password keycloak_db_password \
   [ -f "secrets/$name" ] || openssl rand -hex 32 | tr -d '\n' > "secrets/$name"
 done
 [ -f secrets/oecp_master_key ] || openssl rand -base64 32 | tr -d '\n' > secrets/oecp_master_key
+[ -f secrets/keycloak_saml_sig_key ] || bash ../../tools/scripts/gen-saml-keys.sh --dir secrets
 chmod 644 secrets/*
 git status --short --ignored .            # .env and secrets/* are listed as ignored (!!)
 
@@ -157,7 +158,8 @@ certificates **and the local backup repository** `pgbackrest-repo`); there is no
 - **`.env`** (from `.env.example`): hosts, ports, allowlists, SMTP, image tag;
   every variable is documented there.
 - **`secrets/`**: Docker secrets (database passwords, Keycloak admin,
-  `oecp-backend` client secret, `oecp_master_key`, Grafana admin; optional
+  `oecp-backend` client secret, `oecp_master_key`, the four SAML key-pair
+  files `keycloak_saml_*`, Grafana admin; optional
   SMTP, alert SMTP and pgBackRest repo2 secrets); see
   [`secrets/README.md`](secrets/README.md). They are mounted under
   `/run/secrets/`, never passed as environment variables. The api/worker
@@ -596,8 +598,11 @@ docker compose --profile observability exec alertmanager amtool --alertmanager.u
    for disk alerts on every filesystem.
 9. **Images.** Build in CI, sign with cosign and pin by digest
    (`OECP_IMAGE_TAG`) rather than building on the server.
-10. **SAML.** Register the SP metadata (see
-   [`identity/keycloak/scripts/sp-metadata.md`](../../identity/keycloak/scripts/sp-metadata.md)).
+10. **SAML.** Create the SAML key pairs (`tools/scripts/gen-saml-keys.sh`, in
+   step 2 above) and register the SP metadata that
+   `tools/scripts/sp-metadata.mjs` generates from them (see
+   [`identity/keycloak/scripts/sp-metadata.md`](../../identity/keycloak/scripts/sp-metadata.md));
+   it can be sent to the federation before the server has DNS and TLS.
 
 ## Troubleshooting
 

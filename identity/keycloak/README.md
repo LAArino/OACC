@@ -12,10 +12,15 @@ Everything that can be declared about the realm lives here and is applied by
 
 ```
 identity/keycloak/
-├── realm-oecp.yaml        realm, roles, clients, client scope, flows, IdPs
+├── realm-oecp.yaml        realm, SAML keys, roles, clients, client scope, flows, IdPs
+├── sp-metadata.config.example.yaml   organization, contacts, MDUI of the SP metadata
+├── sp-metadata.indexes.json          ACS index of every IdP alias (append-only)
 ├── scripts/
-│   └── sp-metadata.md     design of the multi-ACS SP metadata generator (spec §4)
+│   └── sp-metadata.md     user guide of the multi-ACS SP metadata generator (spec §4)
 └── README.md
+
+tools/scripts/gen-saml-keys.sh    creates the SAML key pairs (Docker secrets)
+tools/scripts/sp-metadata.mjs     the SP metadata generator
 ```
 
 EUPL-1.2 login themes will be added under `themes/` and copied into the
@@ -35,6 +40,7 @@ Keycloak image by `deploy/compose/dockerfiles/keycloak.Dockerfile`.
 | Client scope `oecp` | `aud` ∋ `oecp-api`, `org_id`, flat `roles`, `idp`, `name`; no role scope mappings | §4 JWT contract |
 | ACR | realm map `{"mfa": 2}` | §4 |
 | Flows | `oecp-browser-mfa`, `oecp-post-broker-mfa`, `oecp-first-broker-login` | §2.1, §2.2 |
+| SAML keys | key providers `oecp-saml-signing` (RS256) and `oecp-saml-encryption` (RSA-OAEP), priority 200, imported from the Docker secrets `keycloak_saml_*` (see [SAML keys and SP metadata](#saml-keys-and-sp-metadata)) | §4 |
 | IdPs | `example-partner` (disabled SAML template) with attribute importers; `urv`, the development test IdP (enabled only with `OECP_DEV_IDP_ENABLED=true`, see below) | §4 |
 
 ### Claims and where they come from
@@ -219,6 +225,40 @@ Never edit the realm by hand in the admin console for anything declared
 here: the next run reverts it. Runtime data (users, roles of users,
 `oecp_org_id`, IdP certificates refreshed by the API) is not declared here.
 
+## SAML keys and SP metadata
+
+Keycloak generates the realm's RSA keys when it creates the realm, so the SAML
+certificates of the service provider would only exist once the production
+server runs and would change with a database reinstall. The federation (SIR,
+then eduGAIN) must register them first, so the realm imports a signing key pair
+and an encryption key pair created in advance:
+
+- `tools/scripts/gen-saml-keys.sh` writes four Docker secrets
+  (`keycloak_saml_sig_key`, `keycloak_saml_sig_cert`, `keycloak_saml_enc_key`,
+  `keycloak_saml_enc_cert`; RSA 3072, self-signed, 10 years; format and
+  commands in [`secrets/README.md`](../../deploy/compose/secrets/README.md)).
+- The `components` block of `realm-oecp.yaml` reads them with
+  `$(file:UTF-8:/run/secrets/…)` into two `rsa` key providers with priority 200
+  (the generated keys have 100) and `active: true`. keycloak-config-cli leaves
+  the generated providers alone; they stay enabled. Keycloak picks the active
+  key by use and algorithm only, so the imported RS256 key also signs the
+  realm's tokens (see [`scripts/sp-metadata.md`](scripts/sp-metadata.md),
+  "Things to know").
+- `tools/scripts/sp-metadata.mjs` turns the `*_cert` files, the enabled IdP
+  aliases of the realm file and a small config into the single
+  `EntityDescriptor` for the federation, before the server exists
+  ([`scripts/sp-metadata.md`](scripts/sp-metadata.md)).
+
+Verified against Keycloak 26.8.1 and keycloak-config-cli 6.5.1: an empty realm
+import creates both providers, a second run changes nothing, the descriptor of
+an enabled IdP lists the imported certificates first with the same key ids the
+generator writes. **Upgrading a running deployment:** create the four secrets
+(`gen-saml-keys.sh`) before the next `docker compose up`; the next import then
+adds the providers and the SP certificates change once, so the metadata must
+be (re)sent to the federation and to every partner IdP that holds the old ones.
+Removing the two entries from the file deletes the providers again. Keep an
+offline copy of the four files; losing them means new certificates.
+
 ## Adding a partner IdP
 
 1. **Organization first.** Create the partner organization from the seed file
@@ -244,10 +284,13 @@ here: the next run reverts it. Runtime data (users, roles of users,
 5. **Keep** `firstBrokerLoginFlowAlias: oecp-first-broker-login`,
    `postBrokerLoginFlowAlias: oecp-post-broker-mfa`, signed and encrypted
    assertions, `hideOnLogin: true`, `trustEmail: true`, `syncMode: FORCE`.
-6. **Apply** with `docker compose run --rm keycloak-config` and regenerate and
-   resubmit the multi-ACS SP metadata (one more ACS, see
-   [`scripts/sp-metadata.md`](scripts/sp-metadata.md)) to the federation
-   registry (SIR/RedIRIS for the Aurora MVP, [DL 15]).
+6. **Apply** with `docker compose run --rm keycloak-config`. Unless the alias is
+   already in `reserveAliases` of `sp-metadata.config.yaml` (then the federation
+   already has its ACS), regenerate the multi-ACS SP metadata
+   (`node tools/scripts/sp-metadata.mjs --auth-host …`, one more ACS, see
+   [`scripts/sp-metadata.md`](scripts/sp-metadata.md)), commit the updated
+   `sp-metadata.indexes.json` and resubmit it to the federation registry
+   (SIR/RedIRIS for the Aurora MVP, [DL 15]).
 7. **Test** with an invitation (spec §2.1); the invitation is refused until
    the IdP is applied and enabled (`oecp.invitation.idp_not_enabled`): login with `kc_idp_hint={slug}`,
    MFA enrolment, then acceptance; the API checks `email`, `idp` and the

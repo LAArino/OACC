@@ -97,6 +97,7 @@ jobs:
             openssl rand -hex 32 | tr -d '\n' > "secrets/$name"
           done
           openssl rand -base64 32 | tr -d '\n' > secrets/oecp_master_key
+          bash ../../tools/scripts/gen-saml-keys.sh --dir secrets
           chmod 644 secrets/*
 
       - name: Map the portal and auth hosts to 127.0.0.1

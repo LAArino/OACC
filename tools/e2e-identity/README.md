@@ -91,7 +91,7 @@ dispatch, on every push to `main`, and on pull requests that touch `apps/`,
 1. `.env` from `.env.example` with the dev overrides appended (profile `dev`,
    Mailpit SMTP, `OECP_DEV_IDP_ENABLED=true`, `OECP_MAIL_LOG_LINKS=true`, hosts
    `oecp.localhost` / `auth.oecp.localhost`), checked against `docker compose
-   config`; throwaway secrets from `openssl rand`.
+   config`; throwaway secrets from `openssl rand` and `tools/scripts/gen-saml-keys.sh`.
 2. `oecp.localhost` and `auth.oecp.localhost` mapped to 127.0.0.1 in `/etc/hosts`.
 3. `docker compose up -d --build --wait` (no image cache: every image is built
    in the job), then waits for the one-shot `keycloak-config`; the build and

@@ -1,0 +1,66 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Input of tools/scripts/sp-metadata.mjs (identity/keycloak/scripts/sp-metadata.md).
+# Copy to identity/keycloak/sp-metadata.config.yaml (git-ignored: it holds
+# contact addresses) and replace every value. The generator refuses example
+# hosts and addresses unless told otherwise. Each text field is a map of
+# language code to text; "en" is mandatory, add the languages of the
+# federation (e.g. "es", "ca") next to it.
+
+# entityId: https://auth.example.org/realms/oecp   # default: https://<auth host>/realms/<realm>
+
+# Organization operating the service (the hosting institution registers it).
+organization:
+  name:
+    en: Example University
+  displayName:
+    en: Example University
+  url:
+    en: https://www.example.org/
+
+# What the user sees at the IdP's consent and discovery pages (MDUI).
+mdui:
+  displayName:
+    en: Open European Campus Portal
+  description:
+    en: Course catalogue of the Aurora alliance. University staff sign in to publish and maintain their institution's courses.
+  informationUrl:
+    en: https://portal.example.org/en/about
+  # Mandatory for the Data Protection Code of Conduct (CoCo) v2.
+  privacyStatementUrl:
+    en: https://portal.example.org/en/privacy
+  logo:
+    url: https://portal.example.org/logo-sp.png
+    width: 200
+    height: 80
+
+# At least one technical, one support and one security contact (Sirtfi).
+# type: technical | support | administrative | billing | other | security
+contacts:
+  - type: technical
+    givenName: Service
+    surName: Operations
+    email: oecp-operations@example.org
+  - type: support
+    givenName: Service
+    surName: Desk
+    email: oecp-support@example.org
+  - type: security
+    givenName: Security
+    surName: Contact
+    email: security@example.org
+
+# Defaults, spelled out. Research and Scholarship must not be added (spec §4).
+entityCategories:
+  - https://refeds.org/category/personalized
+  - https://refeds.org/category/code-of-conduct/v2
+assuranceCertification:
+  - https://refeds.org/sirtfi
+
+# IdP aliases to list even though they are not enabled in realm-oecp.yaml yet:
+# one registration then covers the partners joining soon, instead of one
+# resubmission (and eduGAIN export delay) per partner. `urv` is the alias of
+# the host institution's own IdP.
+reserveAliases:
+  - urv

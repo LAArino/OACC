@@ -116,6 +116,47 @@ smtpServer:
   auth: "false"
   ssl: "false"
 
+# --- Realm keys of the SAML service provider ----------------------------------
+# Keycloak generates the realm keys (RSA, `rsa-generated` and `rsa-enc-generated`,
+# priority 100) when it creates the realm, so a database reinstall would change
+# the certificates in the SP metadata registered at the federation (SIR/eduGAIN,
+# spec §4). These two providers import key pairs created beforehand with
+# tools/scripts/gen-saml-keys.sh (Docker secrets keycloak_saml_*), so the SP
+# metadata can be produced and registered before the server exists
+# (tools/scripts/sp-metadata.mjs) and survives a reinstall.
+#   - Priority 200 outranks the generated keys. Keycloak picks the active key
+#     by use and algorithm only, so the RS256 signing key also signs the realm's
+#     tokens; the generated keys stay enabled and keep verifying older tokens.
+#   - The key files are one line of base64 DER (no PEM armor) because the text
+#     is substituted before YAML parsing; see deploy/compose/secrets/README.md.
+#   - keycloak-config-cli leaves the generated providers alone (verified against
+#     Keycloak 26.8.1: they are not listed here and stay), but it deletes the
+#     two entries below if they are removed from this file.
+# Rotation: add a second pair of entries (new names, `active: false` until the
+# new certificate is registered), then remove the old pair from this file.
+components:
+  org.keycloak.keys.KeyProvider:
+    - name: oecp-saml-signing
+      providerId: rsa
+      config:
+        priority: ["200"]
+        enabled: ["true"]
+        active: ["true"]
+        keyUse: ["sig"]
+        algorithm: ["RS256"]
+        privateKey: ["$(file:UTF-8:/run/secrets/keycloak_saml_sig_key)"]
+        certificate: ["$(file:UTF-8:/run/secrets/keycloak_saml_sig_cert)"]
+    - name: oecp-saml-encryption
+      providerId: rsa
+      config:
+        priority: ["200"]
+        enabled: ["true"]
+        active: ["true"]
+        keyUse: ["enc"]
+        algorithm: ["RSA-OAEP"]
+        privateKey: ["$(file:UTF-8:/run/secrets/keycloak_saml_enc_key)"]
+        certificate: ["$(file:UTF-8:/run/secrets/keycloak_saml_enc_cert)"]
+
 # --- Flow bindings ------------------------------------------------------------
 browserFlow: oecp-browser-mfa
 firstBrokerLoginFlow: oecp-first-broker-login

@@ -411,6 +411,11 @@ services:
       - source: keycloak_admin_password
         target: /run/secrets/kcc/keycloak.password
       - oecp_backend_client_secret
+      # SAML SP key pairs (realm file `components`); tools/scripts/gen-saml-keys.sh
+      - keycloak_saml_sig_key
+      - keycloak_saml_sig_cert
+      - keycloak_saml_enc_key
+      - keycloak_saml_enc_cert
     volumes:
       - ../../identity/keycloak:/config:ro
     depends_on:
@@ -1103,6 +1108,14 @@ secrets:
     file: ./secrets/oecp_backend_client_secret
   oecp_master_key:
     file: ./secrets/oecp_master_key
+  keycloak_saml_sig_key:
+    file: ./secrets/keycloak_saml_sig_key
+  keycloak_saml_sig_cert:
+    file: ./secrets/keycloak_saml_sig_cert
+  keycloak_saml_enc_key:
+    file: ./secrets/keycloak_saml_enc_key
+  keycloak_saml_enc_cert:
+    file: ./secrets/keycloak_saml_enc_cert
   grafana_admin_password:
     file: ./secrets/grafana_admin_password
   # smtp_password:

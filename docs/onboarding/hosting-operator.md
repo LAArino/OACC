@@ -106,13 +106,13 @@ Check:
 
 ### 2.3 Create the secrets
 
-Generate them on the server with the commands of [secrets/README.md, "Create them"](../../deploy/compose/secrets/README.md#create-them): six random passwords (`openssl rand -hex 32`) and the master key `oecp_master_key` (`openssl rand -base64 32`), with **no trailing newline**, directory mode 700, files mode 644 (or, on a shared host, owned by the container uids 999 and 1000 or a dedicated group). Add the optional ones you need, in the same way: `smtp_password`, `alert_smtp_password`; the repo2 secrets come in step 2.9.
+Generate them on the server with the commands of [secrets/README.md, "Create them"](../../deploy/compose/secrets/README.md#create-them): six random passwords (`openssl rand -hex 32`), the master key `oecp_master_key` (`openssl rand -base64 32`) and the four SAML key-pair files `keycloak_saml_sig_key`, `keycloak_saml_sig_cert`, `keycloak_saml_enc_key` and `keycloak_saml_enc_cert` (`bash ../../tools/scripts/gen-saml-keys.sh --dir secrets`: RSA 3072, certificates valid 10 years, one line of base64 each; they become the realm's SAML signing and encryption keys, so the SP certificates registered at the federation do not depend on the server and survive a reinstall; if the SP metadata was already prepared with the same script before the server existed, copy those four files here instead of generating new ones), with **no trailing newline**, directory mode 700, files mode 644 (or, on a shared host, owned by the container uids 999 and 1000 or a dedicated group). Add the optional ones you need, in the same way: `smtp_password`, `alert_smtp_password`; the repo2 secrets come in step 2.9.
 
 Check:
 
-- `ls -l secrets/` shows the seven files `postgres_superuser_password`, `oecp_db_password`, `keycloak_db_password`, `keycloak_admin_password`, `oecp_backend_client_secret`, `oecp_master_key`, `grafana_admin_password`.
+- `ls -l secrets/` shows the eleven files `postgres_superuser_password`, `oecp_db_password`, `keycloak_db_password`, `keycloak_admin_password`, `oecp_backend_client_secret`, `oecp_master_key`, `grafana_admin_password` and `keycloak_saml_sig_key`, `keycloak_saml_sig_cert`, `keycloak_saml_enc_key`, `keycloak_saml_enc_cert`.
 - `git status --short --ignored .` lists `.env` and the secrets as ignored (`!!`).
-- An offline, access-controlled copy of **every** secret exists (runbook [§2](../production/runbook.md#2-secrets-inventory-and-rotation)). Without `oecp_master_key` the stored partner credentials cannot be decrypted.
+- An offline, access-controlled copy of **every** secret exists (runbook [§2](../production/runbook.md#2-secrets-inventory-and-rotation)). Without `oecp_master_key` the stored partner credentials cannot be decrypted; without the four `keycloak_saml_*` files a reinstall changes the SAML certificates registered at the federation.
 
 ### 2.4 Switch Traefik to production TLS
 
@@ -275,7 +275,16 @@ Check:
 
 Local accounts (alias `null`, step 2.6) are the permanent mode of a university outside eduGAIN, and the interim mode of one in eduGAIN until its IdP is connected and tested ([sign-in paths](identity-paths.md)). To connect one (procedure: [identity/keycloak/README.md, "Adding a partner IdP"](../../identity/keycloak/README.md#adding-a-partner-idp); runbook [§6](../production/runbook.md#6-identity-operations)):
 
-1. **Send** the institution's identity team the SP entity ID `https://<auth host>/realms/oecp`, the descriptor `https://<auth host>/realms/oecp/broker/<alias>/endpoint/descriptor` (alias = organization slug; it lists that IdP's assertion consumer service and the realm's signing and encryption certificates) and the attributes of Day 0. Assertions must be signed and encrypted. The combined multi-ACS metadata for the federation registration (SIR/RedIRIS for Aurora [DL 15]) is a design only in 0.9.0 ([sp-metadata.md](../../identity/keycloak/scripts/sp-metadata.md)).
+1. **Send** the institution's identity team the SP entity ID `https://<auth host>/realms/oecp`, the descriptor `https://<auth host>/realms/oecp/broker/<alias>/endpoint/descriptor` (alias = organization slug; it lists that IdP's assertion consumer service and the realm's signing and encryption certificates) and the attributes of Day 0. Assertions must be signed and encrypted. The combined multi-ACS metadata for the federation registration (SIR/RedIRIS for Aurora [DL 15]) is produced by `tools/scripts/sp-metadata.mjs` ([identity/keycloak/scripts/sp-metadata.md](../../identity/keycloak/scripts/sp-metadata.md)); it needs the SAML key pairs of step 2.3 (not the server), so it can be sent to the institution's identity team **before the server has DNS and TLS**, which lets the (slow) federation registration run in parallel with the installation:
+
+   ```sh
+   bash tools/scripts/gen-saml-keys.sh                 # once; skip if step 2.3 already created the four files
+   cp identity/keycloak/sp-metadata.config.example.yaml identity/keycloak/sp-metadata.config.yaml
+   $EDITOR identity/keycloak/sp-metadata.config.yaml  # organization, technical/support/security contacts, display names, logo, privacy URL
+   node tools/scripts/sp-metadata.mjs --auth-host "$AUTH" --out sp-metadata.xml
+   ```
+
+   Send `sp-metadata.xml` for the registration (SIR/RedIRIS for Aurora); commit `identity/keycloak/sp-metadata.indexes.json` if it changed. The file lists one assertion consumer service per IdP alias, with a stable index, and also those named in `reserveAliases` of the config (`urv` in the example) so that the first registration already covers the host institution's own IdP; add the aliases of the partners expected soon. Resend it whenever an alias outside that list is added or the SAML keys are replaced.
 2. **Receive** the IdP's entity ID, SSO URL, logout URL if any and signing certificates; write them in the IdP block of `identity/keycloak/realm-oecp.yaml` (for URV: replace the values of the development block `urv` and its `enabled` line, keeping the alias and the mappers) and apply with `docker compose run --rm keycloak-config`. Edit the file, never the console.
 3. **Configure the metadata refresh** (Guide A step 3, "IdP metadata refresh": aggregate URL, signing certificate checked against a second source and mounted into the worker, dry run).
 4. **Hand over:** to an alliance admin, who sets the organization's *Identity provider alias* and invites one administrator of that university (Guide A [step 8](alliance.md#8-invite-partner-admins)).
@@ -284,7 +293,7 @@ Local accounts (alias `null`, step 2.6) are the permanent mode of a university o
 
    ![SimpleSAMLphp "Enter your username and password" form of the development test identity provider (Rovira i Virgili University), empty, as reached from the university chooser on the portal sign-in prompt](../images/onboarding-test-idp-login.png)
 
-Check: the invitation is accepted through the university's login plus TOTP enrolment; the worker log shows the metadata refresh about a minute after the worker starts. No real partner IdP has been connected in 0.9.0: the brokered path is verified against the development test IdP only.
+Check: `node tools/scripts/sp-metadata.mjs --auth-host "$AUTH" --check` prints `ok` (no new alias, file current); after the first start of the stack, `https://<auth host>/realms/oecp/broker/<alias>/endpoint/descriptor` of an enabled IdP lists the same entityID, ACS location and, first, the same certificates as `sp-metadata.xml`; the invitation is accepted through the university's login plus TOTP enrolment; the worker log shows the metadata refresh about a minute after the worker starts. No real partner IdP has been connected in 0.9.0: the brokered path is verified against the development test IdP only.
 
 ![Invitation accepted, with the role and organization granted and the button to sign in again](../images/admin-invitation-accepted.png)
 
@@ -303,7 +312,7 @@ The [Production checklist](../../deploy/compose/README.md#production-checklist) 
 | 7. Backups: `backup` profile, repo2, `OECP_WAL_ARCHIVE=on`, restore drill | 2.9 |
 | 8. Alerting: receivers, test alert, ACME certificate as default; a node-exporter on the host for every filesystem | 2.4, 2.10 |
 | 9. Images built in CI, signed, pinned by digest | Not available: images are built on the server from the tag until CI publishes them |
-| 10. SAML: SP metadata registered | 2.13 |
+| 10. SAML: key pairs created, SP metadata registered | 2.3, 2.13 |
 
 ## 3. Go-live checklist (operator)
 
@@ -415,4 +424,4 @@ The values below are those the sources and the decisions log give for the Aurora
 - **Helm and Kubernetes.** The chart is a v1 deliverable, not available ([deploy/helm/README.md](../../deploy/helm/README.md)).
 - **Off-host availability probe.** Not built; the in-host monitoring cannot report its own host down (backlog, runbook §7 "Still manual").
 - **Multi-host deployments.** The sources describe one Compose project on one host (runbook §1); separate database hosts, replicas and load-balanced application nodes are not documented.
-- **Institution-issued TLS certificates**, published and signed images, and the multi-ACS SP metadata generator: not documented or not built in 0.7.0, as noted in the steps above.
+- **Institution-issued TLS certificates**, published and signed images: not documented or not built in 0.7.0, as noted in the steps above. (The multi-ACS SP metadata generator exists since the release after 0.9.0: step 2.13.)

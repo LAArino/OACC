@@ -113,6 +113,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Test the tool scripts (SAML key and SP metadata generators)
+        run: node --test "tools/scripts/**/*.test.mjs"
+
   reuse:
     name: REUSE compliance
     runs-on: ubuntu-24.04

@@ -10,8 +10,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- **Stable SAML keys (new Docker secrets).** `keycloak-config` now needs four
+  more secret files in `deploy/compose/secrets/`: `keycloak_saml_sig_key`,
+  `keycloak_saml_sig_cert`, `keycloak_saml_enc_key`, `keycloak_saml_enc_cert`.
+  Create them **before the next `docker compose up`** with
+  `bash tools/scripts/gen-saml-keys.sh --dir deploy/compose/secrets` (RSA 3072,
+  self-signed, 10 years). Without them the import fails with a missing-file
+  error: it does not fall back to the generated keys. New installations get
+  them in the secrets step of the guides. The first import adds two key providers to the realm
+  (`oecp-saml-signing`, `oecp-saml-encryption`, priority 200 over the
+  generated keys, which stay enabled), so on an **existing deployment the SP
+  certificates change once**: send the new metadata
+  (`tools/scripts/sp-metadata.mjs`, or the per-alias descriptors) to the
+  federation and to every partner IdP that holds the old certificates before
+  or right after the upgrade. The imported RS256 key also signs the realm's
+  tokens (Keycloak selects the active key by use and algorithm); tokens issued
+  before stay valid until they expire. Keep an offline copy of the four files.
+
 ### Added
 
+- Identity: the realm imports its SAML signing and encryption key pairs from
+  Docker secrets (`components` of `realm-oecp.yaml`, `rsa` key providers), so
+  the SP certificates exist before the server and survive a database
+  reinstall; `tools/scripts/gen-saml-keys.sh` creates them (shellcheck-clean,
+  `--force` required to replace), documented in `deploy/compose/secrets/README.md`,
+  the Keycloak README, Guide E (steps 2.3 and 2.13) and the runbook (secrets
+  inventory). Verified against Keycloak 26.8.1 and keycloak-config-cli 6.5.1
+  (fresh import, idempotent re-run).
+- Identity: `tools/scripts/sp-metadata.mjs`, the multi-ACS SP metadata
+  generator (Node, no dependencies): one `EntityDescriptor` with an HTTP-POST
+  ACS per IdP alias (enabled in the realm file or listed in `reserveAliases`),
+  stable append-only ACS indexes in `identity/keycloak/sp-metadata.indexes.json`,
+  REFEDS Personalized Access, CoCo v2 and Sirtfi, MDUI, organization and
+  contacts from `identity/keycloak/sp-metadata.config.example.yaml`, signed
+  requests and encrypted assertions required. Certificates come from the secret
+  files (so it works before deployment) or from the Admin API; `--check`,
+  `xmllint` well-formedness, optional XSD validation; tests in
+  `tools/scripts/sp-metadata.test.mjs` (`node --test`, run by CI). The design
+  note `identity/keycloak/scripts/sp-metadata.md` is now the user guide.
 - Docs: `docs/architecture.md`, four Mermaid diagrams (solution context with
   the three channels, Compose deployment, API modules and queues, course data
   flow), linked from the docs index, the spec and the README.

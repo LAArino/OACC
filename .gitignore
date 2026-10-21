@@ -58,3 +58,6 @@ deploy/compose/branding/*
 tools/e2e-identity/node_modules
 tools/e2e-identity/shots
 docs/screenshots/
+
+# SAML SP metadata inputs with contact addresses (see sp-metadata.config.example.yaml)
+identity/keycloak/sp-metadata.config.yaml

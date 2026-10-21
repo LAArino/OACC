@@ -15,6 +15,8 @@
 | `keycloak_admin_password` | keycloak, keycloak-config | Password of the temporary bootstrap admin of the `master` realm |
 | `oecp_backend_client_secret` | keycloak-config, api, worker | Secret of the confidential client `oecp-backend` (spec §3) |
 | `oecp_master_key` | api, worker | AES-256-GCM master key of the `secrets` table (spec §10): 32 random bytes, base64 |
+| `keycloak_saml_sig_key`, `keycloak_saml_sig_cert` | keycloak-config | Key pair of the realm's SAML signing key (RSA 3072, self-signed certificate, 10 years), imported as the key provider `oecp-saml-signing` |
+| `keycloak_saml_enc_key`, `keycloak_saml_enc_cert` | keycloak-config | Same for the SAML encryption key (`oecp-saml-encryption`) |
 | `grafana_admin_password` | grafana (profile `observability`) | Grafana `admin` password |
 
 Optional, commented out in `compose.yaml` until used:
@@ -56,6 +58,44 @@ done
 chmod 644 secrets/*
 ```
 
+The four `keycloak_saml_*` files come from `tools/scripts/gen-saml-keys.sh`
+(run from the repository root or pass `--dir`; it refuses to overwrite
+existing files without `--force`):
+
+```sh
+bash ../../tools/scripts/gen-saml-keys.sh --dir secrets
+```
+
+Each of them is **one line of base64 without PEM armor**: the private key as
+PKCS#8 DER, the certificate as X.509 DER. This is deliberate. keycloak-config-cli
+substitutes the file into `realm-oecp.yaml` before the YAML is parsed, a PEM
+file would be folded onto one line there, and Keycloak removes the
+`-----BEGIN ...-----` markers with a pattern that would then swallow the key.
+The equivalent openssl commands, for one pair (`sig`; repeat with `enc`):
+
+```sh
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out sig.pem
+openssl req -new -x509 -sha256 -days 3650 -key sig.pem \
+  -subj '/O=Open European Campus Portal/CN=OECP SAML signing' -out sig.crt
+openssl pkey -in sig.pem -outform DER | openssl base64 -A > secrets/keycloak_saml_sig_key
+openssl x509 -in sig.crt -outform DER | openssl base64 -A > secrets/keycloak_saml_sig_cert
+shred -u sig.pem sig.crt 2>/dev/null || rm -P sig.pem sig.crt   # or keep them in the offline copy
+```
+
+To inspect a certificate again:
+`openssl base64 -d -A < secrets/keycloak_saml_sig_cert | openssl x509 -inform DER -noout -subject -enddate -fingerprint -sha256`.
+
+Why they exist: Keycloak generates its own realm keys when it creates the
+realm, so the SAML certificates in the SP metadata registered at the
+federation would change with every database reinstall, and would not exist
+before the server does. With these files the certificates are known in
+advance (`tools/scripts/sp-metadata.mjs` reads the `*_cert` files, so the
+metadata can be produced and registered before the server has DNS and TLS)
+and survive a reinstall. **Existing installations:** `compose.yaml` mounts the
+files into `keycloak-config`, so create them before the next
+`docker compose up`; the first import then adds the two key providers and the
+SP certificates change once (re-send the metadata).
+
 On a shared host, prefer restricting the files to the container uids
 (`chown`) or a dedicated group instead of mode 644.
 
@@ -72,5 +112,17 @@ On a shared host, prefer restricting the files to the container uids
   temporary admin. Replace that admin by a permanent one with MFA, then keep
   the file in sync with whatever account keycloak-config-cli uses.
 
-Keep an offline, access-controlled copy of `oecp_master_key`: without it the
-encrypted partner credentials in the database cannot be recovered.
+- **`keycloak_saml_*`:** only on purpose. A new pair changes the SP
+  certificates that the federation (SIR/RedIRIS, eduGAIN) and every partner IdP
+  hold. Plan it like the runbook says (section 2): add the new pair under new
+  secret names (wired by hand in `compose.yaml`) as a second provider pair in
+  `realm-oecp.yaml` with `active: false`, publish the new certificates in the
+  metadata next to the old ones (`tools/scripts/sp-metadata.mjs --sig-cert
+  OLD --sig-cert NEW`), wait until the federation has exported it, then make the
+  new keys active and finally drop the old pair
+  ([`identity/keycloak/scripts/sp-metadata.md`](../../../identity/keycloak/scripts/sp-metadata.md)).
+
+Keep an offline, access-controlled copy of `oecp_master_key` (without it the
+encrypted partner credentials in the database cannot be recovered) and of the
+four `keycloak_saml_*` files (without them a reinstall changes the registered
+SP certificates).
