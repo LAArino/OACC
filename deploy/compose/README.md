@@ -166,6 +166,9 @@ certificates **and the local backup repository** `pgbackrest-repo`); there is no
   entrypoint injects the database password into `DATABASE_URL`.
 - **`traefik/dynamic/middlewares.yaml`**: security headers, rate limits, TLS
   options.
+- **`traefik/dynamic/tls.yaml.example`** and **`tls/`**: TLS with certificates
+  issued by the hosting institution (copy the example to `tls.yaml`, git-ignored;
+  PEM chains and keys in `tls/`, mounted read-only; [`tls/README.md`](tls/README.md)).
 - **`identity/keycloak/realm-oecp.yaml`**: the realm as code; see
   [`identity/keycloak/README.md`](../../identity/keycloak/README.md).
 
@@ -511,11 +514,13 @@ metrics), Traefik, Keycloak, the OpenTelemetry Collector, Alertmanager, the
 blackbox exporter and itself. The blackbox exporter also probes
 `https://traefik:443/` (job `tls`, module `http_tls`, certificate not
 verified) for `probe_ssl_earliest_cert_expiry`; it sends no portal host as
-SNI, so it sees Traefik's default certificate: in production make the ACME
-certificate the default (labels
+SNI, so it sees Traefik's default certificate: in production make the portal
+certificate the default, otherwise the probe watches Traefik's self-generated
+one. With ACME: labels
 `traefik.tls.stores.default.defaultgeneratedcert.resolver=le` and
-`…domain.main=${OECP_PORTAL_HOST}` on `traefik`), otherwise the probe watches
-Traefik's self-generated certificate.
+`…domain.main=${OECP_PORTAL_HOST}` on `traefik`. With institution-issued
+certificates: `defaultCertificate` in `traefik/dynamic/tls.yaml` (copied from
+`tls.yaml.example`).
 
 | Alert | Condition (spec §10 in bold) | Severity |
 |---|---|---|
@@ -526,7 +531,7 @@ Traefik's self-generated certificate.
 | `OecpDiskSpaceLow` | **disk > 80 %** (warning), > 90 % (critical) | warning / critical |
 | `OecpIdpCertificateExpiring` | SAML signing certificate of an enabled partner IdP in Keycloak (latest of its certificates) expires within 30 days (warning) or 7 days (critical) | warning / critical |
 | `OecpIdpCertificateExpired`, `OecpIdpCertificateCheckStale` | every signing certificate of an enabled IdP expired; the worker has not read the certificates from Keycloak for 24 h | critical / warning |
-| `OecpTlsCertificateExpiring`, `OecpTlsProbeFailing` | certificate Traefik serves on :443 expires within 21 days (warning: ACME renews at 30, so renewal is failing) or 7 days (critical); TLS probe failing for 15 min | warning / critical |
+| `OecpTlsCertificateExpiring`, `OecpTlsProbeFailing` | certificate Traefik serves on :443 expires within 21 days (warning: ACME renews at 30, so renewal is failing; with institution-issued certificates, renewal is due) or 7 days (critical); TLS probe failing for 15 min | warning / critical |
 | `OecpIdpMetadataRefreshFailed`, `…Stale` | **metadata-refresh failure**; no success for 26 h | warning |
 | `OecpApiHigh5xxRate`, `OecpEdgeHigh5xxRate` | **5xx > 1 %** of api responses (or per Traefik service) for 10 min, above 0.05 req/s | warning |
 | `OecpServiceDown`, `OecpServiceNotReady` | api or worker not scraped / `/ready` failing for 2 min | critical |
@@ -564,8 +569,16 @@ docker compose --profile observability exec alertmanager amtool --alertmanager.u
 ## Production checklist
 
 1. **DNS and TLS.** Point the portal and auth hosts at the server. In the
-   `traefik` service, uncomment the *PRODUCTION* block (ACME with the
-   TLS-ALPN challenge, `ACME_EMAIL`), remove `--api.insecure` and the
+   `traefik` service, either uncomment the *PRODUCTION* block (ACME with the
+   TLS-ALPN challenge, `ACME_EMAIL`) **or**, for certificates issued by the
+   hosting institution, put the PEM chains and keys in `tls/` (names and
+   permissions in [`tls/README.md`](tls/README.md)), check them with `openssl
+   x509 -noout -dates -subject -ext subjectAltName`, copy
+   `traefik/dynamic/tls.yaml.example` to `traefik/dynamic/tls.yaml` and run
+   `docker compose up -d traefik`; never both. Renew the latter by hand every
+   year ([runbook](../../docs/production/runbook.md#certificate-renewal-institution-issued):
+   replace the files, then `touch traefik/dynamic/tls.yaml`, Traefik does not
+   watch the PEM files). Remove `--api.insecure` and the
    dashboard port. Consider a Docker socket proxy instead of the raw socket.
 2. **Allowlists.** Set `KEYCLOAK_ADMIN_ALLOWLIST` to the operators' networks.
    If a load balancer fronts Traefik, configure `forwardedheaders.trustedips`
@@ -593,8 +606,9 @@ docker compose --profile observability exec alertmanager amtool --alertmanager.u
    `scripts/restore-drill.sh` before go-live and quarterly.
 8. **Alerting.** Run the `observability` profile with `OECP_ALERT_EMAIL_TO`
    (and/or `OECP_ALERT_WEBHOOK_URL`) set; send a test alert
-   ([Alerting](#alerting)). Make the ACME certificate Traefik's default so that
-   the TLS expiry probe watches it. Prefer a node-exporter on the host itself
+   ([Alerting](#alerting)). Make the portal certificate (ACME or
+   institution-issued) Traefik's default so that the TLS expiry probe watches
+   it. Prefer a node-exporter on the host itself
    for disk alerts on every filesystem.
 9. **Images.** Build in CI, sign with cosign and pin by digest
    (`OECP_IMAGE_TAG`) rather than building on the server.

@@ -227,12 +227,12 @@ tests:
           - exp_labels: {severity: warning, component: edge, job: tls, instance: "https://traefik:443/"}
             exp_annotations:
               summary: "TLS certificate served by Traefik expires in 14d 23h 30m 0s"
-              description: "The certificate Traefik serves on https://traefik:443/ expires in 14d 23h 30m 0s. ACME renews 30 days before expiry, so renewal has been failing for over a week: `docker compose logs traefik | grep -i acme` (port 443 reachable from the Internet for the TLS challenge, DNS, Let's Encrypt rate limits)."
+              description: "The certificate Traefik serves on https://traefik:443/ expires in 14d 23h 30m 0s. ACME renews 30 days before expiry, so renewal has been failing for over a week: `docker compose logs traefik | grep -i acme` (port 443 reachable from the Internet for the TLS challenge, DNS, Let's Encrypt rate limits). With certificates issued by the institution there is no automatic renewal: follow 'Certificate renewal (institution-issued)' in the runbook."
               runbook: "docs/production/runbook.md#7-monitoring-and-alerts"
           - exp_labels: {severity: critical, component: edge, job: tls, instance: "https://soon:443/"}
             exp_annotations:
               summary: "TLS certificate served by Traefik expires in 2d 23h 30m 0s"
-              description: "The certificate Traefik serves on https://soon:443/ expires in 2d 23h 30m 0s (negative: expired): browsers and partner harvesters will refuse the portal. Fix the ACME renewal now (`docker compose logs traefik | grep -i acme`) or install a certificate by hand."
+              description: "The certificate Traefik serves on https://soon:443/ expires in 2d 23h 30m 0s (negative: expired): browsers and partner harvesters will refuse the portal. Fix the ACME renewal now (`docker compose logs traefik | grep -i acme`) or install a certificate by hand (institution-issued certificates: runbook, 'Certificate renewal (institution-issued)')."
               runbook: "docs/production/runbook.md#7-monitoring-and-alerts"
       - eval_time: 30m
         alertname: OecpTlsProbeFailing

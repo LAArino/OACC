@@ -37,6 +37,8 @@ blob-report/
 
 # Local deployment data (volumes bound by deploy/compose)
 deploy/compose/data/
+# Deployment TLS: institution-issued certificates and keys, and the Traefik file that names them
+deploy/compose/traefik/dynamic/tls.yaml
 # Deployment branding: the alliance's images (it holds their rights), never committed
 deploy/compose/branding/*
 !deploy/compose/branding/README.md

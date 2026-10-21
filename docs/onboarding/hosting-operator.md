@@ -27,7 +27,7 @@ Settle these with the institution's network, mail, identity and security teams a
 |---|---|---|
 | **Hostnames** | Two DNS names: the portal and the auth host. The auth host must be on the **same registrable domain** as the portal (`portal.example.eu` and `auth.example.eu`, or `auth.lspurv.urv.cat` under `lspurv.urv.cat`), or the admin session cannot survive a page reload ([spec §4](../spec-v4.1.md#4-identity), "Session restore after a reload"). | `OECP_PORTAL_HOST`, `OECP_AUTH_HOST` |
 | **DNS records** | Both names pointing at the server. | Compose README, [Production checklist](../../deploy/compose/README.md#production-checklist) item 1 |
-| **TLS** | Either ACME (Let's Encrypt) with the TLS-ALPN challenge on port 443, which is what `compose.yaml` prepares (commented *PRODUCTION* block of `traefik`), or certificates issued by the institution. ACME needs port 443 reachable from Let's Encrypt. Institution certificates are **not documented** in the sources: there is no worked example of loading them into Traefik. | `ACME_EMAIL`, [step 2.4](#24-switch-traefik-to-production-tls) |
+| **TLS** | Either ACME (Let's Encrypt) with the TLS-ALPN challenge on port 443, which is what `compose.yaml` prepares (commented *PRODUCTION* block of `traefik`), or certificates issued by the institution (URV issues its own: PEM certificate, PEM intermediate chain and private key; one certificate with both hosts as SAN, or one per host). ACME needs port 443 reachable from Let's Encrypt. | `ACME_EMAIL` and [step 2.4](#24-switch-traefik-to-production-tls), or the files of [step 2.4b](#24b-tls-with-certificates-issued-by-the-institution) |
 | **Inbound ports** | 443 for both hosts (users, partners' browsers, the ACME challenge). Port 80 is published by Traefik only to redirect to HTTPS; the TLS-ALPN challenge does not use it. The Compose README asks for both ports free on the host. | `OECP_HTTPS_PORT`, `OECP_HTTP_PORT` (change only behind another proxy: the public URLs assume 443) |
 | **Outbound traffic** | From the worker (network `egress`): every partner OEAPI endpoint (`https` on port 443 only, spec §6.2.6) and, once a partner IdP is connected, the federation aggregate (`https://mds.edugain.org/edugain-v2.xml` or the federation's feed). From `api`, `keycloak` and `alertmanager` (network `edge`): the SMTP relay; from Alertmanager also the webhook target, if any. From Traefik: Let's Encrypt (ACME). From `postgres` and `backup`, once repo2 is configured (network `egress`): the second backup site. For building the images on the server: the container registries of the base images (Docker Hub, quay.io), the npm registry (`pnpm install`) and the Debian/PGDG apt repositories (`postgres.Dockerfile`). | [Compose README, network diagram](../../deploy/compose/README.md) |
 | **Public outbound IP** | The address the worker's requests leave from. Partners with an OEAPI endpoint put it on their allowlist. | Runbook [§1](../production/runbook.md#1-topology-and-environments); Guide A step 2 item 6 |
@@ -57,7 +57,7 @@ Check: `docker version` and `docker compose version` report at least 25 and v2.2
 
 ## 2. Day 1: installation
 
-> **Verified** on 2026-10-16: steps 2.1 to 2.3 and 2.5 to 2.10 were run in this order on a fresh clone of 0.7.0 on a clean Docker host (local hostnames, Traefik's self-signed certificate instead of ACME, images already built), each check as written. Only step 2.4 (ACME) and the second backup site could not be exercised locally.
+> **Verified** on 2026-10-16: steps 2.1 to 2.3 and 2.5 to 2.10 were run in this order on a fresh clone of 0.7.0 on a clean Docker host (local hostnames, Traefik's self-signed certificate instead of ACME, images already built), each check as written. Only step 2.4 (ACME) and the second backup site could not be exercised locally. Step 2.4b was exercised on 2026-10-21 with Traefik 3.7.14 and a self-signed test chain (served certificate with and without SNI, chain verifying, read-only mount, renewal with `touch`, mismatched key); the institution's own certificates have not been loaded yet.
 
 Run every command in `deploy/compose` of the checkout, as the operator account. Each step ends with **Check:** lines. Do not go on while one fails.
 
@@ -116,6 +116,8 @@ Check:
 
 ### 2.4 Switch Traefik to production TLS
 
+This step is the ACME (Let's Encrypt) path. With certificates issued by the institution, do items 2 and the load-balancer paragraph here, and [step 2.4b](#24b-tls-with-certificates-issued-by-the-institution) in place of items 1 and 3.
+
 Edit the `traefik` service in `compose.yaml` as its *PRODUCTION* comment says ([Production checklist](../../deploy/compose/README.md#production-checklist) item 1):
 
 1. Uncomment the four flags `--certificatesresolvers.le.acme.email`, `…acme.storage`, `…acme.tlschallenge` and `--entrypoints.websecure.http.tls.certresolver=le` (ACME account, storage on the volume `traefik_acme`, TLS-ALPN challenge, a certificate for every router).
@@ -134,6 +136,56 @@ If a load balancer fronts Traefik, also set `--entrypoints.websecure.forwardedhe
 
 Check: `docker compose config --quiet` still passes. The certificates themselves are checked after the first start.
 
+### 2.4b TLS with certificates issued by the institution
+
+Use this **instead of** the ACME flags and labels of step 2.4 (items 1 and 3 stay commented; item 2, removing `--api.insecure` and the dashboard port, and the load-balancer paragraph still apply). It is the path for a host whose institution issues its own server certificates, as URV does for `lspurv.urv.cat` and `auth.lspurv.urv.cat`, and for a host that Let's Encrypt cannot reach. Do not enable both: ACME and these files for the same names would compete.
+
+Ask the issuing team for the certificate as PEM, the intermediate chain as PEM and the private key. They may issue **one certificate** with both hosts as subject alternative names (SAN) or **two**, one per host. The files and their roles, in `deploy/compose/tls/` ([its README](../../deploy/compose/tls/README.md)):
+
+| File | Content |
+|---|---|
+| `portal.fullchain.pem` | The portal certificate **first**, then the intermediate certificate(s) in order, root left out. With a single SAN certificate this is the only certificate file |
+| `portal.key.pem` | Its private key, PEM, unencrypted |
+| `auth.fullchain.pem`, `auth.key.pem` | Only with two certificates: the auth host's pair, same layout |
+
+1. **Drop the files in and lock them down.** If the chain came as separate files: `cat portal.crt intermediate.pem > tls/portal.fullchain.pem`. Then, in `deploy/compose`:
+
+   ```sh
+   sudo chown -R root:root tls && sudo chmod 700 tls
+   sudo chmod 600 tls/*.key.pem && sudo chmod 644 tls/*.fullchain.pem
+   ```
+
+   Traefik runs as root in its container and mounts the directory **read-only**; nobody else needs to read the keys. The directory is git-ignored (only its README is tracked): never commit or e-mail a key; keep an offline copy with the other secrets (runbook [§2](../production/runbook.md#2-secrets-inventory-and-rotation)).
+2. **Check them before Traefik sees them.** For each certificate file:
+
+   ```sh
+   openssl x509 -in tls/portal.fullchain.pem -noout -dates -subject -ext subjectAltName
+   ```
+
+   `notAfter` is the expiry, and the SAN list must contain the exact host names (`lspurv.urv.cat` and `auth.lspurv.urv.cat`; with two certificates, each file its own name). The chain must be in order, leaf first:
+
+   ```sh
+   openssl crl2pkcs7 -nocrl -certfile tls/portal.fullchain.pem | openssl pkcs7 -print_certs -noout
+   ```
+
+   prints the leaf's `subject=` first and the next block's `subject=` equals the previous `issuer=`. The key must belong to the certificate (the two digests are equal; a mismatch makes Traefik serve **no** certificate, see below):
+
+   ```sh
+   openssl x509 -in tls/portal.fullchain.pem -noout -pubkey | openssl sha256
+   openssl pkey -in tls/portal.key.pem -pubout | openssl sha256
+   ```
+3. **Tell Traefik about them.** `cp traefik/dynamic/tls.yaml.example traefik/dynamic/tls.yaml` (git-ignored). With two certificates, uncomment the second pair in it. It lists the certificates and sets the **portal certificate as Traefik's default**, so the in-host TLS probe, which sends no SNI, watches it (step 2.10). Directory elsewhere: `OECP_TLS_DIR` in `.env`.
+4. **Start.** `docker compose config --quiet`, then `docker compose up -d traefik` (needed once: the new bind mount is created with the container).
+
+Check:
+
+- `docker compose logs traefik | grep -E 'ERR'` shows nothing about certificates (a wrong file shows `Unable to parse certificate` or `failed to load X509 key pair`).
+- From any machine, without `-k`: `openssl s_client -connect <host>:443 -servername <host> </dev/null 2>/dev/null | openssl x509 -noout -subject -issuer -dates`, for the portal host **and** the auth host, shows the institution's issuer and the new dates; `curl -sSI https://<host>/` verifies (the institution's root must be in the machine's trust store). Add `-noservername` instead of `-servername` to see the default certificate: it must be the portal's.
+
+**Reload on renewal.** Traefik's file provider watches `traefik/dynamic/` (`--providers.file.watch=true`) and re-reads `tls.yaml` when that file changes, with no restart. It does **not** watch the PEM files that `tls.yaml` points to: if you only replace them, Traefik keeps serving the old certificate. After replacing them, `touch traefik/dynamic/tls.yaml` makes it re-read them (a few seconds). Observed with Traefik 3.7.14 on 2026-10-21: replacing the PEM files alone left the old certificate in place; after `touch` the new one was served on the next handshake. And with a key that does not match the new certificate, Traefik logged `failed to load X509 key pair: tls: private key does not match public key` and then **served no certificate** on the default store: every connection failed until the right key was in place. Hence the checks of item 2 **before** the `touch`.
+
+**Annual renewal** (URV issues class 1 device certificates for one year; the alert `OecpTlsCertificateExpiring` fires at 21 and 7 days). The full procedure with rollback is runbook [§6, Certificate renewal (institution-issued)](../production/runbook.md#certificate-renewal-institution-issued). In short: request the new certificate about two months ahead; keep a copy of the current `tls/`; write the new `*.fullchain.pem` (and `*.key.pem` if the key changed) under the same names; repeat the checks of item 2; `touch traefik/dynamic/tls.yaml`; verify what is served for both hosts; confirm the alert clears at the next probe (1 minute). Write the new `notAfter` into the calendar.
+
 ### 2.5 First start
 
 ```sh
@@ -146,7 +198,7 @@ The first run builds the images (`oecp/api`, `oecp/web`, `oecp/keycloak`, `oecp/
 Check:
 
 - `docker compose ps` shows every long-running service *healthy* (or running, for those without a healthcheck) and `keycloak-config` exited with 0. If the api restarts, read `docker compose logs api`: an empty `OECP_SMTP_HOST` stops it in production.
-- `docker compose logs traefik | grep -i acme` shows no error; `https://<portal host>/` and `https://<auth host>/` present a valid certificate in a browser (no warning).
+- `docker compose logs traefik | grep -i acme` shows no error (with institution certificates: `grep -E 'ERR'`, see 2.4b); `https://<portal host>/` and `https://<auth host>/` present a valid certificate in a browser (no warning).
 - Problems: [Compose README, Troubleshooting](../../deploy/compose/README.md#troubleshooting).
 
 ### 2.6 Database schema and seeds
@@ -240,7 +292,7 @@ Check:
 
 - The test alert reaches `OECP_ALERT_EMAIL_TO` (and/or the webhook).
 - No alert is firing that you cannot explain from runbook §7.
-- The TLS probe reports the expiry of the ACME certificate, not of Traefik's self-generated one: the *Certificates* row of the dashboard *OECP overview* shows it. If not, the default-certificate labels of step 2.4 are not in effect.
+- The TLS probe reports the expiry of the portal certificate (ACME or institution-issued), not of Traefik's self-generated one: the *Certificates* row of the dashboard *OECP overview* shows it. If not, the default-certificate labels of step 2.4, or `defaultCertificate` in `traefik/dynamic/tls.yaml` (step 2.4b), are not in effect.
 - The dashboard *OECP logs* shows recent lines for every service (else `docker compose logs alloy docker-socket-proxy loki`). Loki keeps the Traefik access log 30 days and everything else 90 days; the json-file sizes of step 2.2 only need to bridge an outage. Record the chosen sizes in runbook §10.
 
 ![The Alertmanager delivery test as it arrives: subject "[OECP local] FIRING:1 OecpTestAlert (warning)", one firing alert with its labels alertname, component and severity, and the View In Alertmanager button; caught by Mailpit on the development stack](../images/ops-alert-email.png)
@@ -303,14 +355,14 @@ The [Production checklist](../../deploy/compose/README.md#production-checklist) 
 
 | Checklist item | Done in |
 |---|---|
-| 1. DNS and TLS (ACME block, no insecure API, no dashboard port; socket proxy to consider) | 2.4, 2.5 |
+| 1. DNS and TLS (ACME block or institution certificates, no insecure API, no dashboard port; socket proxy to consider) | 2.4, 2.4b, 2.5 |
 | 2. Allowlists (`KEYCLOAK_ADMIN_ALLOWLIST`; `trustedips` and `ipStrategy` behind a load balancer) | 2.2, 2.4, 2.12 |
 | 3. Permanent Keycloak master admin with MFA | 2.12 |
 | 4. Secrets generated on the server, offline copy | 2.3 |
 | 5. Mail: no `dev` profile, institutional relay, `OECP_MAIL_LOG_LINKS=false` | 2.2, 2.7 |
 | 6. Logs to Loki (or json-file sized for 90 / 30 days) | 2.10 |
 | 7. Backups: `backup` profile, repo2, `OECP_WAL_ARCHIVE=on`, restore drill | 2.9 |
-| 8. Alerting: receivers, test alert, ACME certificate as default; a node-exporter on the host for every filesystem | 2.4, 2.10 |
+| 8. Alerting: receivers, test alert, portal certificate (ACME or institution-issued) as default; a node-exporter on the host for every filesystem | 2.4, 2.4b, 2.10 |
 | 9. Images built in CI, signed, pinned by digest | Not available: images are built on the server from the tag until CI publishes them |
 | 10. SAML: key pairs created, SP metadata registered | 2.3, 2.13 |
 
@@ -319,7 +371,7 @@ The [Production checklist](../../deploy/compose/README.md#production-checklist) 
 Tick these before the alliance ticks its own [go-live checklist](alliance.md#go-live-checklist) in Guide A, which covers legal, organizations, administrators and the dry runs.
 
 - [ ] Release tag checked out; `.env` reviewed against step 2.2; no `dev` service in `docker compose config --services`
-- [ ] Both hosts on the same registrable domain, valid certificates, the ACME certificate Traefik's default (TLS probe shows it)
+- [ ] Both hosts on the same registrable domain, valid certificates, the portal certificate (ACME or institution-issued) Traefik's default (TLS probe shows it)
 - [ ] Inbound 443 open as decided; Traefik dashboard and `--api.insecure` removed
 - [ ] Keycloak console allowlisted (403 from outside); permanent master admin with MFA; `keycloak-config` still exits 0
 - [ ] SMTP relay delivers Keycloak and api mail; test alert received
@@ -347,7 +399,7 @@ The runbook's [§11 Housekeeping checklist](../production/runbook.md#11-housekee
 | Weekly | No alert firing or silenced without a reason; `pgbackrest info` shows the Sunday full; worker log errors; worker schedules (`/health`) | Runbook §11, §7 "Still manual" |
 | Monthly | Test alert; uploads archives copied to the second site; certificate expiry (and the auth host from outside); monitoring itself (Grafana, *OECP logs*); log volumes against the rotation sizes; OS and image security updates; new OECP patch release. With the alliance: *Administrators* panels, the latest `account-cleanup` run | Runbook §11, §7, §10 |
 | Quarterly | Restore drill, report filed; offline secrets copy current. With the alliance: dormancy dry run | Runbook [§4](../production/runbook.md#4-restore-drill) |
-| Yearly | Rotate database and client secrets; point-in-time drill, and the application part of the drill on staging; review the runbook, RoPA and DPIA; recertification of administrators with the Foundation | Runbook §2, §4, §11; [administrator lifecycle](administrator-lifecycle.md) |
+| Yearly | Renew the institution-issued TLS certificates (runbook §6, if not ACME); rotate database and client secrets; point-in-time drill, and the application part of the drill on staging; review the runbook, RoPA and DPIA; recertification of administrators with the Foundation | Runbook §2, §4, §11; [administrator lifecycle](administrator-lifecycle.md) |
 
 Never run `docker compose down -v`: it deletes every volume, the local backup repository included.
 
@@ -360,7 +412,7 @@ First actions for every alert are in the table of runbook [§7](../production/ru
 | `OecpServiceDown`, `OecpServiceNotReady`, `OecpApiHigh5xxRate`, `OecpEdgeHigh5xxRate` | Compose README [Troubleshooting](../../deploy/compose/README.md#troubleshooting) | — |
 | `OecpBackup*`, `OecpWalArchivingFailing` | Runbook §3; Compose README Troubleshooting (`backup`, `pg_wal`) | Owner of the second site, if repo2 is unreachable |
 | `OecpDiskSpaceLow` | Runbook [§9](../production/runbook.md#9-capacity) | — |
-| `OecpTlsCertificateExpiring`, `OecpTlsProbeFailing` | Runbook [§6](../production/runbook.md#6-identity-operations) "Certificate expiry"; step 2.4 | Network team (port 443, DNS) |
+| `OecpTlsCertificateExpiring`, `OecpTlsProbeFailing` | Runbook [§6](../production/runbook.md#6-identity-operations) "Certificate expiry" and, for institution certificates, "Certificate renewal (institution-issued)"; step 2.4 or 2.4b | Network team (port 443, DNS) |
 | `OecpIdpCertificate*`, `OecpIdpMetadataRefresh*` | Runbook §6; [Keycloak README, metadata refresh](../../identity/keycloak/README.md#metadata-refresh-owned-by-the-api) | The partner's identity team, through the alliance |
 | `OecpHarvestFailing`, `OecpHarvestStuck` | Guide A step 9; [Guide B](partner-with-oeapi.md) | Alliance admins and the partner |
 | `OecpMaintenanceJobFailed`, `OecpMaintenanceJobStale` | Guide A step 9, *Maintenance* page | Alliance admins |
@@ -409,7 +461,7 @@ The values below are those the sources and the decisions log give for the Aurora
 | Publication rule, dry runs | `OECP_PUBLISH_RULE=warn`; dormancy and account clean-up in dry run during the pilot [DL 26] |
 | Branding | Generated header images and the Aurora logo with the Foundation's permission [DL 25] |
 | Federation | One SP in SIR (RedIRIS) with export to eduGAIN [DL 15]; multi-ACS generator not built |
-| Host exposure | `[TO DECIDE: open to the Internet or URV networks only]`. With URV-only access Let's Encrypt cannot reach port 443, so the ACME path of step 2.4 does not apply and an institution certificate is needed, which the sources do not document |
+| Host exposure | `[TO DECIDE: open to the Internet or URV networks only]`. With URV-only access Let's Encrypt cannot reach port 443, so the ACME path of step 2.4 does not apply; URV issues the certificates, [step 2.4b](#24b-tls-with-certificates-issued-by-the-institution) |
 | Hosts | `[TO DECIDE: one host (production only) or two (production and a staging host for upgrade rehearsals and restore drills, runbook §1)]` |
 | Server size | `[TO DECIDE]`; the measured footprint suggests 4 vCPU, 8 GB of RAM, 60 GB of disk ([section 1.2](#12-the-host)) |
 | SMTP relay | `[TO DECIDE: URV relay host, port, STARTTLS, relay by source address for Keycloak]` |
@@ -424,4 +476,4 @@ The values below are those the sources and the decisions log give for the Aurora
 - **Helm and Kubernetes.** The chart is a v1 deliverable, not available ([deploy/helm/README.md](../../deploy/helm/README.md)).
 - **Off-host availability probe.** Not built; the in-host monitoring cannot report its own host down (backlog, runbook §7 "Still manual").
 - **Multi-host deployments.** The sources describe one Compose project on one host (runbook §1); separate database hosts, replicas and load-balanced application nodes are not documented.
-- **Institution-issued TLS certificates**, published and signed images: not documented or not built in 0.7.0, as noted in the steps above. (The multi-ACS SP metadata generator exists since the release after 0.9.0: step 2.13.)
+- **Published and signed images**: not built in 0.7.0, as noted in the steps above. (Institution-issued TLS certificates, step 2.4b, and the multi-ACS SP metadata generator, step 2.13, exist since the release after 0.9.0.)

@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: CC0-1.0
+# Never commit certificates or private keys: only this file, .gitkeep and README.md.
+*
+!.gitignore
+!.gitkeep
+!README.md

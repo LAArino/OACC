@@ -50,6 +50,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `xmllint` well-formedness, optional XSD validation; tests in
   `tools/scripts/sp-metadata.test.mjs` (`node --test`, run by CI). The design
   note `identity/keycloak/scripts/sp-metadata.md` is now the user guide.
+- Deployment: TLS with certificates issued by the hosting institution, next to
+  ACME. `traefik/dynamic/tls.yaml.example` (copied to the git-ignored
+  `tls.yaml`) loads one or two PEM chains and keys from the new git-ignored
+  `deploy/compose/tls/` (mounted read-only at `/etc/traefik/tls`, directory
+  override `OECP_TLS_DIR`) and makes the portal certificate Traefik's default,
+  so the in-host TLS probe and `OecpTlsCertificateExpiring` watch it. Guide E
+  step 2.4b, the Compose README production checklist and a new runbook section
+  "Certificate renewal (institution-issued)" document the files, the
+  `openssl` checks, the annual renewal and rollback. Traefik's file provider
+  does not watch the PEM files: `touch traefik/dynamic/tls.yaml` after
+  replacing them; a key that does not match the certificate makes Traefik
+  serve no certificate, so check before reloading. The expiry alert texts
+  mention the institution-issued path.
 - Docs: `docs/architecture.md`, four Mermaid diagrams (solution context with
   the three channels, Compose deployment, API modules and queues, course data
   flow), linked from the docs index, the spec and the README.

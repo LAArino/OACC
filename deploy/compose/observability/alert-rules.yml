@@ -308,7 +308,7 @@ groups:
           component: edge
         annotations:
           summary: "TLS certificate served by Traefik expires in {{ $value | humanizeDuration }}"
-          description: "The certificate Traefik serves on {{ $labels.instance }} expires in {{ $value | humanizeDuration }}. ACME renews 30 days before expiry, so renewal has been failing for over a week: `docker compose logs traefik | grep -i acme` (port 443 reachable from the Internet for the TLS challenge, DNS, Let's Encrypt rate limits)."
+          description: "The certificate Traefik serves on {{ $labels.instance }} expires in {{ $value | humanizeDuration }}. ACME renews 30 days before expiry, so renewal has been failing for over a week: `docker compose logs traefik | grep -i acme` (port 443 reachable from the Internet for the TLS challenge, DNS, Let's Encrypt rate limits). With certificates issued by the institution there is no automatic renewal: follow 'Certificate renewal (institution-issued)' in the runbook."
           runbook: "docs/production/runbook.md#7-monitoring-and-alerts"
       - alert: OecpTlsCertificateExpiring
         expr: probe_ssl_earliest_cert_expiry{job="tls"} - time() < 7 * 86400
@@ -318,7 +318,7 @@ groups:
           component: edge
         annotations:
           summary: "TLS certificate served by Traefik expires in {{ $value | humanizeDuration }}"
-          description: "The certificate Traefik serves on {{ $labels.instance }} expires in {{ $value | humanizeDuration }} (negative: expired): browsers and partner harvesters will refuse the portal. Fix the ACME renewal now (`docker compose logs traefik | grep -i acme`) or install a certificate by hand."
+          description: "The certificate Traefik serves on {{ $labels.instance }} expires in {{ $value | humanizeDuration }} (negative: expired): browsers and partner harvesters will refuse the portal. Fix the ACME renewal now (`docker compose logs traefik | grep -i acme`) or install a certificate by hand (institution-issued certificates: runbook, 'Certificate renewal (institution-issued)')."
           runbook: "docs/production/runbook.md#7-monitoring-and-alerts"
       - alert: OecpTlsProbeFailing
         expr: probe_success{job="tls"} == 0

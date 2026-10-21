@@ -35,6 +35,7 @@ Files in `deploy/compose/secrets/` (mode 700 directory), mounted as Docker secre
 | Partner OEAPI credentials | `secrets` table | Per access agreement; replace in *Integration settings* (write-only) |
 | SURFeduhub credential, if used | `secrets` table (`store-secret`) | `[TO COMPLETE: used or not]` |
 | ACME account, TLS keys | volume `traefik_acme` | Automatic renewal |
+| Institution-issued TLS certificates and keys (instead of ACME) | `deploy/compose/tls/` (git-ignored, mounted read-only into `traefik`, mode 600 for keys) | Renewed by hand every year: section 6, "Certificate renewal (institution-issued)". Keep an offline copy of the keys; never in git or mail |
 | `keycloak_saml_sig_key`, `keycloak_saml_sig_cert`, `keycloak_saml_enc_key`, `keycloak_saml_enc_cert` | keycloak-config (imported into the realm as the SAML signing and encryption keys, priority above the generated ones; they also sign tokens) | Not rotated on a schedule (certificates valid 10 years; calendar the expiry). Never replace in place: the certificates are registered at the federation (SIR/RedIRIS, eduGAIN) and held by every partner IdP. Rotation: new pair as a second provider pair with `active: false`, metadata with both certificates (`tools/scripts/sp-metadata.mjs --sig-cert CURRENT --sig-cert NEXT`), wait for the federation export, then activate the new keys. Keep them in the offline copy: without them a reinstall changes the registered certificates ([sp-metadata.md](../../identity/keycloak/scripts/sp-metadata.md)) |
 | Keycloak generated realm keys (`rsa-generated`, `rsa-enc-generated`, HMAC, AES) | `keycloak` database | Created by Keycloak with the realm; no action. A database reinstall creates new ones (tokens are re-issued; the SAML certificates are not affected, see the row above) |
 
@@ -106,9 +107,42 @@ Back up = `docker compose exec backup oecp-backup backup full` (or `diff`), and 
 
 **Partner IdP onboarding:** procedure in the Keycloak README ("Adding a partner IdP"): organization first, IdP block (alias = slug), principal `subject-id` or `pairwise-id`, apply, regenerate (`tools/scripts/sp-metadata.mjs`, unless the alias is in `reserveAliases`) and resubmit SP metadata, test with an invitation. The sign-in mode is per organization [DL 22]: `keycloak_idp_alias` empty = local accounts (password and TOTP), set = the university's IdP plus TOTP, never a mix; invitations to an organization whose alias is missing or disabled in the realm are refused (`oecp.invitation.idp_not_enabled`), so enable the IdP before inviting. Moving an organization from local to federated: enable the IdP, set the alias, invite the administrators again. Not yet verified with a real eduGAIN IdP (backlog).
 
-**Certificate expiry.** The refresh drops expired IdP certificates and warns 30 days ahead in the worker log; an IdP without a valid certificate fails the run (alert `OecpIdpMetadataRefreshFailed`, section 7). Independently, the worker reads the signing certificates of every IdP in the realm (at start, after each refresh and hourly; client `oecp-backend` needs `view-identity-providers`) and the alerts `OecpIdpCertificateExpiring` (30 and 7 days), `OecpIdpCertificateExpired` and `OecpIdpCertificateCheckStale` fire on them (section 7). Federation signing key: section 2. TLS: Traefik renews; the blackbox exporter probes the certificate Traefik serves on 443 (`OecpTlsCertificateExpiring` at 21 and 7 days), which in production must be the ACME certificate made Traefik's default ([Compose README, Alerting](../../deploy/compose/README.md#alerting)).
+**Certificate expiry.** The refresh drops expired IdP certificates and warns 30 days ahead in the worker log; an IdP without a valid certificate fails the run (alert `OecpIdpMetadataRefreshFailed`, section 7). Independently, the worker reads the signing certificates of every IdP in the realm (at start, after each refresh and hourly; client `oecp-backend` needs `view-identity-providers`) and the alerts `OecpIdpCertificateExpiring` (30 and 7 days), `OecpIdpCertificateExpired` and `OecpIdpCertificateCheckStale` fire on them (section 7). Federation signing key: section 2. TLS: with ACME Traefik renews; with institution-issued certificates you renew them ("Certificate renewal (institution-issued)" below). Either way the blackbox exporter probes the certificate Traefik serves on 443 (`OecpTlsCertificateExpiring` at 21 and 7 days), which in production must be the portal certificate made Traefik's default (ACME labels or `defaultCertificate` in `tls.yaml`, [Compose README, Alerting](../../deploy/compose/README.md#alerting)).
 
 ![Keycloak admin console, realm oecp, Identity providers, the urv test identity provider, scrolled to the SAML settings: Validate Signatures on, the metadata descriptor URL, the Validating X509 certificates field with the certificate value, Sign service provider metadata on and the allowed clock skew](../images/ops-keycloak-idp-certificate.png)
+
+### Certificate renewal (institution-issued)
+
+For a host whose TLS certificates come from the hosting institution (Traefik loads them from `deploy/compose/tls/` through `traefik/dynamic/tls.yaml`, [Guide E, step 2.4b](../onboarding/hosting-operator.md#24b-tls-with-certificates-issued-by-the-institution)). Nothing renews them automatically: URV's certificates last one year, and the alert `OecpTlsCertificateExpiring` (warning below 21 days, critical below 7, section 7) is the safety net, not the plan. Request the new certificate about two months before `notAfter`, and when the alert fires, start here. With ACME there is nothing to do by hand ("Certificate expiry" above).
+
+The alert watches the **portal** certificate, the one Traefik serves without SNI. If the auth host has its own certificate, it has its own expiry and no alert: check it monthly from outside (section 11) and renew both in one visit.
+
+1. **Get the files.** PEM certificate, PEM intermediate chain and, if the institution issued a new key, the PEM private key. Many issuers re-use the key of the CSR you sent: then `portal.key.pem` stays.
+2. **Keep the current ones**, root-only and outside the checkout: `sudo cp -a tls /var/backups/oecp-tls-$(date +%F)` (from `deploy/compose`).
+3. **Write the new files under the same names**, next to the old ones, then move them in: `cat portal.crt intermediate.pem | sudo tee tls/portal.fullchain.pem.new >/dev/null && sudo mv tls/portal.fullchain.pem.new tls/portal.fullchain.pem` (leaf first, root left out); the same for `portal.key.pem` if it changed, then `sudo chmod 600 tls/*.key.pem` and `sudo chmod 644 tls/*.fullchain.pem`. Both hosts if there are two certificates (`auth.fullchain.pem`, `auth.key.pem`).
+4. **Check before reloading** (this is the step that prevents an outage):
+
+   ```sh
+   sudo openssl x509 -in tls/portal.fullchain.pem -noout -dates -subject -ext subjectAltName   # new notAfter; SAN has the portal host (and the auth host if one certificate)
+   sudo openssl crl2pkcs7 -nocrl -certfile tls/portal.fullchain.pem | openssl pkcs7 -print_certs -noout   # leaf first, each issuer= is the next subject=
+   sudo openssl x509 -in tls/portal.fullchain.pem -noout -pubkey | openssl sha256
+   sudo openssl pkey -in tls/portal.key.pem -pubout | openssl sha256                                   # equal to the line above
+   ```
+
+   If the two digests differ, Traefik would serve **no** certificate on the default store and every connection would fail (observed with Traefik 3.7.14: `failed to load X509 key pair: tls: private key does not match public key`). Fix the files first.
+5. **Reload.** Traefik re-reads `traefik/dynamic/tls.yaml` on change but not the PEM files it points to, so `sudo touch traefik/dynamic/tls.yaml`. No restart and no downtime; the new certificate is served from the next handshake, within a few seconds.
+6. **Verify what is served**, from another machine for each host:
+
+   ```sh
+   echo | openssl s_client -connect <portal host>:443 -servername <portal host> 2>/dev/null | openssl x509 -noout -subject -issuer -dates
+   echo | openssl s_client -connect <portal host>:443 -noservername 2>/dev/null | openssl x509 -noout -enddate    # the default certificate: the one the probe watches
+   ```
+
+   and `docker compose logs --since 5m traefik | grep ERR` shows nothing about certificates. Then, after the next probe (1 minute), the alert resolves and the *Certificates* row of *OECP overview* shows about 365 days; Alertmanager sends the resolved mail.
+7. **Roll back** if anything above fails: `sudo cp -a /var/backups/oecp-tls-<date>/. tls/`, `sudo touch traefik/dynamic/tls.yaml`, verify again. The old certificate is valid until its expiry, so rolling back is safe only while it has not expired.
+8. **Record**: the new `notAfter`, the date of the next request (about 60 days before), who at the institution issues it, and where the offline copy of the keys is (section 2).
+
+Not covered by this procedure: a change of host name (new certificate with the new names, `OECP_PORTAL_HOST` and the realm URLs change as well) and switching between ACME and institution-issued certificates (ACME flags and `tls.yaml` must not both be active).
 
 ## 7. Monitoring and alerts
 
@@ -129,7 +163,7 @@ Profile `observability` ([Compose README, Alerting](../../deploy/compose/README.
 | `OecpDiskSpaceLow` (> 80 % warning, > 90 % critical) | warning / critical | `docker system df -v`; volumes `postgres_data`, `pgbackrest-repo` (backups, WAL), `uploads`, Docker logs; grow the disk before PostgreSQL stops |
 | `OecpIdpCertificateExpiring` (< 30 d warning, < 7 d critical), `OecpIdpCertificateExpired` | warning / critical | The partner IdP's SAML signing certificate in Keycloak (*Identity providers* > alias > *Validating X509 certificates*); *Maintenance* page, last *IdP metadata refresh* run (does the federation metadata publish the successor?); ask the partner for its key rollover; by hand: add the new certificate comma-separated in Keycloak; disable the IdP if the partner has left |
 | `OecpIdpCertificateCheckStale` | warning | Worker log `IdP signing certificates not checked`: Keycloak reachable from the worker, client `oecp-backend` has `view-identity-providers` |
-| `OecpTlsCertificateExpiring` (< 21 d warning, < 7 d critical), `OecpTlsProbeFailing` | warning / critical | `docker compose logs traefik \| grep -i acme` (port 443 reachable for the TLS-ALPN challenge, DNS, Let's Encrypt rate limits), `traefik_acme` volume; probe failing: Traefik down on 443 or `blackbox-exporter` not on the `edge` network |
+| `OecpTlsCertificateExpiring` (< 21 d warning, < 7 d critical), `OecpTlsProbeFailing` | warning / critical | ACME: `docker compose logs traefik \| grep -i acme` (port 443 reachable for the TLS-ALPN challenge, DNS, Let's Encrypt rate limits), `traefik_acme` volume. Institution-issued: renew now, section 6 "Certificate renewal (institution-issued)"; `OecpTlsProbeFailing` after a renewal: `docker compose logs traefik \| grep ERR` (key does not match certificate) and roll back. Probe failing: Traefik down on 443 or `blackbox-exporter` not on the `edge` network |
 | `OecpMonitoringTargetDown` | warning | The exporter or Traefik/Keycloak metrics endpoint; the alerts depending on it cannot fire |
 
 The Prometheus rule health page shows every alert rule and its state; Alertmanager lists the firing alerts and holds the silences.
@@ -186,7 +220,7 @@ Worker ≥ **2 GB** RAM when the IdP metadata refresh uses the eduGAIN aggregate
 **Weekly:** no alert left firing or silenced without a reason (Grafana, *OECP overview*); `pgbackrest info` shows the Sunday full; worker log errors.
 **Monthly:** test alert delivered (section 7); uploads archives copied to the second site; certificate expiry (row *Certificates* of *OECP overview*; the auth host's certificate from outside); review `Administrators` panels; on the *Maintenance* page, review the latest `account-cleanup` run (dry run: the accounts it would delete and the kept ones with their reason; enabled: the deleted accounts); check the log volumes against the rotation sizes (section 10); apply OS and image security updates; check for a new OECP patch release.
 **Quarterly:** restore drill (section 4, `scripts/restore-drill.sh`, report filed); review the dormancy dry run on the *Maintenance* page until it is switched on; secrets offline copy current.
-**Yearly:** rotate database and client secrets; review this runbook, the RoPA and the DPIA; recertify administrators with the Foundation (manual review of every *Administrators* panel, [administrator lifecycle](../onboarding/administrator-lifecycle.md), [DL 26]).
+**Yearly:** renew the institution-issued TLS certificates, if any (section 6; the alert only fires at 21 days); rotate database and client secrets; review this runbook, the RoPA and the DPIA; recertify administrators with the Foundation (manual review of every *Administrators* panel, [administrator lifecycle](../onboarding/administrator-lifecycle.md), [DL 26]).
 
 ## 12. Contacts
 

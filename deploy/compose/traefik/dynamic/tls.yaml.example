@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
+# SPDX-License-Identifier: EUPL-1.2
+#
+# TLS with certificates issued by the hosting institution (instead of ACME).
+#
+# Copy to tls.yaml in this directory (Traefik's file provider loads *.yaml,
+# *.yml and *.toml only, so this .example file is inert; tls.yaml is ignored by
+# git because it names site-specific files). The certificates and keys
+# live in deploy/compose/tls/ (see its README), mounted read-only at
+# /etc/traefik/tls. Do not enable the ACME block of compose.yaml together with
+# this file.
+#
+# certFile holds the leaf certificate first, then the intermediate chain
+# (no root). keyFile is the unencrypted private key.
+#
+# Traefik reloads this file when it changes. If only the PEM files change (a
+# renewal under the same names), run `touch traefik/dynamic/tls.yaml` afterwards
+# (runbook, "Certificate renewal (institution-issued)").
+
+tls:
+  certificates:
+    # Portal certificate. With one certificate carrying both hosts as subject
+    # alternative names this is the only entry; Traefik picks a certificate
+    # by SNI from the names in the certificate.
+    - certFile: /etc/traefik/tls/portal.fullchain.pem
+      keyFile: /etc/traefik/tls/portal.key.pem
+    # Two certificates (one per host): uncomment the auth host's pair.
+    # - certFile: /etc/traefik/tls/auth.fullchain.pem
+    #   keyFile: /etc/traefik/tls/auth.key.pem
+
+  stores:
+    default:
+      # Served to clients that send no SNI or an unknown name, notably the
+      # in-host blackbox TLS probe (alert OecpTlsCertificateExpiring): it must
+      # be the portal certificate, or the probe watches Traefik's self-signed one.
+      defaultCertificate:
+        certFile: /etc/traefik/tls/portal.fullchain.pem
+        keyFile: /etc/traefik/tls/portal.key.pem

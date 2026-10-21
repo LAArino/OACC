@@ -188,6 +188,11 @@ services:
       # (OecpTlsCertificateExpiring); Traefik takes TLS stores as labels, not flags:
       #   traefik.tls.stores.default.defaultgeneratedcert.resolver: le
       #   traefik.tls.stores.default.defaultgeneratedcert.domain.main: ${OECP_PORTAL_HOST}
+      # --- PRODUCTION, certificates issued by the institution (instead of the
+      # ACME block above; keep its flags commented) -------------------------------
+      # Put the PEM chains and keys in ./tls (tls/README.md), copy
+      # traefik/dynamic/tls.yaml.example to traefik/dynamic/tls.yaml; it loads
+      # them and makes the portal certificate the default one (the TLS probe).
     ports:
       - "${OECP_HTTP_PORT:-80}:80"
       - "${OECP_HTTPS_PORT:-443}:443"
@@ -198,6 +203,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
       - traefik_acme:/letsencrypt
+      # Institution-issued certificates and private keys (git-ignored directory;
+      # read-only; unused unless traefik/dynamic/tls.yaml names them).
+      - ${OECP_TLS_DIR:-./tls}:/etc/traefik/tls:ro
     networks:
       - edge
     healthcheck:
