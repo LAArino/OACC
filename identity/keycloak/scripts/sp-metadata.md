@@ -94,7 +94,10 @@ aggregate), containing:
   `protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"`,
   `AuthnRequestsSigned="true"`, `WantAssertionsSigned="true"`, and:
   - `mdui:UIInfo`: `DisplayName`, `Description`, `InformationURL`,
-    `PrivacyStatementURL` (required by CoCo v2) and `Logo`.
+    `PrivacyStatementURL` (required by CoCo v2; set `privacyStatementUrl` to the
+    portal's `https://<portal host>/en/privacy` once the privacy notice is
+    published there, see [privacy-notice-draft.md](../../../docs/production/privacy-notice-draft.md))
+    and `Logo`.
   - `KeyDescriptor use="signing"` and `use="encryption"` with the realm
     certificates (several during a key rollover, current one first) and
     Keycloak's key id as `KeyName`, exactly as Keycloak writes it into its

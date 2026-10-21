@@ -22,7 +22,7 @@ Spec [§10](../spec-v4.1.md#10-non-functional-requirements) lists what is needed
 - [ ] Processing contract under art. 28 GDPR between controller and processor (hosting, backups, sub-processors, breach notification).
 - [ ] Record of processing activities: administrators' names, e-mail addresses and audit trails, plus contact e-mails published with courses (ask partners for functional mailboxes).
 - [ ] DPIA, or a documented screening that concludes one is not required.
-- [ ] Privacy notice and accessibility statement (Directive (EU) 2016/2102; OECP targets WCAG 2.1 AA; audited with automated tools and a keyboard review in 0.10.0, the assistive-technology session is still to be run: [accessibility audit](../production/accessibility-audit-2026-10.md)). The portal has no `/privacy` or `/accessibility` page in 0.10.0: publish both on the alliance website. The privacy notice URL is also required for the federation registration (step 3).
+- [ ] Privacy notice and accessibility statement (Directive (EU) 2016/2102; OECP targets WCAG 2.1 AA; audited with automated tools and a keyboard review in 0.10.0, the assistive-technology session is still to be run: [accessibility audit](../production/accessibility-audit-2026-10.md)). Publish both on the portal by copying the texts to `branding/privacy.en.md` and `branding/accessibility.en.md` (after 0.10.0 the portal serves them at `/en/privacy` and `/en/accessibility`, with footer links, and answers 404 until the English file exists; a draft privacy notice is in [privacy-notice-draft.md](../production/privacy-notice-draft.md)); 0.10.0 and earlier have no such pages, so publish them on the alliance website instead. The privacy notice URL is also required for the federation registration (step 3).
 - [ ] Bilateral access agreement with each partner that will be harvested, including consent to republish data it tags for eduXchange (see [Guide B](partner-with-oeapi.md#2-sign-the-access-agreement)).
 
 ## 2. Hosting and deployment
@@ -228,7 +228,7 @@ The list shows each invitation as *Pending*, *Accepted*, *Expired* or *Revoked*.
 
 ## Go-live checklist
 
-- [ ] Art. 28 contract signed; record of processing, DPIA or screening, privacy notice and accessibility statement published
+- [ ] Art. 28 contract signed; record of processing, DPIA or screening, privacy notice and accessibility statement published (on the portal through the branding files, or on the alliance website)
 - [ ] Access agreements signed with every harvested partner
 - [ ] Production TLS, allowlists, SMTP relay (with SMTP AUTH and STARTTLS if the relay offers them), `OECP_MAIL_LOG_LINKS=false`; no `dev` profile; insecure partner HTTP off
 - [ ] Logs shipped to Loki (profile `observability`: 90 days, Traefik access log 30 days) and *OECP logs* showing every service; or, without it, log rotation sized for 90 days (application) and, if the Traefik access log is on, 30 days

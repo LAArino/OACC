@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: EUPL-1.2
-// Deployment branding (header image, logos): files of the directory named by
+// Deployment branding (header image, logos, legal texts): files of the directory named by
 // `NUXT_BRANDING_DIR`, served at `/branding/<name>` by
 // `server/middleware/branding.ts`. The alliance provides these files and holds
 // their rights; they are deployment configuration, never repository content.
@@ -27,9 +27,20 @@ export const BRANDING_CONTENT_TYPES: Readonly<Record<string, string>> = {
  */
 const NAME_RE = /^[a-z0-9][a-z0-9._-]{0,99}$/;
 
+/** Content type of the legal-page texts (`privacy.<lang>.md`, `accessibility.<lang>.md`). */
+export const BRANDING_MARKDOWN_TYPE = 'text/markdown; charset=utf-8';
+
+/**
+ * The only non-image files served: the Markdown texts of the public legal pages
+ * (`/{locale}/privacy`, `/{locale}/accessibility`), one per language (2-3 letter
+ * lower-case primary subtag, e.g. `privacy.en.md`, `accessibility.ca.md`).
+ */
+const LEGAL_MARKDOWN_RE = /^(?:privacy|accessibility)\.[a-z]{2,3}\.md$/;
+
 /** Content type of a valid branding file name; `undefined` for any other name. */
 export function brandingContentType(name: string): string | undefined {
   if (!NAME_RE.test(name) || name.includes('..')) return undefined;
+  if (LEGAL_MARKDOWN_RE.test(name)) return BRANDING_MARKDOWN_TYPE;
   const dot = name.lastIndexOf('.');
   if (dot < 0) return undefined;
   return BRANDING_CONTENT_TYPES[name.slice(dot + 1)];

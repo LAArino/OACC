@@ -311,6 +311,8 @@ Check:
 
 Optional. Put the alliance's header image and logo (the alliance holds their rights; for Aurora [DL 25]) in `branding/` (or `OECP_BRANDING_DIR`), readable by uid 1000, with the file names, sizes and variables of [branding/README.md](../../deploy/compose/branding/README.md); then `docker compose up -d web`. Partner logos (`partner-<slug>.svg`, `.png` or `.webp`) need no variable and the favicon is set with `OECP_FAVICON_IMAGE`; `curl -s "https://$PORTAL/branding/index.json"` lists the files the portal sees.
 
+The same directory holds the two legal texts the alliance supplies, `privacy.en.md` and `accessibility.en.md` (and `privacy.<lang>.md`, `accessibility.<lang>.md` for other languages; English is the fallback), after the release following 0.10.0: the portal serves them at `/en/privacy` and `/en/accessibility` and shows the footer links only once the English file exists, so both pages answer 404 until the alliance publishes them. The alliance writes them ([production documents](../production/README.md)); you copy them in and run `docker compose up -d web`.
+
 Check: `curl -sI "https://$PORTAL/branding/<file>" | head -1` answers 200 for each file, and the home page shows the image and logo.
 
 ![Home page of the public portal with the deployment branding in place: the alliance logo in the header, the header image above the search box, the course count and the quick links by field and by university](../images/public-home.png)

@@ -7,6 +7,14 @@ const config = useRuntimeConfig();
 // text brand; its alt text, the alliance name, stays the link's accessible name.
 const logoImage = computed(() => config.public.logoImage);
 const logoAlt = computed(() => config.public.allianceName || t('site.name'));
+// Legal pages (texts in the branding directory): linked only once their English
+// text is published, since the pages answer 404 before that.
+const { files } = useBrandingIndex();
+const legalLinks = computed(() =>
+  (['privacy', 'accessibility'] as const)
+    .filter((kind) => files.value.includes(`${kind}.en.md`))
+    .map((kind) => ({ kind, label: t(`site.${kind}`), to: localePath(`/${kind}`) })),
+);
 </script>
 
 <template>
@@ -47,6 +55,13 @@ const logoAlt = computed(() => config.public.allianceName || t('site.name'));
   <footer class="site-footer">
     <div class="site-footer__inner">
       <p>{{ t('site.footer', { alliance: config.public.allianceName }) }}</p>
+      <nav v-if="legalLinks.length" class="site-footer__legal" :aria-label="t('site.legalNav')">
+        <ul>
+          <li v-for="link in legalLinks" :key="link.kind">
+            <NuxtLink :to="link.to">{{ link.label }}</NuxtLink>
+          </li>
+        </ul>
+      </nav>
     </div>
   </footer>
 </template>

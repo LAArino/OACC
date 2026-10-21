@@ -4,7 +4,15 @@
   },
   "site": {
     "name": "Open European Campus",
-    "footer": "Course catalogue of {alliance}. This site sets no cookies and uses no analytics."
+    "footer": "Course catalogue of {alliance}. This site sets no cookies and uses no analytics.",
+    "legalNav": "Legal",
+    "privacy": "Privacy notice",
+    "accessibility": "Accessibility statement"
+  },
+  "legal": {
+    "privacyTitle": "Privacy notice",
+    "accessibilityTitle": "Accessibility statement",
+    "unpublished": "This text has not been published yet."
   },
   "nav": {
     "main": "Main",

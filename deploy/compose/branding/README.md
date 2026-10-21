@@ -5,7 +5,9 @@
 
 This directory holds the deploying alliance's own images: the header images of
 the public home page and course list, the logo of the site header, the
-partner universities' logos and, optionally, the favicon. The alliance holds the
+partner universities' logos and, optionally, the favicon. It also holds the
+texts of the two legal pages (privacy notice, accessibility statement), see
+[Legal pages](#legal-pages). The alliance holds the
 rights to these pictures (the partners to their logos); they are deployment configuration, not part of OECP.
 Nothing in this directory except this README is part of the repository (the
 root `.gitignore` excludes it), so the images never end up in a commit or in a
@@ -23,7 +25,9 @@ Only files whose names follow this rule are served; any other request under
 
 - lower-case letters, digits, `.`, `_` and `-`; starting with a letter or a
   digit (no hidden files); at most 100 characters; no `..`;
-- one of the extensions `png`, `jpg`, `jpeg`, `webp`, `avif`, `svg`, `ico`.
+- one of the extensions `png`, `jpg`, `jpeg`, `webp`, `avif`, `svg`, `ico`;
+- or one of the legal-page texts below (`privacy.<lang>.md`,
+  `accessibility.<lang>.md`), the only non-image files served.
 
 For example `hero.jpg` or `aurora-logo.svg`, not `Hero.JPG`. Sub-directories
 are not served. Files are sent with `cache-control: public, max-age=86400`:
@@ -39,13 +43,13 @@ configured.
 
 ## Recommended sizes
 
-| Image | Format | Aspect ratio | Example size | Weight |
-| --- | --- | --- | --- | --- |
-| Home page header (`OECP_HERO_IMAGE`) | JPEG or WebP (PNG for flat art) | 3:1 | 1800 × 600 | under 400 KB |
-| Course list header (`OECP_HERO_IMAGE_COURSES`) | JPEG or WebP (PNG for flat art) | 12:5 (2.4:1) | 1800 × 750 | under 400 KB |
-| Site header logo (`OECP_LOGO_IMAGE`) | SVG, or PNG with a transparent background | about 4:1 | 40 pixels high | under 100 KB |
-| Partner logos (`partner-<slug>.svg`) | SVG, or PNG with a transparent background, trimmed to the mark (no empty margins: a 2:1 canvas with a small mark renders small) | about 4:1 to 1:1 | 32 pixels high on the cards, 48 on the course page | under 50 KB |
-| Favicon (`OECP_FAVICON_IMAGE`) | SVG (or PNG, ICO) | square | 32 × 32 or larger | under 10 KB |
+| Image                                          | Format                                                                                                                          | Aspect ratio     | Example size                                       | Weight       |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------------- | ------------ |
+| Home page header (`OECP_HERO_IMAGE`)           | JPEG or WebP (PNG for flat art)                                                                                                 | 3:1              | 1800 × 600                                         | under 400 KB |
+| Course list header (`OECP_HERO_IMAGE_COURSES`) | JPEG or WebP (PNG for flat art)                                                                                                 | 12:5 (2.4:1)     | 1800 × 750                                         | under 400 KB |
+| Site header logo (`OECP_LOGO_IMAGE`)           | SVG, or PNG with a transparent background                                                                                       | about 4:1        | 40 pixels high                                     | under 100 KB |
+| Partner logos (`partner-<slug>.svg`)           | SVG, or PNG with a transparent background, trimmed to the mark (no empty margins: a 2:1 canvas with a small mark renders small) | about 4:1 to 1:1 | 32 pixels high on the cards, 48 on the course page | under 50 KB  |
+| Favicon (`OECP_FAVICON_IMAGE`)                 | SVG (or PNG, ICO)                                                                                                               | square           | 32 × 32 or larger                                  | under 10 KB  |
 
 ## Header image (home page and course list)
 
@@ -108,6 +112,50 @@ configured.
 
   It may also be an absolute `https://` URL; its type is taken from the file
   extension.
+
+## Legal pages
+
+The portal has two public pages whose text is yours, not part of OECP. Each is
+a Markdown file in this directory, one per language (`<lang>` is the 2 or 3
+letter language code of a portal language, in lower case, for example `en`,
+`ca`):
+
+| Page                    | URL                                      | File                      |
+| ----------------------- | ---------------------------------------- | ------------------------- |
+| Privacy notice          | `https://{portal-host}/en/privacy`       | `privacy.<lang>.md`       |
+| Accessibility statement | `https://{portal-host}/en/accessibility` | `accessibility.<lang>.md` |
+
+- **Language:** the page in language `xx` shows `<name>.xx.md` when it exists,
+  else the English file `<name>.en.md`. English is therefore the file to write
+  first; the other languages are optional. A text shown in another language than
+  the page's is marked with its language for screen readers.
+- **Not published yet:** until `privacy.en.md` (or `accessibility.en.md`)
+  exists, its page answers HTTP 404 with a short "not published yet" message and
+  is kept out of search indexes; the footer links ("Privacy notice",
+  "Accessibility statement") appear only once the English file exists (within
+  about a minute, as for any new file). So do not put the URL into any
+  registration before the text is real.
+- **Privacy notice:** the controller's own text. For Aurora the controller is the
+  Aurora Foundation, so its notice goes here; OECP does not write it for you. This
+  is the URL the SAML federation (Data Protection Code of Conduct) asks for: use
+  `https://{portal-host}/en/privacy` as the privacy statement URL in the
+  SP metadata. The page is rendered on the server, so it works without
+  JavaScript and the address stays stable.
+- **Accessibility statement:** follows `docs/production/accessibility-statement.md`
+  (copy and complete it with the alliance's contact details and the date of the
+  last review).
+- **Title:** the first `# Heading` of the file is the page title (`<title>`
+  and `<h1>`); without one the portal uses "Privacy notice" or
+  "Accessibility statement".
+
+The files are plain Markdown, of which only a small subset is interpreted:
+headings (`#`, `##`, `###`), paragraphs (separated by a blank line), `**bold**`,
+`*italic*`, bullet lists (`- item`), numbered lists (`1. item`), links
+`[text](https://example.eu)` (only `http`, `https` and `mailto:` targets) and
+horizontal rules (`---`). Raw HTML is never interpreted: it is shown as text.
+Tables, images, code and nested lists are not supported. Like images, the files
+are sent with `cache-control: public, max-age=86400`, so a changed text may take
+up to a day to reach browsers that have it cached.
 
 ## Permissions and security
 

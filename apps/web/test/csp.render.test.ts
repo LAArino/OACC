@@ -27,6 +27,9 @@ const BRANDING_DIR = mkdtempSync(join(tmpdir(), 'oecp-branding-'));
 const HERO_BYTES = 'stand-in image bytes';
 writeFileSync(join(BRANDING_DIR, 'hero.png'), HERO_BYTES);
 writeFileSync(join(BRANDING_DIR, 'partner-urv.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+// The privacy notice (English only); the accessibility statement is left out on purpose.
+const PRIVACY_MD = '# Privacy notice of the test alliance\n\n- Data: none\n\n<script>x</script>\n';
+writeFileSync(join(BRANDING_DIR, 'privacy.en.md'), PRIVACY_MD);
 writeFileSync(join(BRANDING_DIR, '.secret.png'), 'hidden');
 writeFileSync(join(BRANDING_DIR, 'notes.txt'), 'not an image');
 mkdirSync(join(BRANDING_DIR, 'dir.png'));
@@ -188,7 +191,9 @@ describe('branding files', () => {
     expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8');
     expect(response.headers.get('cache-control')).toBe('public, max-age=60');
     expect(response.headers.get('set-cookie')).toBeNull();
-    expect(await response.json()).toEqual({ files: ['hero.png', 'partner-urv.svg'] });
+    expect(await response.json()).toEqual({
+      files: ['hero.png', 'partner-urv.svg', 'privacy.en.md'],
+    });
   });
 
   it("shows the partner's logo next to its name on the course list and the course page", async () => {
@@ -231,5 +236,44 @@ describe('branding files', () => {
       expect(response.status, path).toBe(404);
       expect(response.headers.get('content-type'), path).not.toMatch(/^image\//);
     }
+  });
+});
+
+describe('legal pages', () => {
+  it('serves the Markdown text with its content type and the same caching rules', async () => {
+    const response = await fetch('/branding/privacy.en.md');
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8');
+    expect(response.headers.get('cache-control')).toBe('public, max-age=86400');
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('set-cookie')).toBeNull();
+    expect(await response.text()).toBe(PRIVACY_MD);
+    expect((await fetch('/branding/privacy.html')).status).toBe(404);
+    expect((await fetch('/branding/accessibility.en.md')).status).toBe(404);
+  });
+
+  it('server-renders the privacy notice with status 200, nonced scripts and the escaped raw HTML', async () => {
+    const privacy = await page('/en/privacy');
+    expectAllNonced(privacy);
+    expect(privacy.html).toContain('<title>Privacy notice of the test alliance</title>');
+    expect(privacy.html).toMatch(
+      /<article class="legal"[^>]*><h1>Privacy notice of the test alliance<\/h1>/,
+    );
+    expect(privacy.html).toContain('<li>Data: none</li>');
+    expect(privacy.html).toContain('&lt;script&gt;x&lt;/script&gt;');
+    // The footer links the page whose English text exists, and only that one.
+    expect(privacy.html).toMatch(/<nav[^>]*aria-label="Legal"[^>]*>/);
+    expect(privacy.html).toContain('href="/en/privacy"');
+    expect(privacy.html).not.toContain('href="/en/accessibility"');
+  });
+
+  it('answers 404 with the "not published" message while the text does not exist', async () => {
+    const response = await fetch('/en/accessibility', { headers: { accept: 'text/html' } });
+    expect(response.status).toBe(404);
+    expect(response.headers.get('content-security-policy')).toContain('nonce-');
+    const html = await response.text();
+    expect(html).toContain('This text has not been published yet.');
+    expect(html).toContain('<h1>Accessibility statement</h1>');
+    expect(html).toContain('<meta name="robots" content="noindex">');
   });
 });

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 // `/branding/<name>`: image files of the deployment's branding directory
-// (`NUXT_BRANDING_DIR`, e.g. the alliance's header image). Implemented as
+// (`NUXT_BRANDING_DIR`, e.g. the alliance's header image) and the Markdown texts
+// of the legal pages (`privacy.<lang>.md`, `accessibility.<lang>.md`). Implemented as
 // middleware (not `server/routes`) so that Nitro does not generate typed
 // internal routes, which would change the `$fetch` typings of the app (see
 // `seo-files.ts`). Name rule, content types and path containment live in

@@ -255,3 +255,60 @@ describe('favicon link', () => {
     });
   });
 });
+
+describe('legal page texts (privacy.<lang>.md, accessibility.<lang>.md)', () => {
+  it('serves the two Markdown names for 2-3 letter languages as UTF-8 Markdown', () => {
+    for (const name of [
+      'privacy.en.md',
+      'privacy.ca.md',
+      'privacy.fil.md',
+      'accessibility.en.md',
+      'accessibility.es.md',
+      'accessibility.fil.md',
+    ]) {
+      expect(isBrandingFileName(name), name).toBe(true);
+      expect(brandingContentType(name), name).toBe('text/markdown; charset=utf-8');
+      expect(resolveBrandingFile(DIR, name), name).toBe(path.resolve(DIR, name));
+    }
+  });
+
+  it('rejects other names, languages and extensions', () => {
+    for (const name of [
+      'privacy.html',
+      'privacy.md',
+      'privacy.en.html',
+      'privacy.en.md.txt',
+      'privacy.e.md',
+      'privacy.engl.md',
+      'privacy.EN.md',
+      'privacy.en-gb.md',
+      'privacy.en.MD',
+      'cookies.en.md',
+      'README.md',
+      'notes.en.md',
+      '.privacy.en.md',
+      '../privacy.en.md',
+      'a/privacy.en.md',
+      'privacy..md',
+      'privacy.en..md',
+      'privacy.1a.md',
+    ]) {
+      expect(isBrandingFileName(name), name).toBe(false);
+      expect(resolveBrandingFile(DIR, name), name).toBeUndefined();
+    }
+  });
+
+  it('lists them in the index next to the images, and nothing else with .md', () => {
+    const file = (name: string): BrandingDirEntry => ({ name, isFile: true });
+    expect(
+      brandingIndexFiles([
+        file('privacy.en.md'),
+        file('accessibility.ca.md'),
+        file('privacy.html'),
+        file('README.md'),
+        file('hero.png'),
+        { name: 'privacy.es.md', isFile: false },
+      ]),
+    ).toEqual(['accessibility.ca.md', 'hero.png', 'privacy.en.md']);
+  });
+});

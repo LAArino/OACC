@@ -10,6 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Portal: public legal pages `/{locale}/privacy` and `/{locale}/accessibility`,
+  server-rendered from `privacy.<lang>.md` and `accessibility.<lang>.md` in the
+  branding directory (English fallback; HTTP 404 and `noindex` until the
+  English text exists), with a safe built-in Markdown renderer (headings,
+  paragraphs, emphasis, lists, http/https/mailto links, rules; raw HTML is
+  escaped) and footer links shown once the English file is published. The
+  privacy URL is the one declared in the SP metadata (Data Protection Code
+  of Conduct v2).
+- Branding directory: the two Markdown names are served
+  (`text/markdown; charset=utf-8`, same caching, listed in
+  `/branding/index.json`); `deploy/compose/branding/README.md` documents the
+  files, the language fallback and the Markdown subset.
+- Docs: privacy notice draft for the Aurora pilot
+  (`docs/production/privacy-notice-draft.md`), built from the RoPA for the
+  Foundation's review; the accessibility statement template says where to
+  publish.
+
 ### Fixed
 
 - **Alertmanager link in alert mails.** The "View In Alertmanager" button

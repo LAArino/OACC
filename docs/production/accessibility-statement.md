@@ -5,7 +5,7 @@
 
 Template under **Directive (EU) 2016/2102** on the accessibility of the websites and mobile applications of public sector bodies, following the model statement of Commission Implementing Decision (EU) 2018/1523. The reference standard is **EN 301 549 V3.2.1**, whose web requirements correspond to **WCAG 2.1 level AA**. OECP targets WCAG 2.1 AA and aims at WCAG 2.2 AA (spec [§10](../spec-v4.1.md#10-non-functional-requirements)).
 
-**How to use this template.** The part between the two rules below is the statement to publish (on the alliance website until the portal has an `/accessibility` page, spec §7.1). Fill every `[TO COMPLETE]`, delete the guidance notes in *italics*, and publish it in English and in `[TO COMPLETE: other languages of the portal]`. Before publishing, the controller confirms that the Directive applies: it covers public sector bodies; `[TO COMPLETE: whether the Aurora Foundation is a public sector body, or whether the statement is issued by URV or the partner universities as such]`. Even where it does not strictly apply, publishing the statement is good practice and expected by the partners.
+**How to use this template.** The part between the two rules below is the statement to publish (on the portal itself, see "Publishing on the portal" at the end). Fill every `[TO COMPLETE]`, delete the guidance notes in *italics*, and publish it in English and in `[TO COMPLETE: other languages of the portal]`. Before publishing, the controller confirms that the Directive applies: it covers public sector bodies; `[TO COMPLETE: whether the Aurora Foundation is a public sector body, or whether the statement is issued by URV or the partner universities as such]`. Even where it does not strictly apply, publishing the statement is good practice and expected by the partners.
 
 *What has been checked so far (release 0.7.0), for the person who completes the statement:*
 
@@ -103,3 +103,7 @@ If you are not satisfied with our reply, or receive no reply within the period a
 - *Keep a dated record of every review and of the issues found (for example in the alliance's issue tracker), and report software defects to the OECP project so they are fixed upstream for every alliance.*
 - *WCAG 2.2: the project aims at 2.2 AA; claim it only after the manual review covers the success criteria added in 2.2 at levels A and AA.*
 - *Each new OECP release may change the interface: re-run the sample after an upgrade and update "Software version assessed".*
+
+### Publishing on the portal
+
+Copy the completed statement (the part between the two rules, without the guidance notes) to `branding/accessibility.en.md` in the deployment's branding directory (`deploy/compose/branding/`, readable by uid 1000; `accessibility.<lang>.md` for other languages, with English as the fallback), then run `docker compose up -d web`. The portal serves it at `/en/accessibility` and adds the footer link; until the English file exists the page answers 404. Use only headings, paragraphs, bold and italic, lists, links and horizontal rules: the portal renders no tables and no raw HTML, so write the tables above as lists.

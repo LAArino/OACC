@@ -8,7 +8,8 @@
 
 const KEY = 'branding-index';
 
-async function fetchBrandingIndex(): Promise<string[]> {
+/** The listed files of the branding directory; none on any failure. */
+export async function fetchBrandingIndex(): Promise<string[]> {
   try {
     return parseBrandingIndex(await $fetch<unknown>('/branding/index.json', { timeout: 3000 }));
   } catch {

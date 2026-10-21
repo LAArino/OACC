@@ -56,3 +56,29 @@ export function partnerLogoPath(files: readonly string[], slug: string): string 
   }
   return undefined;
 }
+
+/** The public legal pages whose Markdown text comes from the branding directory. */
+export type LegalKind = 'privacy' | 'accessibility';
+
+/** Language of a legal-page file name: the 2-3 letter primary subtag of the locale. */
+function legalLanguage(locale: string): string | undefined {
+  const lang = locale.toLowerCase().split(/[-_]/, 1)[0] ?? '';
+  return /^[a-z]{2,3}$/.test(lang) ? lang : undefined;
+}
+
+/**
+ * The branding file to show for legal page `kind` in `locale`: `<kind>.<lang>.md`
+ * when listed, else the English `<kind>.en.md`, else `undefined` (not published).
+ */
+export function legalFile(
+  files: readonly string[],
+  kind: LegalKind,
+  locale: string,
+): { name: string; lang: string } | undefined {
+  for (const lang of new Set([legalLanguage(locale), 'en'])) {
+    if (!lang) continue;
+    const name = `${kind}.${lang}.md`;
+    if (files.includes(name)) return { name, lang };
+  }
+  return undefined;
+}
