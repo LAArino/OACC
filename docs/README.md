@@ -5,7 +5,7 @@
 
 | Document | Description |
 |---|---|
-| [spec-v4.1.md](spec-v4.1.md) | **Specification v4.1**, v4.0 synchronised with the implementation; updated through release 0.9.0. Start here. |
+| [spec-v4.1.md](spec-v4.1.md) | **Specification v4.1**, v4.0 synchronised with the implementation; updated through release 0.10.0. Start here. |
 | [architecture.md](architecture.md) | Architecture overview in four Mermaid diagrams: solution context with the three ingestion channels, the Compose deployment, the API modules and queues, the data flow of a course. |
 | [spec-v4.0.md](spec-v4.0.md) | Specification v4.0, the implementation baseline (2026-10-14), superseded by v4.1; cited by ADR-0001 to ADR-0015. |
 | [review/](review/) | Critical reviews of specification v3.0 that led to v4.0, cited as [R00]–[R03]; translated from Spanish on 2026-10-15. |
@@ -35,14 +35,14 @@ Guides for alliances and partner universities joining an OECP deployment [DL 17]
 
 ## User manuals
 
-Task-oriented manuals for the person at the keyboard, with screenshots of the administration panel, accurate to release 0.9.0; they link to the onboarding and data-provider guides for the rules behind each screen.
+Task-oriented manuals for the person at the keyboard, with screenshots of the administration panel, accurate to release 0.10.0; they link to the onboarding and data-provider guides for the rules behind each screen.
 
 - [manuals/partner-admin.md](manuals/partner-admin.md) — for partner administrators: signing in, the dashboard, the course wizard (attributes, image, offerings, status, completeness), the CSV upload console, sync history, the Integration settings page and overrides, your account.
 - [manuals/alliance-admin.md](manuals/alliance-admin.md) — for alliance administrators: the organization modules on behalf of partners and host approval, organizations and sign-in mode, administrators, invitations, network status, maintenance and the dormancy and clean-up dry runs, branding, routine and go-live.
 
 ## Data-provider guides
 
-Technical reference for whoever supplies course data, accurate to release 0.9.0; the onboarding guides above cover process and roles.
+Technical reference for whoever supplies course data, accurate to release 0.10.0; the onboarding guides above cover process and roles.
 
 - [guides/README.md](guides/README.md) — overview of the three guides and the data-quality rules shared by every channel (English title, ISCED-F, ECTS, dates, language tags, delivery modes, status lifecycle).
 - [guides/api-integration.md](guides/api-integration.md) — for partner IT: the OEAPI v5 requests OECP sends, authentication, network requirements, the full v5 → OECP mapping, harvester codes, withdrawal by absence, testing and the mock partner.
@@ -102,7 +102,7 @@ See the [ADR index](adr/README.md) for the process and template.
 
 - [README](../README.md) · [CONTRIBUTING](../CONTRIBUTING.md) · [GOVERNANCE](../GOVERNANCE.md) · [SECURITY](../SECURITY.md) · [CODE_OF_CONDUCT](../CODE_OF_CONDUCT.md) · [CHANGELOG](../CHANGELOG.md) · [RELEASING](RELEASING.md)
 - Deployment: [deploy/compose/README.md](../deploy/compose/README.md) (Docker Compose reference deployment, quick start and smoke test).
-- Operations (release 0.9.0):
+- Operations (release 0.10.0):
   - Compose README: [Backups](../deploy/compose/README.md#backups-profile-backup) (profile `backup`: pgBackRest, WAL archiving, 35-day retention, uploads archive, backup metrics), [Restore drill and restore](../deploy/compose/README.md#restore-drill-and-restore), [Alerting](../deploy/compose/README.md#alerting) (profile `observability`: alert rules including partner IdP and TLS certificate expiry, Alertmanager, Grafana dashboards *OECP overview* and *OECP logs*), [Log retention](../deploy/compose/README.md#log-retention) (container logs shipped to Loki by Grafana Alloy through a read-only Docker socket proxy: 90 days, Traefik access log 30 days) and [Branding](../deploy/compose/README.md#branding) (header images and alliance logo, [branding/README.md](../deploy/compose/branding/README.md)).
   - [production/runbook.md](production/runbook.md): backups and point-in-time recovery (section 3), restore drill (4), monitoring and alerts (7), log and data retention (10).
   - [deploy/compose/scripts/restore-drill.sh](../deploy/compose/scripts/restore-drill.sh): the quarterly restore drill into a scratch container.

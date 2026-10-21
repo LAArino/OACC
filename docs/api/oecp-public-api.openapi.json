@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "OECP public catalogue API",
-    "version": "0.9.0",
+    "version": "0.10.0",
     "description": "Anonymous, read-only catalogue API used by the portal (spec §7). No cookies, no authentication.\n\n**Caching.** Successful responses carry `Cache-Control` (`public, max-age=60` for search and suggest, `public, max-age=300` for course pages, reference data and the sitemap) and a weak `ETag`; a matching `If-None-Match` answers 304. Errors are not cached.\n\n**Rate limits.** Per client address at the edge proxy (spec §10): search 20 requests/s (burst 40), suggest and the viewer `/docs` 10/s (burst 20); other paths are not limited. Excess requests get 429 in plain text.\n\n**Versioning.** Additive only: new endpoints, optional parameters and response members may be added; nothing is removed, renamed or given a new meaning. A breaking change means `/api/public/v2`, served alongside v1 for at least one minor release (`docs/RELEASING.md`).\n\n**Conventions.** JSON members are snake_case (as the database); multilingual short labels are objects `{en, <lang>…}` that always contain `en`; dates are `YYYY-MM-DD` local to the offering `timezone`, timestamps ISO 8601 UTC; absent values are `null`, never omitted. Every error is RFC 9457 `application/problem+json` (`ProblemDetails`) with stable codes in `errors[].code` (spec §6.6, Appendix A).\n\nThe schemas are generated from the Zod contracts of `@oecp/schemas`, the single source of truth the API validates with. The OEAPI v5-compatible read API under `/oeapi/v5` (spec §9) is not described here: it follows the OEAPI v5.0 standard and its own OpenAPI document.",
     "license": {
       "name": "EUPL-1.2",

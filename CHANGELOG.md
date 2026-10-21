@@ -10,8 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.10.0] - 2026-10-21
+
 ### Upgrade notes
 
+- **No new migration.** The database schema is unchanged since 0009 and
+  0010 (0.9.0); `db:migrate` has nothing to run, and no hashed field
+  changes.
 - **Stable SAML keys (new Docker secrets).** `keycloak-config` now needs four
   more secret files in `deploy/compose/secrets/`: `keycloak_saml_sig_key`,
   `keycloak_saml_sig_cert`, `keycloak_saml_enc_key`, `keycloak_saml_enc_cert`.
@@ -19,15 +26,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `bash tools/scripts/gen-saml-keys.sh --dir deploy/compose/secrets` (RSA 3072,
   self-signed, 10 years). Without them the import fails with a missing-file
   error: it does not fall back to the generated keys. New installations get
-  them in the secrets step of the guides. The first import adds two key providers to the realm
-  (`oecp-saml-signing`, `oecp-saml-encryption`, priority 200 over the
-  generated keys, which stay enabled), so on an **existing deployment the SP
+  them in the secrets step of the guides. The first import adds two key
+  providers to the realm (`oecp-saml-signing`, `oecp-saml-encryption`,
+  priority 200 over the generated keys, which stay enabled), so on an
+  **existing deployment the SP
   certificates change once**: send the new metadata
   (`tools/scripts/sp-metadata.mjs`, or the per-alias descriptors) to the
   federation and to every partner IdP that holds the old certificates before
   or right after the upgrade. The imported RS256 key also signs the realm's
   tokens (Keycloak selects the active key by use and algorithm); tokens issued
   before stay valid until they expire. Keep an offline copy of the four files.
+- **Realm**: `keycloak-config` re-applies `realm-oecp.yaml` on the next
+  `docker compose up` (it now holds the two `rsa` key providers; `docker
+  compose wait keycloak-config` exits 0).
+- **Institution-issued TLS (optional).** Deployments that keep ACME need
+  nothing. To serve a certificate issued by the hosting institution, put the
+  PEM chain and key in the new git-ignored `deploy/compose/tls/` (or the
+  directory named by `OECP_TLS_DIR`) and copy
+  `traefik/dynamic/tls.yaml.example` to `traefik/dynamic/tls.yaml` (Guide E,
+  step 2.4b).
+- **Images must be rebuilt** (`@xmldom/xmldom`, `sharp`, `bullmq`,
+  `nodemailer` and `xml-crypto` change): `docker compose up -d --build --wait`
+  recreates `api`, `worker` and `web`.
+- No renamed or removed variable or secret; the four SAML secrets above are
+  the only new required files.
 
 ### Added
 
@@ -38,7 +60,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--force` required to replace), documented in `deploy/compose/secrets/README.md`,
   the Keycloak README, Guide E (steps 2.3 and 2.13) and the runbook (secrets
   inventory). Verified against Keycloak 26.8.1 and keycloak-config-cli 6.5.1
-  (fresh import, idempotent re-run).
+  (fresh import, idempotent re-run). The script converts the key with
+  `openssl pkcs8 -topk8` (`openssl pkey -outform DER` writes PKCS#1 on
+  OpenSSL 3.0) and encodes with `base64 | tr -d '\n'`, so it behaves the same
+  on macOS and Linux.
 - Identity: `tools/scripts/sp-metadata.mjs`, the multi-ACS SP metadata
   generator (Node, no dependencies): one `EntityDescriptor` with an HTTP-POST
   ACS per IdP alias (enabled in the realm file or listed in `reserveAliases`),
@@ -1255,7 +1280,8 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/OECP/compare/v0.9.0...main
+[Unreleased]: https://github.com/LAArino/OECP/compare/v0.10.0...main
+[0.10.0]: https://github.com/LAArino/OECP/releases/tag/v0.10.0
 [0.9.0]: https://github.com/LAArino/OECP/releases/tag/v0.9.0
 [0.8.0]: https://github.com/LAArino/OECP/releases/tag/v0.8.0
 [0.7.0]: https://github.com/LAArino/OECP/releases/tag/v0.7.0

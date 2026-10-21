@@ -1,6 +1,6 @@
 {
   "name": "@oecp/e2e-identity",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "End-to-end tests of the identity path (local accounts, brokered SAML, invitations) against the Compose stack with the dev profile; run locally and by .github/workflows/e2e.yml.",
   "license": "EUPL-1.2",
