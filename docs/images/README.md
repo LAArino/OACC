@@ -79,6 +79,7 @@ Retaken on 2026-10-22 from a freshly reset development stack (built after releas
 |---|---|
 | `readme-catalogue.png` | Course list of the example alliance (1200 x 900 pixels): text brand "Open Alliance Course Catalogue", search box, filter sidebar with facet counts (university, type of course, delivery mode, teaching language), "10 courses found" and the first course cards with key facts, alliance seats and tags. |
 | `readme-home.png` | Home page of the example alliance (1200 x 800 pixels): text brand "Open Alliance Course Catalogue", search box, "Browse 10 courses with upcoming offerings", quick links by field of study and by university (Eastbrook, Northvale, Southmere, Westmark) with course counts. |
+| `social-preview.png` | Social media preview of the repository (1280 x 640 pixels, composed on 2026-10-22 from `readme-catalogue.png`): product name, subtitle, three features and the catalogue capture of the example alliance; uploaded in Settings → Social preview and used for announcements. |
 
 ## Data-provider guides (release 0.9.0, 2026-10-18)
 
