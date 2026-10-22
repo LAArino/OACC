@@ -193,14 +193,14 @@ export type AdminOrganizationInput = Omit<
   'id' | 'partner_id' | 'deleted_at' | 'created_at' | 'updated_at' | 'counts'
 >;
 
-/** `GET /organizations/{orgId}/admins` item: a Keycloak user holding an OECP role there. */
+/** `GET /organizations/{orgId}/admins` item: a Keycloak user holding an OACC role there. */
 export interface AdminAccount {
   sub: string;
   username: string | null;
   email: string | null;
   name: string | null;
   roles: AdminRole[];
-  /** Identity provider alias, `local` for OECP accounts. */
+  /** Identity provider alias, `local` for OACC accounts. */
   idp: string;
   enabled: boolean;
   email_verified: boolean;

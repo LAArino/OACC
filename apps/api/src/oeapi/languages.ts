@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: EUPL-1.2
 /**
- * Language codes of the OEAPI v5 read API (spec §9): OECP stores ISO 639-1
+ * Language codes of the OEAPI v5 read API (spec §9): OACC stores ISO 639-1
  * primary subtags; v5 `teachingLanguage` is ISO 639-2, served in the
  * terminology (T) form. Input accepts B and T forms (`ger`, `deu`).
  */

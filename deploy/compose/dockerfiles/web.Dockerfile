@@ -34,7 +34,7 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000
 LABEL org.opencontainers.image.title="oecp-web" \
-      org.opencontainers.image.description="Open European Campus Portal: public catalogue and admin dashboard" \
+      org.opencontainers.image.description="Open Alliance Course Catalogue: public catalogue and admin dashboard" \
       org.opencontainers.image.licenses="EUPL-1.2"
 WORKDIR /app
 COPY --from=build /repo/apps/web/.output ./.output

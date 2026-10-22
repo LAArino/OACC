@@ -4,13 +4,13 @@
  * months after role removal"), unit-tested apart from Keycloak and the database.
  */
 
-/** Everything known about one account whose OECP roles were removed. */
+/** Everything known about one account whose OACC roles were removed. */
 export interface AccountEvidence {
   /** Latest `admin.revoke` / `admin.dormant_revoke` audit row of the sub. */
   lastRemovalAt: Date;
   /** Latest acceptance of an invitation by the sub (`admin_invitations.accepted_at`). */
   lastGrantAt: Date | null;
-  /** OECP realm roles the account holds now. */
+  /** OACC realm roles the account holds now. */
   roles: readonly string[];
   /** Service-account user of a client (never deleted). */
   serviceAccount: boolean;
@@ -45,7 +45,7 @@ const after = (date: Date | null, cutoff: Date): boolean =>
 /**
  * Whether a Keycloak account may be deleted. `cutoff` is now minus
  * `OECP_ACCOUNT_DELETE_MONTHS`; the caller only asks for accounts whose last
- * role removal is before it. Kept, in this order: accounts holding an OECP role,
+ * role removal is before it. Kept, in this order: accounts holding an OACC role,
  * service accounts, accounts still carrying `oecp_org_id`, accounts granted a
  * role (invitation accepted) after the removal, accounts without a creation date
  * or created on or after the cutoff, and accounts with any sign of life on or

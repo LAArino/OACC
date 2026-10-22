@@ -3,7 +3,7 @@
 
 # `sp-metadata`: multi-ACS SP metadata for the federation
 
-Spec v4.0 §4 and [DL 15]: OECP registers **one** SAML service provider,
+Spec v4.0 §4 and [DL 15]: OACC registers **one** SAML service provider,
 entityID `https://{auth-host}/realms/oecp`, in the hosting institution's
 federation (SIR/RedIRIS for the URV-hosted Aurora MVP) with export to
 eduGAIN. Keycloak, however, exposes **one Assertion Consumer Service (ACS) per

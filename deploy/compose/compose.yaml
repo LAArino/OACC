@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
 # SPDX-License-Identifier: EUPL-1.2
 #
-# Open European Campus Portal (OECP): reference Docker Compose deployment (MVP).
+# Open Alliance Course Catalogue (OACC): reference Docker Compose deployment (MVP).
 # Spec v4.1 §3 (architecture), §4 (identity), §10 (non-functional requirements).
 #
 # Quick start: see README.md in this directory (verified commands).
@@ -57,7 +57,7 @@ x-oecp-backend-env: &oecp-backend-env
   # Maintenance (spec §10): dormancy stays a dry run until the alliance enables it.
   OECP_DORMANCY_DRY_RUN: ${OECP_DORMANCY_DRY_RUN:-true}
   OECP_DORMANCY_DAYS: ${OECP_DORMANCY_DAYS:-180}
-  # Keycloak accounts without OECP role, 12 months after the role removal (spec
+  # Keycloak accounts without OACC role, 12 months after the role removal (spec
   # §2.2, §10): a dry run until the alliance enables it.
   OECP_ACCOUNT_CLEANUP_DRY_RUN: ${OECP_ACCOUNT_CLEANUP_DRY_RUN:-true}
   OECP_ACCOUNT_DELETE_MONTHS: ${OECP_ACCOUNT_DELETE_MONTHS:-12}
@@ -402,7 +402,7 @@ services:
       # Variables substituted into realm-oecp.yaml as $(env:NAME).
       OECP_PORTAL_URL: https://${OECP_PORTAL_HOST}
       OECP_AUTH_URL: https://${OECP_AUTH_HOST}
-      OECP_REALM_DISPLAY_NAME: ${OECP_REALM_DISPLAY_NAME:-Open European Campus Portal}
+      OECP_REALM_DISPLAY_NAME: ${OECP_REALM_DISPLAY_NAME:-Open Alliance Course Catalogue}
       OECP_SMTP_HOST: ${OECP_SMTP_HOST:-}
       OECP_SMTP_PORT: ${OECP_SMTP_PORT:-25}
       OECP_SMTP_FROM: ${OECP_SMTP_FROM:-no-reply@example.org}
@@ -434,7 +434,7 @@ services:
     logging: *default-logging
 
   # -------------------------------------------------------------------------
-  # OECP application: api (HTTP), worker (BullMQ), web (Nuxt)
+  # OACC application: api (HTTP), worker (BullMQ), web (Nuxt)
   # -------------------------------------------------------------------------
   api:
     build:

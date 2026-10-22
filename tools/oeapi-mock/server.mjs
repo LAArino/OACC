@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 //
 // OEAPI v5.0 mock: a simulated partner university endpoint (consumer profile
-// `eduxchange`) for developing and demonstrating the OECP harvester (spec v4.0
+// `eduxchange`) for developing and demonstrating the OACC harvester (spec v4.0
 // §6.2) without real partner credentials. Node 22, no dependencies.
 //
 //   node tools/oeapi-mock/server.mjs

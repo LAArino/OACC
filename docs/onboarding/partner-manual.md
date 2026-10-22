@@ -27,13 +27,13 @@ You are a `partner_admin`: you manage the courses, offerings and uploads of your
 
    ![Keycloak "Update password" page with the empty New Password and Confirm password fields, the Sign out from other devices box and the Submit button](../images/onboarding-keycloak-set-password.png)
 
-2. Open the OECP invitation link and sign in with password and code; the page shows "Invitation accepted". Choose *Sign out and sign in again*: your new session carries the role.
+2. Open the OACC invitation link and sign in with password and code; the page shows "Invitation accepted". Choose *Sign out and sign in again*: your new session carries the role.
 
    ![Invitation accepted, with the role and organization granted and the button to sign in again](../images/admin-invitation-accepted.png)
 
 3. Ask the alliance admin to invite a second colleague, so your university is never blocked by one absence. Each person can administer one organization. The *Invitations* page shows your organization's invitations; only alliance admins send, revoke or resend them.
 
-A page reload keeps you signed in while your login session is alive (30 minutes idle, 8 hours at most); after that, sign in again. If your university's identity provider is connected to OECP, your invitation link takes you to *Sign in through your university* and there is no separate password e-mail; later, choose your university under *Sign in through your university* on the sign-in page. Until it is connected, you use the OECP account from step 1.
+A page reload keeps you signed in while your login session is alive (30 minutes idle, 8 hours at most); after that, sign in again. If your university's identity provider is connected to OACC, your invitation link takes you to *Sign in through your university* and there is no separate password e-mail; later, choose your university under *Sign in through your university* on the sign-in page. Until it is connected, you use the OACC account from step 1.
 
 ## 2. Form or CSV?
 
@@ -72,7 +72,7 @@ Limits: 5 MB and 5,000 rows per file, 10 uploads per hour.
 
 1. Open **Courses** > **New course**. The wizard has four steps.
 2. **Basics.** Course code (your own code, for example `MATH-101`; it cannot be changed later), type of course (course, Blended Intensive Programme, lecture series, other), levels (the first ticked is the primary one), ECTS (use a dot: `7.5`), teaching hours, ISCED-F codes with one marked primary, teaching unit, information page (`https://` only) and a functional contact e-mail.
-3. **Texts.** English is required: title, abstract, description, learning outcomes, prerequisites, assessment, keywords. Add other languages with *Add a language*; each needs at least its own title. OECP never translates automatically.
+3. **Texts.** English is required: title, abstract, description, learning outcomes, prerequisites, assessment, keywords. Add other languages with *Add a language*; each needs at least its own title. OACC never translates automatically.
 
    ![New course for Rovira i Virgili University, "Step 2 of 4: Texts": the Add a language control and the English (required) tab with the title "Introduction to Sustainable Urban Planning" and an example abstract and description typed in, not saved](../images/onboarding-course-wizard-texts.png)
 

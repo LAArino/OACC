@@ -3,13 +3,13 @@
 
 # Data-provider guides
 
-These guides are for the people who put course data into OECP: partner IT teams that expose an OEAPI endpoint, and partner administrators who upload CSV files or use the web form. They describe OECP **as built in release 0.10.0**; the as-built specification is [spec v4.1](../spec-v4.1.md), and every error code is listed in its [Appendix A](../spec-v4.1.md#appendix-a-error-codes) and in `packages/schemas/errors.json`. Who does what, invitations, choosing a channel and the governance around it are covered by the role-based [onboarding guides](../onboarding/README.md); these guides only cover the data.
+These guides are for the people who put course data into OACC: partner IT teams that expose an OEAPI endpoint, and partner administrators who upload CSV files or use the web form. They describe OACC **as built in release 0.10.0**; the as-built specification is [spec v4.1](../spec-v4.1.md), and every error code is listed in its [Appendix A](../spec-v4.1.md#appendix-a-error-codes) and in `packages/schemas/errors.json`. Who does what, invitations, choosing a channel and the governance around it are covered by the role-based [onboarding guides](../onboarding/README.md); these guides only cover the data.
 
 Each organization has exactly **one authoritative channel** (`oeapi`, `csv` or `form`; no integration row means `form`). CSV and form write the same records and can be mixed. An organization harvested through OEAPI can neither upload CSV files nor create records in the form: there the form only stores overrides on harvested records (spec §6.5).
 
 ## The guides
 
-**[API integration](api-integration.md)** is for partner IT teams that expose, or will expose, an **OEAPI v5.0** endpoint for OECP to harvest. It lists the exact requests the harvester sends (order, URLs, `consumer`, `since`, paging, headers), the authentication schemes and how the credential is stored, the network requirements (https on 443, host approval, no cross-host redirects), the complete OEAPI v5 → OECP mapping as implemented, what is deliberately not read, every warning and rejection code with cause and fix, run statuses, withdrawal by absence with its 30% guard, how to test with "Test connection", "Sync now" and the sync-run API, and how to run the OECP mock partner to compare behaviour.
+**[API integration](api-integration.md)** is for partner IT teams that expose, or will expose, an **OEAPI v5.0** endpoint for OACC to harvest. It lists the exact requests the harvester sends (order, URLs, `consumer`, `since`, paging, headers), the authentication schemes and how the credential is stored, the network requirements (https on 443, host approval, no cross-host redirects), the complete OEAPI v5 → OACC mapping as implemented, what is deliberately not read, every warning and rejection code with cause and fix, run statuses, withdrawal by absence with its 30% guard, how to test with "Test connection", "Sync now" and the sync-run API, and how to run the OACC mock partner to compare behaviour.
 
 **[CSV authoring](csv-authoring.md)** is for partner administrators and IT teams that produce `courses.csv` and `offerings.csv`, by hand or from an export. It is the column reference of template 1.2 (with 1.0 and 1.1 compatibility), including the instructors and the optional handbook texts, the encoding, separator and multi-value rules, the `attr_<key>` columns of the alliance attributes, status semantics, limits, inline and queued processing, the all-or-nothing rule, validation in the browser, the handbook publication rule, the complete `oecp.csv.*` and `oecp.content.*` code table, CSV injection and a worked example based on the Aurora Virtual Campus data.
 
@@ -86,7 +86,7 @@ Offerings carry one or more delivery-mode codes from the deployment's `delivery_
 | `coil` | COIL | Online |
 | `joint_delivery` | Joint delivery | Blended |
 
-OEAPI values are mapped to the first three only (see [API integration](api-integration.md#mapping-oeapi-v5-to-oecp)).
+OEAPI values are mapped to the first three only (see [API integration](api-integration.md#mapping-oeapi-v5-to-oacc)).
 
 ### Codes and links
 

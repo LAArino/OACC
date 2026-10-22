@@ -310,7 +310,7 @@ describe('AdminCourseImage', () => {
     const dialog = w.find('dialog');
     expect(dialog.attributes('open')).toBeDefined();
     expect(dialog.text()).toContain('Remove the image?');
-    expect(dialog.text()).toContain('The image of TEST-101 is deleted from OECP');
+    expect(dialog.text()).toContain('The image of TEST-101 is deleted from OACC');
     await w.find('[data-confirm="no"]').trigger('click');
     await flushPromises();
     expect(callsTo(DELETE_IMAGE)).toEqual([]);

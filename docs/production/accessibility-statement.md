@@ -1,9 +1,9 @@
 <!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-# Accessibility statement template: OECP public portal and administration panel
+# Accessibility statement template: OACC public portal and administration panel
 
-Template under **Directive (EU) 2016/2102** on the accessibility of the websites and mobile applications of public sector bodies, following the model statement of Commission Implementing Decision (EU) 2018/1523. The reference standard is **EN 301 549 V3.2.1**, whose web requirements correspond to **WCAG 2.1 level AA**. OECP targets WCAG 2.1 AA and aims at WCAG 2.2 AA (spec [§10](../spec-v4.1.md#10-non-functional-requirements)).
+Template under **Directive (EU) 2016/2102** on the accessibility of the websites and mobile applications of public sector bodies, following the model statement of Commission Implementing Decision (EU) 2018/1523. The reference standard is **EN 301 549 V3.2.1**, whose web requirements correspond to **WCAG 2.1 level AA**. OACC targets WCAG 2.1 AA and aims at WCAG 2.2 AA (spec [§10](../spec-v4.1.md#10-non-functional-requirements)).
 
 **How to use this template.** The part between the two rules below is the statement to publish (on the portal itself, see "Publishing on the portal" at the end). Fill every `[TO COMPLETE]`, delete the guidance notes in *italics*, and publish it in English and in `[TO COMPLETE: other languages of the portal]`. Before publishing, the controller confirms that the Directive applies: it covers public sector bodies; `[TO COMPLETE: whether the Aurora Foundation is a public sector body, or whether the statement is issued by URV or the partner universities as such]`. Even where it does not strictly apply, publishing the statement is good practice and expected by the partners.
 
@@ -48,11 +48,11 @@ The content listed below is not accessible for the following reasons.
 
 **(a) Non-compliance with the accessibility requirements**
 
-*Guidance: the rows below are the open findings of the [October 2026 audit](accessibility-audit-2026-10.md#8-known-limitations-for-the-accessibility-statement) (OECP 0.7.0). Remove a row once the fix is deployed; add the issues found in the screen-reader session and in the review of the sign-in pages.*
+*Guidance: the rows below are the open findings of the [October 2026 audit](accessibility-audit-2026-10.md#8-known-limitations-for-the-accessibility-statement) (OACC 0.7.0). Remove a row once the fix is deployed; add the issues found in the screen-reader session and in the review of the sign-in pages.*
 
 | Issue | Where | WCAG success criterion | Planned fix and date |
 |---|---|---|---|
-| The administration panel has no navigation menu of its own: each module is reached from the dashboard only | Administration panel | 2.4.5 Multiple Ways | `[TO COMPLETE: date]` (OECP backlog) |
+| The administration panel has no navigation menu of its own: each module is reached from the dashboard only | Administration panel | 2.4.5 Multiple Ways | `[TO COMPLETE: date]` (OACC backlog) |
 | The sign-in, password and one-time-code pages have not been checked for accessibility yet | Sign-in pages (`[TO COMPLETE: https://auth host/]`) | Not yet assessed | `[TO COMPLETE: date of the review]` |
 | The site has not yet been tested with screen readers; problems may remain that automated and keyboard checks cannot find | Public catalogue and administration panel | Not yet assessed | `[TO COMPLETE: date of the assistive-technology session]` |
 | `[TO COMPLETE: issues found in the screen-reader session or the sign-in review]` | `[TO COMPLETE]` | `[TO COMPLETE]` | `[TO COMPLETE]` |
@@ -71,8 +71,8 @@ The content listed below is not accessible for the following reasons.
 
 - Statement prepared on: `[TO COMPLETE: date]`.
 - Last reviewed on: `[TO COMPLETE: date]` *(review at least once a year and after each major release)*.
-- Software version assessed: OECP `[TO COMPLETE: release]`.
-- Method: `[TO COMPLETE: self-assessment by …, or assessment by a third party (name)]`; automated testing with axe-core in the project's test suite and on complete pages in a browser, keyboard and reflow checks (OECP audit of October 2026, [accessibility-audit-2026-10.md](accessibility-audit-2026-10.md), for release 0.7.0); manual review of a representative sample of pages `[TO COMPLETE: list of pages and templates sampled, e.g. home, search with filters, course page, course page in a fallback language, admin dashboard, course wizard, CSV console, invitations, sign-in and MFA set-up]`; assistive technologies and browsers used `[TO COMPLETE]`.
+- Software version assessed: OACC `[TO COMPLETE: release]`.
+- Method: `[TO COMPLETE: self-assessment by …, or assessment by a third party (name)]`; automated testing with axe-core in the project's test suite and on complete pages in a browser, keyboard and reflow checks (OACC audit of October 2026, [accessibility-audit-2026-10.md](accessibility-audit-2026-10.md), for release 0.7.0); manual review of a representative sample of pages `[TO COMPLETE: list of pages and templates sampled, e.g. home, search with filters, course page, course page in a fallback language, admin dashboard, course wizard, CSV console, invitations, sign-in and MFA set-up]`; assistive technologies and browsers used `[TO COMPLETE]`.
 
 ### Feedback and contact information
 
@@ -100,9 +100,9 @@ If you are not satisfied with our reply, or receive no reply within the period a
 
 *Notes for the maintainers of the statement:*
 
-- *Keep a dated record of every review and of the issues found (for example in the alliance's issue tracker), and report software defects to the OECP project so they are fixed upstream for every alliance.*
+- *Keep a dated record of every review and of the issues found (for example in the alliance's issue tracker), and report software defects to the OACC project so they are fixed upstream for every alliance.*
 - *WCAG 2.2: the project aims at 2.2 AA; claim it only after the manual review covers the success criteria added in 2.2 at levels A and AA.*
-- *Each new OECP release may change the interface: re-run the sample after an upgrade and update "Software version assessed".*
+- *Each new OACC release may change the interface: re-run the sample after an upgrade and update "Software version assessed".*
 
 ### Publishing on the portal
 

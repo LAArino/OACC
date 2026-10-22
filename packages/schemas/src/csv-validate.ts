@@ -995,7 +995,7 @@ export function validateCsvFiles(
 // ---------------------------------------------------------------------------
 
 /**
- * Spec §6.3 "CSV injection": every CSV OECP generates prefixes cells starting
+ * Spec §6.3 "CSV injection": every CSV OACC generates prefixes cells starting
  * with `=`, `+`, `-`, `@`, TAB or CR with `'`. Stored values stay verbatim.
  */
 export function neutralizeCsvCell(value: string): string {

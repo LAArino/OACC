@@ -1,9 +1,9 @@
 <!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-# OECP architecture
+# OACC architecture
 
-OECP is a **modular monolith**: one NestJS codebase built into one image (`oecp/api`) that runs as two processes, `api` (HTTP, `dist/main.js`) and `worker` (BullMQ jobs on Valkey, `dist/worker.js`), next to a Nuxt portal (`oecp/web`), Keycloak, PostgreSQL and Valkey behind Traefik ([ADR-0001](adr/0001-modular-monolith-on-nestjs.md), [spec §3](spec-v4.1.md#3-architecture)). One deployment serves **one alliance**: the alliance's name, branding, partner organizations, course attributes and host names are configuration, and the first deployment is the Aurora alliance hosted by URV.
+OACC is a **modular monolith**: one NestJS codebase built into one image (`oecp/api`) that runs as two processes, `api` (HTTP, `dist/main.js`) and `worker` (BullMQ jobs on Valkey, `dist/worker.js`), next to a Nuxt portal (`oecp/web`), Keycloak, PostgreSQL and Valkey behind Traefik ([ADR-0001](adr/0001-modular-monolith-on-nestjs.md), [spec §3](spec-v4.1.md#3-architecture)). One deployment serves **one alliance**: the alliance's name, branding, partner organizations, course attributes and host names are configuration, and the first deployment is the Aurora alliance hosted by URV.
 
 Course data enters through three **ingestion channels** that all end in the same canonical model ([spec §6](spec-v4.1.md#6-ingestion-anti-corruption-layer)): **Channel A**, the worker harvests a partner's OEAPI v5 endpoint (or the SURFeduhub gateway) on a schedule; **Channel B**, a partner administrator uploads `courses.csv` and `offerings.csv` in the admin console; **Channel C**, a partner administrator edits courses in the console's web form. Each organization has one authoritative channel; the others can only add overrides ([ADR-0010](adr/0010-overrides-on-harvested-records.md)). The four diagrams below go from the outside in: who surrounds a deployment, how it runs on one host, how the API is split into modules, and how a course travels from a source to the public outputs.
 
@@ -17,7 +17,7 @@ flowchart LR
     ep["Partner OEAPI v5 endpoint"]
     surf["SURFeduhub gateway"]
   end
-  subgraph oecp["OECP deployment (one alliance)"]
+  subgraph oecp["OACC deployment (one alliance)"]
     console["Admin console<br/>/{locale}/admin, client-rendered"]
     portal["Nuxt portal, server-rendered"]
     api["api<br/>/api/public/v1, /oeapi/v5,<br/>/api/admin/v1, /media"]
@@ -69,7 +69,7 @@ flowchart LR
 - **Channel A** is pull-only ([ADR-0005](adr/0005-pull-only-oeapi-harvesting-canonical-model.md)): the worker calls a partner endpoint only once an alliance administrator has approved its host (`partner_integrations.approved_host`), only over `https` on port 443 and only to public addresses (`apps/api/src/ingestion/oeapi/net-guard.ts`); see [ADR-0009](adr/0009-direct-partner-oeapi-access-with-host-approval.md), [spec §6.1](spec-v4.1.md#61-common-pipeline-implemented) and [§6.2](spec-v4.1.md#62-channel-a-scheduled-oeapi-harvester-implemented-mock-verified) (6.2.6 for the outbound rules). The `api` process also reaches the endpoint for "Test connection".
 - **Channels B and C** are the console's CSV upload and course wizard: [spec §6.3](spec-v4.1.md#63-channel-b-csv-upload-implemented), [§6.4](spec-v4.1.md#64-channel-c-web-form-implemented), [ADR-0011](adr/0011-csv-uploads-all-or-nothing-shared-validator.md); the [data-provider guides](guides/README.md) explain all three channels.
 - **Identity** is Keycloak only, for administrators only; the public portal never loads OIDC code. A federated organization signs in through its own SAML IdP ([ADR-0004](adr/0004-keycloak-only-identity-one-saml-idp-per-partner.md)), whose metadata the worker refreshes from the signed eduGAIN aggregate ([ADR-0017](adr/0017-idp-metadata-refresh-from-pinned-signature-aggregate.md)); an organization without IdP uses local accounts with TOTP (decision 22 in [decisions-log.md](decisions-log.md)). Details in [spec §4](spec-v4.1.md#4-identity).
-- **Roles** are those of the [onboarding index](onboarding/README.md): alliance administrator, partner administrator and hosting operator (no OECP account).
+- **Roles** are those of the [onboarding index](onboarding/README.md): alliance administrator, partner administrator and hosting operator (no OACC account).
 - **Operations**: repo2 and the off-host probe are open items of [Guide E](onboarding/hosting-operator.md); Grafana is reachable on the host's loopback only.
 
 ## 2. Deployment on one host (Docker Compose)

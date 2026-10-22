@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 import { collectDefaultMetrics, Gauge, Registry } from '@prometheus-io/client';
 
-/** Prefix of every OECP metric, the process and Node.js defaults included. */
+/** Prefix of every OACC metric, the process and Node.js defaults included. */
 export const METRICS_PREFIX = 'oecp_';
 
 /** Nest token of the process's {@link Registry} (api or worker). */
@@ -26,7 +26,7 @@ export function createMetricsRegistry(build: BuildInfo): Registry {
   collectDefaultMetrics({ register: registry, prefix: METRICS_PREFIX });
   const info = new Gauge({
     name: 'oecp_build_info',
-    help: 'OECP build: version of the repository package.json and the Git commit (value 1).',
+    help: 'OACC build: version of the repository package.json and the Git commit (value 1).',
     labelNames: ['version', 'commit'] as const,
     registers: [registry],
   });

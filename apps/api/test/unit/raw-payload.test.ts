@@ -26,7 +26,7 @@ describe('minimiseRawPayload (spec §5.2, §6.2.4)', () => {
       primaryCode: { code: '703001' },
       name: [{ language: 'en', value: 'Machine Learning' }],
       ext: {
-        // The names OECP republishes (decision 21a) stay: instructors are not persons objects.
+        // The names OACC republishes (decision 21a) stay: instructors are not persons objects.
         oecp: { instructors: ['Ana Pérez'], texts: { remarks: [{ language: 'en', value: 'r' }] } },
         partner: { room: 'B12', inner: {} },
       },

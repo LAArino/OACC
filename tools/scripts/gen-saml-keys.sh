@@ -21,7 +21,7 @@
 #   bash tools/scripts/gen-saml-keys.sh --subject '/O=Example/CN=auth.example.org'
 #
 # Options: --dir DIR; --subject DN (both certificates; default
-# "/O=Open European Campus Portal/CN=OECP SAML signing" and "... encryption");
+# "/O=Open Alliance Course Catalogue/CN=OECP SAML signing" and "... encryption");
 # --days N (default 3650); --bits N (default 3072, minimum 3072); --force.
 #
 # Existing files are never overwritten without --force: replacing a key pair
@@ -91,8 +91,8 @@ for use in sig enc; do
   dn=$subject
   if [ -z "$dn" ]; then
     case "$use" in
-      sig) dn="/O=Open European Campus Portal/CN=OECP SAML signing" ;;
-      *) dn="/O=Open European Campus Portal/CN=OECP SAML encryption" ;;
+      sig) dn="/O=Open Alliance Course Catalogue/CN=OECP SAML signing" ;;
+      *) dn="/O=Open Alliance Course Catalogue/CN=OECP SAML encryption" ;;
     esac
   fi
   openssl genpkey -algorithm RSA -pkeyopt "rsa_keygen_bits:$bits" -out "$work/$use.pem" 2>/dev/null

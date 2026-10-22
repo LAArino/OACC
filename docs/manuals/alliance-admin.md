@@ -3,7 +3,7 @@
 
 # Alliance administrator manual
 
-For you if you are an **alliance administrator** (`alliance_admin`) of an OECP deployment: in Aurora, a person of the alliance office who looks after every university's data, the organizations, the administrators and the routine checks. It walks through the screens of the administration panel as they are in **release 0.10.0**. Setting up the deployment itself (legal documents, server, identity, seed files) is [Guide A](../onboarding/alliance.md) and the hosting operator's [Guide E](../onboarding/hosting-operator.md); this manual covers the work at the keyboard afterwards.
+For you if you are an **alliance administrator** (`alliance_admin`) of an OACC deployment: in Aurora, a person of the alliance office who looks after every university's data, the organizations, the administrators and the routine checks. It walks through the screens of the administration panel as they are in **release 0.10.0**. Setting up the deployment itself (legal documents, server, identity, seed files) is [Guide A](../onboarding/alliance.md) and the hosting operator's [Guide E](../onboarding/hosting-operator.md); this manual covers the work at the keyboard afterwards.
 
 You can do everything a partner administrator does, for every organization. Those screens are described once, in the [partner administrator manual](partner-admin.md); [Part 1](#part-1-the-organization-modules) below says what differs for you. Part 2 covers the screens only you see.
 
@@ -24,7 +24,7 @@ The screenshots come from the development stack: simulated data for the Universi
 - [Part 2: alliance administration](#part-2-alliance-administration)
   - [4. Organizations: the list and a new organization](#4-organizations-the-list-and-a-new-organization)
   - [5. An organization's page](#5-an-organizations-page)
-  - [6. Sign-in mode: OECP accounts or the university's login](#6-sign-in-mode-oecp-accounts-or-the-universitys-login)
+  - [6. Sign-in mode: OACC accounts or the university's login](#6-sign-in-mode-oacc-accounts-or-the-universitys-login)
   - [7. Administrators: remove, resend set-up e-mail](#7-administrators-remove-resend-set-up-e-mail)
   - [8. Invitations: invite, resend, revoke](#8-invitations-invite-resend-revoke)
   - [9. Network status](#9-network-status)
@@ -37,7 +37,7 @@ The screenshots come from the development stack: simulated data for the Universi
 
 ### 1. Sign in and choose an organization
 
-Sign in exactly as a partner administrator does ([partner manual, section 1](partner-admin.md#1-sign-in)): the alliance organization uses OECP accounts, so you choose **Sign in** and enter e-mail, password and the one-time code.
+Sign in exactly as a partner administrator does ([partner manual, section 1](partner-admin.md#1-sign-in)): the alliance organization uses OACC accounts, so you choose **Sign in** and enter e-mail, password and the one-time code.
 
 ![Dashboard of an alliance administrator: Your account, the Organization list set to University of Iceland, the organization modules and the Alliance administration tiles](../images/manual-dashboard.png)
 
@@ -51,7 +51,7 @@ Everything in sections 3–10 and 12 of the [partner manual](partner-admin.md) a
 
 - **Courses**, the wizard, images, offerings, status actions and completeness: [sections 3–8](partner-admin.md#3-your-courses-the-list). The alliance organization can publish courses of its own (for example the alliance-wide programmes).
 - **CSV upload** on behalf of a partner: [section 9](partner-admin.md#9-csv-files-the-csv-upload-console). The rate limit (10 uploads per hour) counts per organization, yours included.
-- **Sync history**: [section 10](partner-admin.md#10-sync-history-reading-what-happened). OECP sends no notification for data warnings, so look at the runs of each partner regularly, starting from the [network status](#9-network-status).
+- **Sync history**: [section 10](partner-admin.md#10-sync-history-reading-what-happened). OACC sends no notification for data warnings, so look at the runs of each partner regularly, starting from the [network status](#9-network-status).
 - **Overrides** on harvested courses: [section 12](partner-admin.md#12-harvested-courses-overrides). Use them for alliance attributes, course types, instructors and instructions; ask the partner to fix the rest at the source.
 
 ### 3. Integration settings: approving a partner's host
@@ -76,7 +76,7 @@ Then the partner (or you) can use *Test connection* and *Sync now*. Walkthrough:
 
 ![Organizations list: filters, and per organization its slug, name, type, partner flag, parent, courses, sub-units, identity provider alias and state](../images/manual-organizations-list.png)
 
-**What you see:** **New organization**, a link to *Network status*, filters (search by name, slug or SCHAC home organization; type; partner; state *Active*, *Deleted* or both) and a table per organization: slug, name, type, partner, parent organization, courses (*published of total*), sub-units, **identity provider alias** (*OECP accounts* when there is none) and state.
+**What you see:** **New organization**, a link to *Network status*, filters (search by name, slug or SCHAC home organization; type; partner; state *Active*, *Deleted* or both) and a table per organization: slug, name, type, partner, parent organization, courses (*published of total*), sub-units, **identity provider alias** (*OACC accounts* when there is none) and state.
 
 **What to do: add an organization**
 
@@ -84,7 +84,7 @@ Then the partner (or you) can use *Test connection* and *Sync now*. Walkthrough:
 2. Fill in the **slug** (2 to 40 lower-case letters, digits or hyphens, for example `uibk`): it is the permanent key and **cannot be changed later**; partner logos are also named after it ([section 12](#12-branding-what-the-office-gives-the-operator)).
 3. Choose the type (*Institution* for a university, *Alliance* for the alliance itself; *Faculty*, *Department*, *Campus* or *Other* for a sub-unit with a parent organization) and tick **Partner of the alliance** for member universities.
 4. Enter the English name and, with *Add a name in another language*, the university's own names.
-5. Under *Identifiers and login*: the **SCHAC home organization** (the university's domain, checked against the federation metadata), the **Identity provider alias** (leave it **empty** unless the university's login is already connected, [section 6](#6-sign-in-mode-oecp-accounts-or-the-universitys-login)), Erasmus code and PIC only with verified values, and the **External id** for OEAPI partners (the `primaryCode` of the endpoint's root organization; the harvester then refuses an endpoint that answers as another university).
+5. Under *Identifiers and login*: the **SCHAC home organization** (the university's domain, checked against the federation metadata), the **Identity provider alias** (leave it **empty** unless the university's login is already connected, [section 6](#6-sign-in-mode-oacc-accounts-or-the-universitys-login)), Erasmus code and PIC only with verified values, and the **External id** for OEAPI partners (the `primaryCode` of the endpoint's root organization; the harvester then refuses an endpoint that answers as another university).
 6. Under *Settings and contact*: country code, default time zone (used for offering dates), languages, contact e-mail, website.
 7. Choose **Create organization**.
 
@@ -109,7 +109,7 @@ Choose a slug in the list.
 | **Courses** | A link to its course list |
 | **Delete or restore** | **Delete organization** hides it (soft delete; it can be restored). The server refuses while the organization still has courses, sub-units, administrators, pending invitations or an enabled harvest, and lists them |
 
-### 6. Sign-in mode: OECP accounts or the university's login
+### 6. Sign-in mode: OACC accounts or the university's login
 
 Each organization signs in **one** way, decided by its *Identity provider alias* [DL 22]. There is no mixed mode. Which mode suits a university, and both onboarding paths step by step: [sign-in paths](../onboarding/identity-paths.md).
 
@@ -117,7 +117,7 @@ Each organization signs in **one** way, decided by its *Identity provider alias*
 
 | Identity provider alias | Mode | Its administrators |
 |---|---|---|
-| Empty (*OECP accounts* in the list) | Local | Receive a set-up e-mail from the login service, choose a password of at least 12 characters and enrol an authenticator app; sign in with **Sign in** |
+| Empty (*OACC accounts* in the list) | Local | Receive a set-up e-mail from the login service, choose a password of at least 12 characters and enrol an authenticator app; sign in with **Sign in** |
 | Set (normally the slug) | Federated | Sign in through their university (SAML, eduGAIN), then a one-time code; choose their university under **Sign in through your university** |
 
 **What to do**
@@ -132,12 +132,12 @@ Each organization signs in **one** way, decided by its *Identity provider alias*
 
 ![Administrators panel of Rovira i Virgili University: one partner administrator signing in with University login (urv), account Active, last sign-in, and the Remove button](../images/manual-organization-administrators.png)
 
-**What you see:** one row per account holding a role in the organization: name, e-mail, role, **Signs in with** (*OECP account*, or *University login (alias)*), **Account** (*Active*, *Disabled*, or *Set-up pending: set a password, set up a one-time code app*), **Last sign-in** and the actions.
+**What you see:** one row per account holding a role in the organization: name, e-mail, role, **Signs in with** (*OACC account*, or *University login (alias)*), **Account** (*Active*, *Disabled*, or *Set-up pending: set a password, set up a one-time code app*), **Last sign-in** and the actions.
 
 **What to do**
 
 - **Remove** an administrator who left or should no longer have access, and confirm. The role is taken away and their sessions end at once (an access token already issued stays valid for up to 5 minutes). The login account is kept, and deleted 12 months later once the account clean-up is enabled ([section 11](#11-reviewing-the-dormancy-and-account-clean-up-dry-runs)).
-- **Resend set-up e-mail** appears only for an OECP account whose set-up is still pending (*Set-up pending*). The login service sends a new link to set the password and the second factor.
+- **Resend set-up e-mail** appears only for an OACC account whose set-up is still pending (*Set-up pending*). The login service sends a new link to set the password and the second factor.
 - Once a year, review every organization's panel with the partner's office and remove those who should not be there: recertification is manual in 0.10.0 ([administrator lifecycle](../onboarding/administrator-lifecycle.md#the-choices)).
 
 **If something goes wrong**
@@ -154,7 +154,7 @@ Open **Invitations** from the dashboard (with the organization chosen) or the *I
 
 1. Choose the organization.
 2. Under *Invite an administrator*, enter the **e-mail address** the person signs in with (for a federated organization: the address their university's login sends), choose the **role** (*Partner administrator*; *Alliance administrator* for a colleague of the alliance office, on the alliance organization) and how long the **link is valid** (7 days, 3 days or 1 day).
-3. Choose **Send invitation**. OECP e-mails the personal link; for an organization with OECP accounts, the login service also sends the set-up e-mail.
+3. Choose **Send invitation**. OACC e-mails the personal link; for an organization with OACC accounts, the login service also sends the set-up e-mail.
 
 One person administers one organization. Agree with each partner which onboarding guide applies (B, C or D).
 
@@ -170,7 +170,7 @@ One person administers one organization. Agree with each partner which onboardin
 
 **What you see:** above the form, *This organization's identity provider "…" is not enabled in the login service, so its administrators cannot sign in. Invitations will be refused until the identity provider is enabled or the organization's identity provider alias is cleared.*
 
-**What to do:** either ask the hosting operator to enable that identity provider, or follow **Open the organization's settings**, clear the *Identity provider alias* and save, so its administrators get OECP accounts. If you send anyway, OECP refuses: *The invitation was not sent: the organization's identity provider is not enabled in the login service …* (`oecp.invitation.idp_not_enabled`).
+**What to do:** either ask the hosting operator to enable that identity provider, or follow **Open the organization's settings**, clear the *Identity provider alias* and save, so its administrators get OACC accounts. If you send anyway, OACC refuses: *The invitation was not sent: the organization's identity provider is not enabled in the login service …* (`oecp.invitation.idp_not_enabled`).
 
 **If something goes wrong**
 
@@ -178,7 +178,7 @@ One person administers one organization. Agree with each partner which onboardin
 |---|---|
 | *The e-mail could not be sent, so nothing was saved.* | Try again later; if it persists, the operator checks the mail relay |
 | *The login service did not answer.* | Try again in a few minutes |
-| *The login service reported a conflict with an existing account.* | The address already has an account in the login service that OECP cannot reuse; the operator resolves it in the login service's console |
+| *The login service reported a conflict with an existing account.* | The address already has an account in the login service that OACC cannot reuse; the operator resolves it in the login service's console |
 | The invitee reports *This invitation was issued for another account* | They signed in with another address or in the wrong mode: they sign out and sign in with the invited address |
 
 ### 9. Network status
@@ -238,7 +238,7 @@ Both jobs remove access, so they run in **dry run** until the alliance decides o
 4. Match each `sub` on the organization's *Administrators* panel and check with the partner whether the person still needs access. Someone who does only needs to sign in.
 5. When the alliance agrees with the result, the hosting operator sets `OECP_DORMANCY_DRY_RUN=false` and recreates the worker. From then on dormant administrators lose their role and sessions, as with **Remove**; the last alliance administrator is always kept.
 
-**What to do: account clean-up.** The same with *Job* set to **Account clean-up**: the table lists the accounts it would delete (*Would be deleted*, with when and how their roles were removed), and the details list the accounts kept with the reason. The switch is `OECP_ACCOUNT_CLEANUP_DRY_RUN=false`. Accounts removed directly in the login service's console leave no trace in OECP and are never acted on.
+**What to do: account clean-up.** The same with *Job* set to **Account clean-up**: the table lists the accounts it would delete (*Would be deleted*, with when and how their roles were removed), and the details list the accounts kept with the reason. The switch is `OECP_ACCOUNT_CLEANUP_DRY_RUN=false`. Accounts removed directly in the login service's console leave no trace in OACC and are never acted on.
 
 The first dormant administrators can appear 180 days after the upgrade that introduced the job at the earliest, so early runs list nobody (as in the screenshot).
 

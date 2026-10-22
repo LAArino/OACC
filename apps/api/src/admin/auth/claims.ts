@@ -19,7 +19,7 @@ export const adminClaims = z.object({
   iat: z.number(),
   auth_time: z.number().optional(),
   sid: z.string().optional(),
-  /** Flat array of realm roles; anything that is not an OECP role is ignored. */
+  /** Flat array of realm roles; anything that is not an OACC role is ignored. */
   roles: z
     .array(z.string())
     .default([])

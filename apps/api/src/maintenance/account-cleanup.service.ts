@@ -23,7 +23,7 @@ import {
 import { type JobOutcome, MaintenanceJobError } from './maintenance-runner.js';
 import { subtractMonths } from './months.js';
 
-/** Audit actions that remove OECP roles (spec §2.2): the evidence of a removal. */
+/** Audit actions that remove OACC roles (spec §2.2): the evidence of a removal. */
 export const ROLE_REMOVAL_ACTIONS = ['admin.revoke', 'admin.dormant_revoke'] as const;
 export const ACCOUNT_DELETED_ACTION = 'admin.account_deleted';
 /** At most this many accounts are listed in `maintenance_runs.details`. */
@@ -43,15 +43,15 @@ const iso = (date: Date | null | undefined) => (date ? date.toISOString() : null
 
 /**
  * Account cleanup (spec §2.2, §10), daily: Keycloak accounts of the realm whose
- * OECP roles were removed (revocation `admin.revoke` or dormancy
+ * OACC roles were removed (revocation `admin.revoke` or dormancy
  * `admin.dormant_revoke`, read from `audit_log`) more than
  * `OECP_ACCOUNT_DELETE_MONTHS` (12) months ago are deleted through the Admin API
  * when nothing shows they are still in use (see {@link decideAccountDeletion}):
- * never accounts holding an OECP role, service accounts or accounts younger than
+ * never accounts holding an OACC role, service accounts or accounts younger than
  * the period. Each deletion is audited `admin.account_deleted` by
  * `system:account-cleanup` and removes the account's `admin_activity` row; the
  * job also deletes `admin_activity` rows idle for the period whose `sub` holds no
- * OECP role. With `OECP_ACCOUNT_CLEANUP_DRY_RUN=true` (the default) nothing is
+ * OACC role. With `OECP_ACCOUNT_CLEANUP_DRY_RUN=true` (the default) nothing is
  * changed: the run lists the accounts it would delete.
  */
 @Injectable()
@@ -315,7 +315,7 @@ export class AccountCleanupService {
   }
 
   /**
-   * `admin_activity` rows idle since before the cutoff whose `sub` holds no OECP
+   * `admin_activity` rows idle since before the cutoff whose `sub` holds no OACC
    * role (or no longer exists). Subs handled above are skipped. Returns how
    * many rows were (or, in a dry run, would be) deleted.
    */

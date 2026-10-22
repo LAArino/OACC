@@ -1,7 +1,9 @@
 <!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-# OECP documentation
+# OACC documentation
+
+Open Alliance Course Catalogue (OACC), the open course catalogue for European University alliances. `oecp` is the internal code name used in configuration variables, packages, images and error codes.
 
 | Document | Description |
 |---|---|
@@ -22,7 +24,7 @@
 
 ## Onboarding
 
-Guides for alliances and partner universities joining an OECP deployment [DL 17]; start with the decision tree in the index.
+Guides for alliances and partner universities joining an OACC deployment [DL 17]; start with the decision tree in the index.
 
 - [onboarding/README.md](onboarding/README.md) — which guide to read, and the model on one page (organizations, roles, channels, overrides).
 - [onboarding/alliance.md](onboarding/alliance.md) — Guide A: governance, deployment, identity, organizations, attributes, first alliance admin, operation.
@@ -45,7 +47,7 @@ Task-oriented manuals for the person at the keyboard, with screenshots of the ad
 Technical reference for whoever supplies course data, accurate to release 0.10.0; the onboarding guides above cover process and roles.
 
 - [guides/README.md](guides/README.md) — overview of the three guides and the data-quality rules shared by every channel (English title, ISCED-F, ECTS, dates, language tags, delivery modes, status lifecycle).
-- [guides/api-integration.md](guides/api-integration.md) — for partner IT: the OEAPI v5 requests OECP sends, authentication, network requirements, the full v5 → OECP mapping, harvester codes, withdrawal by absence, testing and the mock partner.
+- [guides/api-integration.md](guides/api-integration.md) — for partner IT: the OEAPI v5 requests OACC sends, authentication, network requirements, the full v5 → OACC mapping, harvester codes, withdrawal by absence, testing and the mock partner.
 - [guides/csv-authoring.md](guides/csv-authoring.md) — template 1.3 column reference for `courses.csv` and `offerings.csv`, the handbook publication rule, limits, processing, browser validation, the `oecp.csv.*`/`oecp.content.*` code table and a worked example.
 - [guides/web-form.md](guides/web-form.md) — the course wizard, offerings, status actions, overrides on harvested records, history and the admin API equivalents.
 
@@ -74,7 +76,7 @@ Critical reviews of specification v3.0 (2026-10-14), translated into English on 
 
 - [partner-oeapi-endpoints.md](research/partner-oeapi-endpoints.md) — [RP] what is publicly discoverable about the partners' OEAPI endpoints and how eduXchange consumes them.
 - [aurora-virtual-campus-draft.md](research/aurora-virtual-campus-draft.md) — what the Aurora "Virtual Campus" listing shows today; basis of decision 18 and ADR-0012.
-- [aurora-it-handbook-data-model.md](research/aurora-it-handbook-data-model.md) — the catalogue data model of the Aurora IT Handbook §3.4 compared with OECP; basis of decision 21 and ADR-0016.
+- [aurora-it-handbook-data-model.md](research/aurora-it-handbook-data-model.md) — the catalogue data model of the Aurora IT Handbook §3.4 compared with OACC; basis of decision 21 and ADR-0016.
 
 ## Architecture decision records
 

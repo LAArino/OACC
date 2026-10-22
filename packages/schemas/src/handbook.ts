@@ -11,7 +11,7 @@
  * - `enforce`: the incomplete course is stored as `draft` with the same warning.
  *   It is never rejected, and harvests and uploads never fail because of it.
  *
- * Fields the handbook marks obligatory and OECP already requires for every
+ * Fields the handbook marks obligatory and OACC already requires for every
  * record (organization, course number, start and end dates, teaching language,
  * delivery mode) are listed too, so `missing` always names the handbook's field.
  *

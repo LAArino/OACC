@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: EUPL-1.2
 /**
- * Anonymous, read-only OEAPI v5-compatible API (spec §9). IDs are OECP UUIDs;
+ * Anonymous, read-only OEAPI v5-compatible API (spec §9). IDs are OACC UUIDs;
  * only published courses and published or cancelled offerings are exposed.
  * Responses carry `Cache-Control: public, max-age=300` and a weak `ETag`
  * (Express); errors are v5 `Problem` objects.

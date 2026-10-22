@@ -3,7 +3,7 @@
 
 # Accessibility audit, October 2026 (release 0.7.0)
 
-Audit of the public portal and the administration panel of OECP (`apps/web`) against **WCAG 2.1 level AA**, the web requirements of EN 301 549 V3.2.1 referenced by Directive (EU) 2016/2102. Carried out on 2026-10-15 on the development stack (`deploy/compose`, profile `dev`) with the 31 published courses of the development data (University of Iceland, Duisburg-Essen, Amsterdam, Créteil, Olomouc, the simulated Innsbruck, one alliance course). It feeds the [accessibility statement](accessibility-statement.md).
+Audit of the public portal and the administration panel of OACC (`apps/web`) against **WCAG 2.1 level AA**, the web requirements of EN 301 549 V3.2.1 referenced by Directive (EU) 2016/2102. Carried out on 2026-10-15 on the development stack (`deploy/compose`, profile `dev`) with the 31 published courses of the development data (University of Iceland, Duisburg-Essen, Amsterdam, Créteil, Olomouc, the simulated Innsbruck, one alliance course). It feeds the [accessibility statement](accessibility-statement.md).
 
 **What this audit is and is not.** It combines automated checks of complete rendered pages in a browser, scripted keyboard checks, an accessibility-tree review and reflow and zoom checks. **No screen reader was run**: VoiceOver and NVDA could not be driven in this environment, so the screen-reader part is a review of the accessibility tree (roles, names, states, live regions, `lang`), not a listening test. A session with assistive technology (section 7) and the Keycloak sign-in pages (a separate application) remain to be done before "fully compliant" can be considered.
 
@@ -15,7 +15,7 @@ Audit of the public portal and the administration panel of OECP (`apps/web`) aga
 | Playwright | 1.59.0 (same as `tools/e2e-identity`) | Page driving, `keyboard.press`, `document.activeElement` inspection, viewport emulation |
 | axe-core / `@axe-core/playwright` | 4.14.0 / 4.14.0 | Automated rules, tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `best-practice`, run on each page state after network idle |
 | Vitest, `@nuxt/test-utils`, axe-core in jsdom | 5.0.4, axe-core 4.14.0 | The existing unit tests (`axeViolations` helper on mounted components, `test/contrast.test.ts` on the colour tokens) and the tests added by this audit |
-| Application under test | OECP 0.6.0 + unreleased (`main` at 0176d7c), Nuxt 4.6.1, Vue 3.5.44, vue-router 5.4.0, `@nuxtjs/i18n` 10.6.0 | Image `oecp/web:dev`, rebuilt from the working tree to re-test after the fixes |
+| Application under test | OACC 0.6.0 + unreleased (`main` at 0176d7c), Nuxt 4.6.1, Vue 3.5.44, vue-router 5.4.0, `@nuxtjs/i18n` 10.6.0 | Image `oecp/web:dev`, rebuilt from the working tree to re-test after the fixes |
 
 The scripts (not part of the repository) signed in once as the alliance administrator `admin@aurora-universities.eu` (password and TOTP read from the development secrets, the same way as `tools/e2e-identity/relogin.js`) and reused the Keycloak session through the panel's silent restore. No data was created, changed or deleted: forms were opened, typed into and submitted only where the client-side validation stops the submission; the confirmation dialog was opened and dismissed with Escape; only *Refresh* buttons were run.
 
@@ -141,4 +141,4 @@ To carry into section *Non-accessible content* of the [statement](accessibility-
 - Several links share a name out of context: *Apply at {university}* per offering on a course page, last-run dates in the network table (finding 9; meets 2.4.4 AA, not 2.4.9 AAA).
 - The organization picker reloads the module on each change, which arrow-key users on Windows may find disorienting (finding 12; meets 3.2.2).
 - Not yet verified with screen readers (section 7) or by users with disabilities; the Keycloak sign-in and one-time-code pages have not been audited; TOTP is the only second factor (WCAG 2.2 3.3.8, if 2.2 is claimed).
-- Course descriptions and application instructions are plain text written by the partner universities; their quality (headings, plain language, link texts inside them) is outside OECP's control.
+- Course descriptions and application instructions are plain text written by the partner universities; their quality (headings, plain language, link texts inside them) is outside OACC's control.

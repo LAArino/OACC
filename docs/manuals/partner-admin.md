@@ -9,9 +9,9 @@ Alliance administrators have their own manual, [alliance-admin.md](alliance-admi
 
 > **Before you start**
 >
-> - You have received an invitation e-mail from OECP. Without it you cannot get in: nobody signs up on their own.
+> - You have received an invitation e-mail from OACC. Without it you cannot get in: nobody signs up on their own.
 > - You have an authenticator app (on your phone, for example) for the one-time codes.
-> - You know which channel your university uses for its courses: the web form, CSV files, or an OEAPI endpoint harvested by OECP. If you do not, ask your alliance office ([which guide applies](../onboarding/README.md#which-guide-should-i-read)).
+> - You know which channel your university uses for its courses: the web form, CSV files, or an OEAPI endpoint harvested by OACC. If you do not, ask your alliance office ([which guide applies](../onboarding/README.md#which-guide-should-i-read)).
 
 The screenshots come from the development stack with simulated data (University of Innsbruck) and the real courses of the Aurora Virtual Campus 2026–27; some were taken signed in as an alliance administrator, so they show an *Organization* list that you see as a fixed name.
 
@@ -29,22 +29,22 @@ The screenshots come from the development stack with simulated data (University 
 10. [Sync history: reading what happened](#10-sync-history-reading-what-happened)
 11. [OEAPI harvesting: the Integration settings page](#11-oeapi-harvesting-the-integration-settings-page)
 12. [Harvested courses: overrides](#12-harvested-courses-overrides)
-13. [Your account: what OECP keeps and when access ends](#13-your-account-what-oecp-keeps-and-when-access-ends)
+13. [Your account: what OACC keeps and when access ends](#13-your-account-what-oacc-keeps-and-when-access-ends)
 14. [Who to ask](#14-who-to-ask)
 
 ## 1. Sign in
 
 Your organization signs in in **one** of two ways, decided by the alliance [DL 22]:
 
-- **OECP account** (local): an e-mail address, a password of at least 12 characters and a one-time code from your authenticator app. This is the mode of every university outside eduGAIN, and of those whose identity provider is not connected to OECP yet.
+- **OACC account** (local): an e-mail address, a password of at least 12 characters and a one-time code from your authenticator app. This is the mode of every university outside eduGAIN, and of those whose identity provider is not connected to OACC yet.
 - **Through your university**: your usual university login (through eduGAIN), followed by a one-time code from your authenticator app.
 
 Which mode applies to your university, and what its identity team must provide for the second: [sign-in paths](../onboarding/identity-paths.md).
 
 ### The first time: accept your invitation
 
-1. **OECP account only:** open the e-mail from the login service (it arrives next to the invitation), set a password of at least 12 characters and scan the QR code with your authenticator app. Through your university there is no such e-mail.
-2. Open the link in the OECP invitation e-mail. It is personal, works only for the e-mail address it was sent to and expires after 7 days (or the shorter validity the alliance chose).
+1. **OACC account only:** open the e-mail from the login service (it arrives next to the invitation), set a password of at least 12 characters and scan the QR code with your authenticator app. Through your university there is no such e-mail.
+2. Open the link in the OACC invitation e-mail. It is personal, works only for the e-mail address it was sent to and expires after 7 days (or the shorter validity the alliance chose).
 3. **What you see:** *Accept invitation*, with *Sign in to accept your invitation* (or *Sign in through your university*).
 
    ![Accept invitation page with the Sign in button, before signing in](../images/admin-invitation-accept.png)
@@ -60,7 +60,7 @@ Which mode applies to your university, and what its identity team must provide f
 |---|---|---|
 | *This invitation has expired.* | The link is older than its validity | Ask the alliance office to resend it; the new link replaces the old one |
 | *This invitation is not valid: it does not exist, was revoked or was already accepted.* | Revoked, replaced by a resend, or used | Use the newest e-mail, or ask for a new invitation |
-| *This invitation was issued for another account.* | You signed in with another address, or in the wrong mode (OECP account instead of your university, or the reverse) | Sign out, then sign in with the invited address in your organization's mode |
+| *This invitation was issued for another account.* | You signed in with another address, or in the wrong mode (OACC account instead of your university, or the reverse) | Sign out, then sign in with the invited address in your organization's mode |
 | The login service's set-up link expired | The password and code set-up was not finished in time | Ask the alliance office to use *Resend set-up e-mail* |
 
 ### Every other time
@@ -69,7 +69,7 @@ Which mode applies to your university, and what its identity team must provide f
 
    ![Sign-in prompt of the administration panel: the Sign in button and the Sign in through your university box](../images/manual-admin-signin.png)
 
-2. **OECP account:** choose **Sign in**. The login page asks for your e-mail address and password, then, on a second page, for the one-time code from your app.
+2. **OACC account:** choose **Sign in**. The login page asks for your e-mail address and password, then, on a second page, for the one-time code from your app.
 
    ![Login page of the login service with empty e-mail and password fields](../images/manual-login-form.png)
 
@@ -78,7 +78,7 @@ Which mode applies to your university, and what its identity team must provide f
 
 **Staying signed in.** The panel keeps you signed in while you work: a page reload restores your session without asking again as long as your login session is alive (30 minutes without activity, 8 hours at most). After that the page says *Your session has expired. Sign in again.* **Unsaved changes are lost** on a reload or an expired session, so save as you go. Choose **Sign out** on the dashboard when you finish.
 
-**If something goes wrong:** *Your account has no administration role* means your role was removed (by the alliance, or after a long inactivity, [section 13](#13-your-account-what-oecp-keeps-and-when-access-ends)), or you have not signed in again after accepting the invitation. Lost your authenticator app or password? There is no self-service reset: ask the alliance office ([section 14](#14-who-to-ask)).
+**If something goes wrong:** *Your account has no administration role* means your role was removed (by the alliance, or after a long inactivity, [section 13](#13-your-account-what-oacc-keeps-and-when-access-ends)), or you have not signed in again after accepting the invitation. Lost your authenticator app or password? There is no self-service reset: ask the alliance office ([section 14](#14-who-to-ask)).
 
 ## 2. The dashboard
 
@@ -86,7 +86,7 @@ Which mode applies to your university, and what its identity team must provide f
 
 **What you see**
 
-- **Your account:** your e-mail address, your role (*Partner administrator*), *Organization* (the internal identifier of your university) and *Signed in through* (`local` for an OECP account, or the alias of your university's login).
+- **Your account:** your e-mail address, your role (*Partner administrator*), *Organization* (the internal identifier of your university) and *Signed in through* (`local` for an OACC account, or the alias of your university's login).
 - **Modules** for your organization (its name is fixed for you; alliance administrators get a list to choose from):
 
 | Module | What you do there | Section |
@@ -123,7 +123,7 @@ The wizard has four steps: **Basics**, **Texts**, **Attributes**, **Review and s
 
    ![Course wizard, step 1 Basics, with an example course code, the Master level, 5 ECTS and an ISCED code filled in](../images/manual-course-wizard-step1.png)
 
-3. **Step 2, Texts.** English is required: title, abstract (the first 300 characters appear on course cards), description, learning outcomes, prerequisites, assessment and keywords. *More texts (optional)* holds methods, mode of repetition, literature, remarks and a privacy notice. *Add a language* adds a tab for another language, which needs at least its own title. OECP never translates.
+3. **Step 2, Texts.** English is required: title, abstract (the first 300 characters appear on course cards), description, learning outcomes, prerequisites, assessment and keywords. *More texts (optional)* holds methods, mode of repetition, literature, remarks and a privacy notice. *Add a language* adds a tab for another language, which needs at least its own title. OACC never translates.
 4. **Step 3, Attributes.** Your alliance's own tags and filters, for example the educational hub, the Sustainable Development Goals, the competence framework and yes/no flags. Yes/no attributes have three choices: *Not set* (left out), *Yes* or *No*.
 
    ![Course wizard, step 3 Attributes: educational hub, SDGs, competence framework, yes/no flags and target audience](../images/manual-course-wizard-attributes.png)
@@ -271,7 +271,7 @@ Every CSV upload, every form save and every harvest is a **run**.
 
 ![Sync run page: summary with status, channel, trigger, times and counters, then the list of errors and warnings](../images/manual-sync-run.png)
 
-The run page shows the summary and **Errors and warnings**, filterable with *Show*. For CSV runs, *File*, *Row* and *Column* point to the cell; for harvests, *Column* holds a JSON Pointer into your endpoint's data (for example `/teachingLanguage`). Errors reject a record (or the whole upload); warnings only report what OECP adjusted or what the catalogue still misses. Code tables: [CSV codes](../guides/csv-authoring.md#codes), [harvester codes](../guides/api-integration.md#warning-and-rejection-codes).
+The run page shows the summary and **Errors and warnings**, filterable with *Show*. For CSV runs, *File*, *Row* and *Column* point to the cell; for harvests, *Column* holds a JSON Pointer into your endpoint's data (for example `/teachingLanguage`). Errors reject a record (or the whole upload); warnings only report what OACC adjusted or what the catalogue still misses. Code tables: [CSV codes](../guides/csv-authoring.md#codes), [harvester codes](../guides/api-integration.md#warning-and-rejection-codes).
 
 ## 11. OEAPI harvesting: the Integration settings page
 
@@ -300,7 +300,7 @@ For universities with an OEAPI v5 endpoint. The first set-up with your IT team i
 | Message or code | Usual cause |
 |---|---|
 | `oecp.oeapi.unauthorized` | Wrong credential or authentication method |
-| `oecp.oeapi.unreachable`, `oecp.oeapi.timeout` | Your firewall does not allow OECP's address yet, or DNS |
+| `oecp.oeapi.unreachable`, `oecp.oeapi.timeout` | Your firewall does not allow OACC's address yet, or DNS |
 | `oecp.oeapi.address_refused` | The host name resolves to a private address |
 | `oecp.oeapi.invalid_payload` | Wrong path prefix or version in the base URL |
 | *Sync now needs OEAPI harvesting as the authoritative channel* | Save the settings with *OEAPI harvest* first |
@@ -309,7 +309,7 @@ A course missing from three complete harvests in a row is withdrawn automaticall
 
 ## 12. Harvested courses: overrides
 
-When your university is harvested, the course pages are in **overrides mode**: the record comes from your endpoint, and what you change in OECP is stored as an override next to the harvested value. Overrides survive every harvest until you revert them.
+When your university is harvested, the course pages are in **overrides mode**: the record comes from your endpoint, and what you change in OACC is stored as an override next to the harvested value. Overrides survive every harvest until you revert them.
 
 ![Course page of a harvested course: banner, source values from the partner's OEAPI and an Override checkbox per field](../images/admin-course-editor-overrides.png)
 
@@ -324,7 +324,7 @@ When your university is harvested, the course pages are in **overrides mode**: t
 
 Use overrides for what OEAPI cannot carry: the type of course (BIP, lecture series), alliance attributes, instructors and *How to apply* instructions. Fix everything else at the source. Harvested courses cannot be created or deleted here. Details: [web form guide, Overrides mode](../guides/web-form.md#overrides-mode-harvested-organizations).
 
-## 13. Your account: what OECP keeps and when access ends
+## 13. Your account: what OACC keeps and when access ends
 
 - **What the panel shows about you** is on the dashboard ([section 2](#2-the-dashboard)). Alliance administrators also see, on your organization's *Administrators* panel, your name, e-mail address, role, how you sign in, whether your account set-up is finished and your **last sign-in**.
 - **Activity.** Every use of the panel records your last activity (at most once an hour, without your IP address). Your changes are audited with your account identifier and appear in each course's *History*.
@@ -339,7 +339,7 @@ The rules and their defaults: [administrator lifecycle](../onboarding/administra
 | You need | Ask |
 |---|---|
 | An invitation for a colleague (each university should have two administrators), a resent invitation or set-up e-mail, or removal of someone who left | Your alliance office (an alliance administrator) |
-| A new authenticator app or a forgotten password (OECP account) | Your alliance office: there is no self-service reset |
+| A new authenticator app or a forgotten password (OACC account) | Your alliance office: there is no self-service reset |
 | Problems with your university login | Your university's IT service desk |
 | Approval of your OEAPI host, or a change of authoritative channel you cannot make | Your alliance office |
 | Data at the source of a harvest | Your university's IT team (the [API integration guide](../guides/api-integration.md) is written for them) |

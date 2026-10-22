@@ -355,7 +355,7 @@ describe('courses and offerings', () => {
         },
       },
     });
-    // v5 coordinators are Person objects: OECP keeps names only, in ext.oecp.
+    // v5 coordinators are Person objects: OACC keeps names only, in ext.oecp.
     for (const key of [
       'firstStartDate',
       'learningOutcomes',

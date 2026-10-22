@@ -1,9 +1,9 @@
 <!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-# Contributing to OECP
+# Contributing to OACC
 
-Thank you for your interest in the Open European Campus Portal. This document
+Thank you for your interest in the Open Alliance Course Catalogue. This document
 explains how to contribute code, documentation and design decisions. By
 participating you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
@@ -124,7 +124,7 @@ outside the development stack.
 
 ## Developer Certificate of Origin (DCO)
 
-Instead of a CLA, OECP uses the [Developer Certificate of Origin 1.1](DCO).
+Instead of a CLA, OACC uses the [Developer Certificate of Origin 1.1](DCO).
 Every commit must carry a `Signed-off-by` trailer whose name and email match
 the commit author. The sign-off certifies that you wrote the change, or
 otherwise have the right to submit it under EUPL-1.2, as stated in the DCO.
@@ -231,7 +231,7 @@ deployment. Changes follow a stricter path:
 
 ## Releases
 
-OECP uses Semantic Versioning with `0.x` rules until 1.0 and one version for
+OACC uses Semantic Versioning with `0.x` rules until 1.0 and one version for
 the whole monorepo. Versioning, the contract and migration policies, the
 release procedure and the release checklist are in
 [docs/RELEASING.md](docs/RELEASING.md). Contributors only add `Unreleased`

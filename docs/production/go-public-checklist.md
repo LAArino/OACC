@@ -3,7 +3,7 @@
 
 # Going public: GitHub checklist
 
-The repository `LAArino/OECP` is private. This checklist is what the owner applies **by hand, in the GitHub web UI**, to make it public, in this order. Nothing here is automated: changing the visibility, the features, the security settings and the ruleset is the owner's decision. Tick the boxes in a copy (an issue or a local note), not in this file.
+The repository `LAArino/OACC` is private. This checklist is what the owner applies **by hand, in the GitHub web UI**, to make it public, in this order. Nothing here is automated: changing the visibility, the features, the security settings and the ruleset is the owner's decision. Tick the boxes in a copy (an issue or a local note), not in this file.
 
 ## (a) Before changing the visibility
 
@@ -61,7 +61,7 @@ Create a **branch ruleset** named `main`, enforcement **Active**, target **Defau
 
 ## (e) Settings → General: description, topics, homepage
 
-- [ ] **Description**: `Open European Campus Portal: course catalogue for European University alliances (OEAPI v5, Keycloak with eduGAIN, EUPL-1.2)`
+- [ ] **Description**: `Open Alliance Course Catalogue: course catalogue for European University alliances (OEAPI v5, Keycloak with eduGAIN, EUPL-1.2)`
 - [ ] **Topics**: `european-universities`, `course-catalogue`, `oeapi`, `keycloak`, `edugain`, `nestjs`, `nuxt`, `eupl-1-2`, `higher-education`
 - [ ] **Homepage**: none until a public deployment exists.
 - [ ] Optionally a **social preview image** without alliance branding.
@@ -78,5 +78,5 @@ Create a **branch ruleset** named `main`, enforcement **Active**, target **Defau
 - [ ] **Secret scanning**: *Security → Secret scanning* has no open alert (the fixtures above are not provider tokens; close any alert on them as *used in tests*).
 - [ ] **Ruleset works**: a test pull request shows the required checks; a force push to `main` without bypass is refused.
 - [ ] **Announcement**: post the v0.10.0 release in Discussions → Announcements, linking the release page and the README.
-- [ ] **publiccode.yml**: `url` is `https://github.com/LAArino/OECP`, which stays valid; there is no `landingURL`. Add one only when a public deployment or project page exists, and re-validate the file.
-- [ ] **Badges and links**: links to `github.com/LAArino/OECP` in the README, CHANGELOG and docs now resolve for everyone; spot-check a few while signed out.
+- [ ] **publiccode.yml**: `url` is `https://github.com/LAArino/OACC`, which stays valid; there is no `landingURL`. Add one only when a public deployment or project page exists, and re-validate the file.
+- [ ] **Badges and links**: links to `github.com/LAArino/OACC` in the README, CHANGELOG and docs now resolve for everyone; spot-check a few while signed out.

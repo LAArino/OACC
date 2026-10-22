@@ -172,7 +172,7 @@ describe('AdminJwtGuard', () => {
     expect(http.responseHeaders['WWW-Authenticate']).toContain('insufficient_user_authentication');
   });
 
-  it('rejects tokens without OECP roles with 403', async () => {
+  it('rejects tokens without OACC roles with 403', async () => {
     const error = await rejection(
       guard.canActivate(httpContext(await sign({ ...valid, roles: ['offline_access'] })).context),
     );

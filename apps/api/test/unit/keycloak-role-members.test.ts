@@ -35,7 +35,7 @@ describe('KeycloakAdminService role members and revocation', () => {
     expect(typeof users[0]?.createdTimestamp).toBe('number');
   });
 
-  it('revokes OECP access: roles, oecp_org_id and every session', async () => {
+  it('revokes OACC access: roles, oecp_org_id and every session', async () => {
     const fake = new FakeKeycloak();
     seed(fake);
     await fake.service().revokeOecpAccess('u3', ['partner_admin']);

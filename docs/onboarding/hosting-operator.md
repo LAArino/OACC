@@ -5,7 +5,7 @@
 
 ## 0. Who this is for
 
-For the **hosting operator**: the IT team of the institution that installs and runs OECP for an alliance. In the first deployment this is URV for the Aurora alliance [DL 2], with the pilot on `lspurv.urv.cat` (portal) and `auth.lspurv.urv.cat` (Keycloak).
+For the **hosting operator**: the IT team of the institution that installs and runs OACC for an alliance. In the first deployment this is URV for the Aurora alliance [DL 2], with the pilot on `lspurv.urv.cat` (portal) and `auth.lspurv.urv.cat` (Keycloak).
 
 At the end you have the reference Docker Compose deployment of release 0.10.0 running on one host, with production TLS, an SMTP relay, backups with a passed restore drill, alerting and logs, the organizations seeded and a first alliance admin invited, and a list of what you run every week, month, quarter and year.
 
@@ -35,7 +35,7 @@ Settle these with the institution's network, mail, identity and security teams a
 | **Alert recipient** | A mailbox (or on-call address) and/or a webhook. | `OECP_ALERT_EMAIL_TO`, `OECP_ALERT_WEBHOOK_URL` |
 | **Keycloak admin networks** | The CIDRs of the operators' networks (for example the institution's VPN range), never the Docker bridge ranges. | `KEYCLOAK_ADMIN_ALLOWLIST` |
 | **Second backup site** | An S3/MinIO bucket or an SFTP server away from the host, with an owner. Until it exists every backup lives on the production host. | `.env.pgbackrest`; runbook [§3](../production/runbook.md#3-backups-and-point-in-time-recovery) |
-| **Off-host availability probe** | An HTTPS check of the portal and the auth host from outside the host (the institution's monitoring or an external service). Not built into OECP (backlog "Off-host availability probe"). | Runbook §7 "Still manual" |
+| **Off-host availability probe** | An HTTPS check of the portal and the auth host from outside the host (the institution's monitoring or an external service). Not built into OACC (backlog "Off-host availability probe"). | Runbook §7 "Still manual" |
 | **Identity provider** | For each university that will sign in through its own IdP: an exchange of SAML metadata. The alliance side sends the SP entity ID `https://<auth host>/realms/oecp`, the per-IdP descriptor `https://<auth host>/realms/oecp/broker/<alias>/endpoint/descriptor` and the requested attributes (`subject-id` or `pairwise-id`, `mail`, `schacHomeOrganization`, `displayName`, `givenName`, `sn`); it receives the IdP's entity ID, SSO URL and signing certificates. | [step 2.13](#213-connect-an-identity-provider); [identity/keycloak/README.md](../../identity/keycloak/README.md#adding-a-partner-idp) |
 | **Offline secrets store** | An access-controlled place for the offline copy of every secret. | Runbook [§2](../production/runbook.md#2-secrets-inventory-and-rotation) |
 
@@ -43,7 +43,7 @@ Settle these with the institution's network, mail, identity and security teams a
 
 ### 1.2 The host
 
-**Sizing.** The sources do not size the host as a whole: the runbook's [§1](../production/runbook.md#1-topology-and-environments) template asks for "RAM ≥ 4 GB with 2 GB for the worker", and the worker alone needs at least 2 GB once the IdP metadata refresh uses the eduGAIN aggregate (runbook [§9](../production/runbook.md#9-capacity)). Measured on the full development stack at rest on 2026-10-16 (every profile, 31 courses): the containers use **1.7 GiB of memory** in total (Keycloak 750 MiB, Grafana 300 MiB, every other service under 90 MiB) and under 3 % CPU each; the images take about **8 GB** of disk (Grafana 1.9 GB, Alloy 0.9 GB, the four OECP images 2.1 GB) and the data volumes 230 MB, growing with the 35-day backup window (5.5 MB per full backup of a 47 MB cluster). The image build of step 2.5 is the heaviest moment. A host with **4 vCPU, 8 GB of RAM and 60 GB of disk** is ample for the pilot; record the real sizes in runbook [§9](../production/runbook.md#9-capacity) after the first months.
+**Sizing.** The sources do not size the host as a whole: the runbook's [§1](../production/runbook.md#1-topology-and-environments) template asks for "RAM ≥ 4 GB with 2 GB for the worker", and the worker alone needs at least 2 GB once the IdP metadata refresh uses the eduGAIN aggregate (runbook [§9](../production/runbook.md#9-capacity)). Measured on the full development stack at rest on 2026-10-16 (every profile, 31 courses): the containers use **1.7 GiB of memory** in total (Keycloak 750 MiB, Grafana 300 MiB, every other service under 90 MiB) and under 3 % CPU each; the images take about **8 GB** of disk (Grafana 1.9 GB, Alloy 0.9 GB, the four OACC images 2.1 GB) and the data volumes 230 MB, growing with the 35-day backup window (5.5 MB per full backup of a 47 MB cluster). The image build of step 2.5 is the heaviest moment. A host with **4 vCPU, 8 GB of RAM and 60 GB of disk** is ample for the pilot; record the real sizes in runbook [§9](../production/runbook.md#9-capacity) after the first months.
 
 **Operating system.** One Linux host with:
 
@@ -64,7 +64,7 @@ Run every command in `deploy/compose` of the checkout, as the operator account. 
 ### 2.1 Check out the release
 
 ```sh
-git clone https://github.com/LAArino/OECP.git && cd OECP
+git clone https://github.com/LAArino/OACC.git && cd OACC
 git checkout v0.10.0          # or the latest release: only the latest minor is supported
 cd deploy/compose
 ```
@@ -329,7 +329,7 @@ The banner is Keycloak's advice for a human bootstrap account. Here the account 
 
 Check:
 
-- From an allowlisted network, `https://<auth host>/admin/` opens the console. The sign-in is the `master` realm's service account: user `admin` (`KEYCLOAK_ADMIN_USER`) and the password in `secrets/keycloak_admin_password`. An OECP administrator account (alliance or partner admin) does not work here: those users live in the `oecp` realm.
+- From an allowlisted network, `https://<auth host>/admin/` opens the console. The sign-in is the `master` realm's service account: user `admin` (`KEYCLOAK_ADMIN_USER`) and the password in `secrets/keycloak_admin_password`. An OACC administrator account (alliance or partner admin) does not work here: those users live in the `oecp` realm.
 - From outside it, `curl -s -o /dev/null -w '%{http_code}\n' "https://$AUTH/admin/"` and the same for `/realms/master/` print 403, while `/realms/oecp/.well-known/openid-configuration` answers 200.
 - After creating the human administrators and rotating the service account's password, `docker compose run --rm keycloak-config` still exits 0.
 
@@ -407,7 +407,7 @@ The runbook's [§11 Housekeeping checklist](../production/runbook.md#11-housekee
 | Continuously | Alerts by e-mail or webhook; the off-host probe (every 1–5 min) | Runbook [§7](../production/runbook.md#7-monitoring-and-alerts) |
 | Daily | Nothing by hand: backups at 02:00 UTC, maintenance jobs 00:10–05:15 UTC, harvests at their schedule | Runbook §3; Guide A [step 9](alliance.md#9-operate) |
 | Weekly | No alert firing or silenced without a reason; `pgbackrest info` shows the Sunday full; worker log errors; worker schedules (`/health`) | Runbook §11, §7 "Still manual" |
-| Monthly | Test alert; uploads archives copied to the second site; certificate expiry (and the auth host from outside); monitoring itself (Grafana, *OECP logs*); log volumes against the rotation sizes; OS and image security updates; new OECP patch release. With the alliance: *Administrators* panels, the latest `account-cleanup` run | Runbook §11, §7, §10 |
+| Monthly | Test alert; uploads archives copied to the second site; certificate expiry (and the auth host from outside); monitoring itself (Grafana, *OECP logs*); log volumes against the rotation sizes; OS and image security updates; new OACC patch release. With the alliance: *Administrators* panels, the latest `account-cleanup` run | Runbook §11, §7, §10 |
 | Quarterly | Restore drill, report filed; offline secrets copy current. With the alliance: dormancy dry run | Runbook [§4](../production/runbook.md#4-restore-drill) |
 | Yearly | Renew the institution-issued TLS certificates (runbook §6, if not ACME); rotate database and client secrets; point-in-time drill, and the application part of the drill on staging; review the runbook, RoPA and DPIA; recertification of administrators with the Foundation | Runbook §2, §4, §11; [administrator lifecycle](administrator-lifecycle.md) |
 
@@ -464,7 +464,7 @@ The values below are those the sources and the decisions log give for the Aurora
 | Admin console | `https://auth.lspurv.urv.cat/admin/`, allowlist `[TO DECIDE: URV operators' networks, e.g. the URV VPN range]` |
 | Roles | Aurora Foundation controller, URV processor and hosting operator [DL 2]; partners independent controllers [DL 24] |
 | `OECP_ALLIANCE_NAME` | `Aurora European Universities Alliance` (the `.env.example` value) |
-| `OECP_REALM_DISPLAY_NAME` | `[TO DECIDE]` (default `Open European Campus Portal`) |
+| `OECP_REALM_DISPLAY_NAME` | `Aurora Course Catalogue` (decided 2026-10-22, with decision 30; applied on the pilot) |
 | Organizations | `organizations.aurora.json`: alliance `aurora` and nine partners; aliases `null` until each IdP is connected |
 | First alliance admin | `--org aurora`, a named Foundation person |
 | Attributes | The default `attribute-definitions.json` (the Aurora list) |
@@ -474,7 +474,7 @@ The values below are those the sources and the decisions log give for the Aurora
 | Host exposure | `[TO DECIDE: open to the Internet or URV networks only]`. With URV-only access Let's Encrypt cannot reach port 443, so the ACME path of step 2.4 does not apply; URV issues the certificates, [step 2.4b](#24b-tls-with-certificates-issued-by-the-institution) |
 | Hosts | One host (`dc4eu.cpd1.urv.cat`, AlmaLinux, Docker 26.1.3, Compose v2.27, OpenSSL 1.1.1k FIPS), staging to decide (a second host for upgrade rehearsals and restore drills, runbook §1) |
 | Server size | `[TO DECIDE]`; the measured footprint suggests 4 vCPU, 8 GB of RAM, 60 GB of disk ([section 1.2](#12-the-host)) |
-| SMTP relay | `mail.cpd1.urv.cat`, port 25, STARTTLS, no authentication (the relay authorises the server by source address; the From must be an `@urv.cat` address). URV IT, 2026-10-21. During the pilot `OECP_SMTP_FROM=lluisalfons.arino@urv.cat` (a real mailbox, so bounces and replies reach someone: OECP sets no Reply-To); a functional mailbox can replace it later |
+| SMTP relay | `mail.cpd1.urv.cat`, port 25, STARTTLS, no authentication (the relay authorises the server by source address; the From must be an `@urv.cat` address). URV IT, 2026-10-21. During the pilot `OECP_SMTP_FROM=lluisalfons.arino@urv.cat` (a real mailbox, so bounces and replies reach someone: OACC sets no Reply-To); a functional mailbox can replace it later |
 | `ACME_EMAIL`, alert recipient | `[TO DECIDE]` |
 | URV IdP metadata | URV answered on 2026-10-21: the SP will be registered in SIR2 and federate through the SIR2 proxy (single IdP), decision pending (candidate decision 29); until then `urv` administrators use local accounts |
 | Second backup site, off-host probe | `[TO DECIDE]`: to ask URV IT (backlog "Off-host availability probe") |
@@ -482,7 +482,7 @@ The values below are those the sources and the decisions log give for the Aurora
 
 ## 6. What is not covered
 
-- **Two OECP instances on one host.** `compose.yaml` names its networks `oecp-edge`, `oecp-backend`, `oecp-egress` and `oecp-docker-api` regardless of the Compose project name, so a second instance (another alliance, or a staging copy) needs its own host or edited network names.
+- **Two OACC instances on one host.** `compose.yaml` names its networks `oecp-edge`, `oecp-backend`, `oecp-egress` and `oecp-docker-api` regardless of the Compose project name, so a second instance (another alliance, or a staging copy) needs its own host or edited network names.
 - **Helm and Kubernetes.** The chart is a v1 deliverable, not available ([deploy/helm/README.md](../../deploy/helm/README.md)).
 - **Off-host availability probe.** Not built; the in-host monitoring cannot report its own host down (backlog, runbook §7 "Still manual").
 - **Multi-host deployments.** The sources describe one Compose project on one host (runbook §1); separate database hosts, replicas and load-balanced application nodes are not documented.

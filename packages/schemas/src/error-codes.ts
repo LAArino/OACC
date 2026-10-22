@@ -26,7 +26,7 @@ export const ERROR_CODES = {
     severity: 'error',
     message: 'Multi-factor authentication required',
   },
-  'oecp.auth.no_role': { severity: 'error', message: 'No OECP role assigned' },
+  'oecp.auth.no_role': { severity: 'error', message: 'No OACC role assigned' },
   'oecp.auth.unknown_organization': { severity: 'error', message: 'Organization does not exist' },
   'oecp.auth.idp_mismatch': {
     severity: 'error',

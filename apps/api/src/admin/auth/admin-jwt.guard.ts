@@ -29,7 +29,7 @@ interface GuardedResponse {
 
 /**
  * Bearer-only guard for `/api/admin` (spec §4): signature via realm JWKS, `iss`,
- * `aud ∋ oecp-api`, `azp = oecp-admin`, `acr = mfa`, non-empty OECP roles, and an
+ * `aud ∋ oecp-api`, `azp = oecp-admin`, `acr = mfa`, non-empty OACC roles, and an
  * existing organization whose IdP alias (or `local`) equals the `idp` claim
  * (a missing `idp` claim means `local`). `@RequireRoles()` narrows the roles.
  * Every authenticated request refreshes the administrator's `admin_activity`

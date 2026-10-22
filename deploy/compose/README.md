@@ -3,7 +3,7 @@
 
 # Docker Compose reference deployment (MVP)
 
-The reference deployment of OECP for one alliance (spec v4.0 §3, §10;
+The reference deployment of OACC for one alliance (spec v4.0 §3, §10;
 [DL 10]). One `compose.yaml`, plain `docker compose` commands, no wrapper
 scripts.
 

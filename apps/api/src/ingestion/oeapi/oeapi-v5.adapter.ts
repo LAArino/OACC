@@ -643,14 +643,14 @@ function cleanInstructors(names: readonly string[], pointer: string, issues: Iss
  * and `surname`) are used; bare `personId`s are ignored: the harvester makes no
  * extra request and never looks persons up.
  *
- * GDPR: the names of teaching staff are personal data. OECP republishes only
+ * GDPR: the names of teaching staff are personal data. OACC republishes only
  * the names the university itself publishes in its course catalogue for this
  * course, for the same purpose (informing prospective students), under the
  * alliance's public-interest task (decision 21a; the partner's access
  * agreement covers the republication, spec §10). Nothing else of the `Person`
  * (e-mail, phone, affiliation, ids) is read or kept in the canonical record.
  *
- * `undefined` when the course has no coordinator with a name (the OECP
+ * `undefined` when the course has no coordinator with a name (the OACC
  * extension `ext.oecp.instructors` may then supply them).
  */
 function coordinators(value: unknown, issues: Issues): string[] | undefined {
@@ -665,7 +665,7 @@ function coordinators(value: unknown, issues: Issues): string[] | undefined {
 }
 
 /**
- * Optional OECP extension `ext.oecp.instructors` (string[], as the OECP read API
+ * Optional OACC extension `ext.oecp.instructors` (string[], as the OACC read API
  * emits it), used when `coordinators` gives no name. Anything else is ignored
  * with a warning; absent → `[]`.
  */
@@ -694,7 +694,7 @@ const HANDBOOK_TEXT_MEMBERS: Readonly<Record<HandbookTextField, string>> = {
 };
 
 /**
- * Optional OECP extension `ext.oecp.texts.{modeOfRepetition, methods, literature,
+ * Optional OACC extension `ext.oecp.texts.{modeOfRepetition, methods, literature,
  * privacyNotice, remarks}` (decision 21b; OEAPI v5 has no such members): each
  * LanguageTypedString[] or `{lang: text}`, assigned to the languages that have a
  * title. Malformed members are ignored with a warning.
@@ -746,8 +746,8 @@ function languageTypedStrings(value: unknown): OeapiV5LanguageTypedString[] | nu
 }
 
 /**
- * Optional `ext.oecp.applicationInstructions` of an offering (an OECP extension a
- * partner may send, as the OECP read API does): LanguageTypedString[], or an object
+ * Optional `ext.oecp.applicationInstructions` of an offering (an OACC extension a
+ * partner may send, as the OACC read API does): LanguageTypedString[], or an object
  * keyed by language. Anything else is ignored with a warning; absent → `{}`.
  */
 function applicationInstructions(raw: unknown, issues: Issues): Record<string, string> {

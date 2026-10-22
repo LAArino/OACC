@@ -31,7 +31,7 @@ type RoutedRequest = IncomingMessage & {
  * Express keeps `req.route` once a route matched, also while an exception
  * filter answers (401 from a guard, 400 from a pipe). Requests no handler
  * matched are `unmatched`: no route, or Nest's catch-all 404 route
- * (`{/*splat}`; no OECP handler has a wildcard path).
+ * (`{/*splat}`; no OACC handler has a wildcard path).
  */
 export function routeTemplate(req: RoutedRequest): string {
   const path = req.route?.path;

@@ -8,7 +8,7 @@ the public home page and course list, the logo of the site header, the
 partner universities' logos and, optionally, the favicon. It also holds the
 texts of the two legal pages (privacy notice, accessibility statement), see
 [Legal pages](#legal-pages). The alliance holds the
-rights to these pictures (the partners to their logos); they are deployment configuration, not part of OECP.
+rights to these pictures (the partners to their logos); they are deployment configuration, not part of OACC.
 Nothing in this directory except this README is part of the repository (the
 root `.gitignore` excludes it), so the images never end up in a commit or in a
 container image.
@@ -115,7 +115,7 @@ configured.
 
 ## Legal pages
 
-The portal has two public pages whose text is yours, not part of OECP. Each is
+The portal has two public pages whose text is yours, not part of OACC. Each is
 a Markdown file in this directory, one per language (`<lang>` is the 2 or 3
 letter language code of a portal language, in lower case, for example `en`,
 `ca`):
@@ -136,7 +136,7 @@ letter language code of a portal language, in lower case, for example `en`,
   about a minute, as for any new file). So do not put the URL into any
   registration before the text is real.
 - **Privacy notice:** the controller's own text. For Aurora the controller is the
-  Aurora Foundation, so its notice goes here; OECP does not write it for you. This
+  Aurora Foundation, so its notice goes here; OACC does not write it for you. This
   is the URL the SAML federation (Data Protection Code of Conduct) asks for: use
   `https://{portal-host}/en/privacy` as the privacy statement URL in the
   SP metadata. The page is rendered on the server, so it works without

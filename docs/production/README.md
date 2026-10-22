@@ -3,7 +3,7 @@
 
 # Production documents: templates for going live
 
-This folder holds the legal and operational documents an alliance needs before it runs OECP in production with real partner data. They address the backlog item "Docs: GDPR set (RoPA, DPIA, art. 28 contract checklist) and accessibility statement" and the go-live items of spec [§10](../spec-v4.1.md#10-non-functional-requirements) and [§12](../spec-v4.1.md#12-delivery-phases).
+This folder holds the legal and operational documents an alliance needs before it runs OACC in production with real partner data. They address the backlog item "Docs: GDPR set (RoPA, DPIA, art. 28 contract checklist) and accessibility statement" and the go-live items of spec [§10](../spec-v4.1.md#10-non-functional-requirements) and [§12](../spec-v4.1.md#12-delivery-phases).
 
 They are **templates and drafts**, written against release 0.3.0 (the runbook and the RoPA brought up to release 0.8.0) for the first deployment: the **Aurora alliance**, with the **Aurora Foundation as controller** and **Universitat Rovira i Virgili (URV) as processor** hosting the infrastructure [DL 2], and the partner universities as independent controllers of the data they supply [DL 24]. They describe what the software does, as built, so that legal and operations staff do not have to reverse-engineer it. They do not take legal decisions:
 
@@ -19,7 +19,7 @@ Another alliance can reuse the set: replace the names of the Aurora Foundation, 
 
 | Document | What it is | Legal reference |
 |---|---|---|
-| [ropa.md](ropa.md) | Record of processing activities: one entry per processing activity of OECP (administrators, invitations, logging, catalogue publication, ingestion, maintenance, backups), with purposes, legal basis candidates, data, recipients, transfers, retention and security measures | GDPR art. 30 |
+| [ropa.md](ropa.md) | Record of processing activities: one entry per processing activity of OACC (administrators, invitations, logging, catalogue publication, ingestion, maintenance, backups), with purposes, legal basis candidates, data, recipients, transfers, retention and security measures | GDPR art. 30 |
 | [dpia.md](dpia.md) | Data protection impact assessment outline: screening, description, necessity and proportionality, risk register, measures mapped to the implemented controls, residual risk, DPO opinion, sign-off | GDPR art. 35, 36 |
 | [art28-processor-checklist.md](art28-processor-checklist.md) | Checklist for the controller–processor contract between the Aurora Foundation and URV, plus the items of the bilateral access agreements with harvested partners | GDPR art. 28, 32, 33 [DL 14] |
 | [privacy-notice-draft.md](privacy-notice-draft.md) | Draft privacy notice for the Aurora pilot, built from the RoPA and the DPIA, for the Foundation to review, complete and publish at `/en/privacy` | GDPR art. 13, 14 |
@@ -41,7 +41,7 @@ A **privacy notice** (GDPR art. 13 and 14) is written for the public by the cont
 | **Processor's DPO** | `[TO COMPLETE: DPO of URV]` | Review of the art. 28 contract and of the security annex | — |
 | **Hosting operator** | URV IT team `[TO COMPLETE: unit]` | Runbook (hosts, contacts, backup schedule, monitoring), the technical facts in the RoPA and the DPIA (retention as configured, measures as deployed) | — |
 | **Partner universities** | UIBK, UICE, VUA, UDE (harvested) and URV, UNINA, UP, CBS, UPEC (manual channels) | Access agreement (harvested partners); confirmation that published instructor names and contact mailboxes match their own catalogues and their own privacy notices [DL 21 a] | Their part of the access agreement |
-| **OECP maintainers** | Project owner | Keep these templates accurate for each release; answer technical questions | — |
+| **OACC maintainers** | Project owner | Keep these templates accurate for each release; answer technical questions | — |
 
 The partner universities are **independent controllers**: each is responsible for the data it supplies (instructors, contacts) and the Aurora Foundation for the published catalogue; there is no joint controllership under art. 26 [DL 24]. Each bilateral access agreement records it (section B of the [art. 28 checklist](art28-processor-checklist.md#b-access-agreement-with-each-harvested-partner)).
 
@@ -60,7 +60,7 @@ The legal track takes one to three months; the technical track ([Guide A](../onb
 
 ## Keeping the documents current
 
-Review the set at least once a year and whenever one of these happens: a new OECP minor release (check its CHANGELOG for new personal data, new retention jobs or new environment variables), a new partner or a new channel for a partner, the first connected partner identity provider, a change of hosting (including a new backup site), Phase 2 (wallet login, spec §4), or a data breach. Record each review in the table below.
+Review the set at least once a year and whenever one of these happens: a new OACC minor release (check its CHANGELOG for new personal data, new retention jobs or new environment variables), a new partner or a new channel for a partner, the first connected partner identity provider, a change of hosting (including a new backup site), Phase 2 (wallet login, spec §4), or a data breach. Record each review in the table below.
 
 | Date | Reviewed by | Release | Changes |
 |---|---|---|---|

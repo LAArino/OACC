@@ -176,7 +176,7 @@ describe.runIf(describeWithDatabase === 'run')('Organizations admin API (Postgre
       roles: new Set(['default-roles-oecp', 'partner_admin']),
       requiredActions: ['CONFIGURE_TOTP'],
     });
-    // A user of another organization and one without any OECP attribute.
+    // A user of another organization and one without any OACC attribute.
     keycloak.addUser({
       id: URV_SUB,
       email: 'aurora@urv.example',

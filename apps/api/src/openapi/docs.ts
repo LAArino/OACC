@@ -41,8 +41,8 @@ const THEME = {
 };
 
 const TITLES: Readonly<Record<ApiName, string>> = {
-  public: 'OECP public API v1',
-  admin: 'OECP admin API v1',
+  public: 'OACC public API v1',
+  admin: 'OACC admin API v1',
 };
 
 export interface DocsAsset {

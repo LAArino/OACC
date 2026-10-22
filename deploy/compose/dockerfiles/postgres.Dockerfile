@@ -8,7 +8,7 @@
 # scripts/restore-drill.sh. Same PostgreSQL minor as the upstream image it
 # replaces, so an existing `postgres_data` volume starts unchanged.
 #
-# Build context: deploy/compose/postgres (bin/ holds the OECP helper scripts).
+# Build context: deploy/compose/postgres (bin/ holds the OACC helper scripts).
 # Packages come from the PGDG apt repository already configured in the
 # upstream image (pgBackRest, MIT) and from Debian (jq, MIT). Both are pinned:
 # bump the ARGs when PGDG or a Debian security update replaces the version
@@ -22,7 +22,7 @@ ARG PGBACKREST_VERSION=2.59.3-1.pgdg13+1
 ARG JQ_VERSION=1.7.1-6+deb13u4
 
 LABEL org.opencontainers.image.title="oecp-postgres" \
-      org.opencontainers.image.description="PostgreSQL 16 with pgBackRest for OECP" \
+      org.opencontainers.image.description="PostgreSQL 16 with pgBackRest for OACC" \
       org.opencontainers.image.licenses="PostgreSQL AND MIT AND EUPL-1.2"
 
 # hadolint ignore=DL3008

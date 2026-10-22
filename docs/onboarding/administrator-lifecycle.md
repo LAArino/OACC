@@ -3,9 +3,9 @@
 
 # The administrator lifecycle: decisions and defaults
 
-How an administrator account comes into OECP, how it is used and how it
+How an administrator account comes into OACC, how it is used and how it
 leaves, with the choices the alliance has at each step and the configuration
-OECP ships with. Written for the alliance office and the hosting operator;
+OACC ships with. Written for the alliance office and the hosting operator;
 the step-by-step screens are in [Guide A](alliance.md) (steps 3, 8 and 9) and
 the technical detail in [spec v4.1 §2](../spec-v4.1.md#2-actors-and-roles).
 Decisions: [DL 22](../decisions-log.md) (sign-in mode), [DL 23] (audit
@@ -23,7 +23,7 @@ invite ──▶ accept (first sign-in, MFA) ──▶ active administrator
                                                       account deleted M months after the removal
 ```
 
-| Step | Who | What OECP does | Where |
+| Step | Who | What OACC does | Where |
 |---|---|---|---|
 | **Invite** | alliance admin | E-mails a personal link (default 7 days, at most 168 h; *Resend* replaces it, *Revoke* stops it). Refused when the organization's identity provider is not enabled in Keycloak. | *Invitations*, organization page |
 | **Accept** | the invitee | Signs in in the organization's mode ([DL 22]: local account with password and TOTP, or the university's IdP plus TOTP), the e-mail must match; gets the role and the organization. | `/en/admin/accept` |
@@ -38,7 +38,7 @@ Every step is audited (`invitation.*`, `admin.revoke`, `admin.dormant_revoke`,
 e-mail address for 36 months [DL 23] and the deletion rows carry the Keycloak
 user id only.
 
-**Lost password or authenticator (local accounts).** While the set-up is pending, the organization's *Administrators* panel offers *Resend set-up e-mail*. Once the account is set up, OECP has no self-service reset (no open "forgot password", decision 22): the hosting operator resets the credential in the Keycloak admin console (runbook [§6](../production/runbook.md#6-identity-operations)), or an alliance admin *removes* the administrator and invites them again, which creates a fresh set-up e-mail. Federated accounts are reset by the university.
+**Lost password or authenticator (local accounts).** While the set-up is pending, the organization's *Administrators* panel offers *Resend set-up e-mail*. Once the account is set up, OACC has no self-service reset (no open "forgot password", decision 22): the hosting operator resets the credential in the Keycloak admin console (runbook [§6](../production/runbook.md#6-identity-operations)), or an alliance admin *removes* the administrator and invites them again, which creates a fresh set-up e-mail. Federated accounts are reset by the university.
 
 ## Defaults as shipped
 
@@ -60,9 +60,9 @@ appear 180 days after that upgrade at the earliest.
 **Dormancy: keep the dry run or switch it on.** Dry run is the safe start:
 nobody loses access without a person looking at the list. Switching it on
 (`OECP_DORMANCY_DRY_RUN=false`, then recreate `worker`) makes the rule bind:
-an administrator who has not used OECP for six months loses the role and must
+an administrator who has not used OACC for six months loses the role and must
 be re-invited. Shorter periods (90 days) suit an alliance where every
-administrator works in OECP monthly; longer ones (365 days) suit a catalogue
+administrator works in OACC monthly; longer ones (365 days) suit a catalogue
 updated once a year. Whatever the period, the *Administrators* panel still
 shows the last sign-in, and *Remove* works at any time.
 

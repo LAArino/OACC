@@ -1,10 +1,10 @@
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 <script setup lang="ts">
 // Administrators of one organization (spec §8 "Administrators"): the Keycloak
-// users holding an OECP role there. Removing takes the role away (the account
+// users holding an OACC role there. Removing takes the role away (the account
 // itself stays); nobody can remove themselves, and the last alliance
 // administrator cannot be removed (the API enforces both; the page explains them
-// up front). Local OECP accounts can get their set-up e-mail (password and
+// up front). Local OACC accounts can get their set-up e-mail (password and
 // second factor) again.
 import type { AdminAccount } from '~/types/admin';
 

@@ -1048,7 +1048,7 @@ describe('organizations', () => {
         'Universitat Rovira i Virgili',
         '4 published of 4',
         '0',
-        'OECP accounts',
+        'OACC accounts',
         'Active',
       ],
       [
@@ -1059,7 +1059,7 @@ describe('organizations', () => {
         'None',
         '9 published of 12',
         '2',
-        'OECP accounts',
+        'OACC accounts',
         'Active',
       ],
     ]);

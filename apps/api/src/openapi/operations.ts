@@ -509,7 +509,7 @@ export const ADMIN_OPERATIONS: readonly OperationSpec[] = [
     tag: 'Administrators',
     summary: 'Revoke an administrator',
     description:
-      'Spec §2.2: the OECP roles and `oecp_org_id` are removed and the user sessions ended. Audited `admin.revoke`.',
+      'Spec §2.2: the OACC roles and `oecp_org_id` are removed and the user sessions ended. Audited `admin.revoke`.',
     access: [A],
     params: ['OrgId', 'AdminSub'],
     responses: { 204: { description: 'Revoked.' } },
@@ -896,7 +896,7 @@ export const ADMIN_OPERATIONS: readonly OperationSpec[] = [
     operationId: 'adminPutCourseImage',
     tag: 'Courses',
     summary: 'Upload or replace the course image',
-    description: `Decision 27: one image per course, stored by OECP. \`multipart/form-data\` with \`file\` (JPEG, PNG or WebP, sniffed from the bytes; at most ${COURSE_IMAGE_MAX_BYTES / 1024 / 1024} MiB and 40 megapixels), \`alt_en\` (required unless \`decorative=true\`, at most 300 characters), \`decorative\` (\`true\`/\`false\`, default \`false\`) and \`credit\` (at most 300 characters). Re-encoded to WebP without metadata: \`lg\` inside 1600×1600 and \`sm\` inside 640×640, never upscaled; served at \`/media/courses/{id}/{key}.lg.webp\` and \`.sm.webp\`. Replaces (and deletes) the previous image. Works on harvested courses too: the harvester never touches the image. Audited \`course.image_set\`.`,
+    description: `Decision 27: one image per course, stored by OACC. \`multipart/form-data\` with \`file\` (JPEG, PNG or WebP, sniffed from the bytes; at most ${COURSE_IMAGE_MAX_BYTES / 1024 / 1024} MiB and 40 megapixels), \`alt_en\` (required unless \`decorative=true\`, at most 300 characters), \`decorative\` (\`true\`/\`false\`, default \`false\`) and \`credit\` (at most 300 characters). Re-encoded to WebP without metadata: \`lg\` inside 1600×1600 and \`sm\` inside 640×640, never upscaled; served at \`/media/courses/{id}/{key}.lg.webp\` and \`.sm.webp\`. Replaces (and deletes) the previous image. Works on harvested courses too: the harvester never touches the image. Audited \`course.image_set\`.`,
     access: PA,
     params: ['CourseId'],
     body: 'image-multipart',

@@ -66,6 +66,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Product name**: Open Alliance Course Catalogue (OACC), subtitle 'the open
+  course catalogue for European University alliances' (decision 30). The visible
+  name changes in the documentation, the portal and login texts and
+  `publiccode.yml`; the technical identifiers (`OECP_*` variables, realm `oecp`,
+  packages `@oecp/*`, images `oecp/*`, error codes `oecp.*`, `ext.oecp`) are
+  unchanged and `oecp` is the internal code name. No action for operators; a
+  deployment's `OECP_REALM_DISPLAY_NAME` keeps its own value.
 - **Docs from the first production deployment (Aurora pilot at URV).**
   `secrets/README.md`: rotation of `grafana_admin_password` (read only at
   Grafana's first start; `grafana cli admin reset-admin-password`, verified
@@ -301,7 +308,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.0] - 2026-10-16
 
-Content release: images per course (decision 27) stored and served by OECP with CSV template 1.3, favicon and partner logos from the branding directory, the hosting operator guide verified on a clean install, the public screenshots retaken, every document in English, decisions 27 and the repository renamed to LAArino/OECP.
+Content release: images per course (decision 27) stored and served by OECP with CSV template 1.3, favicon and partner logos from the branding directory, the hosting operator guide verified on a clean install, the public screenshots retaken, every document in English, decisions 27 and the repository renamed to LAArino/OACC.
 
 ### Upgrade notes
 
@@ -1344,14 +1351,14 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/OECP/compare/v0.10.0...main
-[0.10.0]: https://github.com/LAArino/OECP/releases/tag/v0.10.0
-[0.9.0]: https://github.com/LAArino/OECP/releases/tag/v0.9.0
-[0.8.0]: https://github.com/LAArino/OECP/releases/tag/v0.8.0
-[0.7.0]: https://github.com/LAArino/OECP/releases/tag/v0.7.0
-[0.6.0]: https://github.com/LAArino/OECP/releases/tag/v0.6.0
-[0.5.0]: https://github.com/LAArino/OECP/releases/tag/v0.5.0
-[0.4.0]: https://github.com/LAArino/OECP/releases/tag/v0.4.0
-[0.3.0]: https://github.com/LAArino/OECP/releases/tag/v0.3.0
-[0.2.0]: https://github.com/LAArino/OECP/releases/tag/v0.2.0
-[0.1.0]: https://github.com/LAArino/OECP/releases/tag/v0.1.0
+[Unreleased]: https://github.com/LAArino/OACC/compare/v0.10.0...main
+[0.10.0]: https://github.com/LAArino/OACC/releases/tag/v0.10.0
+[0.9.0]: https://github.com/LAArino/OACC/releases/tag/v0.9.0
+[0.8.0]: https://github.com/LAArino/OACC/releases/tag/v0.8.0
+[0.7.0]: https://github.com/LAArino/OACC/releases/tag/v0.7.0
+[0.6.0]: https://github.com/LAArino/OACC/releases/tag/v0.6.0
+[0.5.0]: https://github.com/LAArino/OACC/releases/tag/v0.5.0
+[0.4.0]: https://github.com/LAArino/OACC/releases/tag/v0.4.0
+[0.3.0]: https://github.com/LAArino/OACC/releases/tag/v0.3.0
+[0.2.0]: https://github.com/LAArino/OACC/releases/tag/v0.2.0
+[0.1.0]: https://github.com/LAArino/OACC/releases/tag/v0.1.0

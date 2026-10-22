@@ -121,7 +121,7 @@ export function buildProgram(
   onResult: (code: ExitCode) => void,
 ): Command {
   const program = new Command('oecp')
-    .description('Open European Campus Portal operations (run inside the api container)')
+    .description('Open Alliance Course Catalogue operations (run inside the api container)')
     .exitOverride()
     .configureOutput({ writeOut: output.writeOut, writeErr: output.writeErr })
     .showHelpAfterError()

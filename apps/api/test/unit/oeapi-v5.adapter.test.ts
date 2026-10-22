@@ -337,7 +337,7 @@ describe('OeapiV5Adapter.mapCourse: instructors and handbook texts (decision 21)
     ]);
   });
 
-  it('reads ext.oecp.instructors and ext.oecp.texts (the OECP read API extension)', () => {
+  it('reads ext.oecp.instructors and ext.oecp.texts (the OACC read API extension)', () => {
     const result = withMembers({
       ext: {
         oecp: {

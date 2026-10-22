@@ -3,7 +3,7 @@
     "skipToContent": "Skip to main content"
   },
   "site": {
-    "name": "Open European Campus",
+    "name": "Open Alliance Course Catalogue",
     "footer": "Course catalogue of {alliance}. This site sets no cookies and uses no analytics.",
     "legalNav": "Legal",
     "privacy": "Privacy notice",
@@ -433,7 +433,7 @@
         "button": "Approve host {host}",
         "askAlliance": "Ask an alliance administrator to approve this host; harvesting and connection tests start after the approval.",
         "confirmTitle": "Approve this host?",
-        "confirmMessage": "Confirm that {host} belongs to this organization. OECP will then send requests with the stored credential to it.",
+        "confirmMessage": "Confirm that {host} belongs to this organization. OACC will then send requests with the stored credential to it.",
         "done": "Host {host} approved."
       },
       "formHeading": "Settings",
@@ -446,7 +446,7 @@
         "enabled": "Harvesting"
       },
       "channels": {
-        "form": "Web form: courses are edited in OECP",
+        "form": "Web form: courses are edited in OACC",
         "csv": "CSV upload: courses come from uploaded files",
         "oeapi": "OEAPI harvest: courses are read from the university's OEAPI v5 endpoint"
       },
@@ -528,9 +528,9 @@
         "blocked": "The connection cannot be tested yet",
         "hints": {
           "unauthorized": "The endpoint refused the credential: check the authentication method and the credential.",
-          "unreachable": "The endpoint could not be reached: check that the university's firewall allows OECP, and the DNS name.",
+          "unreachable": "The endpoint could not be reached: check that the university's firewall allows OACC, and the DNS name.",
           "timeout": "The endpoint did not answer in time: check the firewall and the endpoint's load.",
-          "address_refused": "The host name resolves to a private address, which OECP never calls.",
+          "address_refused": "The host name resolves to a private address, which OACC never calls.",
           "invalid_payload": "The answer of /courses is not an OEAPI v5 page: check the path prefix and the version in the base URL."
         }
       },
@@ -848,7 +848,7 @@
       "removed": "Image removed.",
       "failed": "The image could not be saved.",
       "removeTitle": "Remove the image?",
-      "removeMessage": "The image of {code} is deleted from OECP, with its alternative text and credit. The course page shows the partner logo line instead.",
+      "removeMessage": "The image of {code} is deleted from OACC, with its alternative text and credit. The course page shows the partner logo line instead.",
       "errors": {
         "fileRequired": "Choose an image file.",
         "fileType": "Choose a JPEG, PNG or WebP image.",
@@ -1038,7 +1038,7 @@
       "lastLogin": "Last sign-in",
       "actionsColumn": "Actions",
       "you": "(you)",
-      "localAccount": "OECP account",
+      "localAccount": "OACC account",
       "brokered": "University login ({idp})",
       "never": "Never",
       "active": "Active",
@@ -1076,7 +1076,7 @@
       "resultCount": "{n} organization shown | {n} organization shown | {n} organizations shown",
       "caption": "{n} of {total} organizations, by name",
       "coursesCount": "{published} published of {total}",
-      "localAccounts": "OECP accounts",
+      "localAccounts": "OACC accounts",
       "active": "Active",
       "deleted": "Deleted",
       "noParent": "None (top level)",
@@ -1173,7 +1173,7 @@
         "isPartner": "Partner universities have administrators and courses of their own; the alliance entry is not a partner.",
         "nameLang": "A language code such as de or ca.",
         "schac": "The university's domain as asserted by its identity provider, e.g. uibk.ac.at. Verify it against the federation metadata.",
-        "idpAlias": "Alias of the university's SAML identity provider in Keycloak (normally the slug; lower-case letters, digits, . _ -). Leave empty while its administrators use OECP accounts.",
+        "idpAlias": "Alias of the university's SAML identity provider in Keycloak (normally the slug; lower-case letters, digits, . _ -). Leave empty while its administrators use OACC accounts.",
         "pic": "Participant Identification Code: 9 digits.",
         "extId": "For OEAPI partners: the primaryCode of the root organization of the endpoint.",
         "country": "Two capital letters, e.g. AT.",

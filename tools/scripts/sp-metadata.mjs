@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
 // SPDX-License-Identifier: EUPL-1.2
 //
-// Multi-ACS SAML SP metadata of the OECP realm: one EntityDescriptor with an
+// Multi-ACS SAML SP metadata of the OACC realm: one EntityDescriptor with an
 // Assertion Consumer Service per partner IdP alias, for the federation
 // registration (SIR/RedIRIS, eduGAIN; spec §4). User documentation:
 // identity/keycloak/scripts/sp-metadata.md. No dependencies (Node 22).

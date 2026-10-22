@@ -14,7 +14,7 @@ import {
 } from '@oecp/schemas';
 import { toIso6392T } from './languages.js';
 
-/** `consumerKey` of OECP's own consumer object. */
+/** `consumerKey` of OACC's own consumer object. */
 export const OECP_CONSUMER_KEY = 'oecp';
 
 export type LanguageTypedString = Pick<OeapiV5LanguageTypedString, 'language' | 'value'>;
@@ -196,7 +196,7 @@ export interface V5Course {
       contactEmail: string | null;
       /**
        * Teaching staff (decision 21a). Not v5 `coordinators`, which are `Person`
-       * objects (or their ids); OECP stores names only.
+       * objects (or their ids); OACC stores names only.
        */
       instructors: string[];
       /** Optional IT Handbook texts (decision 21b); absent when the course has none. */

@@ -8,37 +8,37 @@ For universities whose IT team can spend some days or weeks on an integration bu
 > **Before you start**
 >
 > - The alliance has finished [Guide A](alliance.md) and invited your partner admin, who has accepted (password plus TOTP app, or your university login once it is connected).
->   - **Local accounts** (your university is outside eduGAIN, or its identity provider is not connected yet): two e-mails, Keycloak's set-up e-mail and OECP's invitation link. **Federated**: one e-mail, the invitation link, which takes you to your university's login. Which one applies, and what your identity team must provide: [identity-paths.md](identity-paths.md).
+>   - **Local accounts** (your university is outside eduGAIN, or its identity provider is not connected yet): two e-mails, Keycloak's set-up e-mail and OACC's invitation link. **Federated**: one e-mail, the invitation link, which takes you to your university's login. Which one applies, and what your identity team must provide: [identity-paths.md](identity-paths.md).
 > - You know where course and offering data lives: the student information system (SIS), a course catalogue database, or both.
 > - Someone in IT can query that system and someone in the international or education office can check the result.
 > - Elapsed time: 1–3 weeks for automated CSV; 1–3 months for an OEAPI endpoint, including the access agreement.
 
 ## The two paths
 
-**(a) Build an OEAPI v5 endpoint.** Your system answers OECP's daily harvest. After it is live you follow [Guide B](partner-with-oeapi.md). Technical companion: [API integration guide](../guides/api-integration.md).
+**(a) Build an OEAPI v5 endpoint.** Your system answers OACC's daily harvest. After it is live you follow [Guide B](partner-with-oeapi.md). Technical companion: [API integration guide](../guides/api-integration.md).
 
 **(b) Generate the CSV files automatically.** A scheduled export from your SIS writes `courses.csv` and `offerings.csv`; a person uploads them in the admin console. Technical companion: [CSV authoring guide](../guides/csv-authoring.md).
 
 | | (a) OEAPI v5 endpoint | (b) Automated CSV |
 |---|---|---|
 | Typical IT effort | 3–8 person-weeks (less with SURF's starter kit or an SIS vendor module) | 3–10 person-days |
-| Who acts each time | Nobody: OECP pulls daily | A partner admin uploads, for example weekly |
+| Who acts each time | Nobody: OACC pulls daily | A partner admin uploads, for example weekly |
 | Ongoing operation | A public `https` service, credential, allowlist, monitoring | A scheduled job and an upload routine |
-| Reuse elsewhere | Same endpoint serves eduXchange and other consumers | OECP only |
+| Reuse elsewhere | Same endpoint serves eduXchange and other consumers | OACC only |
 | Removing a course | Automatic when it disappears for three complete harvests | Explicit: set `status` to `withdrawn` |
 | Alliance attributes, course kind, application instructions, alliance seats | Not expressible: added by hand as overrides | Columns in the file (template 1.1) |
-| Instructors and the optional handbook texts (methods, literature…) | Instructors from `coordinators` expanded with names, or the OECP extensions `ext.oecp.instructors` and `ext.oecp.texts`; else overrides | Columns in the file (template 1.2) |
+| Instructors and the optional handbook texts (methods, literature…) | Instructors from `coordinators` expanded with names, or the OACC extensions `ext.oecp.instructors` and `ext.oecp.texts`; else overrides | Columns in the file (template 1.2) |
 | Legal step | Bilateral access agreement | None beyond the alliance's own rules |
 | Mixing with the web form | Form can only override | Form and CSV write the same records |
 
-Choose (a) if your university wants an OEAPI endpoint anyway (national registries, eduXchange, other alliances) or has many courses that change often. Choose (b) if OECP is the only consumer, if you need the alliance attributes in your own data, or if you need to start this semester. You can start with (b) and switch to (a) later: if your OEAPI `primaryCode` values equal the CSV `course_code` and `offering_code` values, the first harvest takes over the existing records instead of duplicating them.
+Choose (a) if your university wants an OEAPI endpoint anyway (national registries, eduXchange, other alliances) or has many courses that change often. Choose (b) if OACC is the only consumer, if you need the alliance attributes in your own data, or if you need to start this semester. You can start with (b) and switch to (a) later: if your OEAPI `primaryCode` values equal the CSV `course_code` and `offering_code` values, the first harvest takes over the existing records instead of duplicating them.
 
 ## Path (a): build an OEAPI v5 endpoint
 
 **Who:** partner IT, with the partner admin for data checks.
 
-1. **Use the specification and tooling.** Implement OEAPI **v5.0** from SURF's `open-education-api/specification` repository; the `oeapi-endpoint-quickstart` starter kit of the open-education-api organisation (SURF) implements v5. OECP does not read v6 in 0.10.0.
-2. **Implement the resources OECP reads**, with paging (`pageSize`, `pageNumber`, `hasNextPage`):
+1. **Use the specification and tooling.** Implement OEAPI **v5.0** from SURF's `open-education-api/specification` repository; the `oeapi-endpoint-quickstart` starter kit of the open-education-api organisation (SURF) implements v5. OACC does not read v6 in 0.10.0.
+2. **Implement the resources OACC reads**, with paging (`pageSize`, `pageNumber`, `hasNextPage`):
 
    | Request | Purpose |
    |---|---|
@@ -48,9 +48,9 @@ Choose (a) if your university wants an OEAPI endpoint anyway (national registrie
    | `GET /courses/{courseId}/offerings?since=<date>` | Offerings of a course from one year back |
    | `GET /offerings/{offeringId}?expand=academicSession` | Offering detail with its academic session |
 
-   Honour the `consumer` query parameter (OECP sends `consumer=eduxchange` unless agreed otherwise) and return only courses meant for the alliance. Persons, enrolments and `coordinators` are never requested.
-3. **Fill the fields OECP maps**: a course `primaryCode`, `name` (with English), `studyLoad` in ECTS, `fieldsOfStudy` (ISCED-F), `level`, `teachingLanguage`, `modeOfDelivery`, `link`; per offering `primaryCode`, `startDate`, `endDate`, `enrollStartDate`, `enrollEndDate`, `teachingLanguage`, `modeOfDelivery`, `link`, and optionally student numbers. Mapping rules: [API integration guide](../guides/api-integration.md).
-4. **Compare with the reference.** `tools/oeapi-mock` in this repository is a small v5 server shaped exactly like what OECP harvests, with a validator against the v5.0 OpenAPI document ([README](../../tools/oeapi-mock/README.md)). Its responses are a good model for yours.
+   Honour the `consumer` query parameter (OACC sends `consumer=eduxchange` unless agreed otherwise) and return only courses meant for the alliance. Persons, enrolments and `coordinators` are never requested.
+3. **Fill the fields OACC maps**: a course `primaryCode`, `name` (with English), `studyLoad` in ECTS, `fieldsOfStudy` (ISCED-F), `level`, `teachingLanguage`, `modeOfDelivery`, `link`; per offering `primaryCode`, `startDate`, `endDate`, `enrollStartDate`, `enrollEndDate`, `teachingLanguage`, `modeOfDelivery`, `link`, and optionally student numbers. Mapping rules: [API integration guide](../guides/api-integration.md).
+4. **Compare with the reference.** `tools/oeapi-mock` in this repository is a small v5 server shaped exactly like what OACC harvests, with a validator against the v5.0 OpenAPI document ([README](../../tools/oeapi-mock/README.md)). Its responses are a good model for yours.
 5. **Publish it** over `https` on port 443 at a public address, with a read-only credential, then continue with [Guide B](partner-with-oeapi.md) from step 2.
 
 ## Path (b): automate the CSV files
@@ -82,7 +82,7 @@ Your organization's authoritative channel can stay at its default (`form`); CSV 
 | Item | Rule |
 |---|---|
 | English title | Required to publish. A course without one stays draft |
-| Other languages | Optional; each language needs its own title. OECP never machine-translates |
+| Other languages | Optional; each language needs its own title. OACC never machine-translates |
 | ISCED-F | ISCED-F 2013 codes of 2–6 digits, primary first, no duplicates; the first two digits must be a broad field |
 | ECTS | Greater than 0 and at most 120; dot as decimal separator |
 | Dates | Real calendar dates in the offering's local time zone; start ≤ end; application start ≤ deadline ≤ end |
@@ -90,7 +90,7 @@ Your organization's authoritative channel can stay at its default (`form`); CSV 
 | Delivery modes | `presential`, `online`, `hybrid`, `blended`, `coil`, `joint_delivery` (OEAPI: `online`, `distance-learning`, `on campus`, `situated`, `hybrid`) |
 | Links | `https` only; others are dropped or refused |
 | Contacts | Functional mailboxes, never personal names |
-| Seats | Optional; if you send available seats, OECP shows them with the date of the data |
+| Seats | Optional; if you send available seats, OACC shows them with the date of the data |
 
 ## Checklist
 

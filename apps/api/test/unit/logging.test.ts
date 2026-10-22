@@ -15,7 +15,7 @@ import {
 const ADDRESS = '203.0.113.7';
 const salt = Buffer.alloc(32, 1);
 
-/** Runs one request through pino-http with the OECP options; returns the log lines. */
+/** Runs one request through pino-http with the OACC options; returns the log lines. */
 async function logged(
   logClientAddresses: boolean,
   headers: Record<string, string>,

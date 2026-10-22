@@ -5,7 +5,7 @@ import type { AdminRole } from '@oecp/schemas';
 import type { AdminPrincipal } from './claims.js';
 
 /**
- * Marks the endpoints that accept a token without OECP roles: invitation
+ * Marks the endpoints that accept a token without OACC roles: invitation
  * acceptance (spec §2.1 step 4) and the read-only `GET /me` used by its page.
  */
 export const AllowRoleless = Reflector.createDecorator<void, true>({ transform: () => true });

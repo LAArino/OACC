@@ -26,7 +26,7 @@ const isAdminRole = (name: string): name is AdminRole => adminRole.safeParse(nam
 /**
  * Administrators of an organization (spec §2, §2.2): Keycloak users whose
  * attribute `oecp_org_id` names it. Roles are read from and removed in Keycloak;
- * OECP stores no administrator table.
+ * OACC stores no administrator table.
  */
 @Injectable()
 export class OrganizationAdminsService {
@@ -78,7 +78,7 @@ export class OrganizationAdminsService {
   }
 
   /**
-   * Revocation (spec §2.2): removes the OECP realm roles and `oecp_org_id`, then
+   * Revocation (spec §2.2): removes the OACC realm roles and `oecp_org_id`, then
    * ends the user's sessions. Refused for the caller (409
    * `oecp.admin.cannot_remove_self`) and for the last `alliance_admin` (409
    * `oecp.admin.last_alliance_admin`). The Keycloak account itself is kept.

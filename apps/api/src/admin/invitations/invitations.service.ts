@@ -465,9 +465,9 @@ export class InvitationsService {
     try {
       await this.mailer.send({
         to,
-        subject: `Invitation: ${organizationName} administrator, Open European Campus Portal`,
+        subject: `Invitation: ${organizationName} administrator, Open Alliance Course Catalogue`,
         text: [
-          `You have been invited as ${role} of ${organizationName} on the Open European Campus Portal.`,
+          `You have been invited as ${role} of ${organizationName} on the Open Alliance Course Catalogue.`,
           '',
           'Open this link to sign in and accept the invitation:',
           link,

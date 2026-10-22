@@ -4,7 +4,7 @@
 # OEAPI v5.0 mock partner
 
 A simulated partner university that serves an **Open Education API v5.0**
-endpoint with the **`eduxchange` consumer profile**, so the OECP harvester
+endpoint with the **`eduxchange` consumer profile**, so the OACC harvester
 (spec v4.1 §6.2) can be developed, tested and demonstrated without real
 partner credentials. None of the four Aurora partners publishes an OEAPI URL
 (`docs/research/partner-oeapi-endpoints.md`), so this is the only endpoint
@@ -172,7 +172,7 @@ Shapes the harvester must handle everywhere:
   "aurora", theme, selection, type, visibleForOwnStudents}]}]`; offering
   `consumers` carry `alliances: [{name: "aurora", enrollmentUrl}]`. `aurora` is
   **not** in the eduXchange profile's alliance enum (`ewuu`, `lde`, `euroteq`,
-  `kom`), matching today's reality (spec §6.2.3: OECP does not filter on it).
+  `kom`), matching today's reality (spec §6.2.3: OACC does not filter on it).
 - Offerings reference `academicSession` and `course` by id unless expanded,
   and carry `offeringType: "course"`, `startDate`, `endDate`,
   `enrollStartDate`, `enrollEndDate`, `maxNumberStudents`,

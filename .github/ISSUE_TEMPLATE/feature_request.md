@@ -13,7 +13,7 @@ labels: [enhancement, triage]
 
 ## Proposal
 
-<!-- What should OECP do? Keep it alliance-agnostic (spec v4.1 §1). -->
+<!-- What should OACC do? Keep it alliance-agnostic (spec v4.1 §1). -->
 
 ## Alternatives considered
 

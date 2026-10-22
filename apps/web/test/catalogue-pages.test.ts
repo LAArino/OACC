@@ -281,7 +281,7 @@ describe('site header logo', () => {
   it('shows the text brand when no logo is configured', async () => {
     const w = await mountSuspended(DefaultLayout, { route: '/en', slots });
     const brand = w.find('a.site-header__brand');
-    expect(brand.text()).toBe('Open European Campus');
+    expect(brand.text()).toBe('Open Alliance Course Catalogue');
     expect(brand.find('img').exists()).toBe(false);
   });
 

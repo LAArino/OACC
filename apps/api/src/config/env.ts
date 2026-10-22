@@ -127,7 +127,7 @@ export const envSchema = z.object({
    * offerings; organizations without remaining children).
    */
   OECP_RETENTION_SOFT_DELETED_MONTHS: z.coerce.number().int().min(1).max(120).default(12),
-  /** Spec §2.2: OECP roles are removed after this many days without activity. */
+  /** Spec §2.2: OACC roles are removed after this many days without activity. */
   OECP_DORMANCY_DAYS: z.coerce.number().int().min(30).max(3650).default(180),
   /**
    * Spec §2.2: when true (the default), the dormancy job only reports the
@@ -138,7 +138,7 @@ export const envSchema = z.object({
     .default('true')
     .transform((v) => v === 'true'),
   /**
-   * Spec §2.2, §10: Keycloak accounts without an OECP role are deleted this many
+   * Spec §2.2, §10: Keycloak accounts without an OACC role are deleted this many
    * months after their last role removal (revocation or dormancy). At most
    * `OECP_RETENTION_AUDIT_MONTHS`, since the audit rows are the evidence.
    */

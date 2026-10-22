@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-# Onboarding to OECP
+# Onboarding to OACC
 
 These guides take an alliance and its universities from "we want a shared course catalogue" to "our courses are published and stay current". They describe **release 0.10.0** as it is. Where something is planned but not built, they say so ("not yet available in 0.10.0"). The as-built specification is [spec v4.1](../spec-v4.1.md); the decisions behind these guides are rows 2, 3, 4, 12, 13, 14, 15, 17, 22, 24 and 25 of the [decisions log](../decisions-log.md).
 
@@ -9,7 +9,7 @@ These guides take an alliance and its universities from "we want a shared course
 >
 > - Know your role: alliance (Foundation or secretariat), hosting operator, partner admin (the person responsible for a university's course data) or partner IT.
 > - Know how your university can deliver course data today: an OEAPI v5 endpoint, an export from the student information system (SIS), or only people and spreadsheets.
-> - OECP never handles applications and stores no student data. It publishes course and offering descriptions.
+> - OACC never handles applications and stores no student data. It publishes course and offering descriptions.
 
 ## Which guide should I read?
 
@@ -19,7 +19,7 @@ Are you the IT team that installs and runs the server for the alliance?
 │         (then Guide A, steps 3–6, together with the alliance)
 └── No
     │
-    Are you setting up OECP for the whole alliance (governance, identity, organizations)?
+    Are you setting up OACC for the whole alliance (governance, identity, organizations)?
     ├── Yes → Guide A: alliance.md
     └── No, I represent one university
         │
@@ -57,7 +57,7 @@ The technical companions, written for the people who prepare the data, are:
 
 ## The model on one page
 
-**One deployment per alliance.** An alliance runs one OECP instance: one public catalogue at its own hostname, one Keycloak realm for administrators, one database. Alliance name, member universities and course attributes are configuration, not code.
+**One deployment per alliance.** An alliance runs one OACC instance: one public catalogue at its own hostname, one Keycloak realm for administrators, one database. Alliance name, member universities and course attributes are configuration, not code.
 
 **Organizations.** Every university is an *organization* with a short `slug` (for example `uibk`), names in English and its own languages, a country, a default time zone and its `schacHomeOrganization` domain. The alliance itself is also an organization (for example `aurora`); it can publish its own courses. Organizations are created from a seed file by the hosting operator (`oecp seed-organizations`) or by an alliance admin on the *Organizations* page.
 
@@ -70,13 +70,13 @@ The technical companions, written for the people who prepare the data, are:
 
 Nobody signs up. Administrators are **invited** by e-mail; the first alliance admin is created from the command line. Roles are never derived from what a university's login system says.
 
-**Sign-in mode per organization** [DL 22]. Each organization signs in one way, set by its *Identity provider alias*: none means local accounts (the panel's *OECP accounts*), the permanent mode of the alliance organization and of universities outside eduGAIN, and the interim mode of universities in eduGAIN whose identity provider is not connected yet; an alias means the university's own login through eduGAIN. An organization can move from local to federated later; a mix of local and federated administrators within one organization is not supported ([Guide A, step 3](alliance.md#3-identity)). Both paths side by side, with who does what: [sign-in paths](identity-paths.md).
+**Sign-in mode per organization** [DL 22]. Each organization signs in one way, set by its *Identity provider alias*: none means local accounts (the panel's *OACC accounts*), the permanent mode of the alliance organization and of universities outside eduGAIN, and the interim mode of universities in eduGAIN whose identity provider is not connected yet; an alias means the university's own login through eduGAIN. An organization can move from local to federated later; a mix of local and federated administrators within one organization is not supported ([Guide A, step 3](alliance.md#3-identity)). Both paths side by side, with who does what: [sign-in paths](identity-paths.md).
 
 **Three channels.** A university feeds its courses through one of:
 
 | Channel | How it works | Effort for the university |
 |---|---|---|
-| **A. OEAPI harvest** | OECP's worker pulls the university's OEAPI v5 endpoint once a day (03:00 Brussels time by default) | Low, if the endpoint exists |
+| **A. OEAPI harvest** | OACC's worker pulls the university's OEAPI v5 endpoint once a day (03:00 Brussels time by default) | Low, if the endpoint exists |
 | **B. CSV upload** | Someone uploads `courses.csv` and `offerings.csv` in the admin console; files are checked in the browser and on the server, all or nothing | Low to medium; can be automated from the SIS |
 | **C. Web form** | Someone enters each course and offering in a step-by-step wizard | Medium per course; no IT needed |
 

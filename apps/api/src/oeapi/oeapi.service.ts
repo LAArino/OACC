@@ -67,7 +67,7 @@ export class OeapiService {
     return { ctx: { alliance, today: utcToday(this.clock()), baseUrl }, orgs };
   }
 
-  /** v5 `consumer`: OECP serves its own consumer only; any other selects nothing. */
+  /** v5 `consumer`: OACC serves its own consumer only; any other selects nothing. */
   private foreignConsumer(consumer: string | undefined): boolean {
     return consumer !== undefined && consumer !== OECP_CONSUMER_KEY;
   }

@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
 # SPDX-License-Identifier: EUPL-1.2
 #
-# OECP backup job (spec §10 "Backups"), run by the `backup` service (profile
+# OACC backup job (spec §10 "Backups"), run by the `backup` service (profile
 # `backup`) of deploy/compose/compose.yaml.
 #
 #   oecp-backup run              scheduler (the service's command)

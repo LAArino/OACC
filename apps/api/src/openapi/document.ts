@@ -37,7 +37,7 @@ export const OPENAPI_FILE_NAMES: Readonly<Record<ApiName, string>> = {
   admin: 'oecp-admin-api.openapi.json',
 };
 
-const SPEC_URL = 'https://github.com/LAArino/OECP/blob/main/docs/spec-v4.1.md';
+const SPEC_URL = 'https://github.com/LAArino/OACC/blob/main/docs/spec-v4.1.md';
 const PROBLEM_JSON = 'application/problem+json';
 /** `Cache-Control` of the served documents. */
 export const OPENAPI_CACHE = 'public, max-age=3600';
@@ -394,7 +394,7 @@ const PUBLIC_DESCRIPTION = `Anonymous, read-only catalogue API used by the porta
 
 ${COMMON_DESCRIPTION}`;
 
-const ADMIN_DESCRIPTION = `Administration API of the dashboard (spec §8): invitations, organizations and their administrators, Channel A integration settings and sync runs, Channel B CSV uploads, Channel C course and offering writes with overrides, network status and maintenance jobs. Bearer-only (spec §4, \`bearerAuth\`); the roles allowed on each operation are listed in the extension \`x-oecp-roles\` (\`partner_admin\` limited to its organization and sub-units, \`alliance_admin\` everywhere, \`role-less\` a valid token without OECP roles, \`anonymous\` no token).
+const ADMIN_DESCRIPTION = `Administration API of the dashboard (spec §8): invitations, organizations and their administrators, Channel A integration settings and sync runs, Channel B CSV uploads, Channel C course and offering writes with overrides, network status and maintenance jobs. Bearer-only (spec §4, \`bearerAuth\`); the roles allowed on each operation are listed in the extension \`x-oecp-roles\` (\`partner_admin\` limited to its organization and sub-units, \`alliance_admin\` everywhere, \`role-less\` a valid token without OACC roles, \`anonymous\` no token).
 
 **Rate limits.** 30 requests/s per client address (burst 60) at the edge proxy (spec §10), plus the application limits of \`sync-now\` and CSV uploads (429 with \`Retry-After\`).
 
@@ -402,7 +402,7 @@ const ADMIN_DESCRIPTION = `Administration API of the dashboard (spec §8): invit
 
 ${COMMON_DESCRIPTION}`;
 
-const BEARER_DESCRIPTION = `Access token (JWT, RS256) issued by the OECP Keycloak realm to the \`oecp-admin\` client, sent as \`Authorization: Bearer <token>\`. The API verifies the signature with the realm JWKS and requires:
+const BEARER_DESCRIPTION = `Access token (JWT, RS256) issued by the OACC Keycloak realm to the \`oecp-admin\` client, sent as \`Authorization: Bearer <token>\`. The API verifies the signature with the realm JWKS and requires:
 
 - \`iss\` = the realm issuer (\`KEYCLOAK_ISSUER\`); \`exp\`/\`iat\` (30 s clock tolerance);
 - \`aud\` contains \`oecp-api\`; \`azp\` = \`oecp-admin\`;
@@ -519,13 +519,13 @@ function buildDocument(
   return {
     openapi: '3.1.1',
     info: {
-      title: api === 'public' ? 'OECP public catalogue API' : 'OECP admin API',
+      title: api === 'public' ? 'OACC public catalogue API' : 'OACC admin API',
       version,
       description: api === 'public' ? PUBLIC_DESCRIPTION : ADMIN_DESCRIPTION,
       license: { name: 'EUPL-1.2', identifier: 'EUPL-1.2' },
       'x-oecp-spec': `${SPEC_URL}#${api === 'public' ? '71-routes-and-api' : '82-admin-api-apiadminv1-implemented'}`,
     },
-    externalDocs: { description: 'OECP specification v4.1', url: SPEC_URL },
+    externalDocs: { description: 'OACC specification v4.1', url: SPEC_URL },
     servers: [{ url: '/', description: 'The portal origin (e.g. `https://campus.example.org`).' }],
     // Public: explicitly no authentication; admin: a bearer token unless an operation says otherwise.
     security: api === 'admin' ? [{ bearerAuth: [] }] : [],

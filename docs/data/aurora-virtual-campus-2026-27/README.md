@@ -51,4 +51,4 @@ text; Languages and Culture starts on 2027-01-11 but its first lesson is on
 14 January 2027.
 
 These files are a data snapshot for the first upload, not a maintained
-dataset: the universities keep their courses current in OECP afterwards.
+dataset: the universities keep their courses current in OACC afterwards.

@@ -346,7 +346,7 @@ export class KeycloakAdminService {
   }
 
   /**
-   * Revocation of OECP access (spec §2.2), shared by the administrators panel and
+   * Revocation of OACC access (spec §2.2), shared by the administrators panel and
    * the dormancy job: removes the given realm roles and `oecp_org_id`, then ends
    * every session. The account itself is kept. Each step is idempotent, so a
    * partially failed revocation can be retried.

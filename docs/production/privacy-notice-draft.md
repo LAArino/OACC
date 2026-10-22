@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-# Privacy notice draft: Aurora pilot of OECP
+# Privacy notice draft: Aurora pilot of OACC
 
 **Editor's preface (not part of the notice).** This is a draft for the Aurora Foundation, written from the [RoPA](ropa.md) and the [DPIA outline](dpia.md) for the pilot at `https://lspurv.urv.cat`. It is not legal advice and takes no legal decision. Every fact that the sources do not contain is marked `[TO COMPLETE: …]` (a value someone must supply) or `[TO CONFIRM: …]` (a statement the sources support only in part). Search for both strings before publishing.
 

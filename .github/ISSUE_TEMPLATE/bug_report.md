@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Something in OECP does not work as specified
+about: Something in OACC does not work as specified
 title: "bug: "
 labels: [bug, triage]
 ---
@@ -32,7 +32,7 @@ Do not paste personal data, tokens, secrets or partner credentials.
 
 ## Environment
 
-- OECP version or commit:
+- OACC version or commit:
 - Deployment: <!-- docker compose (deploy/compose) / other -->
 - Browser and OS (UI issues):
 - Partner / channel (ingestion issues):

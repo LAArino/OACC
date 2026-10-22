@@ -22,7 +22,7 @@ organization:
 # What the user sees at the IdP's consent and discovery pages (MDUI).
 mdui:
   displayName:
-    en: Open European Campus Portal
+    en: Open Alliance Course Catalogue
   description:
     en: Course catalogue of the Aurora alliance. University staff sign in to publish and maintain their institution's courses.
   informationUrl:

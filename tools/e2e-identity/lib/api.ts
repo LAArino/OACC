@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
 // SPDX-License-Identifier: EUPL-1.2
-/** The OECP admin and public APIs as the tests use them. */
+/** The OACC admin and public APIs as the tests use them. */
 import { type Page, request } from '@playwright/test';
 import { PORTAL } from './config';
 import { invitationLinkFromMail } from './mailpit';

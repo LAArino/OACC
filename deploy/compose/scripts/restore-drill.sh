@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # Restore drill (spec §10 "quarterly restore drill"; runbook §4): restores a
-# pgBackRest backup of the OECP PostgreSQL cluster into a scratch container,
+# pgBackRest backup of the OACC PostgreSQL cluster into a scratch container,
 # lets PostgreSQL replay the archived WAL, runs sanity checks and prints a
 # report. Production is not touched: the scratch container has no network,
 # mounts the repository read-only and runs with archive_mode=off, so it never
@@ -182,7 +182,7 @@ replay_ts=$(psql_drill -d postgres -c "SELECT coalesce(pg_last_xact_replay_times
 
 {
   echo
-  echo "================ OECP restore drill report ================"
+  echo "================ OACC restore drill report ================"
   echo "Date (UTC):          $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "Host:                $(hostname)"
   echo "Image:               $image"

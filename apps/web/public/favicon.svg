@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
   <!-- SPDX-License-Identifier: EUPL-1.2 -->
-  <!-- Open European Campus Portal: an open book in a portal arch, in the portal's primary colour. -->
+  <!-- Open Alliance Course Catalogue: an open book in a portal arch, in the portal's primary colour. -->
   <rect width="32" height="32" rx="7" fill="#0b4f8a"/>
   <path d="M5.5 27V15a10.5 10.5 0 0 1 21 0v12" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
   <path d="M16 18.3c-2-1.2-4.4-1.6-6.8-1.3v7.6c2.4-.3 4.8.1 6.8 1.3 2-1.2 4.4-1.6 6.8-1.3v-7.6c-2.4-.3-4.8.1-6.8 1.3z" fill="#fff"/>

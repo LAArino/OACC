@@ -22,7 +22,7 @@
 
 realm: oecp
 enabled: true
-displayName: "$(env:OECP_REALM_DISPLAY_NAME:-Open European Campus Portal)"
+displayName: "$(env:OECP_REALM_DISPLAY_NAME:-Open Alliance Course Catalogue)"
 sslRequired: external
 defaultLocale: en
 internationalizationEnabled: false
@@ -95,7 +95,7 @@ otpPolicyDigits: 6
 otpPolicyPeriod: 30
 otpPolicyLookAheadWindow: 1
 otpPolicyCodeReusable: false
-webAuthnPolicyRpEntityName: "$(env:OECP_REALM_DISPLAY_NAME:-Open European Campus Portal)"
+webAuthnPolicyRpEntityName: "$(env:OECP_REALM_DISPLAY_NAME:-Open Alliance Course Catalogue)"
 webAuthnPolicySignatureAlgorithms: [ES256, RS256]
 webAuthnPolicyRpId: ""                # defaults to the auth host
 webAuthnPolicyAttestationConveyancePreference: not specified
@@ -109,7 +109,7 @@ smtpServer:
   host: "$(env:OECP_SMTP_HOST:-)"
   port: "$(env:OECP_SMTP_PORT:-25)"
   from: "$(env:OECP_SMTP_FROM:-no-reply@example.org)"
-  fromDisplayName: "$(env:OECP_REALM_DISPLAY_NAME:-Open European Campus Portal)"
+  fromDisplayName: "$(env:OECP_REALM_DISPLAY_NAME:-Open Alliance Course Catalogue)"
   # Opportunistic STARTTLS; set OECP_SMTP_STARTTLS=false for a relay or sink
   # without TLS (Mailpit in the `dev` compose profile).
   starttls: "$(env:OECP_SMTP_STARTTLS:-true)"
@@ -226,7 +226,7 @@ userProfile:
         length: {max: 255}
     # organizations.id, set by the API (oecp-backend) at invitation acceptance (spec §2.1, §4).
     - name: oecp_org_id
-      displayName: OECP organization id
+      displayName: OACC organization id
       permissions:
         view: [admin]
         edit: [admin]
@@ -282,7 +282,7 @@ requiredActions:
 # --- Client scope `oecp`: the JWT contract of spec §4 ----------------------------
 clientScopes:
   - name: oecp
-    description: OECP admin API claims (spec §4 JWT contract)
+    description: OACC admin API claims (spec §4 JWT contract)
     protocol: openid-connect
     attributes:
       include.in.token.scope: "false"
@@ -330,7 +330,7 @@ clientScopes:
           id.token.claim: "false"
           userinfo.token.claim: "false"
           introspection.token.claim: "true"
-      # roles = flat array of OECP realm roles. Only partner_admin and
+      # roles = flat array of OACC realm roles. Only partner_admin and
       # alliance_admin are in the role scope of client oecp-admin (scopeMappings
       # below) and the clients use fullScopeAllowed: false, so default roles
       # never appear. For a role-less invited user Keycloak omits the claim
@@ -400,7 +400,7 @@ clientScopeMappings:
 clients:
   # Admin SPA (Nuxt /{locale}/admin, oidc-client-ts, tokens in memory).
   - clientId: oecp-admin
-    name: OECP admin dashboard
+    name: OACC admin dashboard
     description: Public client of the admin dashboard (Authorization Code + PKCE)
     enabled: true
     protocol: openid-connect
@@ -439,7 +439,7 @@ clients:
 
   # Resource server identifier, used only as token audience (aud=oecp-api).
   - clientId: oecp-api
-    name: OECP API (audience)
+    name: OACC API (audience)
     description: Bearer-only resource server; never obtains tokens.
     enabled: true
     protocol: openid-connect
@@ -456,7 +456,7 @@ clients:
   # Confidential client used by the API for the Keycloak Admin API (spec §3):
   # invitations (role and oecp_org_id), revocation, IdP metadata refresh.
   - clientId: oecp-backend
-    name: OECP backend (Admin API)
+    name: OACC backend (Admin API)
     enabled: true
     protocol: openid-connect
     publicClient: false
@@ -530,7 +530,7 @@ authenticatorConfig:
 authenticationFlows:
   # ---- browser -------------------------------------------------------------------
   - alias: oecp-browser-mfa
-    description: OECP browser flow, second factor always required (spec §2.2)
+    description: OACC browser flow, second factor always required (spec §2.2)
     providerId: basic-flow
     topLevel: true
     builtIn: false

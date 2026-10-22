@@ -1,11 +1,13 @@
 <!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-# Open European Campus Portal (OECP)
+# Open Alliance Course Catalogue (OACC)
+
+The open course catalogue for European University alliances.
 
 Status: 0.10.0, pre-production (no partner connected yet; the first real course data, the Aurora Virtual Campus 2026-27 courses, tested on the development stack only); specification v4.1 (as built); later changes in the Unreleased section of the [changelog](CHANGELOG.md)
 
-OECP is a sovereign, open-source course-catalogue portal for European
+OACC is a sovereign, open-source course-catalogue portal for European
 University alliances. It collects the courses that the partner universities of
 an alliance open to each other's students, normalises them into one data model,
 and publishes them as one searchable public catalogue and one standards-based
@@ -18,6 +20,10 @@ all documentation is in [docs/README.md](docs/README.md).
 
 ![Course list of the public catalogue filtered by one alliance attribute (educational hub): the filter sidebar with facet counts, the active filter chip, and course cards from several universities with ECTS, level, delivery mode, next offering, application deadline and the alliance tags](docs/images/readme-catalogue.png)
 
+## Name
+
+The project started as the Open European Campus Portal (OECP) and was renamed Open Alliance Course Catalogue (OACC) on 2026-10-22. `oecp` remains the internal code name in configuration variables, package names, container images, error codes and the API extension (`ext.oecp`), and the repository keeps its address for now.
+
 ## The problem it solves
 
 An alliance of universities wants one place where students can find every
@@ -29,7 +35,7 @@ course data follows different conventions, and some of the information the
 alliance wants to show (educational hubs, sustainability goals, whether a
 course is open to all partners) does not exist in any university system.
 
-OECP absorbs that diversity so that the alliance gets one consistent catalogue
+OACC absorbs that diversity so that the alliance gets one consistent catalogue
 without forcing every partner into the same tooling:
 
 - **Three ways in, one model out.** A partner can be harvested automatically
@@ -47,7 +53,7 @@ without forcing every partner into the same tooling:
 - **The catalogue is itself harvestable.** The published offer is exposed
   again as an OEAPI v5-compatible read API, so other platforms and alliances
   can consume it.
-- **No student data.** OECP publishes the offer and points students to the
+- **No student data.** OACC publishes the offer and points students to the
   partner's own application process. It never handles applications,
   enrolment or student records, which keeps its data-protection footprint
   small.
@@ -63,8 +69,8 @@ without forcing every partner into the same tooling:
 | **CSV upload (channel B)** | Versioned CSV template, validated in the browser before upload with the same validator the server uses, all-or-nothing processing, row-and-column error reports. |
 | **Web form (channel C)** | A stepped editor for courses and offerings, including alliance attributes and per-language texts; on harvested organisations it works as an overrides editor. |
 | **Administration panel** | Invitations (refused while the organization's identity provider is not enabled in Keycloak), integration settings per partner (endpoint, credentials, host approval, test connection, sync now), sync history and error reports, organisations and administrators, network status with a health indicator per partner, maintenance runs. |
-| **Identity** | Keycloak as the only identity component: each organization's administrators sign in either through their own university (SAML / eduGAIN) or with local accounts, never a mix within one organization, always with a second factor; roles are assigned inside OECP, never derived from the identity provider. The public portal needs no sign-in. |
-| **OEAPI read API** | The alliance catalogue published in OEAPI v5 shapes, plus two documented JSON APIs of OECP's own (public and administration). |
+| **Identity** | Keycloak as the only identity component: each organization's administrators sign in either through their own university (SAML / eduGAIN) or with local accounts, never a mix within one organization, always with a second factor; roles are assigned inside OACC, never derived from the identity provider. The public portal needs no sign-in. |
+| **OEAPI read API** | The alliance catalogue published in OEAPI v5 shapes, plus two documented JSON APIs of OACC's own (public and administration). |
 | **Maintenance** | Daily jobs for history partitions, retention periods, dormant-administrator review, account clean-up and identity-provider metadata refresh from eduGAIN, all recorded and runnable on demand from the panel. |
 | **Operations** | In the reference deployment: scheduled pgBackRest backups with point-in-time recovery and a restore drill; Prometheus metrics, alert rules (harvests, backups, disk, maintenance jobs, expiring partner IdP and TLS certificates) and e-mail or webhook notifications; container logs shipped to Loki with time-based retention; Grafana dashboards. |
 
@@ -75,7 +81,7 @@ without forcing every partner into the same tooling:
 | **Students and visitors** | No | Search and browse the catalogue, read course pages, follow the link or instructions to apply at the partner university. |
 | **Partner administrator** (one or more per university) | Yes: the university's identity provider or a local account, with MFA | Keeps the university's courses current: configures the OEAPI integration, uploads CSV files, edits courses and offerings in the form, reviews sync reports and completeness warnings. |
 | **Alliance administrator** (the alliance office or foundation) | Yes, same | Onboards universities and their administrators, approves partner endpoints, watches the network status, runs maintenance, defines the alliance attributes and decides what is published. |
-| **Hosting operator** | No OECP account | Deploys and operates the reference Docker Compose stack, backups, secrets, logs and upgrades (see [Guide E](docs/onboarding/hosting-operator.md) and the [runbook](docs/production/runbook.md)). |
+| **Hosting operator** | No OACC account | Deploys and operates the reference Docker Compose stack, backups, secrets, logs and upgrades (see [Guide E](docs/onboarding/hosting-operator.md) and the [runbook](docs/production/runbook.md)). |
 | **Other platforms** | No | Harvest the alliance catalogue through the OEAPI v5 read API. |
 
 The data-protection roles for the first deployment are documented in the
@@ -152,9 +158,9 @@ for vulnerabilities, [SECURITY.md](SECURITY.md). Releases follow
 Copyright 2026 Lluís Alfons Ariño  
 Licensed under the EUPL
 
-OECP is licensed under the [European Union Public Licence v. 1.2](LICENSE)
+OACC is licensed under the [European Union Public Licence v. 1.2](LICENSE)
 (EUPL-1.2), English version. The EUPL's network clause means that anyone who
-operates a modified version of OECP as a network service must make the source
+operates a modified version of OACC as a network service must make the source
 code of that version available. Trivial configuration files are dedicated to
 the public domain (CC0-1.0). Licensing information for every file is declared
 in [REUSE.toml](REUSE.toml) following the [REUSE](https://reuse.software)

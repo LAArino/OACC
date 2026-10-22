@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
 // SPDX-License-Identifier: EUPL-1.2
 //
-// The OECP Keycloak broker as the only SP of the dev-only test SAML IdP.
+// The OACC Keycloak broker as the only SP of the dev-only test SAML IdP.
 //
 // Entity ID and ACS are the PUBLIC ones (the browser posts the response to
 // the auth host). The SP keys are not static: Keycloak generates the realm's

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: EUPL-1.2
 /**
- * Course images (decision 27): one image per course, stored and served by OECP
+ * Course images (decision 27): one image per course, stored and served by OACC
  * (never an external link), re-encoded as two WebP files: `lg` fitted inside
  * 1600×1600 and `sm` fitted inside 640×640, never upscaled, metadata stripped.
  * The alternative text is mandatory unless the image is decorative; the credit

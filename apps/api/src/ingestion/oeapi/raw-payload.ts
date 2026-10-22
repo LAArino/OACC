@@ -2,7 +2,7 @@
 /**
  * Data minimisation of harvested payloads before they are kept in
  * `ext_metadata_history.raw_payload` (spec §5.2, §6.2.4; GDPR art. 5(1)(c)).
- * OECP keeps only the instructor names it maps (decision 21a); the person
+ * OACC keeps only the instructor names it maps (decision 21a); the person
  * objects an endpoint returns are not kept, even in the raw history.
  */
 

@@ -29,7 +29,7 @@
   },
   "oecp.auth.no_role": {
     "severity": "error",
-    "message": "No OECP role assigned"
+    "message": "No OACC role assigned"
   },
   "oecp.auth.unknown_organization": {
     "severity": "error",

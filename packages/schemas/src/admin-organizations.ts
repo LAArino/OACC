@@ -131,7 +131,7 @@ export const organizationAdmin = z.object({
   username: z.string().nullable(),
   email: z.string().nullable(),
   name: z.string().nullable(),
-  /** OECP realm roles (`partner_admin`, `alliance_admin`); empty if removed in Keycloak. */
+  /** OACC realm roles (`partner_admin`, `alliance_admin`); empty if removed in Keycloak. */
   roles: z.array(adminRole),
   /** Alias of the linked identity provider, or `local` for a Keycloak account. */
   idp: z.string(),

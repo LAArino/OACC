@@ -59,7 +59,7 @@ FROM toolchain AS runtime
 ENV NODE_ENV=production \
     pnpm_config_verify_deps_before_run=false
 LABEL org.opencontainers.image.title="oecp-api" \
-      org.opencontainers.image.description="Open European Campus Portal: API and worker" \
+      org.opencontainers.image.description="Open Alliance Course Catalogue: API and worker" \
       org.opencontainers.image.licenses="EUPL-1.2"
 # Sources and production node_modules (files stay root-owned: read-only for the app).
 COPY --from=prod-deps /repo /repo

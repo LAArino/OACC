@@ -3,7 +3,7 @@
 
 # Identity as code: Keycloak realm `oecp`
 
-Keycloak is OECP's only identity component and authenticates administrators
+Keycloak is OACC's only identity component and authenticates administrators
 only; the public portal never touches it (spec v4.0 §3, §4;
 [ADR-0004](../../docs/adr/0004-keycloak-only-identity-one-saml-idp-per-partner.md)).
 Everything that can be declared about the realm lives here and is applied by
@@ -94,7 +94,7 @@ administrators sign in; there is no mixed mode within one organization:
   mode of the alliance organization and of universities outside eduGAIN or not
   yet connected (in the Aurora seed: `aurora` and `upec`).
 - **Federated** (alias set, = the realm IdP alias): SAML sign-in at the
-  university's IdP through eduGAIN, then TOTP enrolled by OECP after the first
+  university's IdP through eduGAIN, then TOTP enrolled by OACC after the first
   login (`oecp-post-broker-mfa`).
 
 Which mode for a university, both onboarding paths with who does what, and
@@ -508,7 +508,7 @@ flag, `urv` is updated in place: a re-import keeps the links (verified).
    an existing local account stops at `first-broker-login` with "User with
    email … already exists" (HTTP 409); no user is created and nothing is linked.
 4. **No SLO with the test IdP.** The realm entry declares no
-   `singleLogoutServiceUrl`, so signing out of OECP leaves the IdP session; the
+   `singleLogoutServiceUrl`, so signing out of OACC leaves the IdP session; the
    next login through the chooser is a silent single sign-on at the IdP
    (still followed by the OTP form in Keycloak). An applied (not dry) run of
    the metadata refresh adds the IdP's SLO endpoint until the next re-import.

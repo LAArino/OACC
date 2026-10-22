@@ -5,7 +5,7 @@
 
 ## Supported versions
 
-OECP is pre-production: the current release is 0.10.0 and no alliance runs it
+OACC is pre-production: the current release is 0.10.0 and no alliance runs it
 in production yet. Security fixes are made on the `main` branch and released
 as a patch of the latest minor version ([docs/RELEASING.md](docs/RELEASING.md#support-policy)).
 
@@ -23,7 +23,7 @@ Until 1.0 only the latest minor version is supported; the support window after
 problem.**
 
 Report it privately through **GitHub private vulnerability reporting**:
-<https://github.com/LAArino/OECP/security/advisories/new> (*Security* tab →
+<https://github.com/LAArino/OACC/security/advisories/new> (*Security* tab →
 *Report a vulnerability*). This is the preferred channel: the report, the
 discussion and the fix stay in a private advisory until it is published. It is
 available once the repository is public.
@@ -52,7 +52,7 @@ Encrypt sensitive details if a public key is published alongside the address.
 
 ## Coordinated disclosure
 
-OECP follows a **90-day coordinated disclosure** policy. We ask reporters not
+OACC follows a **90-day coordinated disclosure** policy. We ask reporters not
 to disclose a vulnerability publicly until a fix is released or 90 days have
 passed since the report, whichever comes first. The period may be shortened
 if the issue is actively exploited, or extended by mutual agreement when a fix
@@ -71,7 +71,7 @@ Out of scope:
   security policy. Report issues in that module there, not here.
 - Vulnerabilities in upstream components (for example Keycloak, Traefik,
   PostgreSQL, Valkey, Nuxt or NestJS) should be reported to those projects.
-  Tell us as well if OECP's default configuration makes the issue
+  Tell us as well if OACC's default configuration makes the issue
   exploitable.
 - Findings against a specific alliance's deployment that are caused by its
   local configuration or operation should be reported to that deployment's

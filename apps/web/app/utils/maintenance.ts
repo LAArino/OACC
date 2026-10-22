@@ -63,7 +63,7 @@ export interface MaintenanceCandidate {
   /** As sent, else whole days from the last activity to the start of the run. */
   inactiveDays: number | null;
   action: string | null;
-  /** Account clean-up: when and how the OECP roles were removed. */
+  /** Account clean-up: when and how the OACC roles were removed. */
   rolesRemovedAt: string | null;
   removalAction: string | null;
 }

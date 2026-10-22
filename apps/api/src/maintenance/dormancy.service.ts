@@ -31,7 +31,7 @@ type CandidateAction = 'revoked' | 'would_revoke' | 'kept_last_alliance_admin' |
 /**
  * Dormancy (spec §2.2), daily: every Keycloak user holding `partner_admin` or
  * `alliance_admin` whose last activity (see {@link decideDormancy}) is more than
- * `OECP_DORMANCY_DAYS` (180) days ago loses the OECP realm roles and
+ * `OECP_DORMANCY_DAYS` (180) days ago loses the OACC realm roles and
  * `oecp_org_id` and is logged out, audited as `admin.dormant_revoke` by
  * `system:dormancy`. The last alliance_admin is never revoked. With
  * `OECP_DORMANCY_DRY_RUN=true` (the default) nothing is changed: the run lists

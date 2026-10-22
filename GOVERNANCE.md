@@ -3,7 +3,7 @@
 
 # Governance
 
-This document describes how the Open European Campus Portal (OECP) project is
+This document describes how the Open Alliance Course Catalogue (OACC) project is
 run, how decisions are made and how an alliance adopts the software.
 
 ## Roles
@@ -31,7 +31,7 @@ EUPL-1.2, no CLA).
 
 ### Adopting alliances
 
-European University alliances that deploy OECP. They do not gain decision
+European University alliances that deploy OACC. They do not gain decision
 rights over the project by deploying it, but are encouraged to contribute
 and to take part in discussions.
 
@@ -58,9 +58,9 @@ and to take part in discussions.
 Any change to this document, to the project licence or to the ownership of
 the repository is a significant decision and follows the ADR process.
 
-## How an alliance adopts and deploys OECP
+## How an alliance adopts and deploys OACC
 
-OECP is alliance-agnostic: one deployment serves one alliance, and
+OACC is alliance-agnostic: one deployment serves one alliance, and
 everything specific to an alliance is configuration, not code
 ([docs/spec-v4.1.md](docs/spec-v4.1.md) §1, §10). The usual path is:
 

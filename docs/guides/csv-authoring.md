@@ -66,11 +66,11 @@ A row must declare at least the version of every column in the header (filled or
 
 ### Instructors and personal data
 
-`instructors` holds the names (or role descriptions, such as "Course team, University of Iceland") of the teaching staff **exactly as your university already publishes them** for this course in its own catalogue. They are personal data: OECP republishes them for the same purpose, keeps nothing else about the person (no e-mail address, phone or identifier) and never looks anyone up. Do not add names your university does not publish; a role description is enough. The column is optional, but the handbook's publication rule counts at least one instructor as obligatory ([below](#publication-rule-handbook-completeness)).
+`instructors` holds the names (or role descriptions, such as "Course team, University of Iceland") of the teaching staff **exactly as your university already publishes them** for this course in its own catalogue. They are personal data: OACC republishes them for the same purpose, keeps nothing else about the person (no e-mail address, phone or identifier) and never looks anyone up. Do not add names your university does not publish; a role description is enough. The column is optional, but the handbook's publication rule counts at least one instructor as obligatory ([below](#publication-rule-handbook-completeness)).
 
 ### Course image (`image_url`)
 
-One image per course (decision 27), shown on the course card and above *About this course*; without one the portal shows the partner logo line as before. OECP stores its own copy: the image is fetched **once**, never hot-linked.
+One image per course (decision 27), shown on the course card and above *About this course*; without one the portal shows the partner logo line as before. OACC stores its own copy: the image is fetched **once**, never hot-linked.
 
 - **When.** After the upload has been processed successfully, the worker fetches every `image_url` that differs from the URL the course's current image was fetched from. The upload's result does not wait for it; repeating the same URL in a later upload fetches nothing. An empty cell (or no column) leaves the image as it is; removing an image is done in the web form or the admin API, not by CSV.
 - **What is accepted.** `https://` on port 443 only, from a public address (never an internal, private or loopback one), at most 3 redirects, each to `https://`; at most 20 seconds and **5 MiB**; JPEG, PNG or WebP recognised from the content (the server's content type is not trusted), at most 40 megapixels. The image is re-encoded to WebP without metadata (no EXIF, location or camera data): a large version fitted inside 1600×1600 and a card version inside 640×640, never enlarged. Use a landscape image of at least 1600 pixels wide; cards crop to 16:9.
@@ -241,7 +241,7 @@ Every `oecp.csv.*` code of `packages/schemas/errors.json` (144 codes in all; spe
 
 ## CSV injection
 
-OECP stores cell values **verbatim**: a title starting with `=` is a title. Every CSV that OECP **generates** (templates, the error report) prefixes cells starting with `=`, `+`, `-`, `@`, TAB or CR with `'`, so spreadsheet software does not run them as formulas. Treat CSV files from others with the same care.
+OACC stores cell values **verbatim**: a title starting with `=` is a title. Every CSV that OACC **generates** (templates, the error report) prefixes cells starting with `=`, `+`, `-`, `@`, TAB or CR with `'`, so spreadsheet software does not run them as formulas. Treat CSV files from others with the same care.
 
 ## Worked example
 

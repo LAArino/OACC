@@ -1,9 +1,9 @@
 <!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-# Record of processing activities (GDPR art. 30): OECP deployment
+# Record of processing activities (GDPR art. 30): OACC deployment
 
-Template for the Aurora deployment of OECP, release 0.3.0, updated through release 0.7.0 (account clean-up, soft-delete purge, raw payload minimisation; backups; branding; container logs shipped to Loki; see the CHANGELOG). System facts come from spec v4.1 (§2, §4, §5, §10) and the code; decisions are `[TO COMPLETE]` ([README](README.md)).
+Template for the Aurora deployment of OACC, release 0.3.0, updated through release 0.7.0 (account clean-up, soft-delete purge, raw payload minimisation; backups; branding; container logs shipped to Loki; see the CHANGELOG). System facts come from spec v4.1 (§2, §4, §5, §10) and the code; decisions are `[TO COMPLETE]` ([README](README.md)).
 
 ## Controller, processor and common facts
 
@@ -13,10 +13,10 @@ Template for the Aurora deployment of OECP, release 0.3.0, updated through relea
 | Controller's representative / contact | `[TO COMPLETE]` |
 | Controller's DPO | `[TO COMPLETE: name or function, contact]` |
 | Processor (hosting) | Universitat Rovira i Virgili (URV) `[TO COMPLETE: address, DPO contact]`, under the art. 28 contract of `[TO COMPLETE: date]` |
-| System | Open European Campus Portal (OECP), release `[TO COMPLETE: deployed version]`, Docker Compose deployment at URV ([runbook](runbook.md)); portal `[TO COMPLETE: portal host]`, sign-in `[TO COMPLETE: auth host]` |
+| System | Open Alliance Course Catalogue (OACC), release `[TO COMPLETE: deployed version]`, Docker Compose deployment at URV ([runbook](runbook.md)); portal `[TO COMPLETE: portal host]`, sign-in `[TO COMPLETE: auth host]` |
 | Hosting location | `[TO COMPLETE: data centre(s), country]`; backups `[TO COMPLETE: backup site, country]` |
 | Partner universities | UIBK (AT), UICE (IS), VUA (NL), UDE (DE), URV (ES), UNINA (IT), UP (CZ), CBS (DK), UPEC (FR) [DL 4]; role: **independent controllers** of the data each supplies (instructors, contacts), the Foundation of the published catalogue; no joint controllership under art. 26 [DL 24], recorded in each bilateral access agreement ([art. 28 checklist, section B](art28-processor-checklist.md#b-access-agreement-with-each-harvested-partner)) |
-| Out of scope | OECP handles no applications and stores **no student data** (spec §1). The public portal sets no cookies and runs no analytics (spec §7.2). The portal's branding images (header images, alliance logo) are deployment configuration served from the branding directory, not repository content; for Aurora they are own generated images without real persons and the Aurora logo used with the Foundation's permission [DL 25], so they hold no personal data. |
+| Out of scope | OACC handles no applications and stores **no student data** (spec §1). The public portal sets no cookies and runs no analytics (spec §7.2). The portal's branding images (header images, alliance logo) are deployment configuration served from the branding directory, not repository content; for Aurora they are own generated images without real persons and the Aurora logo used with the Foundation's permission [DL 25], so they hold no personal data. |
 
 **Legal basis candidates** used below: art. 6(1)(e), task carried out in the public interest, which needs a basis in Union or member-state law (art. 6(3)) `[TO COMPLETE: the law, e.g. the higher-education law giving the universities and their alliance their mission]`; art. 6(1)(f), legitimate interests, with a balancing test, not available to public authorities for the performance of their tasks (art. 6(1), second subparagraph) `[TO COMPLETE: legal nature of the Aurora Foundation]`; art. 6(1)(c), legal obligation, only for the security logging that a law requires `[TO COMPLETE: if any]`. The controller chooses one per activity and records why.
 
@@ -26,7 +26,7 @@ Template for the Aurora deployment of OECP, release 0.3.0, updated through relea
 |---|---|
 | Transport encryption | TLS at the edge proxy, HSTS (spec §10; `deploy/compose/traefik/dynamic/middlewares.yaml`); ACME certificates in production |
 | Authentication of staff | Keycloak, MFA on every admin login (`acr=mfa`, enforced in `apps/api/src/admin/auth/claims.ts`); password policy, brute-force protection, no self-registration (`identity/keycloak/realm-oecp.yaml`) |
-| Authorisation | Two roles assigned only by OECP, never from federated attributes; requests scoped to the caller's organization (spec §2) |
+| Authorisation | Two roles assigned only by OACC, never from federated attributes; requests scoped to the caller's organization (spec §2) |
 | Sessions | Access tokens 5 min, SSO idle 30 min / max 8 h, tokens in browser memory only (ADR-0013) |
 | Secrets | Partner credentials AES-256-GCM in the `secrets` table, write-only in the API (ADR-0008); passwords as Docker secrets, never environment variables |
 | Network | Keycloak console IP-allowlisted; per-IP rate limits; outbound calls only to approved partner hosts over HTTPS (ADR-0009) |
@@ -44,7 +44,7 @@ Template for the Aurora deployment of OECP, release 0.3.0, updated through relea
 | Purpose | Authenticate the staff who maintain the catalogue, enforce MFA, assign and revoke roles |
 | Legal basis | `[TO COMPLETE: 6(1)(e) or 6(1)(f)]` |
 | Data subjects | Partner and alliance administrators (staff of the partners and of the Foundation) |
-| Personal data | Keycloak account: username, e-mail, first and last name, display name, `schacHomeOrganization` (imported from the home IdP for federated accounts), subject identifier (`subject-id` or `pairwise-id`), password hash and TOTP secret (local accounts), sessions; OECP: `oecp_org_id`, role, `admin_activity` (JWT `sub`, organization, last admin API use, at most hourly) |
+| Personal data | Keycloak account: username, e-mail, first and last name, display name, `schacHomeOrganization` (imported from the home IdP for federated accounts), subject identifier (`subject-id` or `pairwise-id`), password hash and TOTP secret (local accounts), sessions; OACC: `oecp_org_id`, role, `admin_activity` (JWT `sub`, organization, last admin API use, at most hourly) |
 | Source | The person (local accounts) or the home institution's IdP through eduGAIN (federated accounts) [DL 15] |
 | Recipients | Hosting operator; alliance administrators (names, e-mails, last sign-in, spec §8.4) |
 | Transfers | None outside the EEA `[TO COMPLETE: confirm hosting location]` |
@@ -140,4 +140,4 @@ None: no cookies, analytics or third-party tracking on the portal (spec §1, §7
 
 | Version | Date | Author | Change |
 |---|---|---|---|
-| 0.1 | `[TO COMPLETE]` | `[TO COMPLETE]` | First completion from the OECP template (release 0.3.0) |
+| 0.1 | `[TO COMPLETE]` | `[TO COMPLETE]` | First completion from the OACC template (release 0.3.0) |

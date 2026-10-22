@@ -6,8 +6,8 @@
 
 publiccodeYmlVersion: "0.4"
 
-name: Open European Campus Portal
-url: "https://github.com/LAArino/OECP"
+name: Open Alliance Course Catalogue
+url: "https://github.com/LAArino/OACC"
 
 # Updated at every release (docs/RELEASING.md).
 softwareVersion: "0.10.0"
@@ -64,7 +64,7 @@ description:
       Public course catalogue and read API for a European University alliance,
       fed by OEAPI harvesting, CSV upload or a web form.
     longDescription: |
-      The Open European Campus Portal (OECP) publishes the course offer of a
+      The Open Alliance Course Catalogue (OACC) publishes the course offer of a
       European University alliance as one public catalogue and one read API.
 
       Partner universities feed their courses through three channels:
@@ -91,7 +91,7 @@ description:
       validate CSV files, edit courses in a wizard, and monitor
       synchronisation runs and network status.
 
-      OECP is alliance-agnostic: alliance name, partners, course attributes,
+      OACC is alliance-agnostic: alliance name, partners, course attributes,
       domains and branding images are configuration, and one deployment serves
       one alliance.
       It never handles applications or enrolment and stores no student data.

@@ -79,7 +79,7 @@ The equivalent openssl commands, for one pair (`sig`; repeat with `enc`):
 ```sh
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out sig.pem
 openssl req -new -x509 -sha256 -days 3650 -key sig.pem \
-  -subj '/O=Open European Campus Portal/CN=OECP SAML signing' -out sig.crt
+  -subj '/O=Open Alliance Course Catalogue/CN=OECP SAML signing' -out sig.crt
 openssl pkcs8 -topk8 -nocrypt -in sig.pem -outform DER | base64 | tr -d '\n' > secrets/keycloak_saml_sig_key
 openssl x509 -in sig.crt -outform DER | base64 | tr -d '\n' > secrets/keycloak_saml_sig_cert
 shred -u sig.pem sig.crt 2>/dev/null || rm -P sig.pem sig.crt   # or keep them in the offline copy

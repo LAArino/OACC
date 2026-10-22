@@ -1,16 +1,16 @@
 <!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-# Releasing OECP
+# Releasing OACC
 
-This document defines how OECP versions are numbered, what "closing a
+This document defines how OACC versions are numbered, what "closing a
 version" means, the exact steps to tag a release, what a release publishes,
 and which contracts a release must keep. Releases are managed by the
 maintainers ([GOVERNANCE.md](../GOVERNANCE.md)).
 
 ## Versioning
 
-OECP follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
+OACC follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 The monorepo has **one version**: the root `package.json`, every workspace
 package, the container images, `publiccode.yml` and the git tag `vX.Y.Z` all
 carry the same number.
@@ -29,7 +29,7 @@ CHANGELOG entry of the release under **Changed** or **Removed**, prefixed with
 introduce them use the Conventional Commits `!` marker (see
 [CONTRIBUTING.md](../CONTRIBUTING.md)).
 
-Version **1.0.0** is tagged when a first alliance runs OECP in production with
+Version **1.0.0** is tagged when a first alliance runs OACC in production with
 partner data and the contracts below are declared stable. From then on,
 breaking changes need a major version.
 
@@ -39,7 +39,7 @@ breaking changes need a major version.
 |---|---|---|
 | Database schema | `apps/api/db/migrations/NNNN_*.sql` | Append-only; see [Migrations](#migrations). |
 | CSV template | `template_version` column; `packages/schemas/src/csv.ts` (`CSV_TEMPLATE_VERSION`, `CSV_TEMPLATE_VERSIONS`); `packages/schemas/json/csv/oecp-csv-<version>.schema.json` | Any change visible to CSV authors bumps the template version (1.0 → 1.1 for additive columns). A published template version stays accepted for at least one release after its successor, and its JSON Schema file is never edited. Current: 1.3; accepted: 1.0, 1.1, 1.2, 1.3. |
-| OEAPI read API | `/oeapi/v5` | Follows the OEAPI **v5.0** standard; OECP-only values go in `ext.oecp` and are additive. A v6 surface will be a new path, `/oeapi/v6` (spec §9, §12). |
+| OEAPI read API | `/oeapi/v5` | Follows the OEAPI **v5.0** standard; OACC-only values go in `ext.oecp` and are additive. A v6 surface will be a new path, `/oeapi/v6` (spec §9, §12). |
 | Public catalogue API | `/api/public/v1` | **Additive only**: new endpoints, optional parameters and response members may be added; nothing is removed, renamed or given a new meaning. A breaking change means `/api/public/v2`, served alongside v1 for at least one minor release. |
 | Admin API | `/api/admin/v1` | Consumed by the admin dashboard of the same release. Changes are recorded in the CHANGELOG; external clients are not supported before 1.0. |
 | Error codes | `packages/schemas/errors.json` | Codes are **never renamed, reused or repurposed**. New codes may be added; messages may be reworded. |
@@ -146,7 +146,7 @@ docker compose --env-file deploy/compose/.env.example \
 ```
 
 Then follow the Quick start and smoke test of `deploy/compose/README.md` in a
-fresh clone on a Docker host without OECP volumes.
+fresh clone on a Docker host without OACC volumes.
 
 ### 2. Bump versions
 
@@ -183,7 +183,7 @@ git add -A
 git commit -s -m "chore(release): v$VERSION"
 
 cat > /tmp/oecp-tag-message.txt <<MSG
-OECP v$VERSION
+OACC v$VERSION
 
 Release $VERSION ($DATE). Changes: CHANGELOG.md, section [$VERSION].
 
@@ -205,7 +205,7 @@ by the next patch version.
 ```sh
 awk -v v="$VERSION" 'index($0, "## [" v "]") == 1 {p = 1; next}
   p && (/^## \[/ || /^\[[^]]+\]: /) {exit} p' CHANGELOG.md > /tmp/oecp-release-notes.md
-gh release create "v$VERSION" --verify-tag --title "OECP v$VERSION" \
+gh release create "v$VERSION" --verify-tag --title "OACC v$VERSION" \
   --notes-file /tmp/oecp-release-notes.md
 ```
 

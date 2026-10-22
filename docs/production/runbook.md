@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-# Production runbook: OECP at the hosting institution
+# Production runbook: OACC at the hosting institution
 
 For the hosting operator (URV for Aurora). It complements [deploy/compose/README.md](../../deploy/compose/README.md) (installation), [Guide A](../onboarding/alliance.md) (alliance set-up), [identity/keycloak/README.md](../../identity/keycloak/README.md) and [RELEASING.md](../RELEASING.md). Commands run in `deploy/compose` on the production host. Written for release 0.3.0 and updated through release 0.7.0 (maintenance page, account clean-up; pgBackRest backups, restore drill, metrics and alerting; branding; container logs to Loki, certificate expiry alerts; see the CHANGELOG); where something is planned but not built, this runbook says so.
 
@@ -218,7 +218,7 @@ Worker ≥ **2 GB** RAM when the IdP metadata refresh uses the eduGAIN aggregate
 ## 11. Housekeeping checklist
 
 **Weekly:** no alert left firing or silenced without a reason (Grafana, *OECP overview*); `pgbackrest info` shows the Sunday full; worker log errors.
-**Monthly:** test alert delivered (section 7); uploads archives copied to the second site; certificate expiry (row *Certificates* of *OECP overview*; the auth host's certificate from outside); review `Administrators` panels; on the *Maintenance* page, review the latest `account-cleanup` run (dry run: the accounts it would delete and the kept ones with their reason; enabled: the deleted accounts); check the log volumes against the rotation sizes (section 10); apply OS and image security updates; check for a new OECP patch release.
+**Monthly:** test alert delivered (section 7); uploads archives copied to the second site; certificate expiry (row *Certificates* of *OECP overview*; the auth host's certificate from outside); review `Administrators` panels; on the *Maintenance* page, review the latest `account-cleanup` run (dry run: the accounts it would delete and the kept ones with their reason; enabled: the deleted accounts); check the log volumes against the rotation sizes (section 10); apply OS and image security updates; check for a new OACC patch release.
 **Quarterly:** restore drill (section 4, `scripts/restore-drill.sh`, report filed); review the dormancy dry run on the *Maintenance* page until it is switched on; secrets offline copy current.
 **Yearly:** renew the institution-issued TLS certificates, if any (section 6; the alert only fires at 21 days); rotate database and client secrets; review this runbook, the RoPA and the DPIA; recertify administrators with the Foundation (manual review of every *Administrators* panel, [administrator lifecycle](../onboarding/administrator-lifecycle.md), [DL 26]).
 
@@ -233,4 +233,4 @@ Worker ≥ **2 GB** RAM when the IdP metadata refresh uses the eduGAIN aggregate
 | Foundation DPO | `[TO COMPLETE]` | `[TO COMPLETE]` | |
 | Alliance administrators (at least two) | `[TO COMPLETE]` | `[TO COMPLETE]` | |
 | Federation operator (SIR/RedIRIS) | `[TO COMPLETE]` | `[TO COMPLETE]` | |
-| OECP maintainers (security reports) | see [SECURITY.md](../../SECURITY.md) | `[TO COMPLETE]` | |
+| OACC maintainers (security reports) | see [SECURITY.md](../../SECURITY.md) | `[TO COMPLETE]` | |

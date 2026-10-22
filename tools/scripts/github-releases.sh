@@ -97,10 +97,10 @@ for tag in $tags; do
   fi
 
   if $dry_run; then
-    echo "$tag: would run: gh release create $tag --verify-tag --title \"OECP $tag\" --notes-file $notes_file ($(wc -l <"$notes_file" | tr -d ' ') lines)"
+    echo "$tag: would run: gh release create $tag --verify-tag --title \"OACC $tag\" --notes-file $notes_file ($(wc -l <"$notes_file" | tr -d ' ') lines)"
     sed -n '1,5p' "$notes_file" | sed 's/^/    | /'
   else
-    gh release create "$tag" --verify-tag --title "OECP $tag" --notes-file "$notes_file"
+    gh release create "$tag" --verify-tag --title "OACC $tag" --notes-file "$notes_file"
     echo "$tag: release created"
   fi
   created=$((created + 1))
