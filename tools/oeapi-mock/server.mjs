@@ -495,7 +495,7 @@ function checkAuth(req) {
   }
   const h = req.headers.authorization;
   if (!h) return 'missing';
-  const m = /^(\S+)\s+(.+)$/.exec(h);
+  const m = /^(\S+) (.+)$/.exec(h);
   if (!m) return 'invalid';
   const scheme = m[1].toLowerCase();
   if (AUTH.scheme === 'basic') {

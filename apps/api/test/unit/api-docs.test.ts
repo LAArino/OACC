@@ -51,7 +51,7 @@ describe('OpenAPI viewer', () => {
     expect(html).toMatch(/^<!doctype html>/);
     expect(html).toContain(`<redoc spec-url="/api/${api}/v1/openapi.json"`);
     // The bundle is the only script, from the API origin; no inline script.
-    expect(html.match(/<script\b[^>]*>/g)).toEqual([`<script src="${ASSET}">`]);
+    expect(html.match(/<script\b[^>]*>/gi)).toEqual([`<script src="${ASSET}">`]);
     expect(html).toContain('<script src="/api/docs-assets/2.5.4/redoc.standalone.js"></script>');
     expect(html).not.toMatch(/https?:\/\//);
     // System fonts only (Redoc's defaults name Roboto and Montserrat).

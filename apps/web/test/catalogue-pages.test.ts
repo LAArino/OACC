@@ -815,7 +815,9 @@ describe('course page', () => {
       );
       await vi.waitFor(() =>
         expect(headMeta('property="og:image"')).toMatch(
-          new RegExp(`^https?://[^/]+${fixtures.course.image.url.replace(/\./g, '\\.')}$`),
+          new RegExp(
+            `^https?://[^/]+${fixtures.course.image.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+          ),
         ),
       );
       expect(headMeta('property="og:image:alt"')).toBe(
