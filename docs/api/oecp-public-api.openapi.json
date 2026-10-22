@@ -8,11 +8,11 @@
       "name": "EUPL-1.2",
       "identifier": "EUPL-1.2"
     },
-    "x-oecp-spec": "https://github.com/LAArino/OECP/blob/main/docs/spec-v4.1.md#71-routes-and-api"
+    "x-oecp-spec": "https://github.com/LAArino/OACC/blob/main/docs/spec-v4.1.md#71-routes-and-api"
   },
   "externalDocs": {
     "description": "OACC specification v4.1",
-    "url": "https://github.com/LAArino/OECP/blob/main/docs/spec-v4.1.md"
+    "url": "https://github.com/LAArino/OACC/blob/main/docs/spec-v4.1.md"
   },
   "servers": [
     {
