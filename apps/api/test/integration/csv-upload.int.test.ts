@@ -44,10 +44,7 @@ const PARTNER_SUB = '11111111-1111-4111-8111-111111111111';
 const ALLIANCE_SUB = '22222222-2222-4222-8222-222222222222';
 
 const fixture = (file: 'courses' | 'offerings') =>
-  readFileSync(
-    new URL(`../fixtures/csv/aurora-virtual-campus.${file}.csv`, import.meta.url),
-    'utf8',
-  );
+  readFileSync(new URL(`../fixtures/csv/example-alliance.${file}.csv`, import.meta.url), 'utf8');
 
 const COURSES_HEADER = 'template_version,course_code,status,ects,isced_codes,title_en';
 const OFFERINGS_HEADER =
@@ -155,7 +152,7 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
     await http().post(uploadUrl(ORG.aurora)).expect(401);
   });
 
-  it('uploads the Aurora Virtual Campus listing: courses, texts, sessions, offerings, history', async () => {
+  it('uploads the example alliance listing: courses, texts, sessions, offerings, history', async () => {
     const response = await upload(ORG.aurora, {
       courses: fixture('courses'),
       offerings: fixture('offerings'),
@@ -181,7 +178,7 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       [2, 3, 4, 5, 6, 7, 8, 9].map((row) => ['oecp.content.handbook_incomplete', row]),
     );
     expect(warnings[3]?.message).toBe(
-      'AVC-SPARK-SOCIAL: Course is missing fields the Aurora IT Handbook requires to publish: ' +
+      'EXA-BIP-SOCIAL-LAB: Course is missing fields the Aurora IT Handbook requires to publish: ' +
         'texts.en.learning_outcomes, texts.en.assessment, contact_email',
     );
     const runId: string = response.body.sync_run_id;
@@ -202,13 +199,13 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       .selectFrom('courses')
       .selectAll()
       .where('organization_id', '=', ORG.aurora)
-      .where('ext_id', '=', 'AVC-SPARK-SOCIAL')
+      .where('ext_id', '=', 'EXA-BIP-SOCIAL-LAB')
       .executeTakeFirstOrThrow();
     expect(course).toMatchObject({
       source_channel: 'csv',
       source_ref: null,
       status: 'published',
-      instructors: ['Course team, University of Iceland'],
+      instructors: ['Lecturer in social entrepreneurship, Southmere University'],
       kind: 'bip',
       level: 'master',
       levels: ['master', 'bachelor'],
@@ -231,10 +228,10 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       .executeTakeFirstOrThrow();
     expect(text).toMatchObject({
       lang: 'en',
-      title: 'BIP: Spark Social',
+      title: 'BIP: Social Innovation Lab',
       keywords: ['social innovation', 'entrepreneurship', 'BIP'],
       methods: 'Online sessions combined with a short physical mobility.',
-      remarks: 'Hosted by the University of Iceland.',
+      remarks: 'Hosted by Southmere University.',
       mode_of_repetition: null,
       literature: null,
       privacy_notice: null,
@@ -267,14 +264,16 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       .where('course_offerings.course_id', '=', course.id)
       .executeTakeFirstOrThrow();
     expect(offering).toEqual({
-      timezone: 'Atlantic/Reykjavik',
+      timezone: 'Europe/Lisbon',
       teaching_languages: ['en'],
       application_url: null,
       application_deadline: '2026-11-15',
       application_instructions: {
-        en: expect.stringMatching(/^Apply through the Aurora office of your home university/),
+        en: expect.stringMatching(
+          /^Apply through the international office of your home university/,
+        ),
       },
-      session: 'AUR-2026-27-S2',
+      session: 'EXA-2026-27-S2',
     });
     const kinds = await tdb.db
       .selectFrom('courses')
@@ -295,8 +294,8 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       .orderBy('ext_id')
       .execute();
     expect(sessions.map((s) => [s.ext_id, s.start_date, s.end_date, s.session_type])).toEqual([
-      ['AUR-2026-27-S1', '2026-10-20', '2027-01-31', 'period'],
-      ['AUR-2026-27-S2', '2027-01-12', '2027-05-15', 'period'],
+      ['EXA-2026-27-S1', '2026-10-20', '2027-01-31', 'period'],
+      ['EXA-2026-27-S2', '2027-01-12', '2027-05-15', 'period'],
     ]);
     // Offerings without a timezone column value get the organization's default.
     const defaults = await tdb.db
@@ -329,7 +328,7 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       code: 'oecp.content.handbook_incomplete',
       severity: 'warning',
       entity_type: 'course',
-      ext_id: 'AVC-BIP-AI-ETHICS',
+      ext_id: 'EXA-BIP-AUTO-DECISIONS',
     });
 
     const audit = await tdb.db
@@ -371,7 +370,7 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
 
   it('withdraws a course only through its status column; omission never withdraws', async () => {
     const response = await upload(ORG.aurora, {
-      courses: `${COURSES_HEADER}\n1.0,AVC-SUST-EDU,withdrawn,5,0111|0521,Sustainability Education and Learning\n`,
+      courses: `${COURSES_HEADER}\n1.0,EXA-SUST-TEACHING,withdrawn,5,0111|0521,Teaching for a Sustainable Future\n`,
     }).expect(201);
     expect(response.body.run).toMatchObject({ n_updated: 1, n_created: 0 });
     const rows = await tdb.db
@@ -379,14 +378,14 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
       .select(['ext_id', 'status'])
       .where('organization_id', '=', ORG.aurora)
       .execute();
-    expect(rows.find((r) => r.ext_id === 'AVC-SUST-EDU')?.status).toBe('withdrawn');
+    expect(rows.find((r) => r.ext_id === 'EXA-SUST-TEACHING')?.status).toBe('withdrawn');
     expect(rows.filter((r) => r.status === 'published')).toHaveLength(7);
     // Columns absent from the header (abstract_en, keywords_en, level…) are untouched.
     const kept = await tdb.db
       .selectFrom('courses')
       .innerJoin('course_texts', 'course_texts.course_id', 'courses.id')
       .select(['courses.level', 'course_texts.abstract'])
-      .where('courses.ext_id', '=', 'AVC-SUST-EDU')
+      .where('courses.ext_id', '=', 'EXA-SUST-TEACHING')
       .executeTakeFirstOrThrow();
     expect(kept.level).toBe('master');
     expect(kept.abstract).toMatch(/^Graduate course/);
@@ -394,11 +393,11 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
     const attributes = await tdb.db
       .selectFrom('courses')
       .select(['kind', 'levels', 'attributes', 'instructors'])
-      .where('ext_id', '=', 'AVC-SUST-EDU')
+      .where('ext_id', '=', 'EXA-SUST-TEACHING')
       .executeTakeFirstOrThrow();
     expect(attributes).toMatchObject({
       kind: 'course',
-      instructors: ['Course team, host university'],
+      instructors: ['Lecturer in education for sustainability, Eastbrook University'],
       levels: ['master'],
       attributes: { competence_framework: 'louis', micro_credential: true },
     });
@@ -499,14 +498,14 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
     const header = `${COURSES_HEADER},kind,levels,attr_free_course,attr_sdg`;
     const ok = await upload(ORG.aurora, {
       courses: `${header}
-1.1,AVC-GIS-SOCIETY,published,5,0532|0312,Analysing societal challenges using Geographical Information Systems,lecture_series,master,no,sdg13
+1.1,EXA-GIS-COAST,published,5,0532|0312,Mapping Coastal Change with Spatial Data,lecture_series,master,no,sdg13
 `,
     }).expect(201);
     expect(ok.body.run).toMatchObject({ n_updated: 1 });
     const course = await tdb.db
       .selectFrom('courses')
       .select(['kind', 'level', 'levels', 'attributes'])
-      .where('ext_id', '=', 'AVC-GIS-SOCIETY')
+      .where('ext_id', '=', 'EXA-GIS-COAST')
       .executeTakeFirstOrThrow();
     expect(course).toEqual({
       kind: 'lecture_series',
@@ -525,7 +524,7 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
 
     const bad = await upload(ORG.aurora, {
       courses: `${header},attr_hub
-1.1,AVC-GIS-SOCIETY,published,5,0532,GIS,course,master,maybe,sdg18,x
+1.1,EXA-GIS-COAST,published,5,0532,GIS,course,master,maybe,sdg18,x
 `,
     }).expect(422);
     expect(bad.body.errors.map((e: Record<string, unknown>) => [e.row, e.column, e.code])).toEqual([
@@ -536,7 +535,7 @@ describe.runIf(describeWithDatabase === 'run')('CSV uploads (PostgreSQL)', () =>
     const unchanged = await tdb.db
       .selectFrom('courses')
       .select('kind')
-      .where('ext_id', '=', 'AVC-GIS-SOCIETY')
+      .where('ext_id', '=', 'EXA-GIS-COAST')
       .executeTakeFirstOrThrow();
     expect(unchanged.kind).toBe('lecture_series');
   });

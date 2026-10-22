@@ -442,12 +442,9 @@ describe('template 1.1 columns', () => {
   });
 });
 
-describe('Aurora Virtual Campus fixture', () => {
+describe('Example alliance fixture', () => {
   const read = (file: string) =>
-    readFileSync(
-      new URL(`../fixtures/csv/aurora-virtual-campus.${file}.csv`, import.meta.url),
-      'utf8',
-    );
+    readFileSync(new URL(`../fixtures/csv/example-alliance.${file}.csv`, import.meta.url), 'utf8');
 
   it('validates and maps without issues', () => {
     const result = validateCsvFiles(
@@ -480,18 +477,18 @@ describe('Aurora Virtual Campus fixture', () => {
       return mapped.ok ? mapped.value.course : null;
     });
     const byCode = new Map(courses.map((c) => [c?.ext_id, c]));
-    expect(byCode.get('AVC-BIP-AI-ETHICS')).toMatchObject({
+    expect(byCode.get('EXA-BIP-AUTO-DECISIONS')).toMatchObject({
       kind: 'bip',
       levels: ['bachelor', 'master'],
       attributes: { educational_hub: ['digital_society_global_citizenship'], free_course: true },
     });
-    expect(byCode.get('AVC-IDENT-DIV')?.kind).toBe('lecture_series');
+    expect(byCode.get('EXA-LS-VALLEY-VOICES')?.kind).toBe('lecture_series');
     expect(courses.filter((c) => c?.kind === 'bip')).toHaveLength(2);
     for (const row of result.offerings?.normalized ?? []) {
       const mapped = adapter.mapOffering(row, undefined, ctx);
       expect(mapped.ok && mapped.value.offering.application_url).toBeNull();
       expect(mapped.ok && mapped.value.offering.application_instructions.en).toMatch(
-        /^Apply through the Aurora office of your home university/,
+        /^Apply through the international office of your home university/,
       );
     }
   });

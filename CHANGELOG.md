@@ -92,6 +92,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   leaves the repository before it goes public; it is kept in the alliance's
   private deployment material. A fictional example dataset replaces it (see
   Added).
+- Tests: the CSV fixtures derived from the first alliance's courses are replaced by
+  fictional ones (`example-alliance.*.csv`).
 
 ## [0.10.0] - 2026-10-21
 
