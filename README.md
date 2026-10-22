@@ -18,7 +18,7 @@ dependence on an external managed platform.
 The full specification is [docs/spec-v4.1.md](docs/spec-v4.1.md). An index of
 all documentation is in [docs/README.md](docs/README.md).
 
-![Course list of the public catalogue filtered by one alliance attribute (educational hub): the filter sidebar with facet counts, the active filter chip, and course cards from several universities with ECTS, level, delivery mode, next offering, application deadline and the alliance tags](docs/images/readme-catalogue.png)
+![Course list of the public catalogue: the filter sidebar with facet counts by university, type of course, delivery mode and teaching language, and course cards from several universities with ECTS, levels, delivery mode, next offering, application deadline, alliance seats and the alliance tags](docs/images/readme-catalogue.png)
 
 ## Name
 

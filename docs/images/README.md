@@ -71,14 +71,14 @@ Three more, taken on 2026-10-18 from the development stack (release 0.9.0, profi
 | `ops-alert-email.png` | Mailpit with the Alertmanager delivery test open: subject "[OECP local] FIRING:1 OecpTestAlert (warning)", the firing alert with its three labels and the *View In Alertmanager* button. |
 | `ops-keycloak-admin-console.png` | Keycloak admin console, `master` realm, Users list with the single `admin` service account (warning icon, no e-mail) and the "temporary admin user" banner. |
 
-## Repository README (release 0.9.0, 2026-10-18)
+## Repository README (retaken 2026-10-22, after release 0.10.0)
 
-Taken on 2026-10-18 from the development stack (release 0.9.0) at 1200 pixels wide with Playwright, viewport only, with no branding images and a neutral alliance name (`OECP_ALLIANCE_NAME=European University Alliance`), so that the product looks generic; the data is the Aurora Virtual Campus 2026-27 CSV snapshot of `docs/data/` next to the simulated Innsbruck partner. Used by the repository [README](../../README.md) and listed as `screenshots` in `publiccode.yml`.
+Retaken on 2026-10-22 from a freshly reset development stack (built after release 0.10.0, with the product renamed to Open Alliance Course Catalogue) at 1200 pixels wide with Playwright, viewport only, with no branding images and the fictional alliance name `Example European Universities Alliance` (`OECP_ALLIANCE_NAME`), so that the product looks generic; the data is the fictional example alliance 2026-27 of `docs/data/example-alliance-2026-27` (four invented universities, 10 courses). Used by the repository [README](../../README.md) and listed as `screenshots` in `publiccode.yml`.
 
 | File | Shows |
 |---|---|
-| `readme-catalogue.png` | Course list filtered by the educational hub "Social Entrepreneurship & Innovation": filter sidebar with facet counts, the active filter chip, and course cards (a BIP and a course from different universities) with key facts and alliance tags. |
-| `readme-home.png` | Home page: text brand, search box, "Browse 30 courses with upcoming offerings", quick links by field of study and by university with course counts. |
+| `readme-catalogue.png` | Course list of the example alliance (1200 x 900 pixels): text brand "Open Alliance Course Catalogue", search box, filter sidebar with facet counts (university, type of course, delivery mode, teaching language), "10 courses found" and the first course cards with key facts, alliance seats and tags. |
+| `readme-home.png` | Home page of the example alliance (1200 x 800 pixels): text brand "Open Alliance Course Catalogue", search box, "Browse 10 courses with upcoming offerings", quick links by field of study and by university (Eastbrook, Northvale, Southmere, Westmark) with course counts. |
 
 ## Data-provider guides (release 0.9.0, 2026-10-18)
 
