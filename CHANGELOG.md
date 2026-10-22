@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   publish.
 - Docs: acceptance test plan for the pilot (`docs/production/acceptance-test-plan.md`),
   nine scenario groups in local-account mode with result and sign-off tables.
+- Docs: a fictional example alliance (`apps/api/db/seed/organizations.example.json`,
+  four universities) and its courses (`docs/data/example-alliance-2026-27`, CSV
+  template 1.3, ten courses) to try a deployment with realistic data.
 
 ### Fixed
 
@@ -82,6 +85,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an OECP administrator account; step 2.13 notes the SIR2 proxy-IdP option
   (decision pending); section 5 records the pilot's public outbound IP, host
   and the URV answer on IdP metadata.
+
+### Removed
+
+- Docs: the course data of the first alliance (`docs/data/aurora-virtual-campus-2026-27`)
+  leaves the repository before it goes public; it is kept in the alliance's
+  private deployment material. A fictional example dataset replaces it (see
+  Added).
 
 ## [0.10.0] - 2026-10-21
 

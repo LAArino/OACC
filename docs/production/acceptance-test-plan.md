@@ -11,7 +11,7 @@ Run by people in the real roles, on the real server, with their own accounts, an
 
 **Validated means:** scenarios A to D and F to H passed in full, scenario I passed except the screen-reader session (which may stay *pending* with a written acceptance by the Foundation), and the defect log has no open *blocker* or *major* defect. Scenario E is *deferred*. The signed plan is evidence for the go-live checklist, not a legal opinion.
 
-**Deployment under test.** Local-account mode: no identity provider is connected and all ten organizations have an empty `keycloak_idp_alias` (*OACC accounts* in the organizations list). The alliance administrator is, for now, the person named by the Foundation; the hosting operator (URV) supports. The 13 courses of the Aurora Virtual Campus 2026-27 are already loaded by CSV for `uice`, `ude`, `upec`, `vua` and `up` ([data](../data/aurora-virtual-campus-2026-27/README.md)). `OECP_PUBLISH_RULE` is `warn`.
+**Deployment under test.** Local-account mode: no identity provider is connected and all ten organizations have an empty `keycloak_idp_alias` (*OACC accounts* in the organizations list). The alliance administrator is, for now, the person named by the Foundation; the hosting operator (URV) supports. The 13 courses of the Aurora Virtual Campus 2026-27 are already loaded by CSV for `uice`, `ude`, `upec`, `vua` and `up` (the alliance's CSV files, kept in its private deployment material; the fictional [example dataset](../data/example-alliance-2026-27/README.md) has the same structure). `OECP_PUBLISH_RULE` is `warn`.
 
 **Out of scope, with reasons**
 

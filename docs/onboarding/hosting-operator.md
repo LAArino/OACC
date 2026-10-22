@@ -210,6 +210,8 @@ docker compose run --rm api pnpm db:migrate
 
 Then the organizations and the attribute definitions. Their content belongs to the alliance (Guide A [step 4](alliance.md#4-seed-the-organizations) and [step 5](alliance.md#5-define-the-course-attributes)): get the reviewed files from it and run the commands of those steps, `--dry-run` first. For Aurora, copy `apps/api/db/seed/organizations.aurora.json` to `deploy/compose/organizations.alliance.json`; the Aurora file sets `keycloak_idp_alias` to the slug for the partners, so in your copy set it to `null` for every university whose IdP is not connected yet (Guide A step 3), or invitations to its administrators are refused. The default attribute file is the Aurora list; any other alliance passes its own with `--file`.
 
+A deployment for demonstration or testing can seed the fictional `apps/api/db/seed/organizations.example.json` (with the default attribute file) and upload the CSV pairs of [docs/data/example-alliance-2026-27](../data/example-alliance-2026-27/README.md).
+
 Check:
 
 - `docker compose run --rm api pnpm db:migrate` run a second time prints only `Migrations complete!` (no migration name: nothing was pending).

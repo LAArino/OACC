@@ -1,0 +1,102 @@
+{
+  "$comment": [
+    "Copyright 2026 Lluís Alfons Ariño",
+    "Licence: EUPL-1.2",
+    "Fictional example alliance for the seed-organizations command (upsert by slug): one alliance and four",
+    "universities with invented names. Every domain is under `.example` (reserved by RFC 2606 and never",
+    "resolvable) and any resemblance to real institutions is unintended. Use it to try a deployment with the",
+    "courses of docs/data/example-alliance-2026-27. keycloak_idp_alias is null everywhere: all accounts",
+    "are local OACC accounts, no identity provider needs to exist."
+  ],
+  "organizations": [
+    {
+      "slug": "example-alliance",
+      "org_type": "alliance",
+      "is_partner": false,
+      "name": {
+        "en": "Example European Universities Alliance"
+      },
+      "schac_home_organization": "example-alliance.example",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": null,
+      "website_url": "https://www.example-alliance.example",
+      "contact_email": "office@example-alliance.example",
+      "default_timezone": "Europe/Brussels",
+      "ui_languages": ["en"],
+      "keycloak_idp_alias": null
+    },
+    {
+      "slug": "northvale",
+      "org_type": "institution",
+      "is_partner": true,
+      "name": {
+        "en": "Northvale University",
+        "fi": "Northvalen yliopisto"
+      },
+      "schac_home_organization": "northvale.example",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": "FI",
+      "website_url": "https://www.northvale.example",
+      "contact_email": "courses@northvale.example",
+      "default_timezone": "Europe/Helsinki",
+      "ui_languages": ["en", "fi"],
+      "keycloak_idp_alias": null
+    },
+    {
+      "slug": "southmere",
+      "org_type": "institution",
+      "is_partner": true,
+      "name": {
+        "en": "Southmere University",
+        "pt": "Universidade de Southmere"
+      },
+      "schac_home_organization": "southmere.example",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": "PT",
+      "website_url": "https://www.southmere.example",
+      "contact_email": "courses@southmere.example",
+      "default_timezone": "Europe/Lisbon",
+      "ui_languages": ["en", "pt"],
+      "keycloak_idp_alias": null
+    },
+    {
+      "slug": "eastbrook",
+      "org_type": "institution",
+      "is_partner": true,
+      "name": {
+        "en": "Eastbrook University",
+        "pl": "Uniwersytet Eastbrook"
+      },
+      "schac_home_organization": "eastbrook.example",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": "PL",
+      "website_url": "https://www.eastbrook.example",
+      "contact_email": "courses@eastbrook.example",
+      "default_timezone": "Europe/Warsaw",
+      "ui_languages": ["en", "pl"],
+      "keycloak_idp_alias": null
+    },
+    {
+      "slug": "westmark",
+      "org_type": "institution",
+      "is_partner": true,
+      "name": {
+        "en": "Westmark University",
+        "nl": "Westmark Universiteit"
+      },
+      "schac_home_organization": "westmark.example",
+      "erasmus_code": null,
+      "pic": null,
+      "country_code": "NL",
+      "website_url": "https://www.westmark.example",
+      "contact_email": "courses@westmark.example",
+      "default_timezone": "Europe/Amsterdam",
+      "ui_languages": ["en", "nl"],
+      "keycloak_idp_alias": null
+    }
+  ]
+}

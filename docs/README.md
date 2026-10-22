@@ -18,7 +18,7 @@ Open Alliance Course Catalogue (OACC), the open course catalogue for European Un
 | [backlog.md](backlog.md) | Owner-requested items not yet scheduled, with their trigger. |
 | [RELEASING.md](RELEASING.md) | Versioning, contract and migration policy, release procedure and checklist. |
 | [api/](api/README.md) | OpenAPI 3.1 documents of the public catalogue API (`/api/public/v1`) and the admin API (`/api/admin/v1`), generated from the Zod contracts; how to regenerate, view and version them. |
-| [data/](data/aurora-virtual-campus-2026-27/README.md) | Real course data transcribed into CSV template 1.2: the 13 courses of the Aurora Virtual Campus 2026–27 (a snapshot for the first upload, not a maintained dataset). |
+| [data/](data/example-alliance-2026-27/README.md) | A fictional example alliance (seed `apps/api/db/seed/organizations.example.json`) and its ten courses in CSV template 1.3, four universities, to try a deployment with realistic data. Not a maintained dataset; the first alliance's real course data is kept in its private deployment material. |
 | [images/](images/README.md) | Annotated screenshots of the public portal, the administration panel and the operations stack, used by the guides. |
 | [screenshots/](screenshots/) | Screenshots of the development stack taken while verifying features (identity, catalogue, admin console, course wizard). Illustrative only: not kept in sync with every change. |
 
