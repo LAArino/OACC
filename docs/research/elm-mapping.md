@@ -288,4 +288,6 @@ Whole store: 121,438 Qualifications (EQF 6: 35,935; 7: 33,726; 8: 3,247), 475,87
 
 ## What could not be accessed or verified
 
-EU Vocabularies "Downloads" and "Release notes" tabs (blocked assets); SHACL v1.3.0 as RDF; ELM 3.4 (no public document, claim from a DG EMPL contact only); QDR acceptance of the example; the German LO count; EQF 6-8 for FR learning opportunities; whether Europass course search shows non-qualification LOs.
+EU Vocabularies "Downloads" and "Release notes" tabs (blocked assets); SHACL v1.3.0 as RDF; ELM 3.4 (no public document, claim from a DG EMPL contact only); QDR acceptance of the example; the German LO count; EQF 6-8 for FR learning opportunities.
+
+**Verified on 2026-10-24: Europass shows learning opportunities without a qualification.** The "Find a course" page calls `https://europa.eu/europass/eportfolio/api/qdr/europass/qdr-search/search` (`type=learning-opportunity`, `location=` a country authority URI). Without keywords it returns 77,788 learning opportunities for Sweden, course-level university entries such as "Special Education in Practice" (Karlstad University), and 6,158 for Austria (programmes, including Universität Innsbruck). Keywords match course texts, not provider names: "Gothenburg" returns 0 for Sweden, "Innsbruck" 4 for Austria. Why the EU Vocabularies tabs failed: op.europa.eu answers automated browsers with 429 (rate limit) and 403 on the scripts that load them; the package is downloadable from an ordinary browser.
