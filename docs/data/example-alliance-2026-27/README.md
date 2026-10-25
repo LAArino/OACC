@@ -34,7 +34,7 @@ contact, instructors and one published offering with application start and
 deadline, so none of them triggers the handbook warning
 `oecp.content.handbook_incomplete`. The offerings fall in the academic
 sessions `EXA-2026-27-S1` and `EXA-2026-27-S2` (created by the first upload
-that uses them). `image_url` is empty: add images you may publish yourself.
+that uses them). Five of the ten courses have an image, see [Images](#images); the other five have none, so the portal shows their partner logo line.
 
 ## How to use it
 
@@ -67,3 +67,48 @@ that uses them). `image_url` is empty: add images you may publish yourself.
 
 Uploading a pair twice is harmless: the second run counts every row as
 unchanged.
+
+## Images
+
+Five courses come with an illustration, so you can see both the image and the
+logo fallback. The pictures are abstract and contain no text, logos, people or
+flags. Each is drawn by [`images/generate.py`](images/generate.py) from
+geometry, gradients and seeded noise (Python with Pillow and NumPy): no
+photograph, font, third-party artwork or AI image service is involved, so no
+third party holds rights over them. The script is deterministic: running it
+again rewrites the same files.
+
+| University (slug) | Course code | Theme |
+|---|---|---|
+| `northvale` | `EXA-NOR-DATA-ETHICS` | node graph on a dot grid |
+| `northvale` | `EXA-NOR-NORTHERN-ECOSYSTEMS` | forest ridges, lake and moon rings |
+| `southmere` | `EXA-SOU-HERITAGE-IDENTITIES` | nested arches and mosaic tiles |
+| `eastbrook` | `EXA-EAS-SMART-MANUFACTURING` | gears, robot arm and circuit traces |
+| `westmark` | `EXA-WES-URBAN-MOBILITY` | transit lines and stations |
+
+Course codes are unique per organization, so there is one folder per university,
+`images/<slug>/`, each with its own `images.csv` (`course_code,file,alt_en,decorative,credit`)
+and the JPEGs it lists. Load a folder with the CLI command `import-course-images`
+([hosting operator guide](../../onboarding/hosting-operator.md#26-database-schema-and-seeds),
+*Course images*) once the courses exist, i.e. after the CSV uploads, one run per
+organization; do a `--dry-run` first. From `deploy/compose`, for Northvale:
+
+```sh
+docker compose run --rm -T -v "$PWD/../../docs/data/example-alliance-2026-27/images/northvale:/seed/images:ro" \
+  api node dist/cli.js import-course-images --org northvale --dir /seed/images --dry-run
+```
+
+Drop `--dry-run` for the real run and repeat with `southmere`, `eastbrook` and
+`westmark` (mount that university's folder).
+
+The CSV route is exercised as well: `EXA-WES-URBAN-MOBILITY` also carries
+`image_url`, `image_alt_en` and `image_credit` in `westmark/courses.csv`, a
+`raw.githubusercontent.com` URL of its picture, which the worker fetches after
+the upload ([CSV authoring guide](../../guides/csv-authoring.md#course-image-image_url)).
+That fetch needs the repository to be public and the file to be on the `main`
+branch; until then the upload still succeeds and only reports the warning
+`oecp.media.fetch_failed`. Loading the folder afterwards replaces the fetched
+image by the same one and is harmless.
+
+To change a picture or add one for another course, edit the theme table and
+`EXAMPLE` in `images/generate.py` and add a line to the matching `images.csv`.
