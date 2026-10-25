@@ -44,6 +44,7 @@ function handlers() {
     seedAttributeDefinitions: vi
       .fn<CliHandlers['seedAttributeDefinitions']>()
       .mockResolvedValue(EXIT.OK),
+    importCourseImages: vi.fn<CliHandlers['importCourseImages']>().mockResolvedValue(EXIT.OK),
     bootstrapAllianceAdmin: vi
       .fn<CliHandlers['bootstrapAllianceAdmin']>()
       .mockResolvedValue(EXIT.OK),
@@ -142,6 +143,43 @@ describe('oecp command line', () => {
       file: resolve('x/a.json'),
       dryRun: true,
     });
+  });
+
+  it('parses import-course-images, resolving --dir against the working directory', async () => {
+    const h = handlers();
+    await expect(
+      runProgram(
+        ['import-course-images', '--org', 'urv', '--dir', 'seed/images'],
+        h,
+        capture().output,
+      ),
+    ).resolves.toBe(EXIT.OK);
+    expect(h.importCourseImages).toHaveBeenCalledWith({
+      org: 'urv',
+      dir: resolve('seed/images'),
+      dryRun: false,
+    });
+    await runProgram(
+      ['import-course-images', '--org', 'urv', '--dir', '/seed/images', '--dry-run'],
+      h,
+      capture().output,
+    );
+    expect(h.importCourseImages).toHaveBeenLastCalledWith({
+      org: 'urv',
+      dir: '/seed/images',
+      dryRun: true,
+    });
+  });
+
+  it.each([
+    [['import-course-images', '--dir', '/x']],
+    [['import-course-images', '--org', 'urv']],
+    [['import-course-images', '--org', 'URV!', '--dir', '/x']],
+    [['import-course-images', '--org', 'urv', '--dir', '/x', 'extra']],
+  ])('rejects %j with the usage exit code', async (argv) => {
+    const h = handlers();
+    await expect(runProgram(argv, h, capture().output)).resolves.toBe(EXIT.USAGE);
+    expect(h.importCourseImages).not.toHaveBeenCalled();
   });
 
   it('parses bootstrap-alliance-admin with a 24-hour default', async () => {

@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Docs: generated illustrations for five of the ten example-alliance courses
+  (`docs/data/example-alliance-2026-27/images/<organization>/`, one
+  `images.csv` per organization, loaded with `import-course-images`); one
+  course also carries `image_url` to exercise the URL fetch. The images are
+  drawn by `images/generate.py`, so they carry no third-party rights.
+- CLI: `import-course-images` sets course images from a local folder (`images.csv`
+  with course code, file, English alt text, credit), reusing the image pipeline
+  of the web form; idempotent, with `--dry-run`.
 - Portal: public legal pages `/{locale}/privacy` and `/{locale}/accessibility`,
   server-rendered from `privacy.<lang>.md` and `accessibility.<lang>.md` in the
   branding directory (English fallback; HTTP 404 and `noindex` until the

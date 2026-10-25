@@ -212,6 +212,23 @@ Then the organizations and the attribute definitions. Their content belongs to t
 
 A deployment for demonstration or testing can seed the fictional `apps/api/db/seed/organizations.example.json` (with the default attribute file) and upload the CSV pairs of [docs/data/example-alliance-2026-27](../data/example-alliance-2026-27/README.md).
 
+**Course images (optional).** Once the courses exist (uploaded through the CSV console), a folder of images can be loaded in one go, for the example alliance or for a real alliance's own material, without the web form and without a public URL. Put the files and an `images.csv` in one folder (UTF-8; `course_code` and `file` are required, `file` is relative to the folder; `alt_en` is required unless `decorative` is `true`; `decorative` defaults to `false`; `credit` is optional; each text at most 300 characters):
+
+```csv
+course_code,file,alt_en,decorative,credit
+MATH101,math101.jpg,"A lecture hall seen from the back",,"Photo: A. Smith, CC BY 4.0"
+ART200,art200.png,,true,
+```
+
+The command reads the folder from inside the container, so mount it read-only; run the dry run first (it decodes every file and checks every code, and writes nothing), then the same command without `--dry-run`:
+
+```sh
+docker compose run --rm -T -v "$PWD/images:/seed/images:ro" api \
+  node dist/cli.js import-course-images --org <slug> --dir /seed/images --dry-run
+```
+
+Courses are looked up by course code (`ext_id`) among the courses of the organization `--org`, as in a CSV upload. One line is printed per row (`set`, `replaced`, `unchanged` or `error`, with `would set` and `would replace` in a dry run); a bad line (unknown code, missing or invalid file, missing alt text) is reported and the others still go on, and the exit code is 1 if any line failed. The command is idempotent: a second run reports `unchanged` for every image whose content, English alt text, decorative flag and credit are as stored. It uses the pipeline of the web form (≤ 5 MiB; JPEG, PNG or WebP; ≤ 40 megapixels; re-encoded to WebP without metadata) and audits each change as `course.image_set` by `system:cli`. The rules of [decision 27](../decisions-log.md) apply to what you load: the partner holds the rights to each image, no identifiable people, and a meaningful English alt text (or `decorative`). Without `images.csv` the command refuses to run: alt text cannot be derived from a file name.
+
 Check:
 
 - `docker compose run --rm api pnpm db:migrate` run a second time prints only `Migrations complete!` (no migration name: nothing was pending).

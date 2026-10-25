@@ -43,6 +43,14 @@ export interface SeedAttributeDefinitionsOptions {
   dryRun: boolean;
 }
 
+export interface ImportCourseImagesOptions {
+  /** Slug of the organization whose courses get the images. */
+  org: string;
+  /** Absolute path of the folder with `images.csv` and the image files. */
+  dir: string;
+  dryRun: boolean;
+}
+
 export interface BootstrapAllianceAdminOptions {
   email: string;
   org: string;
@@ -66,6 +74,7 @@ export interface IdpMetadataRefreshCliOptions {
 export interface CliHandlers {
   seedOrganizations(options: SeedOrganizationsOptions): Promise<ExitCode>;
   seedAttributeDefinitions(options: SeedAttributeDefinitionsOptions): Promise<ExitCode>;
+  importCourseImages(options: ImportCourseImagesOptions): Promise<ExitCode>;
   bootstrapAllianceAdmin(options: BootstrapAllianceAdminOptions): Promise<ExitCode>;
   storeSecret(options: StoreSecretOptions): Promise<ExitCode>;
   idpMetadataRefresh(options: IdpMetadataRefreshCliOptions): Promise<ExitCode>;
@@ -147,6 +156,30 @@ export function buildProgram(
     .action(async (opts: { file: string; dryRun: boolean }) => {
       onResult(
         await handlers.seedAttributeDefinitions({ file: resolve(opts.file), dryRun: opts.dryRun }),
+      );
+    });
+
+  program
+    .command('import-course-images')
+    .description(
+      'Set course images from a local folder: images.csv (course_code,file,alt_en,decorative,credit) ' +
+        'plus the image files, through the same pipeline as the web form; idempotent; ' +
+        'exit 1 if any line failed',
+    )
+    .requiredOption(
+      '--org <slug>',
+      'slug of the organization whose courses get the images',
+      parseSlug,
+    )
+    .requiredOption('--dir <path>', 'folder with images.csv and the image files')
+    .option('--dry-run', 'validate everything and report the changes without writing', false)
+    .action(async (opts: { org: string; dir: string; dryRun: boolean }) => {
+      onResult(
+        await handlers.importCourseImages({
+          org: opts.org,
+          dir: resolve(opts.dir),
+          dryRun: opts.dryRun,
+        }),
       );
     });
 
