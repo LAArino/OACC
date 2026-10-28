@@ -640,6 +640,20 @@ docker compose --profile observability exec alertmanager amtool --alertmanager.u
   example an empty URL) or a wrong admin password file. Note that it logs
   skipped sections only at debug level: add
   `LOGGING_LEVEL_DE_ADORSYS=debug` to its environment to see them.
+- **"Sign-in could not be started" on `/en/admin` (self-signed certificate):**
+  the sign-in button first fetches the OpenID discovery document from the auth
+  host (`https://<auth host>/realms/oecp/.well-known/openid-configuration`).
+  A browser that has not accepted the auth host's certificate blocks that
+  request without a page, so the portal only shows the message. Open
+  `https://<auth host>/` once in the same browser (and profile), accept the
+  certificate warning, return to the portal and try again. Accepting the
+  portal's certificate does not cover the auth host. Traefik generates its
+  default self-signed certificate again when it restarts, so repeat it after a
+  `docker compose up`/`down` that recreated `traefik`. It only happens with
+  the self-signed development certificate; with ACME or an institution-issued
+  certificate the same message means a real TLS problem on the auth host: look
+  for the failed request in the browser's network tab and check the
+  certificate with `openssl s_client -connect <auth host>:443`.
 - **404 from Traefik on a host:** the target container is unhealthy or
   (re)starting (Traefik ignores unhealthy containers and needs a few seconds
   after a container turns healthy), or `OECP_PORTAL_HOST`/`OECP_AUTH_HOST`
