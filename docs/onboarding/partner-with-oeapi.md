@@ -8,7 +8,7 @@ For universities that already run an Open Education API (OEAPI, formerly OOAPI) 
 > **Before you start**
 >
 > - The alliance has finished [Guide A](alliance.md) and invited your partner admin.
-> - Your endpoint speaks OEAPI **v5.0** (v6 is not supported in 0.10.0) over `https` on port 443 at a public address.
+> - Your endpoint speaks OEAPI **v5.0** (v6 is not supported in 0.11) over `https` on port 443 at a public address.
 > - You know which **consumer profile** returns the courses meant for the alliance (usually `eduxchange`).
 > - Elapsed time: 2–8 weeks, most of it for the access agreement; the technical work is 1–2 days.
 
@@ -43,7 +43,7 @@ A bilateral agreement between the alliance (as data controller) and your univers
 - [ ] Credential handling: who issues it, how it is sent, rotation and revocation.
 - [ ] Technical and data contacts on both sides, and how to end the arrangement.
 
-OACC provides no agreement template in 0.10.0; the same items, with the controller's side, are in section B of the [art. 28 checklist](../production/art28-processor-checklist.md#b-access-agreement-with-each-harvested-partner).
+OACC provides no agreement template in 0.11; the same items, with the controller's side, are in section B of the [art. 28 checklist](../production/art28-processor-checklist.md#b-access-agreement-with-each-harvested-partner).
 
 ## 3. Issue a credential and open the firewall
 
@@ -161,7 +161,7 @@ Mapped from OEAPI: titles and texts per language, ECTS, ISCED fields, level, inf
 
 Optional OACC extensions your IT can add if it wants (same shape as OACC's own read API): `ext.oecp.instructors` (a list of names or role descriptions, used when no coordinator has a name), `ext.oecp.texts` (mode of repetition, methods, literature, privacy notice, remarks per language) on the course, and `ext.oecp.applicationInstructions` on the offering. Details and an example: [API integration guide](../guides/api-integration.md#handbook-completeness).
 
-Not available from OEAPI in 0.10.0:
+Not available from OEAPI in 0.11:
 
 - **Course kind**: every harvested course is `course`; BIPs and lecture series must be set by override.
 - **Alliance attributes** (for example educational hub or SDGs): always empty; set by override.

@@ -7,7 +7,7 @@
 
 For the **hosting operator**: the IT team of the institution that installs and runs OACC for an alliance. In the first deployment this is URV for the Aurora alliance [DL 2], with the pilot on `lspurv.urv.cat` (portal) and `auth.lspurv.urv.cat` (Keycloak).
 
-At the end you have the reference Docker Compose deployment of release 0.10.0 running on one host, with production TLS, an SMTP relay, backups with a passed restore drill, alerting and logs, the organizations seeded and a first alliance admin invited, and a list of what you run every week, month, quarter and year.
+At the end you have the reference Docker Compose deployment of release 0.11 running on one host, with production TLS, an SMTP relay, backups with a passed restore drill, alerting and logs, the organizations seeded and a first alliance admin invited, and a list of what you run every week, month, quarter and year.
 
 This guide is the **ordered path**. The detail lives in three documents, and each step below links to the section that has it:
 
@@ -65,13 +65,13 @@ Run every command in `deploy/compose` of the checkout, as the operator account. 
 
 ```sh
 git clone https://github.com/LAArino/OACC.git && cd OACC
-git checkout v0.10.0          # or the latest release: only the latest minor is supported
+git checkout v0.11.0          # or the latest release: only the latest minor is supported
 cd deploy/compose
 ```
 
 Clone the whole repository: `compose.yaml` builds from the repository root and mounts `identity/keycloak`. Images are not published yet: you build them on the server from the tag ([RELEASING.md](../RELEASING.md#support-policy)).
 
-Check: `git describe --tags` prints `v0.10.0`.
+Check: `git describe --tags` prints `v0.11.0`.
 
 ### 2.2 Write `.env`
 
@@ -85,7 +85,7 @@ Every variable is documented in `.env.example`. Set these, and leave every other
 |---|---|
 | Hosts | `OECP_PORTAL_HOST`, `OECP_AUTH_HOST` (the ports stay 80 and 443); `OECP_ENVIRONMENT=production` (shown in telemetry and alerts) |
 | TLS | `ACME_EMAIL` (the ACME account contact) |
-| Images | `OECP_IMAGE_TAG=0.10.0` (the release you checked out; default `dev`); `OECP_GIT_COMMIT` (e.g. `git rev-parse --short HEAD`) |
+| Images | `OECP_IMAGE_TAG=0.11.0` (the release you checked out; default `dev`); `OECP_GIT_COMMIT` (e.g. `git rev-parse --short HEAD`) |
 | Keycloak | `KEYCLOAK_ADMIN_ALLOWLIST` (operators' networks only); `OECP_REALM_DISPLAY_NAME` (login page) |
 | Portal | `OECP_ALLIANCE_NAME`; the branding variables come in [step 2.11](#211-branding) |
 | Mail | `OECP_SMTP_HOST`, `OECP_SMTP_PORT`, `OECP_SMTP_FROM`, `OECP_SMTP_STARTTLS` (`true`, the default, requires the relay to offer STARTTLS; `false` for a relay without TLS); for SMTP AUTH of the api: `OECP_SMTP_USER`, `OECP_SMTP_PASSWORD_FILE=/run/secrets/smtp_password` and the secret `smtp_password` uncommented in `compose.yaml` (both the `x-oecp-backend-secrets` list and the top-level `secrets:`); the api refuses one without the other. `OECP_MAIL_LOG_LINKS=false` |
@@ -330,7 +330,7 @@ Check:
 
 Optional. Put the alliance's header image and logo (the alliance holds their rights; for Aurora [DL 25]) in `branding/` (or `OECP_BRANDING_DIR`), readable by uid 1000, with the file names, sizes and variables of [branding/README.md](../../deploy/compose/branding/README.md); then `docker compose up -d web`. Partner logos (`partner-<slug>.svg`, `.png` or `.webp`) need no variable and the favicon is set with `OECP_FAVICON_IMAGE`; `curl -s "https://$PORTAL/branding/index.json"` lists the files the portal sees.
 
-The same directory holds the two legal texts the alliance supplies, `privacy.en.md` and `accessibility.en.md` (and `privacy.<lang>.md`, `accessibility.<lang>.md` for other languages; English is the fallback), after the release following 0.10.0: the portal serves them at `/en/privacy` and `/en/accessibility` and shows the footer links only once the English file exists, so both pages answer 404 until the alliance publishes them. The alliance writes them ([production documents](../production/README.md)); you copy them in and run `docker compose up -d web`.
+The same directory holds the two legal texts the alliance supplies, `privacy.en.md` and `accessibility.en.md` (and `privacy.<lang>.md`, `accessibility.<lang>.md` for other languages; English is the fallback), since 0.11.0 the portal serves them at `/en/privacy` and `/en/accessibility` and shows the footer links only once the English file exists, so both pages answer 404 until the alliance publishes them. The alliance writes them ([production documents](../production/README.md)); you copy them in and run `docker compose up -d web`.
 
 Check: `curl -sI "https://$PORTAL/branding/<file>" | head -1` answers 200 for each file, and the home page shows the image and logo.
 
@@ -375,7 +375,7 @@ Local accounts (alias `null`, step 2.6) are the permanent mode of a university o
 
    ![SimpleSAMLphp "Enter your username and password" form of the development test identity provider (Rovira i Virgili University), empty, as reached from the university chooser on the portal sign-in prompt](../images/onboarding-test-idp-login.png)
 
-Check: `node tools/scripts/sp-metadata.mjs --auth-host "$AUTH" --check` prints `ok` (no new alias, file current); after the first start of the stack, `https://<auth host>/realms/oecp/broker/<alias>/endpoint/descriptor` of an enabled IdP lists the same entityID, ACS location and, first, the same certificates as `sp-metadata.xml`; the invitation is accepted through the university's login plus TOTP enrolment; the worker log shows the metadata refresh about a minute after the worker starts. No real partner IdP has been connected in 0.10.0: the brokered path is verified against the development test IdP only.
+Check: `node tools/scripts/sp-metadata.mjs --auth-host "$AUTH" --check` prints `ok` (no new alias, file current); after the first start of the stack, `https://<auth host>/realms/oecp/broker/<alias>/endpoint/descriptor` of an enabled IdP lists the same entityID, ACS location and, first, the same certificates as `sp-metadata.xml`; the invitation is accepted through the university's login plus TOTP enrolment; the worker log shows the metadata refresh about a minute after the worker starts. No university's own IdP has been connected in 0.11: the brokered path is verified against the development test IdP and, for the SIR2 hub, with one real test sign-in through the RedIRIS test gateway (2026-10-28; decision 29 in progress).
 
 ![Invitation accepted, with the role and organization granted and the button to sign in again](../images/admin-invitation-accepted.png)
 

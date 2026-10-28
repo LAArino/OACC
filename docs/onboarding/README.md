@@ -3,7 +3,7 @@
 
 # Onboarding to OACC
 
-These guides take an alliance and its universities from "we want a shared course catalogue" to "our courses are published and stay current". They describe **release 0.10.0** as it is. Where something is planned but not built, they say so ("not yet available in 0.10.0"). The as-built specification is [spec v4.1](../spec-v4.1.md); the decisions behind these guides are rows 2, 3, 4, 12, 13, 14, 15, 17, 22, 24 and 25 of the [decisions log](../decisions-log.md).
+These guides take an alliance and its universities from "we want a shared course catalogue" to "our courses are published and stay current". They describe **release 0.11** as it is. Where something is planned but not built, they say so ("not yet available in 0.11"). The as-built specification is [spec v4.1](../spec-v4.1.md); the decisions behind these guides are rows 2, 3, 4, 12, 13, 14, 15, 17, 22, 24 and 25 of the [decisions log](../decisions-log.md).
 
 > **Before you start**
 >
@@ -88,15 +88,15 @@ All three end in the same canonical model, so the public catalogue cannot tell t
 
 **Lifecycle.** Courses and offerings are `draft`, `published`, `withdrawn` or `cancelled`. Publishing needs an English title. A course appears in the catalogue's default listing when it is published and has a published offering that has not ended. Harvested courses that disappear from the endpoint for three complete harvests in a row are withdrawn automatically; a CSV upload never withdraws by omission.
 
-## What 0.10.0 does not have yet
+## What 0.11 does not have yet
 
 Plan around these gaps; each guide repeats the ones that affect it. Every administration task of these guides has a screen ([Guide A, step 7](alliance.md#7-the-administration-screens)); the admin API remains available for scripting.
 
 Backups and alerting are built and are switched on by the hosting operator ([Guide A, step 9](alliance.md#9-operate)): the Compose profile `backup` runs pgBackRest with continuous WAL archiving, weekly full and daily differential backups, a 35-day recovery window and a daily archive of the uploads, checked by a quarterly restore drill (`deploy/compose/scripts/restore-drill.sh`); the profile `observability` adds Prometheus alert rules (including the expiry of partner IdP signing certificates and of the TLS certificate), Alertmanager (e-mail or webhook), container logs shipped to Loki (90 days, Traefik access log 30 days; since 0.7.0) and the Grafana dashboards *OECP overview* and *OECP logs*. See the Compose README sections [Backups](../../deploy/compose/README.md#backups-profile-backup), [Restore drill and restore](../../deploy/compose/README.md#restore-drill-and-restore), [Alerting](../../deploy/compose/README.md#alerting) and [Log retention](../../deploy/compose/README.md#log-retention), and the runbook sections [3](../production/runbook.md#3-backups-and-point-in-time-recovery), [4](../production/runbook.md#4-restore-drill), [7](../production/runbook.md#7-monitoring-and-alerts) and [10](../production/runbook.md#10-log-and-data-retention).
 
-- Login through a university's own identity provider (SAML/eduGAIN) is verified against a simulated IdP only; each real partner IdP must be connected and tested (see Guide A, step 3).
+- Login through a university's own identity provider (SAML/eduGAIN) is verified against a simulated IdP only; each real partner IdP must be connected and tested (see Guide A, step 3). Through the SIR2 hub (decision 29, in progress) one real test sign-in has worked (2026-10-28); the production registration is still to come.
 - No API keys or service accounts: scripts and unattended uploads need a token from an interactive sign-in.
 - No real partner endpoint has been harvested yet; channel A is verified against the bundled mock partner only.
 - Until the operator configures the second backup site (encrypted pgBackRest repo2, documented but not yet exercised), every backup lives on the production host only. The in-host monitoring cannot report the host itself down: that needs an external check (runbook section 7, "Still manual").
-- No privacy or accessibility page in the portal. The GDPR document set, the accessibility statement and the runbook exist as templates in `docs/production/` that the alliance must complete.
+- The portal serves the privacy notice and the accessibility statement (`/en/privacy`, `/en/accessibility`) only once the alliance has written them and put them in the branding directory; the GDPR document set, the accessibility statement and the runbook exist as templates and drafts in `docs/production/` that the alliance must complete.
 - The portal interface is in English only.

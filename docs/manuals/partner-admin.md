@@ -3,7 +3,7 @@
 
 # Partner administrator manual
 
-For you if you are a **partner administrator** (`partner_admin`): the person who keeps one university's courses current in the alliance catalogue. It walks through the screens of the administration panel as they are in **release 0.10.0**, in the order you meet them. Why things work this way, and every field rule and error code, are in the onboarding guides and the data-provider guides; this manual links to them instead of repeating them.
+For you if you are a **partner administrator** (`partner_admin`): the person who keeps one university's courses current in the alliance catalogue. It walks through the screens of the administration panel as they are in **release 0.11**, in the order you meet them. Why things work this way, and every field rule and error code, are in the onboarding guides and the data-provider guides; this manual links to them instead of repeating them.
 
 Alliance administrators have their own manual, [alliance-admin.md](alliance-admin.md), which builds on this one.
 

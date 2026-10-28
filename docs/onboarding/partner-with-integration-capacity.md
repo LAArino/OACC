@@ -37,7 +37,7 @@ Choose (a) if your university wants an OEAPI endpoint anyway (national registrie
 
 **Who:** partner IT, with the partner admin for data checks.
 
-1. **Use the specification and tooling.** Implement OEAPI **v5.0** from SURF's `open-education-api/specification` repository; the `oeapi-endpoint-quickstart` starter kit of the open-education-api organisation (SURF) implements v5. OACC does not read v6 in 0.10.0.
+1. **Use the specification and tooling.** Implement OEAPI **v5.0** from SURF's `open-education-api/specification` repository; the `oeapi-endpoint-quickstart` starter kit of the open-education-api organisation (SURF) implements v5. OACC does not read v6 in 0.11.
 2. **Implement the resources OACC reads**, with paging (`pageSize`, `pageNumber`, `hasNextPage`):
 
    | Request | Purpose |
@@ -73,7 +73,7 @@ Choose (a) if your university wants an OEAPI endpoint anyway (national registrie
 
 7. **Schedule** the export and an upload routine before each application round, and at least monthly.
 
-A scripted upload, without the console, is technically possible: the console calls `POST /api/admin/v1/organizations/{orgId}/uploads` with a bearer token. In 0.10.0, however, tokens come only from an interactive login with MFA and last 5 minutes, and there is no service account or API key, so unattended upload is not yet documented or supported.
+A scripted upload, without the console, is technically possible: the console calls `POST /api/admin/v1/organizations/{orgId}/uploads` with a bearer token. In 0.11, however, tokens come only from an interactive login with MFA and last 5 minutes, and there is no service account or API key, so unattended upload is not yet documented or supported.
 
 Your organization's authoritative channel can stay at its default (`form`); CSV uploads and the web form both work.
 
