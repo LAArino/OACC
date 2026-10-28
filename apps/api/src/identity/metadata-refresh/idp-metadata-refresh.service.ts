@@ -73,6 +73,12 @@ export interface IdpRefreshOutcome {
 export const outcomeFailed = (outcome: IdpRefreshOutcome): boolean =>
   outcome.aggregateError !== undefined || outcome.results.some((r) => r.status === 'failed');
 
+/**
+ * IdP config key that excludes an IdP from the refresh (value `false`). Set in
+ * realm-oecp.yaml for IdPs whose metadata is not in the configured aggregate.
+ */
+export const METADATA_REFRESH_OPT_OUT_KEY = 'oecp.metadataRefresh';
+
 /** Optional clock override (tests). */
 export const IDP_REFRESH_CLOCK = Symbol('IDP_REFRESH_CLOCK');
 
@@ -204,6 +210,12 @@ export class IdpMetadataRefreshService {
       }
       if (idp.providerId !== 'saml') {
         skip(`not a SAML identity provider (${idp.providerId ?? 'unknown'})`);
+        continue;
+      }
+      // Pinned IdP (e.g. the SIR2 hub, whose unsigned metadata is not in the
+      // aggregate): its certificate and endpoints are managed in realm-oecp.yaml.
+      if (idp.config?.[METADATA_REFRESH_OPT_OUT_KEY]?.trim().toLowerCase() === 'false') {
+        skip(`${METADATA_REFRESH_OPT_OUT_KEY}=false: configuration pinned in the realm file`);
         continue;
       }
       if (idp.enabled === false && !this.settings.includeDisabled) {

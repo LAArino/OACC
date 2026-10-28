@@ -867,6 +867,72 @@ identityProviders:
       allowedClockSkew: "30"
       guiOrder: "110"
 
+  # ---- `sir2`: the RedIRIS SIR2 hub (proxy IdP of the federation) -------------------
+  # One SAML IdP through which the users of every university sign in (the
+  # eduGAIN discovery service runs at the hub; decision 29). Disabled unless the
+  # keycloak-config environment sets OECP_SIR2_IDP_ENABLED=true. The organization
+  # that signs in through it has organizations.keycloak_idp_alias = sir2.
+  # The values differ per deployment (test gateway for the proof of concept,
+  # production proxy later), so they are variables: entity ID, SSO URL, SLO URL
+  # and certificate. Differences from `example-partner`:
+  #  - HTTP-Redirect binding for the AuthnRequest and the logout (the hub does
+  #    not offer HTTP-POST for them); the response still arrives by POST;
+  #  - principal = the `pairwise-id` attribute (the hub's NameID is transient);
+  #  - the certificate is PINNED here: the hub's metadata are unsigned and not
+  #    in the eduGAIN aggregate, so the idp-metadata-refresh job skips this IdP
+  #    (oecp.metadataRefresh below). A certificate change is notified by RedIRIS
+  #    and applied by changing OECP_SIR2_IDP_SIGNING_CERT.
+  # Placeholders while unconfigured: Keycloak rejects empty URLs even on a
+  # disabled IdP, so the defaults (set in deploy/compose/compose.yaml; the ones
+  # here only apply when the variable is not defined at all) are `.invalid` URLs.
+  - alias: sir2
+    displayName: Sign in through your university (SIR2 / eduGAIN)
+    providerId: saml
+    enabled: "$(env:OECP_SIR2_IDP_ENABLED:-false)"
+    hideOnLogin: true
+    trustEmail: true
+    storeToken: false
+    addReadTokenRoleOnCreate: false
+    authenticateByDefault: false
+    linkOnly: false
+    firstBrokerLoginFlowAlias: oecp-first-broker-login
+    postBrokerLoginFlowAlias: oecp-post-broker-mfa
+    config:
+      syncMode: FORCE
+      entityId: "$(env:OECP_AUTH_URL)/realms/oecp"
+      idpEntityId: "$(env:OECP_SIR2_IDP_ENTITY_ID:-https://sir2.invalid/idp)"
+      singleSignOnServiceUrl: "$(env:OECP_SIR2_IDP_SSO_URL:-https://sir2.invalid/saml2/idp/SSOService.php)"
+      singleLogoutServiceUrl: "$(env:OECP_SIR2_IDP_SLO_URL:-https://sir2.invalid/saml2/idp/SingleLogoutService.php)"
+      # Base64 DER of the hub's certificate (one line; comma-separated for a
+      # rollover). Pinned: see above.
+      signingCertificate: "$(env:OECP_SIR2_IDP_SIGNING_CERT:-)"
+      validateSignature: "true"
+      # Excluded from the idp-metadata-refresh job (value "false").
+      oecp.metadataRefresh: "false"
+      # The hub's NameID is transient; the stable identifier is pairwise-id
+      # (derived by the hub from uid + schacHomeOrganization). If the first real
+      # login shows another Name, adjust it here (README.md, "SIR2 hub").
+      principalType: ATTRIBUTE
+      principalAttribute: urn:oasis:names:tc:SAML:attribute:pairwise-id
+      nameIDPolicyFormat: urn:oasis:names:tc:SAML:2.0:nameid-format:transient
+      allowCreate: "true"
+      postBindingResponse: "true"
+      postBindingAuthnRequest: "false"
+      postBindingLogout: "false"
+      artifactBindingResponse: "false"
+      wantAuthnRequestsSigned: "true"
+      signatureAlgorithm: RSA_SHA256
+      xmlSigKeyInfoKeyNameTransformer: KEY_ID
+      wantAssertionsSigned: "true"
+      wantAssertionsEncrypted: "true"
+      encryptionAlgorithm: RSA-OAEP
+      forceAuthn: "false"
+      backchannelSupported: "false"
+      loginHint: "false"
+      signSpMetadata: "true"
+      allowedClockSkew: "30"
+      guiOrder: "120"
+
 # Attribute importers (spec §4 required attributes), sync mode FORCE so that
 # every login refreshes them from the IdP assertion. Attribute names use the
 # SAML2 URI (urn:oid) form released by eduGAIN IdPs.
@@ -963,3 +1029,35 @@ identityProviderMappers:
       attribute.friendly.name: sn
       attribute.name.format: ATTRIBUTE_FORMAT_URI
       user.attribute: lastName
+  # ---- `sir2` (SIR2 hub, see above): the three attributes it releases besides
+  # pairwise-id (the principal, no mapper needed). Keycloak matches an assertion
+  # attribute by Name OR FriendlyName, so both are set; the mapper ignores the
+  # NameFormat. givenName and sn are not released by the hub, so no importers
+  # for them (the `name` claim stays empty; it is display only). ----
+  - name: mail
+    identityProviderAlias: sir2
+    identityProviderMapper: saml-user-attribute-idp-mapper
+    config:
+      syncMode: FORCE
+      attribute.name: urn:oid:0.9.2342.19200300.100.1.3
+      attribute.friendly.name: mail
+      attribute.name.format: ATTRIBUTE_FORMAT_URI
+      user.attribute: email
+  - name: schacHomeOrganization
+    identityProviderAlias: sir2
+    identityProviderMapper: saml-user-attribute-idp-mapper
+    config:
+      syncMode: FORCE
+      attribute.name: urn:oid:1.3.6.1.4.1.25178.1.2.9
+      attribute.friendly.name: schacHomeOrganization
+      attribute.name.format: ATTRIBUTE_FORMAT_URI
+      user.attribute: schacHomeOrganization
+  - name: displayName
+    identityProviderAlias: sir2
+    identityProviderMapper: saml-user-attribute-idp-mapper
+    config:
+      syncMode: FORCE
+      attribute.name: urn:oid:2.16.840.1.113730.3.1.241
+      attribute.friendly.name: displayName
+      attribute.name.format: ATTRIBUTE_FORMAT_URI
+      user.attribute: displayName

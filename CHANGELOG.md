@@ -12,6 +12,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Keycloak: realm identity provider `sir2` for the RedIRIS SIR2 hub (decision
+  29), disabled unless `OECP_SIR2_IDP_ENABLED=true`; entity ID, SSO and SLO URLs
+  and the pinned signing certificate come from `OECP_SIR2_IDP_ENTITY_ID`,
+  `OECP_SIR2_IDP_SSO_URL`, `OECP_SIR2_IDP_SLO_URL` and
+  `OECP_SIR2_IDP_SIGNING_CERT` (passed to `keycloak-config` by Compose, empty in
+  `.env.example`, `.invalid` placeholders while empty). HTTP-Redirect binding for
+  the signed AuthnRequest and the logout, principal `pairwise-id`, importers for
+  `mail`, `schacHomeOrganization` and `displayName`. Documented in the Keycloak
+  README ("SIR2 hub") and Guide E step 2.13, with the switch of an organization
+  to `sir2`, the attribute check at the first login and the production change.
+- API: an IdP with the config key `oecp.metadataRefresh: "false"` is skipped by
+  `idp-metadata-refresh` (status `skipped`, no alert), also when the aggregate is
+  configured; the `sir2` block uses it because the hub's unsigned metadata are not
+  in the eduGAIN aggregate.
 - Docs: generated illustrations for five of the ten example-alliance courses
   (`docs/data/example-alliance-2026-27/images/<organization>/`, one
   `images.csv` per organization, loaded with `import-course-images`); one

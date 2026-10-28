@@ -343,7 +343,11 @@ What one run does:
    download; after that every IdP fails and the job fails (alert).
 4. For every organization with a `keycloak_idp_alias`, read the IdP
    (`GET /identity-provider/instances/{alias}`); skip it (warning) if it is
-   missing, not SAML, disabled, or has no `idpEntityId`. Find the
+   missing, not SAML, disabled, has no `idpEntityId` or carries the config key
+   `oecp.metadataRefresh: "false"` (the pinned SIR2 hub, see
+   [SIR2 hub](#sir2-hub-sir2)). An IdP whose entity ID is **not** in the
+   aggregate is reported `failed` (`entity … not found in the aggregate`),
+   which fails the job and raises the alert, but never changes the IdP. Find the
    `EntityDescriptor` with that entity ID (streaming parse; only the wanted
    entities are kept in memory) and its SAML 2.0 `IDPSSODescriptor`.
 5. **Compute** the managed keys: `signingCertificate` (`KeyDescriptor`
@@ -516,3 +520,125 @@ flag, `urv` is updated in place: a re-import keeps the links (verified).
 When URV joins with its real IdP, replace the values of the `urv` block
 (entity ID, SSO URL, certificate, principal attribute per step 4 above) and
 its `enabled` line; keep the alias and the mappers.
+
+## SIR2 hub (`sir2`)
+
+Decision 29 ([DL 29](../../docs/decisions-log.md)): instead of one IdP per
+university, OACC can connect to **one** SAML IdP, the RedIRIS SIR2 hub (a proxy
+that publishes OACC to eduGAIN and runs the discovery service). The block
+`sir2` of `realm-oecp.yaml` is disabled by default and is switched on and
+pointed at a hub only through the keycloak-config environment (Compose
+`.env`). Status: proof of concept against the SIR2 **test gateway**; the
+production proxy changes only the values below.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `OECP_SIR2_IDP_ENABLED` | `false` | `true` enables the IdP. Until it is enabled, `kc_idp_hint=sir2` is ignored, the API does not publish `idp_alias` and invitations for an organization using it are refused (`oecp.invitation.idp_not_enabled`) |
+| `OECP_SIR2_IDP_ENTITY_ID` | empty | the hub's `entityID` |
+| `OECP_SIR2_IDP_SSO_URL` | empty | `SingleSignOnService`, HTTP-Redirect |
+| `OECP_SIR2_IDP_SLO_URL` | empty | `SingleLogoutService`, HTTP-Redirect |
+| `OECP_SIR2_IDP_SIGNING_CERT` | empty | the hub's certificate, base64 DER on one line (comma-separated for a rollover) |
+
+Empty values are replaced in `compose.yaml` by `.invalid` placeholders (for
+example `https://sir2.invalid/idp`): Keycloak rejects an empty URL even on a
+disabled IdP, and a block with a placeholder is harmless while disabled. An
+enabled `sir2` with the placeholders or an empty certificate cannot work, so
+set all five together.
+
+How it differs from the `example-partner` template, and why:
+
+- **HTTP-Redirect** for the AuthnRequest and the logout
+  (`postBindingAuthnRequest` and `postBindingLogout` `"false"`): the hub offers
+  no other binding there. The response still comes back by HTTP-POST
+  (`postBindingResponse` `"true"`, the ACS registered with the federation). The
+  Redirect AuthnRequest is signed through the query string (`SigAlg`,
+  `Signature`).
+- **Principal** `urn:oasis:names:tc:SAML:attribute:pairwise-id` (principal type
+  Attribute): the hub's NameID is transient only, so the identifier travels as
+  an attribute (derived by SIR2 from `uid` and `schacHomeOrganization`, like
+  `hash@urv.cat`). Changing it later orphans the users of the IdP.
+- **Certificate pinned.** The hub's metadata are unsigned, carry no
+  `validUntil` and are not part of the eduGAIN aggregate, so nothing can verify
+  them; the certificate is compared out of band (fingerprint) when it is set
+  and again whenever RedIRIS announces a change. The block carries
+  `oecp.metadataRefresh: "false"`, which makes the `idp-metadata-refresh` job
+  skip it (status `skipped`, no alert), also if `OECP_IDP_METADATA_URL` is
+  set. The certificate expiry metric and its alerts still watch it.
+- Kept as in the template: signed AuthnRequests, signed **and** encrypted
+  assertions, `hideOnLogin`, `trustEmail`, `syncMode: FORCE`, the first-login
+  and post-login (MFA) flows, `nameIDPolicyFormat` transient.
+
+**Attribute importers.** `mail`, `schacHomeOrganization` and `displayName`
+(the attributes the hub releases besides `pairwise-id`). There are no
+`givenName` and `sn` importers because the hub does not release them, so the
+display-only `name` claim stays empty for these users. Keycloak looks an
+assertion attribute up by its `Name` or its `FriendlyName` (the 26.8.1 mapper
+class refers to both and not to the `NameFormat`), and the mappers set both:
+the URI `urn:oid:…` name and the friendly name.
+
+**First real login: check the attributes.** Which `Name` the proxy really uses
+is only known from a real assertion (the assertion is encrypted, so ask
+RedIRIS for the list of released attributes with their names and formats if
+something is missing). After the first login look at the user in the admin
+console (*Users*, *Attributes*): `email`, `schacHomeOrganization` and
+`displayName` must be filled, and *Identity provider links* must show `sir2`
+with the pairwise-id as user id. If one is missing, put the actual `Name` (or
+`FriendlyName`) of that attribute in `attribute.name` of the `sir2` mapper in
+`realm-oecp.yaml` (for the principal: `principalAttribute`) and re-apply.
+Without `mail` or `schacHomeOrganization` the API rejects the invitation
+acceptance, naming the missing attribute.
+
+**Setting it up.**
+
+1. Take the values from the hub's metadata (test gateway:
+   `https://fpp.sir2.rediris.es/es.rediris.sir2.test.validacion/saml2/idp/metadata.php`)
+   and verify the certificate fingerprint with RedIRIS or the registration
+   contact:
+
+   ```sh
+   curl -s <metadata url> | grep -o '<[a-zA-Z:]*X509Certificate>[^<]*' | head -1 \
+     | sed 's/<[^>]*>//' | tr -d ' \n' | base64 -d \
+     | openssl x509 -inform DER -noout -fingerprint -sha256 -enddate
+   ```
+
+   The same base64 text (without line breaks) is the value of
+   `OECP_SIR2_IDP_SIGNING_CERT`.
+2. Put the five variables in the `.env` of the deployment and apply
+   (`docker compose run --rm keycloak-config`). The alias `sir2` already has its
+   assertion consumer service (index 1) in
+   [`sp-metadata.indexes.json`](sp-metadata.indexes.json) and `reserveAliases`,
+   so the SP metadata registered with the federation does not change.
+3. **Switch an organization to the hub** (here URV; `sir2` must be enabled
+   first). `organizations.keycloak_idp_alias` is `UNIQUE`: only one organization
+   can use the alias `sir2` until decision 29 drops that rule. As an alliance
+   admin, open the organization on the *Organizations* page of the admin panel,
+   set *Identity provider alias* to `sir2` and save (audited as
+   `organization.update`); or set `"keycloak_idp_alias": "sir2"` in the seed
+   file and run `oecp seed-organizations` (the upsert updates the column; use
+   `--dry-run` first, see Guide A). Then: administrators of that organization
+   with another sign-in method are refused (`oecp.auth.idp_mismatch`) until
+   re-invited, pending invitations name the new alias, and the public reference
+   data (`/api/public/v1/reference`) shows the new `idp_alias` after its
+   300 s cache (restart `api` to see it at once).
+4. Invite the administrator (spec §2.1): the person signs in through the
+   hub, enrols TOTP and accepts; the API checks `email`, `idp` (`sir2`) and the
+   asserted `schacHomeOrganization` against the organization's.
+
+**An administrator who already has a local account with the same e-mail.**
+Keycloak refuses to link by e-mail (HTTP 409 at first login, see "Account
+linking"), and the API treats the two accounts as different people (it
+identifies a user by the Keycloak `sub`; an administrator has one
+organization). Give the existing local account another address of the same
+person before the first sign-in through the hub (admin console, *Users*, the
+account, *E-mail*; a `+tag` address or a second mailbox that really delivers,
+since the set-up mails go there). Nothing in the API compares the e-mail of a
+signed-in administrator except invitation acceptance, which only looks at the
+account that accepts. Do not change the address back while the brokered account
+exists: delete that user first.
+
+**Production proxy.** Change the five variables (entity ID, SSO and SLO URLs,
+certificate; `OECP_SIR2_IDP_ENABLED` stays `true`) and re-apply. The alias, the
+mappers and the users' links stay, because the principal is the same
+`pairwise-id`. Check that the production proxy releases the same attributes
+and that its SP registration lists the ACS of `sir2`. Certificate changes on
+either side are notified by hand.

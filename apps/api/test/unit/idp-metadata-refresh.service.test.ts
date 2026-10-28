@@ -259,6 +259,28 @@ describe('idp-metadata-refresh against a fake Keycloak', () => {
     expect(table).toContain('1 updated, 1 unchanged, 3 skipped, 2 failed');
   });
 
+  it('skips an IdP pinned with oecp.metadataRefresh=false, even when it is in the aggregate', async () => {
+    keycloak.add(
+      idpRep('pinned', {
+        'oecp.metadataRefresh': 'false',
+        signingCertificate: oldCert.der,
+        singleSignOnServiceUrl: 'https://alpha.test/old-sso',
+        idpEntityId: 'https://alpha.test/idp',
+      }),
+    );
+    store.partners.push({ organizationId: ORG(9), slug: 'pinned', alias: 'pinned' });
+    const before = structuredClone(keycloak.idps.get('pinned')!);
+    const outcome = await service(settings(), okFetch()).runOnce();
+    expect(byAlias(outcome.results).pinned).toMatchObject({
+      status: 'skipped',
+      error: expect.stringMatching(/oecp\.metadataRefresh=false/),
+    });
+    expect(keycloak.idps.get('pinned')).toEqual(before);
+    expect(keycloak.puts().map((p) => p.path)).not.toContain(
+      '/admin/realms/oecp/identity-provider/instances/pinned',
+    );
+  });
+
   it('dry run: reports the same changes, writes nothing', async () => {
     const outcome = await service(settings(), okFetch()).runOnce({
       dryRun: true,

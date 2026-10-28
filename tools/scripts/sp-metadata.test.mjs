@@ -186,12 +186,16 @@ describe('readRealmProviders', () => {
     assert.deepEqual(providers, [
       { alias: 'example-partner', enabled: false },
       { alias: 'urv', enabled: false },
+      { alias: 'sir2', enabled: false },
     ]);
   });
 
   it('applies keycloak-config-cli variable substitution', () => {
     const providers = readRealmProviders(realm, { OECP_DEV_IDP_ENABLED: 'true' });
     assert.equal(providers.find((p) => p.alias === 'urv').enabled, true);
+    assert.equal(providers.find((p) => p.alias === 'sir2').enabled, false);
+    const hub = readRealmProviders(realm, { OECP_SIR2_IDP_ENABLED: 'true' });
+    assert.equal(hub.find((p) => p.alias === 'sir2').enabled, true);
   });
 
   it('treats a missing "enabled" as enabled and reads quoted aliases', () => {
