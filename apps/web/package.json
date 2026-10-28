@@ -16,7 +16,7 @@
   "dependencies": {
     "@nuxtjs/i18n": "10.6.0",
     "@oecp/schemas": "workspace:*",
-    "nuxt": "4.6.1",
+    "nuxt": "4.6.2",
     "oidc-client-ts": "3.5.0",
     "vue": "3.5.44",
     "vue-router": "5.4.0",
