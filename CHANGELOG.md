@@ -10,13 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-28
+
 ### Upgrade notes
 
-- **No migration, no `BREAKING` change.** The database schema is unchanged since
-  0010; the `worker` need not be stopped. Rebuild the web image for the Nuxt
-  update and restart: `OECP_IMAGE_TAG=<version> docker compose build web`, then
-  `docker compose up -d --wait`. `keycloak-config` re-applies `realm-oecp.yaml`
-  on that `up` (the `keycloak` image does not change).
+- **No new migration, no `BREAKING` change.** The database schema is unchanged
+  since 0010 (0.9.0); `db:migrate` has nothing to run, the `worker` need not be
+  stopped, and no hashed field changes (the first harvest or upload after the
+  upgrade does not report unchanged records as `updated`). No error code is
+  renamed.
+- **Rebuild and restart.** There are no published images yet:
+  `OECP_IMAGE_TAG=0.12.0 docker compose build` (all images: `oecp/postgres`,
+  also used by `backup`, carries the release tag too), then
+  `docker compose up -d --wait`. The `web` image carries the Nuxt security
+  update; the other images change only in their version. `keycloak-config`
+  re-applies `realm-oecp.yaml` on that `up` (the realm file is mounted, not
+  built into an image), which adds the mapper described below.
 - **New optional variable `OECP_SIR2_IDP_WANT_ASSERTIONS_ENCRYPTED`**, default
   `true` (what the realm file always required), passed to `keycloak-config` by
   Compose. Leave it out unless the hub does not encrypt its assertions yet; then
@@ -29,13 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   identifier (admin console: *Realm settings*, *Login*, *Edit username* on;
   *Users*, the user, *Username*; switch *Edit username* off again; do not delete
   the user, it would lose its roles). The federated identity link, which stores
-  the hub's value, is unchanged. See the Keycloak README, "SIR2 hub".
+  the hub's value, is unchanged. Skip this if `sir2` is disabled (the default)
+  or has never been used. See the Keycloak README, "SIR2 hub".
 - **Pilot server with a local edit of `realm-oecp.yaml`** (for example the
   encryption line set to `"false"` for the SIR2 test gateway): drop the edit with
   `git checkout -- identity/keycloak/realm-oecp.yaml` before updating, add
   `OECP_SIR2_IDP_WANT_ASSERTIONS_ENCRYPTED=false` to `.env`, and re-apply. The
-  effective configuration is the same, and `git pull`/`git checkout` of the next
-  tag no longer conflicts with a dirty file.
+  effective configuration is the same, and `git pull`/`git checkout` of this or a
+  later tag no longer conflicts with a dirty file.
 - **Moving an organization from local to federated** now needs one more step
   (documented in Guide A, the sign-in paths guide, the manual and the runbook):
   *Remove* the old local administrators, then have the operator **delete their
@@ -68,9 +78,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   identifier shown as username, and a local account blocking the first sign-in;
   spec section 4 describes the `sir2` IdP (still in progress).
 - Docs: statements that called 0.10.0 the current release (manuals, guides,
-  onboarding, production index, acceptance test plan) now refer to 0.11, and the
-  checkout and image-tag examples to `v0.11.0`; the legal pages are described as
-  existing since 0.11.0.
+  onboarding, production index, acceptance test plan) now refer to 0.12, and the
+  checkout and image-tag examples to `v0.12.0`; the legal pages are described as
+  existing since 0.11.0. The specification (section 12) lists 0.12.0.
 
 ### Fixed
 
@@ -1511,7 +1521,8 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/OACC/compare/v0.11.0...main
+[Unreleased]: https://github.com/LAArino/OACC/compare/v0.12.0...main
+[0.12.0]: https://github.com/LAArino/OACC/releases/tag/v0.12.0
 [0.11.0]: https://github.com/LAArino/OACC/releases/tag/v0.11.0
 [0.10.0]: https://github.com/LAArino/OACC/releases/tag/v0.10.0
 [0.9.0]: https://github.com/LAArino/OACC/releases/tag/v0.9.0

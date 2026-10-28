@@ -3,7 +3,7 @@
 
 # Alliance administrator manual
 
-For you if you are an **alliance administrator** (`alliance_admin`) of an OACC deployment: in Aurora, a person of the alliance office who looks after every university's data, the organizations, the administrators and the routine checks. It walks through the screens of the administration panel as they are in **release 0.11**. Setting up the deployment itself (legal documents, server, identity, seed files) is [Guide A](../onboarding/alliance.md) and the hosting operator's [Guide E](../onboarding/hosting-operator.md); this manual covers the work at the keyboard afterwards.
+For you if you are an **alliance administrator** (`alliance_admin`) of an OACC deployment: in Aurora, a person of the alliance office who looks after every university's data, the organizations, the administrators and the routine checks. It walks through the screens of the administration panel as they are in **release 0.12**. Setting up the deployment itself (legal documents, server, identity, seed files) is [Guide A](../onboarding/alliance.md) and the hosting operator's [Guide E](../onboarding/hosting-operator.md); this manual covers the work at the keyboard afterwards.
 
 You can do everything a partner administrator does, for every organization. Those screens are described once, in the [partner administrator manual](partner-admin.md); [Part 1](#part-1-the-organization-modules) below says what differs for you. Part 2 covers the screens only you see.
 
@@ -126,7 +126,7 @@ Each organization signs in **one** way, decided by its *Identity provider alias*
 - **From local to federated:** the operator enables the identity provider in the realm first; then you set the alias here and **Save changes**; then **Remove** each old administrator on the *Administrators* panel ([section 7](#7-administrators-remove-resend-set-up-e-mail)); then ask the hosting operator to delete their old login accounts in the login service (Remove keeps them, with the person's e-mail address); only then invite the administrators again. If you invite before the old account is gone, the person's first sign-in through the university fails with "User with email … already exists"; once the account is deleted they can sign in again from the same invitation link.
 - **Federated back to local** (for example while a university's login is broken): clear the alias, save, and invite the administrators again.
 
-**If something goes wrong:** an alias that names an identity provider the login service does not have enabled blocks every invitation of that organization ([section 8](#8-invitations-invite-resend-revoke)). In 0.11 the federated path has been verified against the development test identity provider and, for the SIR2 hub, with one real test sign-in (2026-10-28); no university's own identity provider is connected yet. Procedure for the operator: [Guide A, step 3](../onboarding/alliance.md#3-identity).
+**If something goes wrong:** an alias that names an identity provider the login service does not have enabled blocks every invitation of that organization ([section 8](#8-invitations-invite-resend-revoke)). In 0.12 the federated path has been verified against the development test identity provider and, for the SIR2 hub, with one real test sign-in (2026-10-28); no university's own identity provider is connected yet. Procedure for the operator: [Guide A, step 3](../onboarding/alliance.md#3-identity).
 
 ### 7. Administrators: remove, resend set-up e-mail
 
@@ -138,7 +138,7 @@ Each organization signs in **one** way, decided by its *Identity provider alias*
 
 - **Remove** an administrator who left or should no longer have access, and confirm. The role is taken away and their sessions end at once (an access token already issued stays valid for up to 5 minutes). The login account is kept, and deleted 12 months later once the account clean-up is enabled ([section 11](#11-reviewing-the-dormancy-and-account-clean-up-dry-runs)).
 - **Resend set-up e-mail** appears only for an OACC account whose set-up is still pending (*Set-up pending*). The login service sends a new link to set the password and the second factor.
-- Once a year, review every organization's panel with the partner's office and remove those who should not be there: recertification is manual in 0.11 ([administrator lifecycle](../onboarding/administrator-lifecycle.md#the-choices)).
+- Once a year, review every organization's panel with the partner's office and remove those who should not be there: recertification is manual in 0.12 ([administrator lifecycle](../onboarding/administrator-lifecycle.md#the-choices)).
 
 **If something goes wrong**
 

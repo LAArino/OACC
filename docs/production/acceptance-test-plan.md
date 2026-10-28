@@ -1,13 +1,13 @@
 <!-- SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño -->
 <!-- SPDX-License-Identifier: EUPL-1.2 -->
 
-# Acceptance test plan: OACC 0.11.0 for the Aurora pilot
+# Acceptance test plan: OACC 0.12.0 for the Aurora pilot
 
 Run by people in the real roles, on the real server, with their own accounts, and signed at the end. Companion to the [go-live checklist of Guide A](../onboarding/alliance.md#go-live-checklist) and the [runbook](runbook.md). Screens and labels are those of the [alliance administrator manual](../manuals/alliance-admin.md) and the [partner administrator manual](../manuals/partner-admin.md); where a label is not in those or in the admin interface texts, the plan says *(check the exact label)* and the executor writes down what the screen shows.
 
 ## 1. Purpose, scope and out of scope
 
-**Purpose.** To show that release 0.11.0, deployed at `https://lspurv.urv.cat` (sign-in service `https://auth.lspurv.urv.cat`), does what the alliance needs for the pilot: the people who will run it can do their work with the screens as built, the public catalogue shows what they publish, and the hosting operator can keep it alive.
+**Purpose.** To show that release 0.12.0, deployed at `https://lspurv.urv.cat` (sign-in service `https://auth.lspurv.urv.cat`), does what the alliance needs for the pilot: the people who will run it can do their work with the screens as built, the public catalogue shows what they publish, and the hosting operator can keep it alive.
 
 **Validated means:** scenarios A to D and F to H passed in full, scenario I passed except the screen-reader session (which may stay *pending* with a written acceptance by the Foundation), and the defect log has no open *blocker* or *major* defect. Scenario E is *deferred*. The signed plan is evidence for the go-live checklist, not a legal opinion.
 
@@ -42,7 +42,7 @@ University chosen for the partner scenarios: `____` (slug). It must have no OEAP
 
 ### 2.2 Preconditions (OP confirms before the first scenario, and signs here)
 
-- [ ] Server runs release 0.11.0 (`git describe --tags` in the deployment directory prints `v0.11.0`); `docker compose ps` shows every service healthy, the worker included; no `dev` profile.
+- [ ] Server runs release 0.12.0 (`git describe --tags` in the deployment directory prints `v0.12.0`); `docker compose ps` shows every service healthy, the worker included; no `dev` profile.
 - [ ] The smoke test of H.7 passed on the final configuration.
 - [ ] The mail relay delivers: `OECP_MAIL_LOG_LINKS=false`, so every e-mail below must really arrive.
 - [ ] Mailboxes the testers can read: AA2, PA, PA2 and the alert mailbox (`OECP_ALERT_EMAIL_TO`). One authenticator app (phone) per person who signs in: AA1, AA2, PA, PA2.
@@ -50,7 +50,7 @@ University chosen for the partner scenarios: `____` (slug). It must have no OEAP
 - [ ] Ten organizations are loaded: the alliance (`aurora`) and nine universities (`uibk`, `uice`, `vua`, `ude`, `urv`, `unina`, `up`, `cbs`, `upec`).
 - [ ] The chosen university's logo `partner-<slug>.svg` (or `.png`, `.webp`) is in the branding directory (`curl -s https://lspurv.urv.cat/branding/index.json` lists it). If not, logo checks are marked *n/a*.
 - [ ] The test files for scenario C are ready ([section 3.3](#33-c-channel-b-csv-upload)); a laptop browser with a private window; an SSH tunnel for the operator to Grafana and Alertmanager (H).
-- [ ] The evidence folder `acceptance-0.11.0/` exists in a place with restricted access. Screenshots show e-mail addresses of staff: keep the folder as long as the plan is needed, then delete it.
+- [ ] The evidence folder `acceptance-0.12.0/` exists in a place with restricted access. Screenshots show e-mail addresses of staff: keep the folder as long as the plan is needed, then delete it.
 
 ### 2.3 How results are recorded
 
@@ -91,7 +91,7 @@ Test data use the prefix `ACC-` in course codes so that they are recognisable an
 1. **B.1 Invite.** AA1 opens **Invitations**, chooses the organization of the chosen university, enters PA's e-mail, *Role* *Partner administrator*, *Link valid for*: the form offers 7, 3 or 1 day, not 48 hours; choose **3 days** (the closest) and record the date shown in *Invitation sent to ... The link is valid until <date>.* **Send invitation**.
 2. **B.2 Two e-mails.** PA receives the OACC invitation and the login service's set-up e-mail. Both arrive within a few minutes.
 3. **B.3 Set-up.** PA opens the set-up e-mail, scans the QR code with the authenticator app and enters the first code, then sets a password of at least 12 characters. (A shorter password is refused.)
-4. **B.4 Acceptance page.** PA opens the invitation link: *Accept invitation*; **Sign in** with the invited address, password and code. The page shows *Invitation accepted*, *Role: Partner administrator* and *Organization:* with the organization (0.11.0 shows the name and slug, earlier releases showed the identifier: record which). PA chooses **Sign out and sign in again**.
+4. **B.4 Acceptance page.** PA opens the invitation link: *Accept invitation*; **Sign in** with the invited address, password and code. The page shows *Invitation accepted*, *Role: Partner administrator* and *Organization:* with the organization (0.12.0 shows the name and slug, earlier releases showed the identifier: record which). PA chooses **Sign out and sign in again**.
 5. **B.5 Own organization only.** After signing in again, the dashboard shows *Role* *Partner administrator*, the university name fixed (no organization list), the modules **Courses**, **CSV upload**, **Sync history**, **Integration settings**, **Invitations**, and no *Alliance administration* tiles. PA opens `/en/admin/organizations` by typing the address: the page does not offer the alliance screens (*This module is for alliance administrators.* or an error: record which). **Invitations** shows the invitation sent to PA as *Accepted*, and no buttons to revoke or resend.
 6. **B.6 Administrators panel.** AA1 opens **Organizations** > the university > **Administrators**: PA is listed with role *Partner administrator*, *Signs in with* *OACC account*, *Account* *Active* and a *Last sign-in*; **Remove** is offered.
 
@@ -277,7 +277,7 @@ Open defects at sign-off: blockers `__`, majors `__`, minors `__`. Accepted risk
 
 ### 4.3 Sign-off
 
-The undersigned confirm that they performed or witnessed the scenarios marked with their role, and that the results above are correct. Release 0.11.0 is accepted for the Aurora pilot: yes / yes with the accepted risks listed above / no.
+The undersigned confirm that they performed or witnessed the scenarios marked with their role, and that the results above are correct. Release 0.12.0 is accepted for the Aurora pilot: yes / yes with the accepted risks listed above / no.
 
 | Role | Name | Organization | Date | Signature |
 |---|---|---|---|---|
