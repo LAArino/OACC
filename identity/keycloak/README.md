@@ -538,12 +538,26 @@ production proxy changes only the values below.
 | `OECP_SIR2_IDP_SSO_URL` | empty | `SingleSignOnService`, HTTP-Redirect |
 | `OECP_SIR2_IDP_SLO_URL` | empty | `SingleLogoutService`, HTTP-Redirect |
 | `OECP_SIR2_IDP_SIGNING_CERT` | empty | the hub's certificate, base64 DER on one line (comma-separated for a rollover) |
+| `OECP_SIR2_IDP_WANT_ASSERTIONS_ENCRYPTED` | `true` | `false` accepts **unencrypted** assertions. Only to relax temporarily while the hub does not encrypt yet (see below); optional, leave it out otherwise |
 
 Empty values are replaced in `compose.yaml` by `.invalid` placeholders (for
 example `https://sir2.invalid/idp`): Keycloak rejects an empty URL even on a
 disabled IdP, and a block with a placeholder is harmless while disabled. An
 enabled `sir2` with the placeholders or an empty certificate cannot work, so
 set all five together.
+
+**Assertion encryption.** By default `sir2` requires encrypted assertions
+(`wantAssertionsEncrypted: "true"`, RSA-OAEP, with the SP's encryption key).
+The SIR2 test gateway sent **unencrypted** (but signed) assertions on
+2026-10-28, which Keycloak rejects, so the first sign-in needed a local edit of
+the realm file. Set `OECP_SIR2_IDP_WANT_ASSERTIONS_ENCRYPTED=false` in `.env`
+and re-apply instead of editing the file, and only while the hub does not
+encrypt yet; RedIRIS has been asked to enable it. The assertions stay signed
+(`validateSignature` and `wantAssertionsSigned` remain `"true"`, so an
+unsigned or wrongly signed assertion is still refused); what is lost is
+confidentiality of the attributes on the way through the browser. Remove the
+line (or set `true`) and re-apply as soon as the hub encrypts, and write the
+date in the deployment notes.
 
 How it differs from the `example-partner` template, and why:
 
@@ -564,8 +578,8 @@ How it differs from the `example-partner` template, and why:
   `oecp.metadataRefresh: "false"`, which makes the `idp-metadata-refresh` job
   skip it (status `skipped`, no alert), also if `OECP_IDP_METADATA_URL` is
   set. The certificate expiry metric and its alerts still watch it.
-- Kept as in the template: signed AuthnRequests, signed **and** encrypted
-  assertions, `hideOnLogin`, `trustEmail`, `syncMode: FORCE`, the first-login
+- Kept as in the template: signed AuthnRequests, signed **and** (by default)
+  encrypted assertions, `hideOnLogin`, `trustEmail`, `syncMode: FORCE`, the first-login
   and post-login (MFA) flows, `nameIDPolicyFormat` transient.
 
 **Attribute importers.** `mail`, `schacHomeOrganization` and `displayName`
@@ -661,7 +675,9 @@ acceptance, naming the missing attribute.
 
    The same base64 text (without line breaks) is the value of
    `OECP_SIR2_IDP_SIGNING_CERT`.
-2. Put the five variables in the `.env` of the deployment and apply
+2. Put the five variables in the `.env` of the deployment (plus
+   `OECP_SIR2_IDP_WANT_ASSERTIONS_ENCRYPTED=false` only if the hub does not
+   encrypt yet) and apply
    (`docker compose run --rm keycloak-config`). The alias `sir2` already has its
    assertion consumer service (index 1) in
    [`sp-metadata.indexes.json`](sp-metadata.indexes.json) and `reserveAliases`,

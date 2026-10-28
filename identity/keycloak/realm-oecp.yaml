@@ -924,7 +924,11 @@ identityProviders:
       signatureAlgorithm: RSA_SHA256
       xmlSigKeyInfoKeyNameTransformer: KEY_ID
       wantAssertionsSigned: "true"
-      wantAssertionsEncrypted: "true"
+      # Encrypted assertions by default. OECP_SIR2_IDP_WANT_ASSERTIONS_ENCRYPTED=false
+      # only while the hub does not encrypt yet (the test gateway sent plain
+      # assertions on 2026-10-28); they stay signed (validateSignature and
+      # wantAssertionsSigned above and below).
+      wantAssertionsEncrypted: "$(env:OECP_SIR2_IDP_WANT_ASSERTIONS_ENCRYPTED:-true)"
       encryptionAlgorithm: RSA-OAEP
       forceAuthn: "false"
       backchannelSupported: "false"

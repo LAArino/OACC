@@ -419,6 +419,8 @@ services:
       OECP_SIR2_IDP_SSO_URL: ${OECP_SIR2_IDP_SSO_URL:-https://sir2.invalid/saml2/idp/SSOService.php}
       OECP_SIR2_IDP_SLO_URL: ${OECP_SIR2_IDP_SLO_URL:-https://sir2.invalid/saml2/idp/SingleLogoutService.php}
       OECP_SIR2_IDP_SIGNING_CERT: ${OECP_SIR2_IDP_SIGNING_CERT:-}
+      # Default true; false only while the hub sends unencrypted assertions.
+      OECP_SIR2_IDP_WANT_ASSERTIONS_ENCRYPTED: ${OECP_SIR2_IDP_WANT_ASSERTIONS_ENCRYPTED:-true}
       # Dev profile only: enables IdP `urv` pointing at the `test-saml-idp`
       # service on 127.0.0.1:OECP_DEV_IDP_PORT. Never true in production.
       OECP_DEV_IDP_ENABLED: ${OECP_DEV_IDP_ENABLED:-false}
