@@ -46,10 +46,10 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@nestjs/cli": "12.0.8",
-    "@nestjs/testing": "12.1.3",
+    "@nestjs/cli": "12.0.10",
+    "@nestjs/testing": "12.2.0",
     "@seriousme/openapi-schema-validator": "2.11.0",
-    "@swc/core": "1.16.18",
+    "@swc/core": "1.16.20",
     "@types/node": "22.20.5",
     "@types/pg": "8.23.1",
     "@types/supertest": "7.2.1",
