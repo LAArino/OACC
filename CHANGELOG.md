@@ -10,6 +10,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- **No migration, no `BREAKING` change.** The database schema is unchanged since
+  0010; the `worker` need not be stopped. Rebuild the web image for the Nuxt
+  update and restart: `OECP_IMAGE_TAG=<version> docker compose build web`, then
+  `docker compose up -d --wait`. `keycloak-config` re-applies `realm-oecp.yaml`
+  on that `up` (the `keycloak` image does not change).
+- **New optional variable `OECP_SIR2_IDP_WANT_ASSERTIONS_ENCRYPTED`**, default
+  `true` (what the realm file always required), passed to `keycloak-config` by
+  Compose. Leave it out unless the hub does not encrypt its assertions yet; then
+  set it to `false` in `.env` and re-apply (`docker compose run --rm
+  keycloak-config`). The assertions stay signed. Remove it when the hub encrypts.
+- **New mapper `username-from-mail` on the IdP `sir2`** (sync mode `IMPORT`).
+  Users of `sir2` created **after** this upgrade get their e-mail as Keycloak
+  username instead of the hub's `uid@schacHomeOrganization`. Users that already
+  exist are **not** renamed: rename them by hand if their username is a personal
+  identifier (admin console: *Realm settings*, *Login*, *Edit username* on;
+  *Users*, the user, *Username*; switch *Edit username* off again; do not delete
+  the user, it would lose its roles). The federated identity link, which stores
+  the hub's value, is unchanged. See the Keycloak README, "SIR2 hub".
+- **Pilot server with a local edit of `realm-oecp.yaml`** (for example the
+  encryption line set to `"false"` for the SIR2 test gateway): drop the edit with
+  `git checkout -- identity/keycloak/realm-oecp.yaml` before updating, add
+  `OECP_SIR2_IDP_WANT_ASSERTIONS_ENCRYPTED=false` to `.env`, and re-apply. The
+  effective configuration is the same, and `git pull`/`git checkout` of the next
+  tag no longer conflicts with a dirty file.
+- **Moving an organization from local to federated** now needs one more step
+  (documented in Guide A, the sign-in paths guide, the manual and the runbook):
+  *Remove* the old local administrators, then have the operator **delete their
+  old Keycloak users** (or change both e-mail and username), then invite. A
+  person whose old local account is still there cannot sign in through the
+  university ("User with email/username ... already exists"). Check any move that
+  is under way.
+
+### Added
+
+- Keycloak: `OECP_SIR2_IDP_WANT_ASSERTIONS_ENCRYPTED` (see the upgrade notes)
+  for the `sir2` block, documented in `.env.example`, the Keycloak README and
+  Guide E step 2.13.
+- Keycloak: IdP mapper `username-from-mail` (`saml-username-idp-mapper`,
+  template `${ATTRIBUTE.urn:oid:0.9.2342.19200300.100.1.3}`, target `LOCAL`,
+  sync mode `IMPORT`) on `sir2`. The README records why `IMPORT` and not
+  `FORCE` (an assertion without the attribute would blank the username of
+  existing users), what it hides (admin console, Keycloak events and logs,
+  `preferred_username`) and what it does not (the federated identity link,
+  Keycloak's database and backups), and that the real fix is a non-personal
+  identifier from the hub.
+- Docs: troubleshooting entry for "Sign-in could not be started" with a
+  self-signed certificate on the auth host (Compose README, runbook section 6):
+  accept the auth host in each browser, again after Traefik restarts.
+
+### Changed
+
+- Docs: decision 29 records the first real federated sign-in (2026-10-28, through
+  the SIR2 test gateway) and its findings: unencrypted assertions, the hub's
+  identifier shown as username, and a local account blocking the first sign-in;
+  spec section 4 describes the `sir2` IdP (still in progress).
+- Docs: statements that called 0.10.0 the current release (manuals, guides,
+  onboarding, production index, acceptance test plan) now refer to 0.11, and the
+  checkout and image-tag examples to `v0.11.0`; the legal pages are described as
+  existing since 0.11.0.
+
+### Fixed
+
+- **Docs: the order for moving an organization from local to federated.** The
+  guides said to set the alias, invite, and only then remove the old local
+  accounts. *Remove* keeps the Keycloak user (with the e-mail as username and
+  e-mail) until the account clean-up deletes it 12 months later, and
+  first-broker-login never links by e-mail, so the first university sign-in of
+  every person who had a local account failed. Corrected everywhere it
+  appears, with the symptom and the fix.
+
+### Security
+
+- Web: `nuxt` 4.6.1 to 4.6.2 ([GHSA-vjh5-4x84-xrqp](https://github.com/advisories/GHSA-vjh5-4x84-xrqp)),
+  with `pnpm-lock.yaml` regenerated (Dependabot's PR #8 changed `package.json`
+  only and failed CI with `ERR_PNPM_OUTDATED_LOCKFILE`).
+
 ## [0.11.0] - 2026-10-28
 
 ### Upgrade notes
