@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Lluís Alfons Ariño
 # SPDX-License-Identifier: EUPL-1.2
 #
-# Creates one GitHub release per version tag (v0.1.0 to v0.10.0, as found in
+# Creates one GitHub release per version tag (v0.1.0 to v0.11.0, as found in
 # `git tag`) with the matching CHANGELOG.md section as its notes
 # (docs/RELEASING.md, criterion 10; docs/production/go-public-checklist.md).
 #

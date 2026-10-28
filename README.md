@@ -5,7 +5,7 @@
 
 The open course catalogue for European University alliances.
 
-Status: 0.10.0, pre-production (no partner connected yet; the first real course data, the Aurora Virtual Campus 2026-27 courses, tested on the development stack only); specification v4.1 (as built); later changes in the Unreleased section of the [changelog](CHANGELOG.md)
+Status: 0.11.0, pre-production (no partner connected yet; the first real course data, the Aurora Virtual Campus 2026-27 courses, tested on the development stack only); specification v4.1 (as built); later changes in the Unreleased section of the [changelog](CHANGELOG.md)
 
 OACC is a sovereign, open-source course-catalogue portal for European
 University alliances. It collects the courses that the partner universities of
@@ -97,7 +97,7 @@ university is an independent controller of the data it supplies.
 - **Data:** PostgreSQL 16 holds the canonical model, full-text search and the ingestion history; ingestion is pull-only OEAPI harvesting plus CSV and form ([ADR-0005](docs/adr/0005-pull-only-oeapi-harvesting-canonical-model.md), [ADR-0010](docs/adr/0010-overrides-on-harvested-records.md)).
 - **Identity:** Keycloak authenticates administrators only, with one SAML identity provider per partner (eduGAIN) or local accounts for an organization without one, and mandatory MFA; the public portal never touches it ([ADR-0004](docs/adr/0004-keycloak-only-identity-one-saml-idp-per-partner.md)).
 - **Operations:** pgBackRest backups (profile `backup`) and Prometheus, Alertmanager, Loki with Grafana Alloy, and Grafana (profile `observability`) in the same Compose file.
-- **Alliance-agnostic:** the alliance name, branding images, partners, attributes and hosts are configuration (the portal interface is English-only in 0.10.0); one deployment serves one alliance. The first deployment targets the Aurora European Universities Alliance.
+- **Alliance-agnostic:** the alliance name, branding images, partners, attributes and hosts are configuration (the portal interface is English-only in 0.11.0); one deployment serves one alliance. The first deployment targets the Aurora European Universities Alliance.
 
 The same architecture as four diagrams (context, deployment, API modules,
 course data flow) is in [docs/architecture.md](docs/architecture.md). All

@@ -10,8 +10,8 @@ name: Open Alliance Course Catalogue
 url: "https://github.com/LAArino/OACC"
 
 # Updated at every release (docs/RELEASING.md).
-softwareVersion: "0.10.0"
-releaseDate: "2026-10-21"
+softwareVersion: "0.11.0"
+releaseDate: "2026-10-28"
 
 platforms:
   - web

@@ -5,14 +5,14 @@
 
 ## Supported versions
 
-OACC is pre-production: the current release is 0.10.0 and no alliance runs it
+OACC is pre-production: the current release is 0.11.0 and no alliance runs it
 in production yet. Security fixes are made on the `main` branch and released
 as a patch of the latest minor version ([docs/RELEASING.md](docs/RELEASING.md#support-policy)).
 
 | Version | Supported |
 |---|---|
-| 0.10.x | Yes, latest minor only (pre-production) |
-| 0.1.x to 0.9.x | No |
+| 0.11.x | Yes, latest minor only (pre-production) |
+| 0.1.x to 0.10.x | No |
 
 Until 1.0 only the latest minor version is supported; the support window after
 1.0 will be set by an ADR.

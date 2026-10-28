@@ -10,6 +10,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-28
+
+### Upgrade notes
+
+- **No new migration.** The database schema is unchanged since 0010 (0.9.0);
+  `db:migrate` has nothing to run, the `worker` need not be stopped, and no
+  hashed field changes (the first harvest or upload after the upgrade does not
+  report unchanged records as `updated`). No `BREAKING` change; no error code
+  is renamed (the message of `oecp.auth.no_role` now says "OACC role").
+- **Rebuild and restart.** There are no published images yet:
+  `OECP_IMAGE_TAG=0.11.0 docker compose build api web keycloak`, then
+  `docker compose up -d --wait`. `keycloak-config` re-applies `realm-oecp.yaml`
+  on that `up`: the realm gains the identity provider `sir2`, **disabled**, with
+  `.invalid` placeholder URLs while the variables below are empty. Existing
+  identity providers, SP certificates and tokens are not touched.
+- **New environment variables (all optional).** `OECP_SIR2_IDP_ENABLED`
+  (default `false`), `OECP_SIR2_IDP_ENTITY_ID`, `OECP_SIR2_IDP_SSO_URL`,
+  `OECP_SIR2_IDP_SLO_URL` and `OECP_SIR2_IDP_SIGNING_CERT` are passed to
+  `keycloak-config`; empty in `.env.example`. Leave them alone unless the
+  alliance federates through the RedIRIS SIR2 hub (decision 29, still in
+  progress); the procedure is in the Keycloak README ("SIR2 hub") and Guide E
+  step 2.13. `OECP_REALM_DISPLAY_NAME` keeps the value of an existing `.env`;
+  only the default changed to the new product name.
+- **Alertmanager is now published on the server's loopback.** New
+  `ALERTMANAGER_PORT` (default `9093`, add it to your `.env` or keep the
+  default): port 9093 on `127.0.0.1` must be free, and `alertmanager` is
+  recreated with `--web.external-url` on the next
+  `docker compose --profile observability up -d`. Nothing is exposed beyond
+  the loopback; the mail link opens through an SSH tunnel (Compose README,
+  Guide E step 2.10).
+- **SMTP STARTTLS in the API.** `SMTP_STARTTLS` defaults to `true` (it was
+  `false`), as `OECP_SMTP_STARTTLS` always did in Compose. Compose
+  deployments are unaffected; an api run outside Compose against a relay without
+  STARTTLS must set `SMTP_STARTTLS=false`.
+- **Optional: legal pages.** To publish the privacy notice and the accessibility
+  statement, copy `privacy.en.md` and `accessibility.en.md` to the branding
+  directory and run `docker compose up -d web`; until then both pages answer
+  404 and the footer shows no link.
+- **Optional: course images from a folder.** The new CLI command
+  `docker compose run --rm -T api node dist/cli.js import-course-images --org <slug> --dir <dir> [--dry-run]`
+  needs no configuration.
+
 ### Added
 
 - Keycloak: realm identity provider `sir2` for the RedIRIS SIR2 hub (decision
@@ -26,6 +68,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `idp-metadata-refresh` (status `skipped`, no alert), also when the aggregate is
   configured; the `sir2` block uses it because the hub's unsigned metadata are not
   in the eduGAIN aggregate.
+- Docs: agreements for federating through a national hub
+  (`docs/onboarding/identity-paths.md`, "Federating through a national hub: what
+  must be agreed", with the new row in "Which mode" and "Known limits in
+  0.11.0"): what the alliance, the universities, the federations and the hub
+  operator must settle, linked from Guide A step 3 and from the decisions log
+  (decision 29, item f).
 - Docs: generated illustrations for five of the ten example-alliance courses
   (`docs/data/example-alliance-2026-27/images/<organization>/`, one
   `images.csv` per organization, loaded with `import-course-images`); one
@@ -1385,7 +1433,8 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/OACC/compare/v0.10.0...main
+[Unreleased]: https://github.com/LAArino/OACC/compare/v0.11.0...main
+[0.11.0]: https://github.com/LAArino/OACC/releases/tag/v0.11.0
 [0.10.0]: https://github.com/LAArino/OACC/releases/tag/v0.10.0
 [0.9.0]: https://github.com/LAArino/OACC/releases/tag/v0.9.0
 [0.8.0]: https://github.com/LAArino/OACC/releases/tag/v0.8.0

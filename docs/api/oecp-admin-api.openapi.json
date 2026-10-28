@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "OACC admin API",
-    "version": "0.10.0",
+    "version": "0.11.0",
     "description": "Administration API of the dashboard (spec §8): invitations, organizations and their administrators, Channel A integration settings and sync runs, Channel B CSV uploads, Channel C course and offering writes with overrides, network status and maintenance jobs. Bearer-only (spec §4, `bearerAuth`); the roles allowed on each operation are listed in the extension `x-oecp-roles` (`partner_admin` limited to its organization and sub-units, `alliance_admin` everywhere, `role-less` a valid token without OACC roles, `anonymous` no token).\n\n**Rate limits.** 30 requests/s per client address (burst 60) at the edge proxy (spec §10), plus the application limits of `sync-now` and CSV uploads (429 with `Retry-After`).\n\n**Versioning.** Consumed by the dashboard of the same release; changes are listed in the CHANGELOG with a minor version note. External clients are not supported before 1.0 (`docs/RELEASING.md`).\n\n**Conventions.** JSON members are snake_case (as the database); multilingual short labels are objects `{en, <lang>…}` that always contain `en`; dates are `YYYY-MM-DD` local to the offering `timezone`, timestamps ISO 8601 UTC; absent values are `null`, never omitted. Every error is RFC 9457 `application/problem+json` (`ProblemDetails`) with stable codes in `errors[].code` (spec §6.6, Appendix A).\n\nThe schemas are generated from the Zod contracts of `@oecp/schemas`, the single source of truth the API validates with. The OEAPI v5-compatible read API under `/oeapi/v5` (spec §9) is not described here: it follows the OEAPI v5.0 standard and its own OpenAPI document.",
     "license": {
       "name": "EUPL-1.2",

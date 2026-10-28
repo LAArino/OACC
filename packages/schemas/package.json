@@ -1,6 +1,6 @@
 {
   "name": "@oecp/schemas",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "private": true,
   "description": "Canonical model, CSV template and error contract schemas for OACC",
   "license": "EUPL-1.2",

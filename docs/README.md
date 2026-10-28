@@ -7,7 +7,7 @@ Open Alliance Course Catalogue (OACC), the open course catalogue for European Un
 
 | Document | Description |
 |---|---|
-| [spec-v4.1.md](spec-v4.1.md) | **Specification v4.1**, v4.0 synchronised with the implementation; updated through release 0.10.0. Start here. |
+| [spec-v4.1.md](spec-v4.1.md) | **Specification v4.1**, v4.0 synchronised with the implementation; updated through release 0.11.0. Start here. |
 | [architecture.md](architecture.md) | Architecture overview in four Mermaid diagrams: solution context with the three ingestion channels, the Compose deployment, the API modules and queues, the data flow of a course. |
 | [spec-v4.0.md](spec-v4.0.md) | Specification v4.0, the implementation baseline (2026-10-14), superseded by v4.1; cited by ADR-0001 to ADR-0015. |
 | [review/](review/) | Critical reviews of specification v3.0 that led to v4.0, cited as [R00]–[R03]; translated from Spanish on 2026-10-15. |

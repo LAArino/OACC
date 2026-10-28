@@ -72,11 +72,11 @@ Create a **branch ruleset** named `main`, enforcement **Active**, target **Defau
 
 ## (f) After going public
 
-- [ ] **GitHub releases** for the existing tags (RELEASING criterion 10): from a clean `main`, `bash tools/scripts/github-releases.sh --dry-run`, read the notes it prints, then `bash tools/scripts/github-releases.sh`. It creates `v0.1.0` … `v0.10.0` oldest first from the CHANGELOG sections and skips any release that already exists ([script](../../tools/scripts/github-releases.sh)).
+- [ ] **GitHub releases** for the existing tags (RELEASING criterion 10): from a clean `main`, `bash tools/scripts/github-releases.sh --dry-run`, read the notes it prints, then `bash tools/scripts/github-releases.sh`. It creates `v0.1.0` … `v0.11.0` oldest first from the CHANGELOG sections and skips any release that already exists ([script](../../tools/scripts/github-releases.sh)).
 - [ ] **Dependabot ran**: *Insights → Dependency graph → Dependabot* shows the ecosystems of `dependabot.yml`; *Security → Dependabot alerts* is populated or empty, not disabled.
 - [ ] **CodeQL ran**: *Security → Code scanning* shows a completed CodeQL analysis of `main`; triage any alert.
 - [ ] **Secret scanning**: *Security → Secret scanning* has no open alert (the fixtures above are not provider tokens; close any alert on them as *used in tests*).
 - [ ] **Ruleset works**: a test pull request shows the required checks; a force push to `main` without bypass is refused.
-- [ ] **Announcement**: post the v0.10.0 release in Discussions → Announcements, linking the release page and the README.
+- [ ] **Announcement**: post the v0.11.0 release in Discussions → Announcements, linking the release page and the README.
 - [ ] **publiccode.yml**: `url` is `https://github.com/LAArino/OACC`, which stays valid; there is no `landingURL`. Add one only when a public deployment or project page exists, and re-validate the file.
 - [ ] **Badges and links**: links to `github.com/LAArino/OACC` in the README, CHANGELOG and docs now resolve for everyone; spot-check a few while signed out.
