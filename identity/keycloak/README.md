@@ -576,8 +576,66 @@ assertion attribute up by its `Name` or its `FriendlyName` (the 26.8.1 mapper
 class refers to both and not to the `NameFormat`), and the mappers set both:
 the URI `urn:oid:…` name and the friendly name.
 
+**Username = e-mail (mapper `username-from-mail`).** Keycloak uses the
+principal as the *username* of a brokered user, and the hub's `pairwise-id` is
+the raw `uid@schacHomeOrganization`: at some universities `uid` is a national ID
+number. The first real sign-in (2026-10-28) showed it as the username in the
+admin console (reproduced locally with the dev test IdP). The `sir2` block
+therefore carries a *Username Template Importer* (`saml-username-idp-mapper`)
+with template `${ATTRIBUTE.urn:oid:0.9.2342.19200300.100.1.3}` and target
+`LOCAL` (the username stored in Keycloak's database; Keycloak lowercases it).
+The template names the attribute by its `Name` or `FriendlyName`, whichever
+matches: the `Name` (URI form, released by eduGAIN IdPs) is always present, the
+friendly name (`${ATTRIBUTE.mail}`) is optional and the dev test IdP does not
+send it, so the URI is used. If the first real login of a new user fails with
+"Invalid username or password" and Keycloak logs `Username is null`, the hub
+names the attribute otherwise: use the `Name` seen in the assertion, as for the
+importers.
+
+Sync mode **`IMPORT`**, not `FORCE` like the importers, on purpose (both tried
+on the dev stack, Keycloak 26.8.1):
+
+- `FORCE` does rename existing users at their next sign-in, and
+  `editUsernameAllowed: false` does not stop it (that setting governs the
+  account console and the admin console form, not a mapper). But an assertion
+  that lacks the attribute then **blanks the username of existing users**
+  (the unique `username` column then also blocks the next one), and a changed
+  e-mail renames the user. `IMPORT` sets the username once, at creation: with
+  the attribute missing the sign-in fails ("Invalid username or password",
+  `Username is null` in the log), no user is created, and nothing existing
+  changes.
+- The cost: a user created **before** the mapper (the pilot's first
+  administrator) keeps the ID as username until renamed by hand. In the admin
+  console: *Realm settings*, *Login*, *Edit username* on; *Users*, the user,
+  *Username*: the e-mail; *Edit username* off again. Do not delete the user: the
+  roles, `oecp_org_id` and the OACC `sub` go with it, and the person would have
+  to be invited again.
+- Nothing in OACC depends on the username (the API stores the Keycloak `sub`,
+  the e-mail and the name only), so the later rename is invisible to OACC.
+
+What this hides, and what it does not. For users created with the mapper the
+ID no longer shows in the admin console user list, in Keycloak event and server
+logs (they print the username), in `preferred_username` of the tokens, or in the
+audit rows of OACC (which never held it). It **still exists** in the *Identity
+provider links* tab of the user (the federated identity's user id and user
+name: the principal is the link and must not change) and, with it, in
+Keycloak's database and in its backups. Keycloak has no option to store a hash
+or an alias of the principal there. The real fix is on the hub's side: a
+`pairwise-id` or another identifier that is not a personal ID number. Ask
+RedIRIS for one, and treat the Keycloak database and its backups as personal
+data accordingly.
+
+Other IdPs. The same problem exists for any IdP whose principal is a personal
+identifier (for example an `eduPersonPrincipalName` or `subject-id` built from
+a national ID), and the same mapper fixes it. `example-partner` is **not**
+changed: what its principal looks like depends on the partner. In the first
+test login of each new partner look at the username Keycloak created; if it is
+a personal identifier, copy `username-from-mail` into the partner's mappers
+(change `identityProviderAlias`) before inviting anyone: after the user exists
+only a manual rename helps.
+
 **First real login: check the attributes.** Which `Name` the proxy really uses
-is only known from a real assertion (the assertion is encrypted, so ask
+is only known from a real assertion (it may be encrypted, so ask
 RedIRIS for the list of released attributes with their names and formats if
 something is missing). After the first login look at the user in the admin
 console (*Users*, *Attributes*): `email`, `schacHomeOrganization` and
