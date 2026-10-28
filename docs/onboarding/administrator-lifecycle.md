@@ -28,7 +28,7 @@ invite ──▶ accept (first sign-in, MFA) ──▶ active administrator
 | **Invite** | alliance admin | E-mails a personal link (default 7 days, at most 168 h; *Resend* replaces it, *Revoke* stops it). Refused when the organization's identity provider is not enabled in Keycloak. | *Invitations*, organization page |
 | **Accept** | the invitee | Signs in in the organization's mode ([DL 22]: local account with password and TOTP, or the university's IdP plus TOTP), the e-mail must match; gets the role and the organization. | `/en/admin/accept` |
 | **Use** | the administrator | Every admin API request stamps the account's last activity (at most once an hour, no IP address); Keycloak keeps sign-in events 90 days. | *Administrators* panel shows the last sign-in |
-| **Remove** | alliance admin | *Remove* takes the roles away and ends the sessions; never yourself, never the last alliance admin. The Keycloak account stays. | organization page > *Administrators* |
+| **Remove** | alliance admin | *Remove* takes the roles away and ends the sessions; never yourself, never the last alliance admin. The Keycloak account stays, enabled and holding the person's e-mail as username and e-mail (a later university sign-in of the same person fails while it exists: delete it in the Keycloak console, see below). | organization page > *Administrators* |
 | **Dormancy** | the `dormancy` job, daily 05:00 UTC | Same effect as *Remove* for every administrator with no activity for `OECP_DORMANCY_DAYS`; the last alliance admin is always kept. | *Maintenance* page, job `dormancy` |
 | **Account clean-up** | the `account-cleanup` job, daily 05:15 UTC | Deletes the Keycloak account `OECP_ACCOUNT_DELETE_MONTHS` after the roles were removed, unless the person was invited again, used the account or still holds a role. | *Maintenance* page, job `account-cleanup` |
 | **Recertification** | the alliance, yearly | Not built: a manual review (below). | *Administrators* panels |
@@ -39,6 +39,8 @@ e-mail address for 36 months [DL 23] and the deletion rows carry the Keycloak
 user id only.
 
 **Lost password or authenticator (local accounts).** While the set-up is pending, the organization's *Administrators* panel offers *Resend set-up e-mail*. Once the account is set up, OACC has no self-service reset (no open "forgot password", decision 22): the hosting operator resets the credential in the Keycloak admin console (runbook [§6](../production/runbook.md#6-identity-operations)), or an alliance admin *removes* the administrator and invites them again, which creates a fresh set-up e-mail. Federated accounts are reset by the university.
+
+**Changing a person's sign-in method (local to federated, or a new university login).** *Remove* does not free the person's e-mail address: the Keycloak account stays, with that address as e-mail and username, and Keycloak never links accounts by e-mail. The person's first sign-in through the university then fails with "User with email … already exists" or "User with username … already exists". So: *Remove* the old administrator, ask the hosting operator to **delete** the old account in the Keycloak console (or change both its e-mail and username), and only then invite them again. Procedure: [Sign-in paths, "Moving from local to federated"](identity-paths.md#moving-from-local-to-federated).
 
 ## Defaults as shipped
 

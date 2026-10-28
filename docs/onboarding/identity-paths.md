@@ -73,9 +73,12 @@ Both paths, row "Set the alias": the alias is set on the organization page under
 When a university's IdP qualifies later, in this order ([Guide A §3](alliance.md#3-identity), "From local to federated"):
 
 1. **Hosting operator:** connect and enable the IdP in the realm and test it (rows "Day 0: metadata exchange" to "Metadata refresh" above).
-2. **Alliance administrator:** set the *Identity provider alias* on the organization page and save.
-3. **Alliance administrator:** invite the organization's administrators again; they accept through their university.
-4. **Alliance administrator:** remove the old local accounts on the *Administrators* panel; they are refused at sign-in anyway (`oecp.auth.idp_mismatch`).
+2. **Alliance administrator:** set the *Identity provider alias* on the organization page and save. The old local accounts are refused at sign-in from now on (`oecp.auth.idp_mismatch`).
+3. **Alliance administrator:** *Remove* each old local administrator on the *Administrators* panel. This takes the role away, ends the sessions and is audited, but it **keeps the login account** in Keycloak, still holding the person's e-mail address (OACC creates local accounts with the e-mail as username too); the clean-up job would delete it only 12 months later.
+4. **Hosting operator:** delete those old accounts in the Keycloak admin console (realm `oecp`, *Users*, search the e-mail, *Delete*). To keep an account instead, change **both** its e-mail **and** its username to something else; the realm does not let the console edit usernames, so switch *Edit username* on under *Realm settings*, *Login* and off again afterwards.
+5. **Alliance administrator:** invite the organization's administrators again; they accept through their university.
+
+The order matters: steps 3 and 4 must be done **before the person's first sign-in through the university**. Keycloak never links an account by e-mail, so while a local account holds the person's e-mail address or username, the first university sign-in stops on a Keycloak error page (HTTP 409) with "User with email … already exists" or "User with username … already exists", and nothing is created or linked. Nothing is lost when it happens: do steps 3 and 4 and the person signs in again from the same invitation link. Doing the removal after the first invitation, as earlier versions of this guide said, fails for every person who had a local account.
 
 The way back (for example while a university's login is broken) is the same in reverse: clear the alias, save, invite again ([alliance manual §6](../manuals/alliance-admin.md#6-sign-in-mode-oacc-accounts-or-the-universitys-login)).
 

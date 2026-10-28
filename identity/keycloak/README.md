@@ -109,8 +109,26 @@ Keycloak does not answer, the check is skipped and logged. The admin panel
 warns beforehand when the alias is not among the enabled IdPs. A sign-in in
 the wrong mode is refused at acceptance (`oecp.invitation.mismatch`) and
 later (`oecp.auth.idp_mismatch`). To move an organization from local to
-federated: enable its IdP here, set the alias on the organization, and invite
-its administrators again.
+federated: enable its IdP here, set the alias on the organization, *Remove* the
+old local administrators on its *Administrators* panel, **delete their old
+Keycloak users** (below), and only then invite them again.
+
+**Why the old local users must go first.** *Remove* (administrators panel, and
+the dormancy job) takes the OACC roles and `oecp_org_id` away and ends the
+sessions, but keeps the Keycloak user, enabled, with its credentials, until the
+`account-cleanup` job deletes it `OECP_ACCOUNT_DELETE_MONTHS` (12) later (dry
+run by default). OACC creates local users with the e-mail as both username and
+e-mail, and the first-login flow never links by e-mail: a brokered user whose
+e-mail equals the e-mail or the username of an existing user ends on an error
+page (HTTP 409), "User with email … already exists" or "User with username …
+already exists" (the second form also appears when only the e-mail was changed
+but the username is still the old address), and nothing is created or linked.
+The fix, before or after the failure: in the admin console (realm `oecp`,
+*Users*, search the e-mail) delete the old user, or give it another e-mail
+**and** another username (*Edit username* is off in this realm: switch it on
+in *Realm settings*, *Login* and off again). Deleting is simplest and loses
+nothing the person needs: the roles were already removed, the audit rows keep
+the Keycloak id, and the invitation link still works afterwards.
 
 ## Pitfalls found on the first real deployment
 
@@ -691,7 +709,8 @@ acceptance, naming the missing attribute.
    file and run `oecp seed-organizations` (the upsert updates the column; use
    `--dry-run` first, see Guide A). Then: administrators of that organization
    with another sign-in method are refused (`oecp.auth.idp_mismatch`) until
-   re-invited, pending invitations name the new alias, and the public reference
+   removed and invited again (delete their old Keycloak users first, see "Why
+   the old local users must go first"), pending invitations name the new alias, and the public reference
    data (`/api/public/v1/reference`) shows the new `idp_alias` after its
    300 s cache (restart `api` to see it at once).
 4. Invite the administrator (spec §2.1): the person signs in through the
@@ -700,15 +719,15 @@ acceptance, naming the missing attribute.
 
 **An administrator who already has a local account with the same e-mail.**
 Keycloak refuses to link by e-mail (HTTP 409 at first login, see "Account
-linking"), and the API treats the two accounts as different people (it
-identifies a user by the Keycloak `sub`; an administrator has one
-organization). Give the existing local account another address of the same
-person before the first sign-in through the hub (admin console, *Users*, the
-account, *E-mail*; a `+tag` address or a second mailbox that really delivers,
-since the set-up mails go there). Nothing in the API compares the e-mail of a
-signed-in administrator except invitation acceptance, which only looks at the
-account that accepts. Do not change the address back while the brokered account
-exists: delete that user first.
+linking" and "Why the old local users must go first" above), and the API
+treats the two accounts as different people (it identifies a user by the
+Keycloak `sub`; an administrator has one organization). *Remove* the person on
+the *Administrators* panel and **delete** the old local user in the admin
+console before the first sign-in through the hub. If the old account must be
+kept for some other reason, change **both** its e-mail and its username. Changing only the e-mail is not enough:
+OACC local users have the e-mail as username, and with *Login with email*
+allowed Keycloak treats a brokered e-mail equal to an existing username as a
+duplicate ("User with username … already exists").
 
 **Production proxy.** Change the five variables (entity ID, SSO and SLO URLs,
 certificate; `OECP_SIR2_IDP_ENABLED` stays `true`) and re-apply. The alias, the
