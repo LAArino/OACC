@@ -94,7 +94,7 @@ Reference run on the development stack (2026-10-15, 47 MB cluster): restore 6 s,
 Order from [RELEASING.md](../RELEASING.md#migrations): read the CHANGELOG (`BREAKING` items, new variables, migration notes); **back up**; `docker compose stop worker`; build or pull the new images; **migrate with the new image**; then start the new `api`, `worker`, `web`:
 
 ```sh
-OECP_IMAGE_TAG=X.Y.Z docker compose build api web keycloak   # until images are published
+OECP_IMAGE_TAG=X.Y.Z docker compose build   # all images (postgres too); until images are published
 OECP_IMAGE_TAG=X.Y.Z docker compose run --rm api pnpm db:migrate
 OECP_IMAGE_TAG=X.Y.Z docker compose up -d --wait
 ```
