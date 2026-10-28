@@ -17,9 +17,10 @@ There is no mixed mode: some administrators local and others federated within on
 | Is in eduGAIN **and** its IdP releases the required attributes (`mail`, `givenName`, `sn`, `schacHomeOrganization`, and `subject-id` or `pairwise-id`), through REFEDS Personalized Access or an equivalent attribute release, **and** the IdP has been connected and tested by the hosting operator | Federated | slug | As long as the IdP keeps releasing them |
 | Is in eduGAIN, but its IdP does not release those attributes, or is not connected and tested yet | Local for now | `null` | Until the IdP qualifies; then [move to federated](#moving-from-local-to-federated) |
 | Is not in eduGAIN, or sits behind a hub federation that OACC cannot reach | Local | `null` | Permanent |
+| Is in eduGAIN and the alliance connects through its hosting federation's hub (SIR2 for Aurora) instead of one IdP per university | Federated through the hub | `sir2` | Once the agreements of [Federating through a national hub](#federating-through-a-national-hub-what-must-be-agreed) are met and a test sign-in passed; in 0.11.0 one organization at a time |
 | The alliance organization | Local | `null` | Permanent |
 
-In the Aurora seed, `aurora` and `upec` are local; the seed file sets the alias to the slug for the other seven universities, but none of their IdPs is connected in 0.10.0 (see [Known limits](#known-limits-in-0100)).
+In the Aurora seed, `aurora` and `upec` are local; the seed file sets the alias to the slug for the other seven universities, but none of their IdPs is connected in 0.11.0 (see [Known limits](#known-limits-in-0110)).
 
 **Local is a full, permanent mode, not a stopgap.** A university outside eduGAIN stays on local accounts for good; it loses nothing but the single sign-on with its own login. Choose local also when a university in eduGAIN cannot release the attributes: OACC needs them to check the invited person at acceptance (the e-mail, the IdP and the asserted `schacHomeOrganization` must match, otherwise `oecp.invitation.mismatch`), and the principal attribute cannot be changed later without orphaning that IdP's users ([Adding a partner IdP](../../identity/keycloak/README.md#adding-a-partner-idp), step 4).
 
@@ -99,7 +100,58 @@ Accepted by your IdP: **signed and encrypted assertions** (the OACC side require
 
 **The test.** Once the IdP is applied, an alliance administrator sets the alias and invites one administrator of your university. That person opens the link, which sends them to your IdP (`kc_idp_hint=<slug>`), signs in, enrols the TOTP app and accepts; the API checks the e-mail, the IdP and the asserted `schacHomeOrganization`. Only then are the other administrators invited ([Guide E §2.13](hosting-operator.md#213-connect-an-identity-provider), step 4 and "Check").
 
-## Known limits in 0.10.0
+## Federating through a national hub: what must be agreed
+
+*In progress: proof of concept for Aurora against the SIR2 test gateway in 0.11.0 ([decision 29](../decisions-log.md), not confirmed). This section lists what the hub model needs from each party; it becomes final with the ADR that amends ADR 0004.*
+
+In the hub model OACC connects **one** identity provider, the hub of the hosting institution's federation (for Aurora: SIR2, run by RedIRIS), instead of one per university. The hub is the service the universities see in eduGAIN: the administrator chooses their university on the hub's discovery page, signs in at home, and the hub passes the result to OACC. One connection reaches every university of the alliance that is in eduGAIN, but OACC no longer talks to each university's IdP, so what each IdP releases, and how each federation on the way treats it, has to be agreed beforehand. The agreements sit at four levels: the alliance, each university, each national federation, and the hub operator.
+
+### What the alliance must agree
+
+Decided by the alliance (for Aurora: the Foundation with the partners' identity teams), written down and kept with the deployment's records.
+
+1. **The attribute set.** eduGAIN makes no attribute mandatory; it only recommends them ([eduGAIN attribute profile](https://technical.edugain.org/doc/GN3-11-012%20eduGAIN_attribute_profile.pdf)). The service declares what it expects and each IdP decides what it releases, so the alliance agrees on the set and on what happens when an attribute is missing:
+
+   | Attribute | Status | Used for | If it is missing |
+   |---|---|---|---|
+   | `pairwise-id` | required | the persistent identifier of the administrator in OACC (built by the hub, item 2) | the hub stops with an error; the person never reaches OACC |
+   | `schacHomeOrganization` | required | ties the person to their university at invitation acceptance; source of the identifier's scope | as above |
+   | `mail` | required | compared with the invited address at acceptance | acceptance refused (`oecp.invitation.mismatch`) |
+   | `displayName` | requested | the name shown on the *Administrators* panel | sign-in works; the name stays empty |
+
+2. **The source of the identifier.** SIR2 builds the `pairwise-id` from the university's `uid` and `schacHomeOrganization`, so each university must release **`uid` and `schacHomeOrganization` to the hub**. Many IdPs outside Spain release `eduPersonPrincipalName` but not `uid`; whether the hub can use `eduPersonPrincipalName` when `uid` is missing has been asked to RedIRIS. The identifier is only as stable as its source: each university states that the source value is never reassigned to another person (or after how long it may be). A reassigned value would lead to the previous holder's OACC account, which then still asks for the TOTP app enrolled by that previous holder.
+3. **The `schacHomeOrganization` value of each university, as it arrives at OACC.** The alliance records it on the organization page, more than one domain if a university uses several. Some federations and intermediate hubs rewrite the value (for example to the institution's main domain), so it is read from the test sign-in (item 6), not from the university's own configuration.
+4. **Who registers the service and who is contacted.** The production registration behind the hub (the hosting institution during a pilot; the operator or the alliance later, depending on the operating model) and its technical, support, security (Sirtfi) and administrative contacts. Certificate changes on either side are announced by hand to these contacts, so they should be role addresses that outlive one person.
+5. **Data protection.** The service requests REFEDS Personalized Access and the Data Protection Code of Conduct v2; the privacy notice must be published at the URL given in the registration before the production registration ([privacy notice draft](../production/privacy-notice-draft.md)).
+6. **Rollout per university.** A university becomes federated only after one of its administrators has signed in through the hub and accepted an invitation. Until then, and for good if it cannot meet items 1 and 2, it uses local accounts, which lose nothing but the single sign-on.
+
+### What each university's identity team must do
+
+- Keep its IdP in eduGAIN through its national federation.
+- Release the agreed attributes to the **hub's service as registered in eduGAIN**, not to OACC's entity ID: behind a hub, the university's IdP only ever sees the hub. For SIR2 that is at least `uid` and `schacHomeOrganization`, plus `mail` and `displayName`; by entity category (REFEDS Personalized Access, CoCo v2) where the IdP supports it, otherwise by an explicit release rule.
+- Confirm the identifier policy (item 2) and the `schacHomeOrganization` value (item 3).
+- Name a contact for the test sign-in and for incidents.
+
+Multi-factor authentication at the IdP is not required: OACC asks for its own TOTP app at every sign-in.
+
+### What each national federation must support
+
+The alliance has no agreement with the federations themselves; the hosting operator checks these points with each partner's identity team, which knows its federation.
+
+- **eduGAIN in both directions:** the federation exports its IdPs to eduGAIN and imports eduGAIN service metadata, so that its IdPs see the hub's service.
+- **Hub-and-spoke federations** (for example SURFconext in the Netherlands or WAYF in Denmark) sit between the university and eduGAIN: the hub's service must be reachable for the university there, which in some federations means the institution enables it explicitly, and attribute release follows that federation's rules.
+- **Attribute values passed unchanged, or the change known:** a federation that rewrites `schacHomeOrganization` or filters attributes must say so (item 3).
+- **Scope checking:** the hub checks scoped values only for its own federation's IdPs (SIR2: the Spanish ones) and relies on the other federations for theirs. OACC therefore never grants access on an attribute alone: an administrator also needs a personal invitation and their own TOTP app, and the asserted `schacHomeOrganization` must match the organization at acceptance.
+- **A security contact (Sirtfi)** for incidents that cross federations.
+
+### What the hub operator provides (for Aurora: RedIRIS, SIR2)
+
+- The registration of OACC behind the hub, first on the test gateway, then in production, and its publication to eduGAIN.
+- The hub's IdP metadata: entity ID, sign-in and logout endpoints (HTTP-Redirect) and certificate. They are unsigned, so the certificate is pinned in the deployment's `.env` (`OECP_SIR2_IDP_*`, [SIR2 hub](../../identity/keycloak/README.md#sir2-hub-sir2)) and a change is announced to the contacts of item 4.
+- The release of `pairwise-id`, `schacHomeOrganization`, `mail` and `displayName` to OACC, and a clear error when a university does not send the source attributes.
+
+## Known limits in 0.11.0
 
 - **No real partner IdP is connected yet.** The brokered path is verified end to end only against the development test SAML IdP (`tools/e2e-identity`). In a deployment's copy of the Aurora seed, set `keycloak_idp_alias` to `null` for every university whose IdP is not connected and tested, or its invitations are refused ([Guide E §2.6](hosting-operator.md#26-database-schema-and-seeds)).
+- **The hub is a proof of concept.** The realm IdP `sir2` exists from 0.11.0 (disabled unless configured), but no real sign-in through SIR2 has been tested yet, and only **one** organization can have the alias `sir2` (the alias is unique) until decision 29 is confirmed.
 - **No custom Keycloak authenticator for missing attributes.** Keycloak creates the user without them; the API then refuses the invitation acceptance. A login error naming the attribute at the Keycloak level is not part of the MVP ([Adding a partner IdP](../../identity/keycloak/README.md#adding-a-partner-idp)).
