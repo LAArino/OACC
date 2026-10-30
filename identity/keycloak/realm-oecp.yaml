@@ -910,7 +910,7 @@ identityProviders:
       # Excluded from the idp-metadata-refresh job (value "false").
       oecp.metadataRefresh: "false"
       # The hub's NameID is transient; the stable identifier is pairwise-id
-      # (derived by the hub from uid + schacHomeOrganization). If the first real
+      # (passed through from the home IdP or derived by the hub). If the first real
       # login shows another Name, adjust it here (README.md, "SIR2 hub").
       principalType: ATTRIBUTE
       principalAttribute: urn:oasis:names:tc:SAML:attribute:pairwise-id
@@ -1066,8 +1066,8 @@ identityProviderMappers:
       attribute.name.format: ATTRIBUTE_FORMAT_URI
       user.attribute: displayName
   # Username of the brokered user = the e-mail, not the principal. The hub's
-  # pairwise-id is the raw `uid@schacHomeOrganization` (a national ID number at
-  # some universities) and Keycloak would use it as USERNAME, so it would show in
+  # pairwise-id can be the university's readable identifier (a national ID number
+  # at some universities) and Keycloak would use it as USERNAME, so it would show in
   # the admin console, in Keycloak events and as `preferred_username` in tokens.
   # The federated identity link (the principal) is not changed.
   # IMPORT, not FORCE, on purpose: the username is set once, when the user is

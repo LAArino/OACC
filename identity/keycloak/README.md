@@ -589,8 +589,8 @@ How it differs from the `example-partner` template, and why:
   `Signature`).
 - **Principal** `urn:oasis:names:tc:SAML:attribute:pairwise-id` (principal type
   Attribute): the hub's NameID is transient only, so the identifier travels as
-  an attribute (derived by SIR2 from `uid` and `schacHomeOrganization`, like
-  `hash@urv.cat`). Changing it later orphans the users of the IdP.
+  an attribute (passed through from the university's IdP or derived by the hub from another
+  identifier it releases; see [Federating through a national hub](../../docs/onboarding/federation-hub.md)). Changing it later orphans the users of the IdP.
 - **Certificate pinned.** The hub's metadata are unsigned, carry no
   `validUntil` and are not part of the eduGAIN aggregate, so nothing can verify
   them; the certificate is compared out of band (fingerprint) when it is set
@@ -611,9 +611,9 @@ class refers to both and not to the `NameFormat`), and the mappers set both:
 the URI `urn:oid:…` name and the friendly name.
 
 **Username = e-mail (mapper `username-from-mail`).** Keycloak uses the
-principal as the *username* of a brokered user, and the hub's `pairwise-id` is
-the raw `uid@schacHomeOrganization`: at some universities `uid` is a national ID
-number. The first real sign-in (2026-10-28) showed it as the username in the
+principal as the *username* of a brokered user, and a `pairwise-id` derived by
+the hub can be the university's readable identifier, which at some universities
+contains a national ID number. The first real sign-in (2026-10-28) showed it as the username in the
 admin console (reproduced locally with the dev test IdP). The `sir2` block
 therefore carries a *Username Template Importer* (`saml-username-idp-mapper`)
 with template `${ATTRIBUTE.urn:oid:0.9.2342.19200300.100.1.3}` and target
