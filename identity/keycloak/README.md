@@ -547,7 +547,9 @@ that publishes OACC to eduGAIN and runs the discovery service). The block
 `sir2` of `realm-oecp.yaml` is disabled by default and is switched on and
 pointed at a hub only through the keycloak-config environment (Compose
 `.env`). Status: proof of concept against the SIR2 **test gateway**; the
-production proxy changes only the values below.
+production proxy changes only the values below. The parties, the flow and who
+is responsible for what are drawn in
+[Federating through a national hub](../../docs/onboarding/federation-hub.md).
 
 | Variable | Default | Meaning |
 |---|---|---|

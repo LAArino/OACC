@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Docs:** `docs/onboarding/federation-hub.md`, a page with Mermaid diagrams on federating through a national hub: the parties and their agreements, the sign-in flow with the rule each party applies, which identifier reaches OACC, who defines, implements or uses what, a checklist before production and the known limits (decision 29, in progress). Linked from the sign-in paths guide, Guide A, the Keycloak README and the onboarding and docs indexes.
+
 ## [0.12.0] - 2026-10-28
 
 ### Upgrade notes
