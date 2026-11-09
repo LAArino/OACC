@@ -10,6 +10,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-11-09
+
+### Security
+
+- **Transitive dependencies:** the lockfile was refreshed inside the version ranges the dependents declare (no `pnpm.overrides`), which closes the Dependabot alerts of 2026-11-09:
+  - `body-parser` 2.3.0 to 2.4.0 (alert 7) and `multer` 2.4.0 to 2.5.0 (alert 12), both pulled by `@nestjs/platform-express` and **running in production** in the `api` and `worker` images.
+  - `node-forge` 1.4.0 to 1.4.3 (alerts 16 to 26) and `serialize-javascript` 7.1.2 to 7.1.4 (alert 13), both pulled by `nitropack`; they run at build time and are not in the server bundle of `web`.
+  - `qs` 6.16.0 to 6.17.1 (alert 14, `supertest`) and `fast-uri` 3.1.8 to 3.1.9 (alerts 8 to 11, NestJS CLI and `@seriousme/openapi-schema-validator`): development only, in no image.
+- **Still open**, because upstream has no release that fits:
+  - `glob` 13.0.6 (alert 27): the fix is a new major release (14), awaited from `node-pg-migrate` and `nitropack`.
+  - `deepmerge` 4.3.1 (alert 15): no fixed version exists.
+  - `node-forge` (alert 6): no fixed version exists; build time only.
+  - `minimatch` 10.2.6 (alert 28): the fix is the major release 11, which its dependents do not accept yet (`eslint`, `typescript-eslint`, the NestJS CLI, `js-beautify`, `archiver` and `glob` 13 through `node-pg-migrate`); all of them run at development or build time, none in an image.
+
+### Changed
+
+- **Dependencies:** `@nestjs/common`, `@nestjs/core` and `@nestjs/platform-express` 12.1.3 to 12.3.3, `@nestjs/config` 12.0.1 to 12.1.0, `bullmq` 6.3.15 to 6.7.1, `jose` 6.2.12 to 6.2.15 and `kysely` 0.29.6 to 0.29.8 in `apps/api`; `nuxt` 4.6.3 to 4.6.4 in `apps/web`; development dependencies `@nestjs/testing` 12.1.3 to 12.3.3 and `@nestjs/cli` 12.0.8 to 12.0.11 in `apps/api`. No `pnpm.overrides` were added.
+
+### Upgrade notes
+
+- No migration, no `BREAKING` change, no new environment variable or secret.
+- From `deploy/compose`: `OECP_IMAGE_TAG=0.12.2 docker compose build` (all images), then `OECP_IMAGE_TAG=0.12.2 docker compose up -d --wait`. The content of the `api`, `worker` and `web` images changes.
+
 ## [0.12.1] - 2026-11-09
 
 ### Added
@@ -1540,7 +1563,8 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/OACC/compare/v0.12.1...main
+[Unreleased]: https://github.com/LAArino/OACC/compare/v0.12.2...main
+[0.12.2]: https://github.com/LAArino/OACC/releases/tag/v0.12.2
 [0.12.1]: https://github.com/LAArino/OACC/releases/tag/v0.12.1
 [0.12.0]: https://github.com/LAArino/OACC/releases/tag/v0.12.0
 [0.11.0]: https://github.com/LAArino/OACC/releases/tag/v0.11.0
