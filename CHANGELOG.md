@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Docs:** `docs/onboarding/federation-hub.md`, a page with Mermaid diagrams on federating through a national hub: the parties and their agreements, the sign-in flow with the rule each party applies, which identifier reaches OACC, who defines, implements or uses what, a checklist before production and the known limits (decision 29, in progress). Linked from the sign-in paths guide, Guide A, the Keycloak README and the onboarding and docs indexes.
 
+### Changed
+
+- **Docs:** the known limits in `federation-hub.md`, `identity-paths.md` and the onboarding README no longer say that no real IdP has been connected: the host institution's real IdP, a member of its national federation, signs in end to end through the hub's test gateway; what remains untested is a partner IdP connected **directly**. The identifier policy agreed with the hub operator and the host IdP on 2026-11-03 is recorded (decision 29).
+
 ## [0.12.0] - 2026-10-28
 
 ### Upgrade notes
