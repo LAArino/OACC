@@ -65,13 +65,13 @@ Run every command in `deploy/compose` of the checkout, as the operator account. 
 
 ```sh
 git clone https://github.com/LAArino/OACC.git && cd OACC
-git checkout v0.12.0          # or the latest release: only the latest minor is supported
+git checkout v0.12.1          # or the latest release: only the latest minor is supported
 cd deploy/compose
 ```
 
 Clone the whole repository: `compose.yaml` builds from the repository root and mounts `identity/keycloak`. Images are not published yet: you build them on the server from the tag ([RELEASING.md](../RELEASING.md#support-policy)).
 
-Check: `git describe --tags` prints `v0.12.0`.
+Check: `git describe --tags` prints `v0.12.1`.
 
 ### 2.2 Write `.env`
 
@@ -85,7 +85,7 @@ Every variable is documented in `.env.example`. Set these, and leave every other
 |---|---|
 | Hosts | `OECP_PORTAL_HOST`, `OECP_AUTH_HOST` (the ports stay 80 and 443); `OECP_ENVIRONMENT=production` (shown in telemetry and alerts) |
 | TLS | `ACME_EMAIL` (the ACME account contact) |
-| Images | `OECP_IMAGE_TAG=0.12.0` (the release you checked out; default `dev`); `OECP_GIT_COMMIT` (e.g. `git rev-parse --short HEAD`) |
+| Images | `OECP_IMAGE_TAG=0.12.1` (the release you checked out; default `dev`); `OECP_GIT_COMMIT` (e.g. `git rev-parse --short HEAD`) |
 | Keycloak | `KEYCLOAK_ADMIN_ALLOWLIST` (operators' networks only); `OECP_REALM_DISPLAY_NAME` (login page) |
 | Portal | `OECP_ALLIANCE_NAME`; the branding variables come in [step 2.11](#211-branding) |
 | Mail | `OECP_SMTP_HOST`, `OECP_SMTP_PORT`, `OECP_SMTP_FROM`, `OECP_SMTP_STARTTLS` (`true`, the default, requires the relay to offer STARTTLS; `false` for a relay without TLS); for SMTP AUTH of the api: `OECP_SMTP_USER`, `OECP_SMTP_PASSWORD_FILE=/run/secrets/smtp_password` and the secret `smtp_password` uncommented in `compose.yaml` (both the `x-oecp-backend-secrets` list and the top-level `secrets:`); the api refuses one without the other. `OECP_MAIL_LOG_LINKS=false` |

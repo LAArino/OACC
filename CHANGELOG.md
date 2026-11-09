@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-11-09
+
 ### Added
 
 - **Docs:** `docs/onboarding/federation-hub.md`, a page with Mermaid diagrams on federating through a national hub: the parties and their agreements, the sign-in flow with the rule each party applies, which identifier reaches OACC, who defines, implements or uses what, a checklist before production and the known limits (decision 29, in progress). Linked from the sign-in paths guide, Guide A, the Keycloak README and the onboarding and docs indexes.
@@ -17,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Docs:** the known limits in `federation-hub.md`, `identity-paths.md` and the onboarding README no longer say that no real IdP has been connected: the host institution's real IdP, a member of its national federation, signs in end to end through the hub's test gateway; what remains untested is a partner IdP connected **directly**. The identifier policy agreed with the hub operator and the host IdP on 2026-11-03 is recorded (decision 29).
+
+### Security
+
+- **Dependencies:** `nodemailer` 10.1.1 to 10.3.1 in `apps/api` (GHSA-m943-m63m-w62w and GHSA-8c8m-p3m8-cjg8, address parser fixes), `nuxt` 4.6.2 to 4.6.3 in `apps/web`, and `happy-dom` 21.0.3 to 21.0.4 in `apps/web` (GHSA-834v-8h66-3h79). `happy-dom` is a development dependency used by the web tests and is not shipped in any image. OACC only mails addresses that administrators entered and that were validated, so the exposure to the `nodemailer` issues is low; the update closes the Dependabot alerts all the same.
+
+### Upgrade notes
+
+- **No new migration, no `BREAKING` change, no new variable.** The database schema is unchanged since 0010 (0.9.0); `db:migrate` has nothing to run and the `worker` need not be stopped.
+- **Rebuild and restart.** There are no published images yet: `OECP_IMAGE_TAG=0.12.1 docker compose build` (all images), then `docker compose up -d --wait`. Only `api` and `worker` (`nodemailer`) and `web` (`nuxt`) change in content; the other images change only in their version label.
 
 ## [0.12.0] - 2026-10-28
 
@@ -1529,7 +1540,8 @@ First pre-production release: identity (Keycloak, eduGAIN-ready, MFA, invitation
 - web: `NUXT_PUBLIC_API_BASE` is the origin (the app appends `/api/...`);
   `NUXT_PUBLIC_I18N_BASE_URL` set for absolute hreflang links.
 
-[Unreleased]: https://github.com/LAArino/OACC/compare/v0.12.0...main
+[Unreleased]: https://github.com/LAArino/OACC/compare/v0.12.1...main
+[0.12.1]: https://github.com/LAArino/OACC/releases/tag/v0.12.1
 [0.12.0]: https://github.com/LAArino/OACC/releases/tag/v0.12.0
 [0.11.0]: https://github.com/LAArino/OACC/releases/tag/v0.11.0
 [0.10.0]: https://github.com/LAArino/OACC/releases/tag/v0.10.0
