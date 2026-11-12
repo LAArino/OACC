@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Documentation:** the specification now gives the real default of `SMTP_STARTTLS` (`true` since 0.11.0; it still said `false`); the runbook rotation table gains the `smtp_password` row; the hosting-operator and alliance guides say that the sender address must be in the hosting institution's domain so that SPF, DKIM and DMARC remain the institution's; the 0.12.2 entry records that the `node-forge` alert 6 was closed by the same lockfile refresh.
+
 ## [0.12.2] - 2026-11-09
 
 ### Security
@@ -21,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Still open**, because upstream has no release that fits:
   - `glob` 13.0.6 (alert 27): the fix is a new major release (14), awaited from `node-pg-migrate` and `nitropack`.
   - `deepmerge` 4.3.1 (alert 15): no fixed version exists.
-  - `node-forge` (alert 6): no fixed version exists; build time only.
+  - `node-forge` (alert 6): listed as open when this release was prepared; GitHub closed it the same day, once the 1.4.3 refresh above was on `main` (build time only).
   - `minimatch` 10.2.6 (alert 28): the fix is the major release 11, which its dependents do not accept yet (`eslint`, `typescript-eslint`, the NestJS CLI, `js-beautify`, `archiver` and `glob` 13 through `node-pg-migrate`); all of them run at development or build time, none in an image.
 
 ### Changed

@@ -9,7 +9,7 @@ For the alliance (its Foundation or secretariat) and the hosting operator. Partn
 >
 > - A decision on who is **data controller** (the alliance body that decides what is published and who administers it) and who is **processor** (the hosting institution). In Aurora: the Aurora Foundation and URV [DL 2]; each partner university is an independent controller of the data it supplies [DL 24].
 > - A Linux server with Docker Engine 25+ and Compose v2.24+, ports 80 and 443, and two DNS names, for example `courses.alliance.example` (portal) and `auth.courses.alliance.example` (login).
-> - An SMTP relay of the hosting institution (plain relay by source address, or SMTP AUTH with a user and password; STARTTLS when the relay offers it).
+> - An SMTP relay of the hosting institution (plain relay by source address, or SMTP AUTH with a user and password; STARTTLS when the relay offers it; the sender address in the institution's own domain, so that SPF and DKIM stay the institution's).
 > - The list of member universities with their official identifiers, and the list of alliance course attributes (hubs, SDGs, flags) you want to show.
 > - Elapsed time: one to two weeks of technical work; legal documents and federation registration take longer and run in parallel.
 
