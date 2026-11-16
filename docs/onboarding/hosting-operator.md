@@ -140,7 +140,17 @@ Check: `docker compose config --quiet` still passes. The certificates themselves
 
 Use this **instead of** the ACME flags and labels of step 2.4 (items 1 and 3 stay commented; item 2, removing `--api.insecure` and the dashboard port, and the load-balancer paragraph still apply). It is the path for a host whose institution issues its own server certificates, as URV does for `lspurv.urv.cat` and `auth.lspurv.urv.cat`, and for a host that Let's Encrypt cannot reach. Do not enable both: ACME and these files for the same names would compete.
 
-Ask the issuing team for the certificate as PEM, the intermediate chain as PEM and the private key. They may issue **one certificate** with both hosts as subject alternative names (SAN) or **two**, one per host. The files and their roles, in `deploy/compose/tls/` ([its README](../../deploy/compose/tls/README.md)):
+Most issuing teams ask for a **certificate signing request (CSR)** rather than issuing a key for you, so that the private key never leaves the host. Generate both on the host, in `deploy/compose`, with the portal as common name and both hosts as subject alternative names (SAN):
+
+```sh
+openssl req -new -newkey rsa:3072 -nodes -keyout tls/portal.key.pem -out tls/portal.csr \
+  -subj "/C=<country>/O=<institution>/CN=<portal host>" \
+  -addext "subjectAltName=DNS:<portal host>,DNS:<auth host>"
+chmod 600 tls/portal.key.pem
+openssl req -in tls/portal.csr -noout -subject -text | grep -E 'Subject:|DNS:'   # both names present
+```
+
+Send **only** the `.csr` file; the key stays in `tls/` and goes into the offline copy of the secrets. If the team issues one certificate per host, generate a second pair (`auth.key.pem`, `auth.csr`) the same way. Ask for the certificate as PEM together with the intermediate chain as PEM (a "bundle" file with the leaf first is ideal; a bundle that ends with the self-signed root is not wrong, but the root is not served, see below). They may issue **one certificate** with both hosts as SAN or **two**, one per host. The files and their roles, in `deploy/compose/tls/` ([its README](../../deploy/compose/tls/README.md)):
 
 | File | Content |
 |---|---|
@@ -152,8 +162,10 @@ Ask the issuing team for the certificate as PEM, the intermediate chain as PEM a
 
    ```sh
    sudo chown -R root:root tls && sudo chmod 700 tls
-   sudo chmod 600 tls/*.key.pem && sudo chmod 644 tls/*.fullchain.pem
+   sudo chmod 600 tls/portal.key.pem && sudo chmod 644 tls/portal.fullchain.pem   # and the auth pair, if any
    ```
+
+   Name the files explicitly: once the directory is `700` and root's, your own shell can no longer expand `tls/*.key.pem`, and `chmod` fails with "No such file or directory". From here on, listing `tls/` needs `sudo`.
 
    Traefik runs as root in its container and mounts the directory **read-only**; nobody else needs to read the keys. The directory is git-ignored (only its README is tracked): never commit or e-mail a key; keep an offline copy with the other secrets (runbook [§2](../production/runbook.md#2-secrets-inventory-and-rotation)).
 2. **Check them before Traefik sees them.** For each certificate file:
@@ -184,7 +196,7 @@ Check:
 
 **Reload on renewal.** Traefik's file provider watches `traefik/dynamic/` (`--providers.file.watch=true`) and re-reads `tls.yaml` when that file changes, with no restart. It does **not** watch the PEM files that `tls.yaml` points to: if you only replace them, Traefik keeps serving the old certificate. After replacing them, `touch traefik/dynamic/tls.yaml` makes it re-read them (a few seconds). Observed with Traefik 3.7.14 on 2026-10-21: replacing the PEM files alone left the old certificate in place; after `touch` the new one was served on the next handshake. And with a key that does not match the new certificate, Traefik logged `failed to load X509 key pair: tls: private key does not match public key` and then **served no certificate** on the default store: every connection failed until the right key was in place. Hence the checks of item 2 **before** the `touch`.
 
-**Annual renewal** (URV issues class 1 device certificates for one year; the alert `OecpTlsCertificateExpiring` fires at 21 and 7 days). The full procedure with rollback is runbook [§6, Certificate renewal (institution-issued)](../production/runbook.md#certificate-renewal-institution-issued). In short: request the new certificate about two months ahead; keep a copy of the current `tls/`; write the new `*.fullchain.pem` (and `*.key.pem` if the key changed) under the same names; repeat the checks of item 2; `touch traefik/dynamic/tls.yaml`; verify what is served for both hosts; confirm the alert clears at the next probe (1 minute). Write the new `notAfter` into the calendar.
+**Renewal** (institution-issued certificates are short-lived: the one URV obtained for the pilot through GÉANT TCS in November 2026 is valid for 198 days, not a year, so plan on two renewals a year; the alert `OecpTlsCertificateExpiring` fires at 21 and 7 days). Each renewal is a new CSR as above, unless the issuer re-uses the key of the previous one. The full procedure with rollback is runbook [§6, Certificate renewal (institution-issued)](../production/runbook.md#certificate-renewal-institution-issued). In short: request the new certificate about two months ahead; keep a copy of the current `tls/`; write the new `*.fullchain.pem` (and `*.key.pem` if the key changed) under the same names; repeat the checks of item 2; `touch traefik/dynamic/tls.yaml`; verify what is served for both hosts; confirm the alert clears at the next probe (1 minute). Write the new `notAfter` into the calendar.
 
 ### 2.5 First start
 
@@ -492,6 +504,7 @@ The values below are those the sources and the decisions log give for the Aurora
 | Branding | Generated header images and the Aurora logo with the Foundation's permission [DL 25] |
 | Federation | One SP in SIR (RedIRIS) with export to eduGAIN [DL 15]; multi-ACS generator not built |
 | Host exposure | `[TO DECIDE: open to the Internet or URV networks only]`. With URV-only access Let's Encrypt cannot reach port 443, so the ACME path of step 2.4 does not apply; URV issues the certificates, [step 2.4b](#24b-tls-with-certificates-issued-by-the-institution) |
+| TLS certificates | Issued by URV through GÉANT TCS (issuer `GEANT TLS RSA 1`, HARICA root) from a CSR generated on the host: one certificate, SAN `lspurv.urv.cat` and `auth.lspurv.urv.cat`, RSA 3072, valid 2026-11-16 to 2027-06-03 (198 days). Installed on 2026-11-16 as step 2.4b describes; the delivered `_bundle.pem` (leaf and intermediates, no root) is `portal.fullchain.pem` as is. Renewal to request in April 2027 |
 | Hosts | One host (`dc4eu.cpd1.urv.cat`, AlmaLinux, Docker 26.1.3, Compose v2.27, OpenSSL 1.1.1k FIPS), staging to decide (a second host for upgrade rehearsals and restore drills, runbook §1) |
 | Server size | `[TO DECIDE]`; the measured footprint suggests 4 vCPU, 8 GB of RAM, 60 GB of disk ([section 1.2](#12-the-host)) |
 | SMTP relay | `mail.cpd1.urv.cat`, port 25, STARTTLS, no authentication (the relay authorises the server by source address; the From must be an `@urv.cat` address). URV IT, 2026-10-21. During the pilot `OECP_SMTP_FROM=lluisalfons.arino@urv.cat` (a real mailbox, so bounces and replies reach someone: OACC sets no Reply-To); a functional mailbox can replace it later |

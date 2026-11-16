@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Documentation (TLS issued by the institution):** Guide E step 2.4b and the `deploy/compose/tls/` README explain how to generate the CSR and key on the host and what to send; the permissions commands name the files instead of a glob, which the operator's shell cannot expand once the directory is root's; the renewal paragraphs and the runbook no longer assume a one-year certificate (the pilot's GÉANT TCS certificate lasts 198 days); the pilot table records the certificate installed on 2026-11-16.
 - **Documentation:** the specification now gives the real default of `SMTP_STARTTLS` (`true` since 0.11.0; it still said `false`); the runbook rotation table gains the `smtp_password` row; the hosting-operator and alliance guides say that the sender address must be in the hosting institution's domain so that SPF, DKIM and DMARC remain the institution's; the 0.12.2 entry records that the `node-forge` alert 6 was closed by the same lockfile refresh.
 
 ## [0.12.2] - 2026-11-09

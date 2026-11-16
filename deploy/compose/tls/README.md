@@ -44,9 +44,30 @@ anyone else. On the host (run from `deploy/compose/`):
 ```sh
 sudo chown -R root:root tls
 sudo chmod 700 tls
-sudo chmod 600 tls/*.key.pem
-sudo chmod 644 tls/*.fullchain.pem
+sudo chmod 600 tls/portal.key.pem        # and tls/auth.key.pem, if any
+sudo chmod 644 tls/portal.fullchain.pem  # and tls/auth.fullchain.pem
 ```
+
+Name the files: after `chmod 700` your shell cannot expand `tls/*` any more
+(it is root's), so a glob makes `chmod` fail with "No such file or directory".
+Listing the directory needs `sudo` from then on.
+
+## Getting a certificate: the CSR
+
+The issuing team normally wants a certificate signing request, so the private
+key is generated here and never travels. From `deploy/compose/`:
+
+```sh
+openssl req -new -newkey rsa:3072 -nodes -keyout tls/portal.key.pem -out tls/portal.csr \
+  -subj "/C=<country>/O=<institution>/CN=<portal host>" \
+  -addext "subjectAltName=DNS:<portal host>,DNS:<auth host>"
+chmod 600 tls/portal.key.pem
+openssl req -in tls/portal.csr -noout -subject -text | grep -E 'Subject:|DNS:'
+```
+
+Send only `portal.csr`. The delivered bundle (leaf first, then the
+intermediates) becomes `portal.fullchain.pem`; if it ends with the self-signed
+root, that last block may be dropped. Then check that the key matches (below).
 
 The mount is read-only, so a compromised Traefik cannot alter them either.
 
