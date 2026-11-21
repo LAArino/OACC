@@ -127,7 +127,7 @@ architecture decisions are recorded in [docs/adr](docs/adr/README.md).
     ├── onboarding/       Guides for the alliance and the three partner profiles
     ├── guides/           Data-provider guides: API integration, CSV authoring, web form
     ├── api/              OpenAPI documents of the public and administration APIs
-    ├── data/             Real course data transcribed into the CSV template (Aurora Virtual Campus)
+    ├── data/             A fictional example alliance and its courses in the CSV template, to try a deployment
     ├── images/           Screenshots of the portal, the administration panel and operations
     ├── production/       GDPR, accessibility and operations templates for go-live
     ├── research/         Background research (partner endpoints, Aurora portal, IT Handbook)

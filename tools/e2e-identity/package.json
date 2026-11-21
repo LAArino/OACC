@@ -8,7 +8,7 @@
     "test": "playwright test",
     "test:local-account": "playwright test local-account",
     "test:brokered": "playwright test brokered",
-    "test:invitations": "playwright test invitations"
+    "test:invitations": "playwright test invitation"
   },
   "devDependencies": {
     "@playwright/test": "1.59.0"
